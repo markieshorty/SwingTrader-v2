@@ -10,12 +10,22 @@ using SwingTrader.Data;
 var builder = WebApplication.CreateBuilder(args);
 
 // Key Vault (production only — local dev uses dotnet user-secrets)
+// Wrapped in try/catch: a Key Vault outage or RBAC propagation delay should
+// degrade to an unhealthy /health/ready response, not crash the whole
+// process before Serilog even exists to log why.
 var keyVaultUrl = builder.Configuration["KeyVaultUrl"];
 if (!string.IsNullOrEmpty(keyVaultUrl))
 {
-    builder.Configuration.AddAzureKeyVault(
-        new Uri(keyVaultUrl),
-        new DefaultAzureCredential());
+    try
+    {
+        builder.Configuration.AddAzureKeyVault(
+            new Uri(keyVaultUrl),
+            new DefaultAzureCredential());
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"[Startup] Failed to load Key Vault config from {keyVaultUrl}: {ex}");
+    }
 }
 
 // Serilog
@@ -54,11 +64,20 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Apply migrations on startup
+// Apply migrations on startup. Wrapped in try/catch: a transient DB outage
+// or connection-string issue should surface as an unhealthy /health/ready
+// response via DatabaseHealthCheck, not crash the whole process.
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<SwingTraderDbContext>();
-    await db.Database.MigrateAsync();
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<SwingTraderDbContext>();
+        await db.Database.MigrateAsync();
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"[Startup] Failed to apply EF migrations: {ex}");
+    }
 }
 
 app.UseSerilogRequestLogging();
