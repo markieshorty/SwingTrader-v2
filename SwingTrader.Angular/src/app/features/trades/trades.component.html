@@ -1,0 +1,42 @@
+<mat-tab-group>
+  <mat-tab label="Open Positions">
+    <div class="tab-content">
+      <app-open-positions [positions]="positions()" />
+    </div>
+  </mat-tab>
+
+  <mat-tab label="Trade History">
+    <div class="tab-content">
+      <app-trade-history [trades]="closedTrades()" />
+
+      <div class="charts-row">
+        <mat-card class="chart-card">
+          <h4>Equity Curve</h4>
+          @if (closedTrades().length === 0) {
+            <p class="muted">No closed trades yet.</p>
+          } @else {
+            <canvas baseChart [data]="equityCurveData()" [options]="chartOptions" type="line"></canvas>
+          }
+        </mat-card>
+
+        <mat-card class="chart-card">
+          <h4>Win/Loss Distribution</h4>
+          @if (closedTrades().length === 0) {
+            <p class="muted">No closed trades yet.</p>
+          } @else {
+            <canvas baseChart [data]="distributionData()" [options]="chartOptions" type="bar"></canvas>
+          }
+        </mat-card>
+
+        <mat-card class="chart-card">
+          <h4>Return by Setup Type</h4>
+          @if (closedTrades().length === 0) {
+            <p class="muted">No closed trades yet.</p>
+          } @else {
+            <canvas baseChart [data]="setupTypeData()" [options]="chartOptions" type="bar"></canvas>
+          }
+        </mat-card>
+      </div>
+    </div>
+  </mat-tab>
+</mat-tab-group>

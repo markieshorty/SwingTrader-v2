@@ -45,10 +45,6 @@ jobs:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: SwingTrader.Angular/package-lock.json
-        continue-on-error: true
-        # Angular not yet created until Phase 10b - cache-dependency-path
-        # won't resolve to anything before then, which fails this step
-        # outright rather than just skipping the cache.
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -57,9 +53,10 @@ jobs:
       - name: Install Angular dependencies
         run: npm ci
         working-directory: SwingTrader.Angular
-        continue-on-error: true
-        # Angular not yet created until Phase 10b
-        # Step is safe to fail before that phase
+
+      - name: Run Angular tests
+        run: npm test
+        working-directory: SwingTrader.Angular
 
       - name: Replace Angular environment tokens
         run: |
@@ -67,16 +64,14 @@ jobs:
           sed -i "s|#{B2C_AUTHORITY}#|${{ secrets.B2C_AUTHORITY }}|g" SwingTrader.Angular/src/environments/environment.prod.ts
           sed -i "s|#{B2C_DOMAIN}#|${{ secrets.B2C_DOMAIN }}|g" SwingTrader.Angular/src/environments/environment.prod.ts
           sed -i "s|#{B2C_SCOPE}#|${{ secrets.B2C_SCOPE }}|g" SwingTrader.Angular/src/environments/environment.prod.ts
-        continue-on-error: true
-        # Tokens not yet set until Phase 10c
-        # Step is safe to fail before that phase
+        # Safe to run before Phase 10c sets the B2C secrets: unset secrets
+        # substitute to an empty string rather than failing the step.
 
       - name: Build Angular
         run: npm run build
         working-directory: SwingTrader.Angular
-        continue-on-error: true
-        # Angular not yet created until Phase 10b
-        # Step is safe to fail before that phase
+        # Output goes to SwingTrader.Api/wwwroot, picked up by the Docker
+        # build below via its `COPY . .` step.
 
       - name: Azure login (OIDC)
         uses: azure/login@v2

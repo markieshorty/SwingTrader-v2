@@ -1,0 +1,22 @@
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.search-field {
+  width: 220px;
+}
+
+.signal-list {
+  border: 1px solid var(--st-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--st-card);
+}
+
+.muted {
+  color: var(--st-muted);
+}

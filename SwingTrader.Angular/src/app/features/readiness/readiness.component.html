@@ -1,0 +1,88 @@
+@if (!loaded()) {
+  <app-loading-spinner />
+} @else if (!report()) {
+  <p class="muted">Readiness data unavailable.</p>
+} @else {
+  <div class="header-row">
+    <mat-card class="panel maturity-card">
+      <span class="badge">{{ report()!.maturityLevel }}</span>
+      <span class="label">Overall Maturity</span>
+    </mat-card>
+
+    <mat-card class="panel winrate-card">
+      <div class="big-number">{{ report()!.observedWinRate | number: '1.0-1' }}%</div>
+      <span class="label">Win Rate</span>
+      @if (report()!.scoredClosedTrades < 10) {
+        <p class="muted small">Too few trades for a reliable estimate.</p>
+      } @else if (report()!.winRateConfidenceIntervalLow != null) {
+        <p class="muted small">
+          95% CI: {{ report()!.winRateConfidenceIntervalLow | number: '1.0-1' }}% –
+          {{ report()!.winRateConfidenceIntervalHigh | number: '1.0-1' }}%
+        </p>
+      }
+    </mat-card>
+  </div>
+
+  <mat-card class="panel">
+    <h3>Features</h3>
+    <div class="feature-grid">
+      @for (feature of report()!.features; track feature.featureName) {
+        <app-feature-card [feature]="feature" />
+      }
+    </div>
+  </mat-card>
+
+  <mat-card class="panel">
+    <h3>Regime Progress</h3>
+    <div class="regime-bars">
+      <div class="regime-bar">
+        <span>Bull</span>
+        <div class="track"><div class="fill bull" [style.width.%]="report()!.regimeBullProgress"></div></div>
+      </div>
+      <div class="regime-bar">
+        <span>Neutral</span>
+        <div class="track"><div class="fill neutral" [style.width.%]="report()!.regimeNeutralProgress"></div></div>
+      </div>
+      <div class="regime-bar">
+        <span>Bear</span>
+        <div class="track"><div class="fill bear" [style.width.%]="report()!.regimeBearProgress"></div></div>
+        <span class="muted small">(market-dependent)</span>
+      </div>
+    </div>
+  </mat-card>
+
+  <mat-card class="panel">
+    <h3>Trajectory</h3>
+    @if (!report()!.trajectory.length) {
+      <p class="muted">No trajectory data yet.</p>
+    } @else {
+      <table class="trajectory-table">
+        <thead>
+          <tr>
+            <th>Week</th>
+            <th>Trades</th>
+            <th>Win Rate</th>
+            <th>Trend</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (week of report()!.trajectory; track week.weekStarting) {
+            <tr>
+              <td>{{ week.weekStarting | date: 'mediumDate' }}</td>
+              <td>{{ week.tradeCount }}</td>
+              <td>{{ week.winRate | number: '1.0-1' }}%</td>
+              <td>
+                {{ week.speedIndicator === 'Up' ? '↑' : week.speedIndicator === 'Down' ? '↓' : '→' }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </mat-card>
+
+  <mat-card class="panel">
+    <h3>Milestones</h3>
+    <app-milestone-timeline [milestones]="report()!.milestones" />
+  </mat-card>
+}

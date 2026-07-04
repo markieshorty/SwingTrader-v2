@@ -1,0 +1,54 @@
+@if (!loaded()) {
+  <app-loading-spinner />
+} @else {
+  <mat-card class="panel">
+    <h3>Current Weights</h3>
+    @if (status()?.currentWeights) {
+      <app-weight-editor [currentWeights]="status()!.currentWeights" />
+    }
+  </mat-card>
+
+  <mat-card class="panel">
+    <h3>Latest Suggestion</h3>
+    @if (!status()?.latestSuggestion) {
+      <p class="muted">
+        No analysis yet. {{ status()?.tradesScoredSoFar ?? 0 }} / {{ status()?.minTradesRequired ?? 0 }} trades
+        scored toward the minimum needed.
+      </p>
+    } @else {
+      <app-suggestion-card
+        [suggestion]="status()!.latestSuggestion!"
+        (apply)="apply(status()!.latestSuggestion!.id)"
+        (reject)="reject(status()!.latestSuggestion!.id, $event)"
+      />
+    }
+  </mat-card>
+
+  <mat-card class="panel">
+    <h3>Suggestion History</h3>
+    @if (!status()?.history?.length) {
+      <p class="muted">No history yet.</p>
+    } @else {
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Trades</th>
+            <th>Confidence</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of status()!.history; track item.id) {
+            <tr>
+              <td>{{ item.generatedAt | date: 'medium' }}</td>
+              <td>{{ item.tradeCountAnalysed }}</td>
+              <td>{{ item.confidenceLevel }}</td>
+              <td>{{ item.status }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </mat-card>
+}

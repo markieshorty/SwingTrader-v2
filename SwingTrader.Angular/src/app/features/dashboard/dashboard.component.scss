@@ -1,0 +1,180 @@
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.stat-card {
+  padding: 16px;
+}
+
+.stat-label {
+  color: var(--st-muted);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.stat-value.positive {
+  color: var(--st-green);
+}
+
+.stat-value.negative {
+  color: var(--st-red);
+}
+
+.stat-sub {
+  font-size: 13px;
+  margin-left: 8px;
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.panel {
+  padding: 16px;
+  margin-bottom: 16px;
+
+  h3 {
+    margin-top: 0;
+  }
+}
+
+.muted {
+  color: var(--st-muted);
+}
+
+.position-card {
+  border: 1px solid var(--st-border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.position-header,
+.position-footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.symbol {
+  font-weight: 600;
+}
+
+.pnl.positive {
+  color: var(--st-green);
+}
+
+.pnl.negative {
+  color: var(--st-red);
+}
+
+.warning {
+  color: var(--st-amber);
+}
+
+.warning.positive {
+  color: var(--st-green);
+}
+
+.worker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--st-border);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--st-muted);
+}
+
+.status-dot.green {
+  background: var(--st-green);
+}
+
+.status-dot.amber {
+  background: var(--st-amber);
+}
+
+.status-dot.red {
+  background: var(--st-red);
+}
+
+.worker-name {
+  flex: 1;
+}
+
+.signal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.signal-card {
+  border: 1px solid var(--st-border);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.signal-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.setup-badge {
+  font-size: 11px;
+  color: var(--st-muted);
+}
+
+.signal-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--st-muted);
+  margin-top: 8px;
+}
+
+.trigger-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 900px) {
+  .stat-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .two-col {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,31 @@
+<div class="filter-bar">
+  <mat-button-toggle-group [value]="filter()" (change)="setFilter($event.value)">
+    <mat-button-toggle value="All">All</mat-button-toggle>
+    <mat-button-toggle value="BUY">BUY</mat-button-toggle>
+    <mat-button-toggle value="WATCH">WATCH</mat-button-toggle>
+    <mat-button-toggle value="HOLD">HOLD</mat-button-toggle>
+    <mat-button-toggle value="AVOID">AVOID</mat-button-toggle>
+  </mat-button-toggle-group>
+
+  <mat-form-field appearance="outline" class="search-field">
+    <mat-label>Search symbol</mat-label>
+    <input matInput (input)="updateSearch($any($event.target).value)" />
+  </mat-form-field>
+
+  <button mat-stroked-button (click)="exportCsv()">
+    <mat-icon>download</mat-icon>
+    Export CSV
+  </button>
+</div>
+
+@if (!signalsGroup()) {
+  <app-loading-spinner />
+} @else if (filteredSignals().length === 0) {
+  <p class="muted">No signals match the current filter.</p>
+} @else {
+  <div class="signal-list">
+    @for (signal of filteredSignals(); track signal.id) {
+      <app-signal-card [signal]="signal" />
+    }
+  </div>
+}

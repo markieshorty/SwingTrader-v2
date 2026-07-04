@@ -1,0 +1,81 @@
+.app-shell {
+  height: 100vh;
+}
+
+.sidenav {
+  width: 240px;
+  background: var(--st-navy);
+  border-right: 1px solid var(--st-border);
+  display: flex;
+  flex-direction: column;
+
+  .logo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 16px;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--st-text);
+  }
+
+  mat-nav-list {
+    flex: 1;
+
+    a {
+      color: var(--st-muted);
+
+      mat-icon {
+        margin-right: 12px;
+      }
+
+      &.active {
+        color: var(--st-text);
+        background: var(--st-card);
+      }
+    }
+  }
+
+  .sidenav-footer {
+    padding: 12px 16px;
+    border-top: 1px solid var(--st-border);
+
+    .last-updated {
+      font-size: 11px;
+      color: var(--st-muted);
+    }
+  }
+}
+
+mat-toolbar {
+  background: var(--st-card);
+  border-bottom: 1px solid var(--st-border);
+
+  .spacer {
+    flex: 1 1 auto;
+  }
+}
+
+.content {
+  padding: 16px;
+  min-height: calc(100vh - 64px);
+  background: var(--st-navy);
+}
+
+@media (max-width: 768px) {
+  .sidenav {
+    width: 72px;
+
+    .logo span:first-child {
+      display: none;
+    }
+
+    mat-nav-list a span {
+      display: none;
+    }
+  }
+
+  .content {
+    padding: 8px;
+  }
+}

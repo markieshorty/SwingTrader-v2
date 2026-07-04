@@ -1,0 +1,148 @@
+@if (data.isLoading() && !portfolio()) {
+  <app-loading-spinner />
+} @else {
+  <!-- Row 1: Stat cards -->
+  <div class="stat-row">
+    <mat-card class="stat-card">
+      <div class="stat-label">Total Capital</div>
+      <div class="stat-value">{{ portfolio()?.totalCapital | currencyGbp }}</div>
+    </mat-card>
+    <mat-card class="stat-card">
+      <div class="stat-label">Cash Available</div>
+      <div class="stat-value">{{ portfolio()?.cashAvailable | currencyGbp }}</div>
+    </mat-card>
+    <mat-card class="stat-card">
+      <div class="stat-label">Today P&amp;L</div>
+      <div
+        class="stat-value"
+        [class.positive]="(portfolio()?.todayPnl ?? 0) >= 0"
+        [class.negative]="(portfolio()?.todayPnl ?? 0) < 0"
+      >
+        {{ portfolio()?.todayPnl | currencyGbp }}
+        <span class="stat-sub">{{ portfolio()?.todayPnlPercent | percentSigned }}</span>
+      </div>
+    </mat-card>
+    <mat-card class="stat-card">
+      <div class="stat-label">30-Day Win Rate</div>
+      <div class="stat-value">{{ (portfolio()?.winRate30d ?? 0) | number: '1.0-1' }}%</div>
+    </mat-card>
+  </div>
+
+  <!-- Row 2: Positions + Workers -->
+  <div class="two-col">
+    <mat-card class="panel">
+      <h3>Open Positions</h3>
+      @if (positions().length === 0) {
+        <p class="muted">No open positions.</p>
+      }
+      @for (position of positions(); track position.id) {
+        <div class="position-card">
+          <div class="position-header">
+            <span class="symbol">{{ position.symbol }}</span>
+            <span
+              class="pnl"
+              [class.positive]="position.unrealisedPnl >= 0"
+              [class.negative]="position.unrealisedPnl < 0"
+            >
+              {{ position.unrealisedPnl | currencyGbp }} ({{ position.unrealisedPnlPercent | percentSigned }})
+            </span>
+          </div>
+          <app-stop-target-bar [position]="position" />
+          <div class="position-footer">
+            <span>{{ position.daysHeld }} days held</span>
+            @if (position.isNearStop) {
+              <span class="warning">⚠️ Near stop</span>
+            }
+            @if (position.isNearTarget) {
+              <span class="warning positive">🎯 Near target</span>
+            }
+          </div>
+        </div>
+      }
+    </mat-card>
+
+    <mat-card class="panel">
+      <h3>Worker Status</h3>
+      @if (!status()?.workers?.length) {
+        <p class="muted">No worker heartbeats yet.</p>
+      }
+      @for (worker of status()?.workers; track worker.workerName) {
+        <div class="worker-row">
+          <span
+            class="status-dot"
+            [class.green]="worker.lastRunResult === 'Success'"
+            [class.amber]="worker.lastRunResult === 'Warning' || worker.lastRunResult === 'Skipped'"
+            [class.red]="worker.lastRunResult === 'Failed'"
+          ></span>
+          <span class="worker-name">{{ worker.workerName }}</span>
+          <span class="worker-result">{{ worker.lastRunResult }}</span>
+        </div>
+      }
+    </mat-card>
+  </div>
+
+  <!-- Row 3: Today's Signals -->
+  <mat-card class="panel">
+    <h3>Today's Signals</h3>
+    <mat-tab-group [(selectedIndex)]="activeTabIndex">
+      <mat-tab [label]="'BUY (' + (signals()?.buy?.length ?? 0) + ')'"></mat-tab>
+      <mat-tab [label]="'WATCH (' + (signals()?.watch?.length ?? 0) + ')'"></mat-tab>
+      <mat-tab [label]="'HOLD (' + (signals()?.hold?.length ?? 0) + ')'"></mat-tab>
+      <mat-tab [label]="'AVOID (' + (signals()?.avoid?.length ?? 0) + ')'"></mat-tab>
+    </mat-tab-group>
+
+    @if (activeSignals().length === 0) {
+      <p class="muted">No signals in this category today.</p>
+    }
+    <div class="signal-grid">
+      @for (signal of activeSignals(); track signal.id) {
+        <div class="signal-card">
+          <div class="signal-header">
+            <span class="symbol">{{ signal.symbol }}</span>
+            <span class="setup-badge">{{ signal.setupType }}</span>
+          </div>
+          <app-conviction-bar [signal]="signal" />
+          <div class="signal-stats">
+            <span>RSI {{ signal.rsi14 | number: '1.0-1' }}</span>
+            <span>Vol {{ signal.volumeRatio | number: '1.1-1' }}x</span>
+            @if (signal.daysUntilEarnings != null && signal.daysUntilEarnings <= 7) {
+              <span class="warning">⚠️ Earnings in {{ signal.daysUntilEarnings }}d</span>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  </mat-card>
+
+  <!-- Row 4: Recent Trades -->
+  <mat-card class="panel">
+    <h3>Recent Trades</h3>
+    <ag-grid-angular
+      class="ag-theme-alpine-dark"
+      style="width: 100%; height: 360px;"
+      [rowData]="recentTrades()"
+      [columnDefs]="tradeColumnDefs"
+      [pagination]="true"
+      [paginationPageSize]="10"
+      [paginationPageSizeSelector]="[10, 20, 50]"
+      [getRowClass]="rowClass"
+    />
+  </mat-card>
+
+  <!-- Footer: Manual Triggers -->
+  <mat-card class="panel triggers">
+    <h3>Manual Triggers</h3>
+    <div class="trigger-buttons">
+      @for (agent of agents; track agent) {
+        <button mat-raised-button [disabled]="runningAgent() === agent" (click)="runAgent(agent)">
+          @if (runningAgent() === agent) {
+            <mat-icon class="spin">autorenew</mat-icon>
+          } @else {
+            <mat-icon>play_arrow</mat-icon>
+          }
+          {{ agent }}
+        </button>
+      }
+    </div>
+  </mat-card>
+}

@@ -1,0 +1,30 @@
+.panel {
+  padding: 16px;
+  margin-bottom: 16px;
+
+  h3 {
+    margin-top: 0;
+  }
+}
+
+.muted {
+  color: var(--st-muted);
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+
+  th,
+  td {
+    text-align: left;
+    padding: 8px;
+    border-bottom: 1px solid var(--st-border);
+  }
+
+  th {
+    color: var(--st-muted);
+    font-weight: 500;
+  }
+}

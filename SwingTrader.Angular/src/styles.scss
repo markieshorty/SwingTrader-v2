@@ -1,0 +1,67 @@
+@use '@angular/material' as mat;
+
+@include mat.core();
+
+$primary: mat.define-palette(mat.$blue-palette, 600);
+$accent: mat.define-palette(mat.$green-palette, 600);
+$warn: mat.define-palette(mat.$red-palette, 600);
+
+$theme: mat.define-dark-theme(
+  (
+    color: (
+      primary: $primary,
+      accent: $accent,
+      warn: $warn,
+    ),
+    typography: mat.define-typography-config(
+      $font-family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    ),
+    density: 0,
+  )
+);
+
+@include mat.all-component-themes($theme);
+
+:root {
+  --st-navy: #0f172a;
+  --st-card: #1e293b;
+  --st-border: #334155;
+  --st-text: #f1f5f9;
+  --st-muted: #94a3b8;
+  --st-green: #22c55e;
+  --st-red: #ef4444;
+  --st-amber: #f59e0b;
+  --st-blue: #3b82f6;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--st-navy);
+  color: var(--st-text);
+}
+
+.error-snackbar {
+  --mdc-snackbar-container-color: var(--st-red);
+  --mdc-snackbar-supporting-text-color: white;
+}
+
+.ag-theme-alpine-dark {
+  --ag-background-color: var(--st-card);
+  --ag-header-background-color: var(--st-navy);
+  --ag-odd-row-background-color: var(--st-card);
+  --ag-foreground-color: var(--st-text);
+  --ag-border-color: var(--st-border);
+}
+
+.stat-card,
+mat-card {
+  background: var(--st-card) !important;
+  color: var(--st-text) !important;
+  border: 1px solid var(--st-border);
+}
