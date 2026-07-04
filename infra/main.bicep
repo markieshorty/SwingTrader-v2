@@ -66,7 +66,6 @@ module containerApp 'modules/containerapp.bicep' = {
     environmentName: '${prefix}-env-${environment}'
     appName: '${prefix}-api-${environment}'
     location: location
-    acrLoginServer: acr.outputs.loginServer
     appInsightsConnectionString: appInsights.outputs.connectionString
     keyVaultUri: keyVault.outputs.uri
     tags: tags

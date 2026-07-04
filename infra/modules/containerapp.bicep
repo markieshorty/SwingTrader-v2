@@ -1,16 +1,15 @@
 param environmentName string
 param appName string
 param location string
-param acrLoginServer string
 param appInsightsConnectionString string
 param keyVaultUri string
 param tags object
 
 // Bootstrap placeholder — no image has ever been pushed to ACR on a brand-new
-// deploy, so pointing at '${acrLoginServer}/swingtrader-api:latest' here would
-// hang/fail waiting on a pull that can never succeed. deploy-api.yml swaps
-// this out imperatively via 'az containerapp update --image ...' once a real
-// image exists; Bicep never needs to know the real tag.
+// deploy, so pointing at the real ACR image tag here would hang/fail waiting
+// on a pull that can never succeed. deploy-api.yml swaps this out
+// imperatively via 'az containerapp update --image ...' once a real image
+// exists; Bicep never needs to know the real tag or reference ACR at all.
 // Must be an image that honors ASPNETCORE_URLS (set below to listen on
 // targetPort 5001) rather than a fixed port — containerapps-helloworld
 // hardcodes port 80, which left the ingress health check waiting forever
@@ -49,12 +48,15 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
         transport: 'http'
         allowInsecure: false
       }
-      registries: [
-        {
-          server: acrLoginServer
-          identity: 'system'
-        }
-      ]
+      // No registries[] block on the initial deploy: Container Apps appears
+      // to validate every configured registry credential during revision
+      // provisioning, even when the current image isn't pulled from it. The
+      // ACR-pull role assignment below is a separate resource in this same
+      // template with no guaranteed ordering ahead of this validation, so
+      // referencing ACR here caused revision provisioning to hang
+      // indefinitely (Operation expired). deploy-api.yml registers ACR
+      // credentials itself (az containerapp registry set) once a real image
+      // exists and the role assignment has had time to propagate.
     }
     template: {
       containers: [

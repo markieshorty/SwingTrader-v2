@@ -87,6 +87,19 @@ jobs:
             --file SwingTrader.Api/Dockerfile \
             .
 
+      - name: Register ACR credentials on Container App
+        run: |
+          az containerapp registry set \
+            --name ${{ secrets.CONTAINER_APP_NAME }} \
+            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --server ${{ secrets.ACR_NAME }}.azurecr.io \
+            --identity system
+        # Bicep intentionally omits the registries[] block on first deploy —
+        # configuring it there caused revision provisioning to hang
+        # (Operation expired) since the ACR-pull role assignment isn't
+        # guaranteed to exist yet at that point. Registered here instead,
+        # once the role assignment has definitely propagated.
+
       - name: Deploy to Container App
         run: |
           az containerapp update \
