@@ -11,7 +11,11 @@ param tags object
 // hang/fail waiting on a pull that can never succeed. deploy-api.yml swaps
 // this out imperatively via 'az containerapp update --image ...' once a real
 // image exists; Bicep never needs to know the real tag.
-var bootstrapImage = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+// Must be an image that honors ASPNETCORE_URLS (set below to listen on
+// targetPort 5001) rather than a fixed port — containerapps-helloworld
+// hardcodes port 80, which left the ingress health check waiting forever
+// against our port-5001 target and hung deployment.
+var bootstrapImage = 'mcr.microsoft.com/dotnet/samples:aspnetapp'
 
 resource containerAppEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
   name: environmentName
