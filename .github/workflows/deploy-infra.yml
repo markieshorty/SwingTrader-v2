@@ -31,22 +31,25 @@ jobs:
         run: az bicep lint --file infra/main.bicep
 
       - name: What-if preview
+        env:
+          SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
+          ADMIN_USER_ID: ${{ secrets.ADMIN_USER_ID }}
         run: |
           az deployment group what-if \
             --resource-group ${{ secrets.RESOURCE_GROUP }} \
             --template-file infra/main.bicep \
-            --parameters infra/parameters/prod.bicepparam \
-            --parameters sqlAdminPassword='${{ secrets.SQL_ADMIN_PASSWORD }}'
+            --parameters infra/parameters/prod.bicepparam
 
       - name: Deploy infrastructure
         id: deploy
+        env:
+          SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
+          ADMIN_USER_ID: ${{ secrets.ADMIN_USER_ID }}
         run: |
           output=$(az deployment group create \
             --resource-group ${{ secrets.RESOURCE_GROUP }} \
             --template-file infra/main.bicep \
             --parameters infra/parameters/prod.bicepparam \
-            --parameters sqlAdminPassword='${{ secrets.SQL_ADMIN_PASSWORD }}' \
-            --parameters adminUserId='${{ secrets.ADMIN_USER_ID }}' \
             --query properties.outputs \
             --output json)
 

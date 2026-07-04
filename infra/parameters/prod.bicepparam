@@ -2,6 +2,8 @@ using '../main.bicep'
 
 param environment = 'prod'
 param location = 'uksouth'
-// sqlAdminPassword and adminUserId
-// passed as GitHub secrets at deploy time
-// never committed to repo
+// Sourced from environment variables the workflow sets from GitHub secrets —
+// .bicepparam requires every non-defaulted param to be assigned here; it
+// can't be filled in later via a supplemental `--parameters` CLI flag.
+param sqlAdminPassword = readEnvironmentVariable('SQL_ADMIN_PASSWORD')
+param adminUserId = readEnvironmentVariable('ADMIN_USER_ID', '')

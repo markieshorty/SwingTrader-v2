@@ -57,11 +57,12 @@ jobs:
         run: az bicep lint --file infra/main.bicep
 
       - name: Bicep what-if (validate)
+        env:
+          SQL_ADMIN_PASSWORD: placeholder
         run: |
           az deployment group what-if \
             --resource-group ${{ secrets.RESOURCE_GROUP }} \
             --template-file infra/main.bicep \
             --parameters infra/parameters/prod.bicepparam \
-            --parameters sqlAdminPassword='placeholder' \
             --no-pretty-print
         continue-on-error: true
