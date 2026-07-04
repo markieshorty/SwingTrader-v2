@@ -54,8 +54,20 @@ jobs:
             --output json)
 
           echo "KEY_VAULT_NAME=$(echo $output | jq -r '.keyVaultName.value')" >> $GITHUB_OUTPUT
-          echo "SQL_CONN=$(echo $output | jq -r '.sqlConnectionString.value')" >> $GITHUB_OUTPUT
+          echo "SQL_SERVER_FQDN=$(echo $output | jq -r '.sqlServerFqdn.value')" >> $GITHUB_OUTPUT
+          echo "SQL_DATABASE_NAME=$(echo $output | jq -r '.sqlDatabaseName.value')" >> $GITHUB_OUTPUT
           echo "CONTAINER_APP_FQDN=$(echo $output | jq -r '.containerAppFqdn.value')" >> $GITHUB_OUTPUT
+
+      - name: Build SQL connection string
+        id: sqlconn
+        env:
+          SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
+        run: |
+          CONN="Server=tcp:${{ steps.deploy.outputs.SQL_SERVER_FQDN }},1433;Initial Catalog=${{ steps.deploy.outputs.SQL_DATABASE_NAME }};User ID=sqladmin;Password=${SQL_ADMIN_PASSWORD};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+          echo "::add-mask::$CONN"
+          echo "SQL_CONN=$CONN" >> "$GITHUB_OUTPUT"
+        # Built here (not as a Bicep output) so the admin password never
+        # transits Azure deployment history/outputs at all.
 
       - name: Populate Key Vault secrets
         run: |
@@ -82,7 +94,7 @@ jobs:
           set_secret_if_missing "Email--Password" "${{ secrets.EMAIL_PASSWORD }}"
           set_secret_if_missing "Email--ToAddresses--0" "${{ secrets.EMAIL_TO_0 }}"
           set_secret_if_missing "Email--ToAddresses--1" "${{ secrets.EMAIL_TO_1 }}"
-          set_secret_if_missing "ConnectionStrings--DefaultConnection" "${{ steps.deploy.outputs.SQL_CONN }}"
+          set_secret_if_missing "ConnectionStrings--DefaultConnection" "${{ steps.sqlconn.outputs.SQL_CONN }}"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -96,7 +108,7 @@ jobs:
           dotnet ef database update \
             --project SwingTrader.Data \
             --startup-project SwingTrader.Api \
-            --connection "${{ steps.deploy.outputs.SQL_CONN }}"
+            --connection "${{ steps.sqlconn.outputs.SQL_CONN }}"
 
       - name: Output deployment info
         run: |

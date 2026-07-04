@@ -48,10 +48,12 @@ resource database 'Microsoft.Sql/servers/databases@2023-05-01-preview' = {
 
 output serverName string = sqlServer.name
 output databaseName string = database.name
+output serverFqdn string = sqlServer.properties.fullyQualifiedDomainName
 
-// Server is provisioned with classic SQL auth (administratorLogin/Password)
-// only - no Azure AD admin is configured - so the connection string must
-// use SQL auth to match, not Active Directory Default. @secure() keeps the
-// embedded password out of deployment history/portal output display.
-@secure()
-output connectionString string = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=${databaseName};User ID=sqladmin;Password=${adminPassword};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
+// Deliberately no connectionString output here: a @secure() output is
+// withheld entirely from 'az deployment group create' results (that's the
+// whole point of marking it secure), which broke the workflow trying to
+// read it. A non-secure output would embed the admin password in plain
+// deployment history instead. Callers build the connection string
+// themselves from serverFqdn/databaseName plus the SQL_ADMIN_PASSWORD
+// secret they already hold.
