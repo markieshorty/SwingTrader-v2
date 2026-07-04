@@ -84,8 +84,14 @@ jobs:
           set_secret_if_missing "Email--ToAddresses--1" "${{ secrets.EMAIL_TO_1 }}"
           set_secret_if_missing "ConnectionStrings--DefaultConnection" "${{ steps.deploy.outputs.SQL_CONN }}"
 
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
       - name: Run EF migrations
         run: |
+          dotnet restore SwingTrader.sln
           dotnet tool install --global dotnet-ef
           dotnet ef database update \
             --project SwingTrader.Data \
