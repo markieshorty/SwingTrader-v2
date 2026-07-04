@@ -6,6 +6,13 @@ param appInsightsConnectionString string
 param keyVaultUri string
 param tags object
 
+// Bootstrap placeholder — no image has ever been pushed to ACR on a brand-new
+// deploy, so pointing at '${acrLoginServer}/swingtrader-api:latest' here would
+// hang/fail waiting on a pull that can never succeed. deploy-api.yml swaps
+// this out imperatively via 'az containerapp update --image ...' once a real
+// image exists; Bicep never needs to know the real tag.
+var bootstrapImage = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+
 resource containerAppEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
   name: environmentName
   location: location
@@ -42,7 +49,7 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
       containers: [
         {
           name: 'swingtrader-api'
-          image: '${acrLoginServer}/swingtrader-api:latest'
+          image: bootstrapImage
           resources: {
             cpu: json('0.5')
             memory: '1Gi'
