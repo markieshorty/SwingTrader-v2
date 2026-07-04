@@ -1,7 +1,7 @@
 using '../main.bicep'
 
 param environment = 'prod'
-param location = 'westeurope'
+param location = 'uksouth'
 // Sourced from environment variables the workflow sets from GitHub secrets —
 // .bicepparam requires every non-defaulted param to be assigned here; it
 // can't be filled in later via a supplemental `--parameters` CLI flag.
