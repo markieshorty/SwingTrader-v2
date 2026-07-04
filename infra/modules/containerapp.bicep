@@ -17,7 +17,7 @@ param tags object
 // against our port-5001 target and hung deployment.
 var bootstrapImage = 'mcr.microsoft.com/dotnet/samples:aspnetapp'
 
-resource containerAppEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
+resource containerAppEnv 'Microsoft.App/managedEnvironments@2024-03-01' = {
   name: environmentName
   location: location
   tags: tags
@@ -25,16 +25,23 @@ resource containerAppEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
     appLogsConfiguration: {
       destination: 'azure-monitor'
     }
+    workloadProfiles: [
+      {
+        name: 'Consumption'
+        workloadProfileType: 'Consumption'
+      }
+    ]
   }
 }
 
-resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
+resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
   name: appName
   location: location
   tags: tags
   identity: { type: 'SystemAssigned' }
   properties: {
     managedEnvironmentId: containerAppEnv.id
+    workloadProfileName: 'Consumption'
     configuration: {
       ingress: {
         external: true
