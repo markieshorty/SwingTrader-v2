@@ -45,6 +45,10 @@ jobs:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: SwingTrader.Angular/package-lock.json
+        continue-on-error: true
+        # Angular not yet created until Phase 10b - cache-dependency-path
+        # won't resolve to anything before then, which fails this step
+        # outright rather than just skipping the cache.
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -53,6 +57,9 @@ jobs:
       - name: Install Angular dependencies
         run: npm ci
         working-directory: SwingTrader.Angular
+        continue-on-error: true
+        # Angular not yet created until Phase 10b
+        # Step is safe to fail before that phase
 
       - name: Replace Angular environment tokens
         run: |
