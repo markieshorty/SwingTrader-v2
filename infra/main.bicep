@@ -106,4 +106,6 @@ output containerAppName string = containerApp.outputs.appName
 output containerAppFqdn string = containerApp.outputs.fqdn
 output functionAppName string = functions.outputs.name
 output keyVaultName string = keyVault.outputs.name
+
+@secure()
 output sqlConnectionString string = sql.outputs.connectionString

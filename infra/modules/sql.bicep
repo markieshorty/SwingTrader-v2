@@ -48,4 +48,10 @@ resource database 'Microsoft.Sql/servers/databases@2023-05-01-preview' = {
 
 output serverName string = sqlServer.name
 output databaseName string = database.name
-output connectionString string = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=${databaseName};Authentication=Active Directory Default;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
+
+// Server is provisioned with classic SQL auth (administratorLogin/Password)
+// only - no Azure AD admin is configured - so the connection string must
+// use SQL auth to match, not Active Directory Default. @secure() keeps the
+// embedded password out of deployment history/portal output display.
+@secure()
+output connectionString string = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=${databaseName};User ID=sqladmin;Password=${adminPassword};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
