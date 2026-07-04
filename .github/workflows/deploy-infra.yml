@@ -117,6 +117,30 @@ jobs:
             --startup-project SwingTrader.Api \
             --connection "${{ steps.sqlconn.outputs.SQL_CONN }}"
 
+      - name: Restore real API image if one exists in ACR
+        run: |
+          # Bicep always declares the bootstrap placeholder image (it can't
+          # know about images pushed later by deploy-api.yml), so re-applying
+          # this template resets a live Container App back to the placeholder
+          # every time. Re-point at the latest real image immediately after,
+          # if deploy-api.yml has ever pushed one.
+          if az acr repository show \
+            --name ${{ secrets.ACR_NAME }} \
+            --repository swingtrader-api > /dev/null 2>&1; then
+            az containerapp registry set \
+              --name ${{ secrets.CONTAINER_APP_NAME }} \
+              --resource-group ${{ secrets.RESOURCE_GROUP }} \
+              --server ${{ secrets.ACR_NAME }}.azurecr.io \
+              --identity system
+            az containerapp update \
+              --name ${{ secrets.CONTAINER_APP_NAME }} \
+              --resource-group ${{ secrets.RESOURCE_GROUP }} \
+              --image ${{ secrets.ACR_NAME }}.azurecr.io/swingtrader-api:latest
+            echo "Restored real API image from ACR"
+          else
+            echo "No image pushed to ACR yet - leaving bootstrap placeholder"
+          fi
+
       - name: Output deployment info
         run: |
           echo "Container App URL: https://${{ steps.deploy.outputs.CONTAINER_APP_FQDN }}"
