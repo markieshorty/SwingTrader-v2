@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "SwingTrader.Functions": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 7017",
+      "launchBrowser": false
+    }
+  }
+}

@@ -1,0 +1,151 @@
+namespace SwingTrader.Core.Enums;
+
+public enum SetupType
+{
+    Unknown,
+    OversoldRecovery,
+    Breakout,
+    MomentumContinuation,
+    VolumeSpike,
+    TrendFollowing
+}
+
+public enum Recommendation
+{
+    Watch,
+    Buy,
+    Sell,
+    Hold,
+    Avoid
+}
+
+public enum TradeDirection
+{
+    Long
+}
+
+public enum TradeStatus
+{
+    Open,
+    Closed,
+    StoppedOut,
+    TargetHit,
+    ManuallyClosed
+}
+
+public enum CapitalTier
+{
+    Tier1,
+    Tier2,
+    Tier3
+}
+
+public enum EarningsSetupType
+{
+    None,
+    UpcomingEarnings,
+    PostEarningsBeat,
+    PostEarningsMiss,
+    PostEarningsNeutral
+}
+
+public enum PriceLevelContext
+{
+    InsufficientData,
+    JustBrokeResistance,
+    NearSupport,
+    BetweenLevels,
+    NearResistance,
+    AtNewHigh
+}
+
+public enum RefinementConfidenceLevel
+{
+    Low,
+    Medium,
+    High
+}
+
+public enum RefinementStatus
+{
+    Pending,
+    Applied,
+    Rejected,
+    Superseded
+}
+
+public enum MarketRegime
+{
+    Bull,
+    Neutral,
+    Bear,
+    Crisis
+}
+
+public enum DataMaturityLevel
+{
+    EarlyStage,    // < 30 scored trades
+    Developing,    // 30-60 trades
+    Established,   // 60-100 trades
+    Mature         // 100+ trades
+}
+
+public enum ReadinessStatus
+{
+    NotReady,
+    Approaching,   // > 70% of criteria met
+    Ready,         // all criteria met
+    AlreadyEnabled,
+    NoDataRequirement
+}
+
+public enum FeatureRiskLevel
+{
+    Low,      // additive, safe to enable
+    Medium,   // changes behaviour
+    High      // involves real money
+}
+
+public enum MilestoneStatus
+{
+    Completed,
+    Estimated,
+    MarketDependent, // Bear regime — can't estimate
+    RequiresCode     // Phase 8 — not yet built
+}
+
+public enum AnalystTrend
+{
+    StronglyBullish,
+    Bullish,
+    Neutral,
+    Bearish,
+    StronglyBearish,
+    Insufficient
+}
+
+public enum InsiderActivity
+{
+    StrongBuying,
+    Buying,
+    Neutral,
+    ClusterSelling
+}
+
+public enum EarningsConsistency
+{
+    ConsistentBeater,
+    RecentBeater,
+    Mixed,
+    RecentMiss,
+    ConsistentMisser,
+    Insufficient
+}
+
+public enum RevenueDirection
+{
+    Accelerating,
+    Stable,
+    Decelerating,
+    Insufficient
+}

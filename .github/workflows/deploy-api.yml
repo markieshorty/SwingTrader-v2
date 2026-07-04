@@ -1,0 +1,111 @@
+name: Deploy API
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'SwingTrader.Api/**'
+      - 'SwingTrader.Core/**'
+      - 'SwingTrader.Data/**'
+      - 'SwingTrader.Agents/**'
+      - 'SwingTrader.Infrastructure/**'
+      - 'SwingTrader.Angular/**'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  IMAGE_NAME: swingtrader-api
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - run: dotnet test SwingTrader.sln --configuration Release
+
+  build-and-deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    needs: test
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: SwingTrader.Angular/package-lock.json
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Install Angular dependencies
+        run: npm ci
+        working-directory: SwingTrader.Angular
+
+      - name: Replace Angular environment tokens
+        run: |
+          sed -i "s|#{B2C_CLIENT_ID}#|${{ secrets.B2C_CLIENT_ID }}|g" SwingTrader.Angular/src/environments/environment.prod.ts
+          sed -i "s|#{B2C_AUTHORITY}#|${{ secrets.B2C_AUTHORITY }}|g" SwingTrader.Angular/src/environments/environment.prod.ts
+          sed -i "s|#{B2C_DOMAIN}#|${{ secrets.B2C_DOMAIN }}|g" SwingTrader.Angular/src/environments/environment.prod.ts
+          sed -i "s|#{B2C_SCOPE}#|${{ secrets.B2C_SCOPE }}|g" SwingTrader.Angular/src/environments/environment.prod.ts
+        continue-on-error: true
+        # Tokens not yet set until Phase 10c
+        # Step is safe to fail before that phase
+
+      - name: Build Angular
+        run: npm run build
+        working-directory: SwingTrader.Angular
+        continue-on-error: true
+        # Angular not yet created until Phase 10b
+        # Step is safe to fail before that phase
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and push to ACR
+        run: |
+          az acr build \
+            --registry ${{ secrets.ACR_NAME }} \
+            --image ${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --image ${{ env.IMAGE_NAME }}:latest \
+            --file SwingTrader.Api/Dockerfile \
+            .
+
+      - name: Deploy to Container App
+        run: |
+          az containerapp update \
+            --name ${{ secrets.CONTAINER_APP_NAME }} \
+            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --image ${{ secrets.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Verify deployment
+        run: |
+          sleep 30
+          APP_URL=$(az containerapp show \
+            --name ${{ secrets.CONTAINER_APP_NAME }} \
+            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --query properties.configuration.ingress.fqdn \
+            -o tsv)
+          response=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://${APP_URL}/health/ready")
+          if [ "$response" != "200" ]; then
+            echo "Health check failed: $response"
+            exit 1
+          fi
+          echo "Deployed successfully: https://$APP_URL"

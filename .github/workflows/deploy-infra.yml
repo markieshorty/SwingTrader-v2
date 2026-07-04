@@ -1,0 +1,95 @@
+name: Deploy Infrastructure
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'infra/**'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy-infra:
+    name: Deploy Bicep
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Bicep lint
+        run: az bicep lint --file infra/main.bicep
+
+      - name: What-if preview
+        run: |
+          az deployment group what-if \
+            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --template-file infra/main.bicep \
+            --parameters infra/parameters/prod.bicepparam \
+            --parameters sqlAdminPassword='${{ secrets.SQL_ADMIN_PASSWORD }}'
+
+      - name: Deploy infrastructure
+        id: deploy
+        run: |
+          output=$(az deployment group create \
+            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --template-file infra/main.bicep \
+            --parameters infra/parameters/prod.bicepparam \
+            --parameters sqlAdminPassword='${{ secrets.SQL_ADMIN_PASSWORD }}' \
+            --parameters adminUserId='${{ secrets.ADMIN_USER_ID }}' \
+            --query properties.outputs \
+            --output json)
+
+          echo "KEY_VAULT_NAME=$(echo $output | jq -r '.keyVaultName.value')" >> $GITHUB_OUTPUT
+          echo "SQL_CONN=$(echo $output | jq -r '.sqlConnectionString.value')" >> $GITHUB_OUTPUT
+          echo "CONTAINER_APP_FQDN=$(echo $output | jq -r '.containerAppFqdn.value')" >> $GITHUB_OUTPUT
+
+      - name: Populate Key Vault secrets
+        run: |
+          set_secret_if_missing() {
+            local name=$1 value=$2
+            if ! az keyvault secret show \
+              --vault-name ${{ steps.deploy.outputs.KEY_VAULT_NAME }} \
+              --name "$name" --query "id" -o tsv 2>/dev/null; then
+              az keyvault secret set \
+                --vault-name ${{ steps.deploy.outputs.KEY_VAULT_NAME }} \
+                --name "$name" --value "$value"
+              echo "Created: $name"
+            else
+              echo "Exists, skipping: $name"
+            fi
+          }
+
+          set_secret_if_missing "Finnhub--ApiKey" "${{ secrets.FINNHUB_API_KEY }}"
+          set_secret_if_missing "Tiingo--ApiKey" "${{ secrets.TIINGO_API_KEY }}"
+          set_secret_if_missing "Trading212--ApiKey" "${{ secrets.T212_API_KEY }}"
+          set_secret_if_missing "Trading212--ApiSecret" "${{ secrets.T212_API_SECRET }}"
+          set_secret_if_missing "Claude--ApiKey" "${{ secrets.CLAUDE_API_KEY }}"
+          set_secret_if_missing "Email--Username" "${{ secrets.EMAIL_USERNAME }}"
+          set_secret_if_missing "Email--Password" "${{ secrets.EMAIL_PASSWORD }}"
+          set_secret_if_missing "Email--ToAddresses--0" "${{ secrets.EMAIL_TO_0 }}"
+          set_secret_if_missing "Email--ToAddresses--1" "${{ secrets.EMAIL_TO_1 }}"
+          set_secret_if_missing "ConnectionStrings--DefaultConnection" "${{ steps.deploy.outputs.SQL_CONN }}"
+
+      - name: Run EF migrations
+        run: |
+          dotnet tool install --global dotnet-ef
+          dotnet ef database update \
+            --project SwingTrader.Data \
+            --startup-project SwingTrader.Api \
+            --connection "${{ steps.deploy.outputs.SQL_CONN }}"
+
+      - name: Output deployment info
+        run: |
+          echo "Container App URL: https://${{ steps.deploy.outputs.CONTAINER_APP_FQDN }}"
+          echo "Add to UptimeRobot: https://${{ steps.deploy.outputs.CONTAINER_APP_FQDN }}/health"

@@ -1,0 +1,70 @@
+name: Deploy Functions
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'SwingTrader.Functions/**'
+      - 'SwingTrader.Core/**'
+      - 'SwingTrader.Data/**'
+      - 'SwingTrader.Agents/**'
+      - 'SwingTrader.Infrastructure/**'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - run: dotnet test SwingTrader.sln --configuration Release
+
+  build-and-deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    needs: test
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Build Functions
+        run: |
+          dotnet publish SwingTrader.Functions \
+            --configuration Release \
+            --output ./functions-output \
+            --runtime linux-x64 \
+            --self-contained false
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Function App
+        uses: azure/functions-action@v1
+        with:
+          app-name: ${{ secrets.FUNCTION_APP_NAME }}
+          package: ./functions-output
+          scm-do-build-during-deployment: false
+
+      - name: Verify
+        run: |
+          state=$(az functionapp show \
+            --name ${{ secrets.FUNCTION_APP_NAME }} \
+            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --query state -o tsv)
+          echo "Function App state: $state"
