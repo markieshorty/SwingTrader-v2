@@ -63,7 +63,7 @@ jobs:
         env:
           SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
         run: |
-          CONN="Server=tcp:${{ steps.deploy.outputs.SQL_SERVER_FQDN }},1433;Initial Catalog=${{ steps.deploy.outputs.SQL_DATABASE_NAME }};User ID=sqladmin;Password=${SQL_ADMIN_PASSWORD};Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+          CONN="Server=tcp:${{ steps.deploy.outputs.SQL_SERVER_FQDN }},1433;Initial Catalog=${{ steps.deploy.outputs.SQL_DATABASE_NAME }};User ID=sqladmin;Password=${SQL_ADMIN_PASSWORD};Authentication=SqlPassword;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
           echo "::add-mask::$CONN"
           echo "SQL_CONN=$CONN" >> "$GITHUB_OUTPUT"
         # Built here (not as a Bicep output) so the admin password never
@@ -94,7 +94,14 @@ jobs:
           set_secret_if_missing "Email--Password" "${{ secrets.EMAIL_PASSWORD }}"
           set_secret_if_missing "Email--ToAddresses--0" "${{ secrets.EMAIL_TO_0 }}"
           set_secret_if_missing "Email--ToAddresses--1" "${{ secrets.EMAIL_TO_1 }}"
-          set_secret_if_missing "ConnectionStrings--DefaultConnection" "${{ steps.sqlconn.outputs.SQL_CONN }}"
+
+          # Always overwritten, unlike the secrets above: this value is fully
+          # computed by this workflow (server FQDN + db name + admin
+          # password), never manually set, so there's nothing to preserve.
+          az keyvault secret set \
+            --vault-name ${{ steps.deploy.outputs.KEY_VAULT_NAME }} \
+            --name "ConnectionStrings--DefaultConnection" \
+            --value "${{ steps.sqlconn.outputs.SQL_CONN }}"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
