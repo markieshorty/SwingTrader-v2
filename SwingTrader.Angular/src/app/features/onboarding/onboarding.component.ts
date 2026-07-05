@@ -26,6 +26,21 @@ interface WizardStep {
   description: string;
   helpUrl: string;
   fields: WizardField[];
+  // Overrides the default "every required field is set" check - used for
+  // Trading212, where either the demo pair or the live pair (not
+  // necessarily both, not a specific one) satisfies the step.
+  isComplete?: (statuses: KeyStatusesDto | null, pendingValues: Record<string, string>) => boolean;
+}
+
+function hasPair(
+  statuses: KeyStatusesDto | null,
+  pendingValues: Record<string, string>,
+  keyField: ApiKeyProvider,
+  secretField: ApiKeyProvider,
+): boolean {
+  const keySet = statuses?.[keyField] !== 'NotSet' || (pendingValues[keyField] ?? '').trim().length > 0;
+  const secretSet = statuses?.[secretField] !== 'NotSet' || (pendingValues[secretField] ?? '').trim().length > 0;
+  return keySet && secretSet;
 }
 
 const STEPS: WizardStep[] = [
@@ -45,15 +60,18 @@ const STEPS: WizardStep[] = [
     title: 'Trading 212',
     description:
       'Trading 212 issues separate API credentials for demo and live accounts, so both are stored independently. ' +
-      'Your account starts in Demo mode, so the demo pair is required here — add your live pair now or later in ' +
-      'Settings once you\'re ready to switch TradingMode to Live.',
+      'You only need one pair to continue — add the other (or switch later) any time in Settings. You can only ' +
+      'switch TradingMode to an environment once its pair is saved.',
     helpUrl: 'https://www.trading212.com/en/api-docs',
     fields: [
-      { key: 'Trading212DemoKey', label: 'Demo API key', placeholder: 'Paste your Trading 212 demo API key', required: true },
-      { key: 'Trading212DemoSecret', label: 'Demo API secret', placeholder: 'Paste your Trading 212 demo API secret', required: true },
-      { key: 'Trading212LiveKey', label: 'Live API key (optional)', placeholder: 'Paste your Trading 212 live API key', required: false },
-      { key: 'Trading212LiveSecret', label: 'Live API secret (optional)', placeholder: 'Paste your Trading 212 live API secret', required: false },
+      { key: 'Trading212DemoKey', label: 'Demo API key', placeholder: 'Paste your Trading 212 demo API key', required: false },
+      { key: 'Trading212DemoSecret', label: 'Demo API secret', placeholder: 'Paste your Trading 212 demo API secret', required: false },
+      { key: 'Trading212LiveKey', label: 'Live API key', placeholder: 'Paste your Trading 212 live API key', required: false },
+      { key: 'Trading212LiveSecret', label: 'Live API secret', placeholder: 'Paste your Trading 212 live API secret', required: false },
     ],
+    isComplete: (statuses, pendingValues) =>
+      hasPair(statuses, pendingValues, 'Trading212DemoKey', 'Trading212DemoSecret') ||
+      hasPair(statuses, pendingValues, 'Trading212LiveKey', 'Trading212LiveSecret'),
   },
   {
     title: 'Claude (Anthropic)',
@@ -98,9 +116,10 @@ export class OnboardingComponent {
     this.api.getKeyStatuses().subscribe({ next: (s) => this.keyStatuses.set(s) });
   }
 
-  // "Complete" only considers required fields - an optional field (e.g. the
-  // Live Trading212 pair) left unset shouldn't block the step or the wizard.
+  // "Complete" only considers required fields by default - a step with a
+  // custom isComplete (Trading212's "either pair" rule) uses that instead.
   isStepComplete(step: WizardStep): boolean {
+    if (step.isComplete) return step.isComplete(this.keyStatuses(), {});
     const statuses = this.keyStatuses();
     if (!statuses) return false;
     return step.fields.filter((f) => f.required).every((f) => statuses[f.key] !== 'NotSet');
@@ -108,6 +127,7 @@ export class OnboardingComponent {
 
   canProceed(): boolean {
     const step = this.currentStep();
+    if (step.isComplete) return step.isComplete(this.keyStatuses(), this.values);
     const statuses = this.keyStatuses();
     return step.fields
       .filter((f) => f.required)

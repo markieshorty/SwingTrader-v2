@@ -330,6 +330,7 @@ api.MapDelete("/keys/{provider}", async (
 api.MapPut("/account/trading-config", async (
     UpdateTradingConfigRequest req,
     IAccountRepository accounts,
+    IUserKeyService keys,
     IAccountContext ctx) =>
 {
     if (ctx.Role != AccountRole.Owner)
@@ -337,6 +338,27 @@ api.MapPut("/account/trading-config", async (
 
     var account = await accounts.GetAsync(ctx.AccountId)
         ?? throw new InvalidOperationException("Authenticated caller has no account.");
+
+    // Trading212 issues separate credentials per environment - switching
+    // TradingMode without the matching pair saved would just break every
+    // T212 call the account makes, so block the switch until that pair exists.
+    if (req.TradingMode != account.TradingMode)
+    {
+        var (keyProvider, secretProvider) = req.TradingMode == TradingMode.Live
+            ? (ApiKeyProviders.Trading212LiveKey, ApiKeyProviders.Trading212LiveSecret)
+            : (ApiKeyProviders.Trading212DemoKey, ApiKeyProviders.Trading212DemoSecret);
+
+        var statuses = await keys.GetKeyStatusesAsync(ctx.AccountId);
+        var hasPair = statuses.GetValueOrDefault(keyProvider) != KeyStatus.NotSet
+            && statuses.GetValueOrDefault(secretProvider) != KeyStatus.NotSet;
+
+        if (!hasPair)
+            return Results.BadRequest(new
+            {
+                message = $"Add your Trading212 {req.TradingMode} API key and secret in Settings before switching to {req.TradingMode} mode.",
+            });
+    }
+
     account.TradingMode = req.TradingMode;
     account.ApprovalRequired = req.ApprovalRequired;
     await accounts.UpdateAsync(account);

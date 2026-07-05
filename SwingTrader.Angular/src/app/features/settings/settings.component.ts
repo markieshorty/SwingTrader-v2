@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -61,6 +61,15 @@ export class SettingsComponent {
   keyStatuses = signal<KeyStatusesDto | null>(null);
   editingProvider = signal<ApiKeyProvider | null>(null);
   keyInput = '';
+
+  hasDemoPair = computed(() => {
+    const s = this.keyStatuses();
+    return !!s && s.Trading212DemoKey !== 'NotSet' && s.Trading212DemoSecret !== 'NotSet';
+  });
+  hasLivePair = computed(() => {
+    const s = this.keyStatuses();
+    return !!s && s.Trading212LiveKey !== 'NotSet' && s.Trading212LiveSecret !== 'NotSet';
+  });
 
   tradingMode = signal<TradingMode>('Demo');
   approvalRequired = signal(true);
@@ -163,7 +172,10 @@ export class SettingsComponent {
     this.api.updateTradingConfig(this.tradingMode(), this.approvalRequired()).subscribe({
       next: () => this.snackbar.open('Trading settings saved', 'Dismiss', { duration: 3000 }),
       error: (err) => {
-        const message = err.status === 403 ? 'Only the account Owner can change trading settings.' : 'Failed to save.';
+        const message =
+          err.status === 403
+            ? 'Only the account Owner can change trading settings.'
+            : (err.error?.message ?? 'Failed to save.');
         this.snackbar.open(message, 'Dismiss', { duration: 4000 });
       },
     });
