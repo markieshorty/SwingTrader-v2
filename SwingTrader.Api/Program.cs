@@ -56,6 +56,13 @@ builder.Host.UseSerilog((ctx, cfg) =>
 builder.Services.AddDbContext<SwingTraderDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// Serialize enums as their string name (e.g. KeyStatus.NotSet -> "NotSet")
+// rather than System.Text.Json's default raw integer - the Angular DTOs
+// compare against string literals ('NotSet', 'Valid', etc.), so left at the
+// default every enum-valued response silently mismatched on the frontend.
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
+
 // Health checks
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"])
