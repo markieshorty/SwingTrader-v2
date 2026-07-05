@@ -12,7 +12,7 @@
           @if (editingProvider() === provider) {
             <mat-form-field appearance="outline" class="key-field">
               <mat-label>New value</mat-label>
-              <input matInput [type]="isSecretField(provider) ? 'password' : 'text'" [(ngModel)]="keyInput" />
+              <input matInput type="password" [(ngModel)]="keyInput" />
             </mat-form-field>
             <button mat-raised-button color="primary" (click)="saveAndTestKey()">Save and Test</button>
             <button mat-button (click)="cancelEditing()">Cancel</button>

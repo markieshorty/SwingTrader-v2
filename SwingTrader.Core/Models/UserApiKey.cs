@@ -7,8 +7,7 @@ public class UserApiKey : BaseEntity
 {
     public string Provider { get; set; } = string.Empty;
     // "Finnhub", "Tiingo", "Trading212DemoKey", "Trading212DemoSecret",
-    // "Trading212LiveKey", "Trading212LiveSecret", "Claude",
-    // "EmailUsername", "EmailPassword"
+    // "Trading212LiveKey", "Trading212LiveSecret", "Claude"
     public string EncryptedValue { get; set; } = string.Empty;
     public string EncryptedDek { get; set; } = string.Empty;
     public bool IsValid { get; set; }
@@ -32,13 +31,14 @@ public static class ApiKeyProviders
     public const string Trading212LiveSecret = "Trading212LiveSecret";
 
     public const string Claude = "Claude";
-    public const string EmailUsername = "EmailUsername";
-    public const string EmailPassword = "EmailPassword";
 
+    // No per-account email credentials - report/alert delivery uses a single
+    // platform-level SMTP relay (Email:SmtpHost/Username/Password in Key
+    // Vault, see EmailService), not one the user sets up themselves.
     public static readonly string[] All =
     [
         Finnhub, Tiingo,
         Trading212DemoKey, Trading212DemoSecret, Trading212LiveKey, Trading212LiveSecret,
-        Claude, EmailUsername, EmailPassword,
+        Claude,
     ];
 }

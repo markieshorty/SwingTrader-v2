@@ -28,8 +28,6 @@ const PROVIDER_LABELS: Record<ApiKeyProvider, string> = {
   Trading212LiveKey: 'Trading 212 API Key (Live)',
   Trading212LiveSecret: 'Trading 212 API Secret (Live)',
   Claude: 'Claude (Anthropic)',
-  EmailUsername: 'Email Username',
-  EmailPassword: 'Email Password',
 };
 
 @Component({
@@ -57,9 +55,6 @@ export class SettingsComponent {
 
   providers = Object.keys(PROVIDER_LABELS) as ApiKeyProvider[];
   providerLabel = (p: ApiKeyProvider) => PROVIDER_LABELS[p];
-  // EmailUsername is just an address, not a credential - masking it made it
-  // hard to verify what was typed. Everything else here is an actual secret.
-  isSecretField = (p: ApiKeyProvider) => p !== 'EmailUsername';
 
   keyStatuses = signal<KeyStatusesDto | null>(null);
   editingProvider = signal<ApiKeyProvider | null>(null);

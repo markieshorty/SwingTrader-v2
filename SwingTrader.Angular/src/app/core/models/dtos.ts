@@ -230,9 +230,7 @@ export type ApiKeyProvider =
   | 'Trading212DemoSecret'
   | 'Trading212LiveKey'
   | 'Trading212LiveSecret'
-  | 'Claude'
-  | 'EmailUsername'
-  | 'EmailPassword';
+  | 'Claude';
 
 export type KeyStatusesDto = Record<ApiKeyProvider, KeyStatus>;
 
