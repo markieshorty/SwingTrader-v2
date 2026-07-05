@@ -17,8 +17,20 @@ import {
   ApiKeyProvider,
   KeyStatusesDto,
   NotificationRecipientDto,
+  StrategyWeightsDto,
   TradingMode,
 } from '../../core/models/dtos';
+
+const COMPONENT_WEIGHT_FIELDS: { key: keyof StrategyWeightsDto; label: string }[] = [
+  { key: 'rsiWeight', label: 'RSI' },
+  { key: 'macdWeight', label: 'MACD' },
+  { key: 'volumeWeight', label: 'Volume' },
+  { key: 'sentimentWeight', label: 'Sentiment' },
+  { key: 'setupQualityWeight', label: 'Setup Quality' },
+  { key: 'relativeStrengthWeight', label: 'Relative Strength' },
+  { key: 'priceLevelWeight', label: 'Price Level' },
+  { key: 'fundamentalMomentumWeight', label: 'Fundamental Momentum' },
+];
 
 const PROVIDER_LABELS: Record<ApiKeyProvider, string> = {
   Finnhub: 'Finnhub',
@@ -81,11 +93,57 @@ export class SettingsComponent {
   inviteEmail = '';
   inviteLink = signal<string | null>(null);
 
+  weights = signal<StrategyWeightsDto | null>(null);
+  componentWeightFields = COMPONENT_WEIGHT_FIELDS;
+
+  weightsSum = computed(() => {
+    const w = this.weights();
+    if (!w) return 0;
+    return COMPONENT_WEIGHT_FIELDS.reduce((sum, f) => sum + (Number(w[f.key]) || 0), 0);
+  });
+
+  weightsSumValid = computed(() => Math.abs(this.weightsSum() - 1) < 0.001);
+
   constructor() {
     this.loadKeyStatuses();
     this.loadAccountSettings();
     this.loadRecipients();
     this.loadMembers();
+    this.loadWeights();
+  }
+
+  private loadWeights(): void {
+    this.api.getStrategyWeights().subscribe({
+      next: (weights) => this.weights.set(weights),
+      error: () => this.weights.set(null),
+    });
+  }
+
+  updateWeightField(key: keyof StrategyWeightsDto, value: string): void {
+    const current = this.weights();
+    if (!current) return;
+    this.weights.set({ ...current, [key]: Number(value) });
+  }
+
+  saveWeights(): void {
+    const weights = this.weights();
+    if (!weights) return;
+
+    if (!this.weightsSumValid()) {
+      this.snackbar.open(`Component weights must sum to 1.0 — currently ${this.weightsSum().toFixed(3)}.`, 'Dismiss', { duration: 5000 });
+      return;
+    }
+
+    this.api.updateStrategyWeights(weights).subscribe({
+      next: () => this.snackbar.open('Strategy weights saved', 'Dismiss', { duration: 3000 }),
+      error: (err) => {
+        const message =
+          err.status === 403
+            ? 'Only the account Owner can change strategy weights.'
+            : (err.error?.message ?? 'Failed to save.');
+        this.snackbar.open(message, 'Dismiss', { duration: 4000 });
+      },
+    });
   }
 
   private loadKeyStatuses(): void {

@@ -68,6 +68,28 @@ public class StrategyWeightsRepository(SwingTraderDbContext db) : IStrategyWeigh
         await db.SaveChangesAsync();
     }
 
+    public async Task UpdateWeightsAsync(int accountId, StrategyWeightsUpdate update)
+    {
+        var active = await db.StrategyWeights.FirstOrDefaultAsync(w =>
+            w.AccountId == accountId && w.IsActive && w.ApplicableRegime == null)
+            ?? throw new InvalidOperationException($"No active StrategyWeights found for account {accountId}.");
+
+        active.RsiWeight = update.RsiWeight;
+        active.MacdWeight = update.MacdWeight;
+        active.VolumeWeight = update.VolumeWeight;
+        active.SentimentWeight = update.SentimentWeight;
+        active.SetupQualityWeight = update.SetupQualityWeight;
+        active.RelativeStrengthWeight = update.RelativeStrengthWeight;
+        active.PriceLevelWeight = update.PriceLevelWeight;
+        active.FundamentalMomentumWeight = update.FundamentalMomentumWeight;
+        active.BuyThreshold = update.BuyThreshold;
+        active.WatchThreshold = update.WatchThreshold;
+        active.StopLossPctDefault = update.StopLossPctDefault;
+        active.Validate();
+        active.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+    }
+
     public async Task SeedDefaultAsync(int accountId, CancellationToken ct = default)
     {
         var alreadySeeded = await db.StrategyWeights.AnyAsync(w => w.AccountId == accountId, ct);

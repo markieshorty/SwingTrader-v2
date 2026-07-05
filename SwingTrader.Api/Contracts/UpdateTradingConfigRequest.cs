@@ -11,3 +11,16 @@ public record CompleteChecklistRequest(string CheckName, string? Notes);
 public record ApplyRefinementRequest(int SuggestionId);
 
 public record RejectRefinementRequest(int SuggestionId, string? Note);
+
+public record UpdateStrategyWeightsRequest(
+    decimal RsiWeight,
+    decimal MacdWeight,
+    decimal VolumeWeight,
+    decimal SentimentWeight,
+    decimal SetupQualityWeight,
+    decimal RelativeStrengthWeight,
+    decimal PriceLevelWeight,
+    decimal FundamentalMomentumWeight,
+    decimal BuyThreshold,
+    decimal WatchThreshold,
+    decimal StopLossPctDefault);

@@ -19,4 +19,23 @@ public interface IStrategyWeightsRepository
     // Activates this row for its regime only — leaves the general row and other
     // regimes' active rows untouched.
     Task SetRegimeActiveAsync(int accountId, int id, MarketRegime regime);
+
+    // In-place edit of every tunable field on the active general row - a manual
+    // testing/tuning knob (e.g. temporarily lowering BuyThreshold to exercise
+    // the Execution path), not a Refinement-style versioned change. The 8
+    // component weights must still sum to 1.0 (StrategyWeights.Validate()).
+    Task UpdateWeightsAsync(int accountId, StrategyWeightsUpdate update);
 }
+
+public record StrategyWeightsUpdate(
+    decimal RsiWeight,
+    decimal MacdWeight,
+    decimal VolumeWeight,
+    decimal SentimentWeight,
+    decimal SetupQualityWeight,
+    decimal RelativeStrengthWeight,
+    decimal PriceLevelWeight,
+    decimal FundamentalMomentumWeight,
+    decimal BuyThreshold,
+    decimal WatchThreshold,
+    decimal StopLossPctDefault);

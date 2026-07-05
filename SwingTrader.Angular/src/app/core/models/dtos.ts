@@ -242,6 +242,20 @@ export interface TradingConfigDto {
   t212AccountId: string | null;
 }
 
+export interface StrategyWeightsDto {
+  rsiWeight: number;
+  macdWeight: number;
+  volumeWeight: number;
+  sentimentWeight: number;
+  setupQualityWeight: number;
+  relativeStrengthWeight: number;
+  priceLevelWeight: number;
+  fundamentalMomentumWeight: number;
+  buyThreshold: number;
+  watchThreshold: number;
+  stopLossPctDefault: number;
+}
+
 export interface NotificationRecipientDto {
   id: number;
   email: string;

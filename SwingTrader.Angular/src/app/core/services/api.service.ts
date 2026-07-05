@@ -16,6 +16,7 @@ import {
   RunResultDto,
   SignalGroupDto,
   StatusDto,
+  StrategyWeightsDto,
   TradeDto,
   TradingConfigDto,
 } from '../models/dtos';
@@ -130,6 +131,14 @@ export class ApiService {
 
   updateTradingConfig(tradingMode: string, approvalRequired: boolean): Observable<unknown> {
     return this.http.put(`${this.baseUrl}/api/account/trading-config`, { tradingMode, approvalRequired });
+  }
+
+  getStrategyWeights(): Observable<StrategyWeightsDto> {
+    return this.http.get<StrategyWeightsDto>(`${this.baseUrl}/api/strategy-weights`);
+  }
+
+  updateStrategyWeights(weights: StrategyWeightsDto): Observable<unknown> {
+    return this.http.put(`${this.baseUrl}/api/strategy-weights`, weights);
   }
 
   setGlobalRefinementOptIn(enabled: boolean): Observable<unknown> {

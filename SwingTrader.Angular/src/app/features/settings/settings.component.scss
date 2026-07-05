@@ -139,3 +139,14 @@
 .danger-zone {
   border: 1px solid var(--st-red, #d32f2f);
 }
+
+.weights-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.weight-field {
+  width: 160px;
+}
