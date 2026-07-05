@@ -121,6 +121,10 @@ builder.Services.AddScoped<INotificationRecipientRepository, NotificationRecipie
 builder.Services.AddScoped<IKeyEncryptionService, KeyEncryptionService>();
 builder.Services.AddScoped<IUserKeyService, UserKeyService>();
 builder.Services.AddScoped<IUserHttpClientFactory, UserHttpClientFactory>();
+builder.Services.AddScoped<ISignalRepository, SignalRepository>();
+builder.Services.AddScoped<ITradeRepository, TradeRepository>();
+builder.Services.AddScoped<IPortfolioRepository, PortfolioRepository>();
+builder.Services.AddScoped<IWorkerHeartbeatRepository, WorkerHeartbeatRepository>();
 
 var app = builder.Build();
 
@@ -168,12 +172,47 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// Protected API surface. Full endpoints (/api/portfolio, /api/positions,
-// /api/signals/today, /api/trades/recent, /api/watchlist, /api/refinement/*,
-// /api/readiness, /run/*) land once SwingTrader.Agents and
-// SwingTrader.Infrastructure business logic is ported in later phases.
+// Protected API surface. Refinement/readiness/run endpoints still land once
+// those agents are ported.
 var api = app.MapGroup("/api").RequireAuthorization();
-api.MapGet("/status", () => Results.Ok(new { status = "ok", timestamp = DateTime.UtcNow }));
+api.MapGet("/status", async (IWorkerHeartbeatRepository heartbeats) =>
+    Results.Ok(new { status = "ok", timestamp = DateTime.UtcNow, workers = await heartbeats.GetAllAsync() }));
+
+api.MapGet("/watchlist", async (IWatchlistRepository watchlist, IAccountContext ctx) =>
+    Results.Ok(await watchlist.GetActiveAsync(ctx.AccountId)));
+
+// Grouped by Recommendation to match the Angular signal board's buy/watch/hold/avoid columns.
+api.MapGet("/signals/today", async (ISignalRepository signals, IAccountContext ctx) =>
+{
+    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+    var todaysSignals = (await signals.GetByDateAsync(ctx.AccountId, today)).ToList();
+    return Results.Ok(new
+    {
+        date = today,
+        buy = todaysSignals.Where(s => s.Recommendation == Recommendation.Buy),
+        watch = todaysSignals.Where(s => s.Recommendation == Recommendation.Watch),
+        hold = todaysSignals.Where(s => s.Recommendation == Recommendation.Hold),
+        avoid = todaysSignals.Where(s => s.Recommendation == Recommendation.Avoid),
+    });
+});
+
+api.MapGet("/trades/recent", async (int? days, ITradeRepository trades, IAccountContext ctx) =>
+{
+    var from = DateTime.UtcNow.AddDays(-(days ?? 30));
+    return Results.Ok(await trades.GetTradeHistoryAsync(ctx.AccountId, from, DateTime.UtcNow));
+});
+
+// Open Trade rows double as "positions" - there's no separate live-pricing
+// pass in the request path, so CurrentPrice/UnrealizedPnl aren't included
+// here; the Monitor Agent updates TrailingStopPrice out of band.
+api.MapGet("/positions", async (ITradeRepository trades, IAccountContext ctx) =>
+    Results.Ok(await trades.GetOpenTradesAsync(ctx.AccountId)));
+
+api.MapGet("/portfolio", async (IPortfolioRepository portfolio, IAccountContext ctx) =>
+{
+    var snapshot = await portfolio.GetLatestSnapshotAsync(ctx.AccountId);
+    return snapshot is null ? Results.NotFound() : Results.Ok(snapshot);
+});
 
 // Approve endpoint stays public - the token in the query string IS the auth.
 // Not yet implemented (lands with Agents/Infrastructure porting).
