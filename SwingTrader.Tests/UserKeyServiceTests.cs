@@ -16,12 +16,13 @@ public class UserKeyServiceTests
     private readonly IUserApiKeyRepository _repository = Substitute.For<IUserApiKeyRepository>();
     private readonly IKeyEncryptionService _encryption = Substitute.For<IKeyEncryptionService>();
     private readonly IUserHttpClientFactory _clientFactory = Substitute.For<IUserHttpClientFactory>();
+    private readonly IAccountRepository _accounts = Substitute.For<IAccountRepository>();
     private readonly IConfiguration _config = new ConfigurationBuilder().Build();
     private readonly UserKeyService _sut;
 
     public UserKeyServiceTests()
     {
-        _sut = new UserKeyService(_repository, _encryption, _clientFactory, _config);
+        _sut = new UserKeyService(_repository, _encryption, _clientFactory, _accounts, _config);
     }
 
     [Fact]
@@ -159,12 +160,12 @@ public class UserKeyServiceTests
     [Fact]
     public async Task TestKeyAsync_Trading212WithOnlyKeySet_DoesNotCallApi()
     {
-        var stored = new UserApiKey { AccountId = 1, Provider = ApiKeyProviders.Trading212Key, EncryptedValue = "v", EncryptedDek = "d" };
-        _repository.GetAsync(1, ApiKeyProviders.Trading212Key, Arg.Any<CancellationToken>()).Returns(stored);
-        _repository.GetAsync(1, ApiKeyProviders.Trading212Secret, Arg.Any<CancellationToken>()).Returns((UserApiKey?)null);
+        var stored = new UserApiKey { AccountId = 1, Provider = ApiKeyProviders.Trading212DemoKey, EncryptedValue = "v", EncryptedDek = "d" };
+        _repository.GetAsync(1, ApiKeyProviders.Trading212DemoKey, Arg.Any<CancellationToken>()).Returns(stored);
+        _repository.GetAsync(1, ApiKeyProviders.Trading212DemoSecret, Arg.Any<CancellationToken>()).Returns((UserApiKey?)null);
         _encryption.DecryptAsync(1, "v", "d", Arg.Any<CancellationToken>()).Returns("decrypted-value");
 
-        var result = await _sut.TestKeyAsync(1, ApiKeyProviders.Trading212Key);
+        var result = await _sut.TestKeyAsync(1, ApiKeyProviders.Trading212DemoKey);
 
         result.Should().BeTrue();
         await _clientFactory.DidNotReceive().CreateTrading212Async<ITrading212Client>(Arg.Any<int>(), Arg.Any<CancellationToken>());
