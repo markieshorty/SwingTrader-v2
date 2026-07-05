@@ -100,6 +100,14 @@ jobs:
           set_secret_if_missing "Claude--ApiKey" "${{ secrets.CLAUDE_API_KEY }}"
           set_secret_if_missing "Email--Username" "${{ secrets.EMAIL_USERNAME }}"
           set_secret_if_missing "Email--Password" "${{ secrets.EMAIL_PASSWORD }}"
+          # EmailConfig.SmtpHost defaults to empty, which makes EmailService
+          # silently no-op (by design) rather than fail loudly - confirmed as
+          # the actual reason manual "Send Report" produced no email, since
+          # neither of these were ever set anywhere (not Key Vault, not
+          # appsettings, not Bicep). Gmail per the account owner; FromAddress
+          # reuses the same address rather than needing its own secret.
+          set_secret_if_missing "Email--SmtpHost" "smtp.gmail.com"
+          set_secret_if_missing "Email--FromAddress" "${{ secrets.EMAIL_USERNAME }}"
           set_secret_if_missing "Email--ToAddresses--0" "${{ secrets.EMAIL_TO_0 }}"
           set_secret_if_missing "Email--ToAddresses--1" "${{ secrets.EMAIL_TO_1 }}"
           set_secret_if_missing "Admin--UserId" "${{ secrets.ADMIN_USER_ID }}"
