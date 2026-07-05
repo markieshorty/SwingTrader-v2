@@ -113,6 +113,24 @@ app.MapGet("/api/status", () => Results.Ok(new { status = "ok", timestamp = Date
 // Angular static files (Phase 10b populates wwwroot)
 app.UseDefaultFiles();
 app.UseStaticFiles();
-app.MapFallbackToFile("index.html");
+
+// SPA fallback for client-side routes only. A plain MapFallbackToFile
+// would also catch unmatched /api, /health, /run, /approve requests and
+// serve index.html (200 OK, text/html) instead of a real 404 - which is
+// exactly what every not-yet-implemented /api/* endpoint hit until this
+// was excluded, breaking Angular's JSON parsing.
+var reservedPrefixes = new[] { "/api", "/health", "/run", "/approve", "/swagger" };
+app.MapFallback(async context =>
+{
+    if (reservedPrefixes.Any(p => context.Request.Path.StartsWithSegments(p)))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    context.Response.ContentType = "text/html";
+    await context.Response.SendFileAsync(
+        Path.Combine(app.Environment.WebRootPath, "index.html"));
+});
 
 app.Run();
