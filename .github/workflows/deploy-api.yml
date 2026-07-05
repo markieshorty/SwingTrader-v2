@@ -63,6 +63,7 @@ jobs:
           sed -i "s|#{B2C_CLIENT_ID}#|${{ secrets.B2C_CLIENT_ID }}|g" SwingTrader.Angular/src/environments/environment.prod.ts
           sed -i "s|#{B2C_AUTHORITY}#|${{ secrets.B2C_AUTHORITY }}|g" SwingTrader.Angular/src/environments/environment.prod.ts
           sed -i "s|#{B2C_DOMAIN}#|${{ secrets.B2C_DOMAIN }}|g" SwingTrader.Angular/src/environments/environment.prod.ts
+          sed -i "s|#{B2C_TENANT_ID}#|${{ secrets.B2C_TENANT_ID }}|g" SwingTrader.Angular/src/environments/environment.prod.ts
           sed -i "s|#{B2C_SCOPE}#|${{ secrets.B2C_SCOPE }}|g" SwingTrader.Angular/src/environments/environment.prod.ts
         # Safe to run before Phase 10c sets the B2C secrets: unset secrets
         # substitute to an empty string rather than failing the step.

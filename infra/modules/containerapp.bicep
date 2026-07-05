@@ -8,8 +8,8 @@ param tags object
 @description('Azure AD B2C authority URL - empty until Phase 10c manual B2C setup is complete')
 param b2cAuthority string = ''
 
-@description('Azure AD B2C application client ID - empty until Phase 10c manual B2C setup is complete')
-param b2cClientId string = ''
+@description('Azure AD B2C API audience (App ID URI) - empty until Phase 10c manual B2C setup is complete')
+param b2cAudience string = ''
 
 // Bootstrap placeholder — no image has ever been pushed to ACR on a brand-new
 // deploy, so pointing at the real ACR image tag here would hang/fail waiting
@@ -82,7 +82,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
               value: appInsightsConnectionString
             }
             { name: 'AzureAdB2C__Authority', value: b2cAuthority }
-            { name: 'AzureAdB2C__ClientId', value: b2cClientId }
+            { name: 'AzureAdB2C__Audience', value: b2cAudience }
           ]
         }
       ]

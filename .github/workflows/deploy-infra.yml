@@ -35,7 +35,7 @@ jobs:
           SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
           ADMIN_USER_ID: ${{ secrets.ADMIN_USER_ID }}
           B2C_AUTHORITY: ${{ secrets.B2C_AUTHORITY }}
-          B2C_CLIENT_ID: ${{ secrets.B2C_CLIENT_ID }}
+          B2C_AUDIENCE: ${{ secrets.B2C_AUDIENCE }}
         run: |
           az deployment group what-if \
             --resource-group ${{ secrets.RESOURCE_GROUP }} \
@@ -48,7 +48,7 @@ jobs:
           SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
           ADMIN_USER_ID: ${{ secrets.ADMIN_USER_ID }}
           B2C_AUTHORITY: ${{ secrets.B2C_AUTHORITY }}
-          B2C_CLIENT_ID: ${{ secrets.B2C_CLIENT_ID }}
+          B2C_AUDIENCE: ${{ secrets.B2C_AUDIENCE }}
         run: |
           output=$(az deployment group create \
             --resource-group ${{ secrets.RESOURCE_GROUP }} \

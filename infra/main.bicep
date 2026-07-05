@@ -18,7 +18,7 @@ param adminUserId string = ''
 param b2cAuthority string = ''
 
 @description('Azure AD B2C application client ID - empty until Phase 10c manual B2C setup is complete')
-param b2cClientId string = ''
+param b2cAudience string = ''
 
 var prefix = 'swingtrader'
 var tags = {
@@ -75,7 +75,7 @@ module containerApp 'modules/containerapp.bicep' = {
     appInsightsConnectionString: appInsights.outputs.connectionString
     keyVaultUri: keyVault.outputs.uri
     b2cAuthority: b2cAuthority
-    b2cClientId: b2cClientId
+    b2cAudience: b2cAudience
     tags: tags
   }
 }

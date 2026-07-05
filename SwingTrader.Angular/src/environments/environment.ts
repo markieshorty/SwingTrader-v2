@@ -4,5 +4,6 @@ export const environment = {
   b2cClientId: '',
   b2cAuthority: '',
   b2cDomain: '',
+  b2cTenantId: '',
   b2cScope: '',
 };

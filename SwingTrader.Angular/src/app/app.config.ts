@@ -19,7 +19,10 @@ const msalConfig = {
   auth: {
     clientId: environment.b2cClientId,
     authority: environment.b2cAuthority,
-    knownAuthorities: [environment.b2cDomain],
+    // CIAM tokens are issued from a GUID-based ciamlogin.com host even when
+    // authority is configured with the subdomain-based host - both must be
+    // listed or MSAL rejects the issuer.
+    knownAuthorities: [environment.b2cDomain, environment.b2cTenantId + '.ciamlogin.com'],
     redirectUri: typeof window !== 'undefined' ? window.location.origin : '',
   },
   cache: {

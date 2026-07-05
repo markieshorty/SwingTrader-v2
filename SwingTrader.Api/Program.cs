@@ -72,15 +72,18 @@ builder.Services.AddCors(options =>
             .AllowAnyMethod());
 });
 
-// Azure AD B2C authentication. Authority/ClientId come from Key Vault
-// (AzureAdB2C--Authority / AzureAdB2C--ClientId) - empty locally/before
-// Phase 10c's manual B2C setup is completed, in which case every request
-// will correctly fail auth rather than silently succeeding.
+// Microsoft Entra External ID (CIAM) authentication. Authority/Audience come
+// from Key Vault (AzureAdB2C--Authority / AzureAdB2C--Audience) - empty
+// locally/before Phase 10c's manual setup is completed, in which case every
+// request will correctly fail auth rather than silently succeeding.
+// Audience is the "Expose an API" App ID URI (api://{clientId}), not the
+// bare client ID, since the SPA requests a custom access_as_user scope
+// rather than an ID token.
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.Authority = builder.Configuration["AzureAdB2C:Authority"];
-        options.Audience = builder.Configuration["AzureAdB2C:ClientId"];
+        options.Audience = builder.Configuration["AzureAdB2C:Audience"];
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
