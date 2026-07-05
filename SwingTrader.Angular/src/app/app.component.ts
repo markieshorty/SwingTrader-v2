@@ -11,6 +11,7 @@ import { RegimeBadgeComponent } from './shared/components/regime-badge/regime-ba
 import { ErrorCardComponent } from './shared/components/error-card/error-card.component';
 import { RelativeTimePipe } from './shared/pipes/relative-time.pipe';
 import { DashboardDataService } from './core/services/dashboard-data.service';
+import { AuthService } from './core/services/auth.service';
 
 @Component({
   selector: 'app-root',
@@ -33,6 +34,7 @@ import { DashboardDataService } from './core/services/dashboard-data.service';
 })
 export class AppComponent {
   data = inject(DashboardDataService);
+  auth = inject(AuthService);
   private router = inject(Router);
 
   regime = toSignal(this.data.regime$, { initialValue: null });

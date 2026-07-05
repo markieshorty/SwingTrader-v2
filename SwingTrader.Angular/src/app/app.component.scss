@@ -39,6 +39,9 @@
   .sidenav-footer {
     padding: 12px 16px;
     border-top: 1px solid var(--st-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 
     .last-updated {
       font-size: 11px;

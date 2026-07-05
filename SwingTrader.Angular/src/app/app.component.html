@@ -37,6 +37,9 @@
 
       <div class="sidenav-footer">
         <span class="last-updated">Updated {{ lastUpdated() | relativeTime }}</span>
+        <button mat-icon-button (click)="auth.logout()" title="Log out">
+          <mat-icon>logout</mat-icon>
+        </button>
       </div>
     </mat-sidenav>
 
