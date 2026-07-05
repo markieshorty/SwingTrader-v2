@@ -20,6 +20,7 @@ using SwingTrader.Core.Models;
 using SwingTrader.Data;
 using SwingTrader.Data.Repositories;
 using SwingTrader.Infrastructure.HttpClients;
+using SwingTrader.Infrastructure.Market;
 using SwingTrader.Infrastructure.Security;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -134,6 +135,8 @@ builder.Services.AddScoped<ISignalRepository, SignalRepository>();
 builder.Services.AddScoped<ITradeRepository, TradeRepository>();
 builder.Services.AddScoped<IPortfolioRepository, PortfolioRepository>();
 builder.Services.AddScoped<IWorkerHeartbeatRepository, WorkerHeartbeatRepository>();
+builder.Services.AddMemoryCache();
+builder.Services.AddScoped<IMarketRegimeService, MarketRegimeService>();
 
 // Same managed-identity Service Bus client as the Functions host - the manual
 // "run now" endpoints below send onto the same queues the Scheduler enqueues
@@ -230,6 +233,20 @@ api.MapGet("/portfolio", async (IPortfolioRepository portfolio, IAccountContext 
 {
     var snapshot = await portfolio.GetLatestSnapshotAsync(ctx.AccountId);
     return snapshot is null ? Results.NotFound() : Results.Ok(snapshot);
+});
+
+// Regime is shared market data (cached globally in MarketRegimeService), but
+// still needs one account's Finnhub/Tiingo keys to fetch it with.
+api.MapGet("/refinement/current-regime", async (
+    IMarketRegimeService regimeService,
+    IUserHttpClientFactory clientFactory,
+    IAccountContext ctx,
+    CancellationToken ct) =>
+{
+    var finnhub = await clientFactory.CreateFinnhubAsync<IFinnhubClient>(ctx.AccountId, ct);
+    var tiingo = await clientFactory.CreateTiingoAsync<ITiingoClient>(ctx.AccountId, ct);
+    var result = await regimeService.GetCurrentRegimeAsync(tiingo, finnhub, ct);
+    return Results.Ok(new { regime = result.Regime, detectedAt = DateTime.UtcNow });
 });
 
 // Approve endpoint stays public - the token in the query string IS the auth.

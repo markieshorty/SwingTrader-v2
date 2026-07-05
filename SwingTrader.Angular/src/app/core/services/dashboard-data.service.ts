@@ -55,12 +55,17 @@ export class DashboardDataService implements OnDestroy {
     this.isLoading.set(true);
     this.error.set(null);
 
+    // Each call is caught individually - a 404 on /api/portfolio (no
+    // snapshot yet, expected for a brand-new account before any job has
+    // run) or any other single endpoint failing shouldn't blank out the
+    // rest of the dashboard, which forkJoin's default all-or-nothing
+    // behaviour would do.
     return forkJoin({
-      portfolio: this.api.getPortfolio(),
-      positions: this.api.getPositions(),
-      signals: this.api.getSignalsToday(),
-      status: this.api.getStatus(),
-      regime: this.api.getCurrentRegime(),
+      portfolio: this.api.getPortfolio().pipe(catchError(() => of(null))),
+      positions: this.api.getPositions().pipe(catchError(() => of([]))),
+      signals: this.api.getSignalsToday().pipe(catchError(() => of(null))),
+      status: this.api.getStatus().pipe(catchError(() => of(null))),
+      regime: this.api.getCurrentRegime().pipe(catchError(() => of(null))),
     }).pipe(
       tap((data) => {
         this.portfolioSubject.next(data.portfolio);
