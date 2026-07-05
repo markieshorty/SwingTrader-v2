@@ -19,6 +19,7 @@ using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
 using SwingTrader.Agents.Readiness;
+using SwingTrader.Agents.Refinement;
 using SwingTrader.Data;
 using SwingTrader.Data.Repositories;
 using SwingTrader.Infrastructure.Configuration;
@@ -143,6 +144,7 @@ builder.Services.AddScoped<IRefinementSuggestionRepository, RefinementSuggestion
 builder.Services.AddScoped<ISystemChecklistRepository, SystemChecklistRepository>();
 builder.Services.AddScoped<IReadinessSnapshotRepository, ReadinessSnapshotRepository>();
 builder.Services.AddScoped<IReadinessAssessmentService, ReadinessAssessmentService>();
+builder.Services.AddScoped<IApplyRefinementService, ApplyRefinementService>();
 builder.Services.Configure<RefinementConfig>(builder.Configuration.GetSection(RefinementConfig.SectionName));
 builder.Services.Configure<RiskManagementConfig>(builder.Configuration.GetSection(RiskManagementConfig.SectionName));
 builder.Services.AddMemoryCache();
@@ -339,6 +341,112 @@ api.MapPost("/readiness/complete-checklist", async (
 {
     await checklist.CompleteAsync(ctx.AccountId, req.CheckName, req.Notes);
     return Results.Ok();
+});
+
+static Dictionary<string, decimal> WeightsDict(StrategyWeights w) => new()
+{
+    ["rsi"] = w.RsiWeight,
+    ["macd"] = w.MacdWeight,
+    ["volume"] = w.VolumeWeight,
+    ["sentiment"] = w.SentimentWeight,
+    ["setupQuality"] = w.SetupQualityWeight,
+    ["relativeStrength"] = w.RelativeStrengthWeight,
+    ["priceLevel"] = w.PriceLevelWeight,
+    ["fundamentalMomentum"] = w.FundamentalMomentumWeight,
+};
+
+static object MapSuggestion(RefinementSuggestion s)
+{
+    var currentWeights = JsonSerializer.Deserialize<StrategyWeights>(s.CurrentWeightsJson);
+    var suggestedWeights = JsonSerializer.Deserialize<StrategyWeights>(s.SuggestedWeightsJson);
+    var findings = JsonSerializer.Deserialize<List<ComponentFinding>>(s.ComponentAnalysisJson) ?? [];
+
+    return new
+    {
+        id = s.Id,
+        generatedAt = s.GeneratedAt,
+        analysisPeriodStart = s.AnalysisPeriodStart,
+        analysisPeriodEnd = s.AnalysisPeriodEnd,
+        tradeCountAnalysed = s.TradeCountAnalysed,
+        winnerCount = s.WinnerCount,
+        loserCount = s.LoserCount,
+        overallWinRate = s.OverallWinRate,
+        currentWeights = currentWeights is null ? new() : WeightsDict(currentWeights),
+        suggestedWeights = suggestedWeights is null ? new() : WeightsDict(suggestedWeights),
+        componentFindings = findings.Select(f => new
+        {
+            componentName = f.ComponentName,
+            currentWeight = f.CurrentWeight,
+            winnerAvgScore = f.WinnerAvgScore,
+            loserAvgScore = f.LoserAvgScore,
+            correlation = f.Correlation,
+            suggestedWeight = f.SuggestedWeight,
+            weightDelta = f.WeightDelta,
+            reasoning = f.Reasoning,
+        }),
+        assessmentSummary = s.AssessmentSummary,
+        confidenceLevel = s.ConfidenceLevel,
+        status = s.Status,
+        isShadowMode = s.IsShadowMode,
+        marketAdjustedWinRate = s.MarketAdjustedWinRate,
+        unusualMarketConditions = s.UnusualMarketConditions,
+        marketConditionWarning = s.MarketConditionWarning,
+    };
+}
+
+api.MapGet("/refinement/status", async (
+    IStrategyWeightsRepository weightsRepo,
+    IRefinementSuggestionRepository suggestionRepo,
+    Microsoft.Extensions.Options.IOptions<RefinementConfig> refinementConfig,
+    ISignalRepository signalRepo,
+    ITradeRepository tradeRepo,
+    IAccountContext ctx) =>
+{
+    var activeWeights = await weightsRepo.GetActiveWeightsAsync(ctx.AccountId);
+    var latest = await suggestionRepo.GetLatestAsync(ctx.AccountId);
+    var history = (await suggestionRepo.GetHistoryAsync(ctx.AccountId)).ToList();
+
+    // Mirrors RefinementService's own sample-size gate (closed trades with a
+    // linked, scored signal) so the "progress toward next suggestion" bar
+    // reflects the same count that would actually unblock a new one.
+    var from = DateTime.UtcNow.AddDays(-refinementConfig.Value.AnalysisPeriodDays);
+    var closed = (await tradeRepo.GetTradeHistoryAsync(ctx.AccountId, from, DateTime.UtcNow))
+        .Where(t => t.Status != TradeStatus.Open && t.SignalId.HasValue);
+    var tradesScoredSoFar = 0;
+    foreach (var t in closed)
+    {
+        var signal = await signalRepo.GetByIdAsync(ctx.AccountId, t.SignalId!.Value);
+        if (signal?.RsiScore is not null) tradesScoredSoFar++;
+    }
+
+    return Results.Ok(new
+    {
+        currentWeights = activeWeights is null ? new() : WeightsDict(activeWeights),
+        latestSuggestion = latest is null ? null : MapSuggestion(latest),
+        history = history.Select(MapSuggestion),
+        minTradesRequired = refinementConfig.Value.MinCorrelationSampleSize,
+        tradesScoredSoFar,
+    });
+});
+
+api.MapPost("/refinement/apply", async (
+    ApplyRefinementRequest req,
+    IApplyRefinementService applyService,
+    IAccountContext ctx) =>
+{
+    var result = await applyService.ApplyAsync(ctx.AccountId, req.SuggestionId);
+    return result.Success
+        ? Results.Ok(new { success = true, message = "Applied" })
+        : Results.BadRequest(new { success = false, message = result.Error });
+});
+
+api.MapPost("/refinement/reject", async (
+    RejectRefinementRequest req,
+    IApplyRefinementService applyService,
+    IAccountContext ctx) =>
+{
+    var result = await applyService.RejectAsync(ctx.AccountId, req.SuggestionId, req.Note);
+    return result.Success ? Results.Ok() : Results.BadRequest(new { message = result.Error });
 });
 
 // Approve endpoint stays public - the token in the query string IS the auth.
