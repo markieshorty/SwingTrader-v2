@@ -1,6 +1,25 @@
 @if (data.isLoading() && !portfolio()) {
   <app-loading-spinner />
 } @else {
+  <!-- Row 0: Status capsules -->
+  <div class="capsule-row">
+    <span class="capsule" [class.green]="systemHealthy()" [class.red]="!systemHealthy()">
+      <span class="capsule-dot"></span>
+      {{ systemHealthy() ? 'All Systems Operational' : 'Issues Detected' }}
+    </span>
+    @if (accountSettings(); as settings) {
+      <span class="capsule" [class.amber]="settings.tradingMode === 'Live'" [class.blue]="settings.tradingMode === 'Demo'">
+        {{ settings.tradingMode === 'Live' ? '🔴 LIVE TRADING' : 'Demo Mode' }}
+      </span>
+      <span class="capsule" [class.green]="settings.approvalRequired" [class.grey]="!settings.approvalRequired">
+        Approval {{ settings.approvalRequired ? 'Required' : 'Not Required' }}
+      </span>
+      <span class="capsule" [class.green]="settings.globalRefinementOptIn" [class.grey]="!settings.globalRefinementOptIn">
+        Global Refinement {{ settings.globalRefinementOptIn ? 'On' : 'Off' }}
+      </span>
+    }
+  </div>
+
   <!-- Row 1: Stat cards -->
   <div class="stat-row">
     <mat-card class="stat-card">

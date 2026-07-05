@@ -16,7 +16,7 @@ import { StopTargetBarComponent } from '../../shared/components/stop-target-bar/
 import { ConvictionBarComponent } from '../../shared/components/conviction-bar/conviction-bar.component';
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
 import { defaultColDef } from '../../shared/ag-grid-defaults';
-import { SignalDto, TradeDto } from '../../core/models/dtos';
+import { SignalDto, TradeDto, TradingConfigDto } from '../../core/models/dtos';
 
 const AGENTS = ['Research', 'Report', 'Execution', 'Monitor', 'Risk', 'Refinement'] as const;
 
@@ -51,8 +51,17 @@ export class DashboardComponent {
 
   recentTrades = signal<TradeDto[]>([]);
   runningAgent = signal<string | null>(null);
+  accountSettings = signal<(TradingConfigDto & { globalRefinementOptIn: boolean }) | null>(null);
 
   agents = AGENTS;
+
+  // Any worker that failed on its most recent run flips the overall
+  // system-health capsule red - a quick "is anything broken" signal
+  // without having to scan the full Worker Status panel.
+  systemHealthy = computed(() => {
+    const workers = this.status()?.workers ?? [];
+    return !workers.some((w) => w.lastRunResult === 'Failed');
+  });
 
   activeSignals = computed<SignalDto[]>(() => {
     const g = this.signals();
@@ -95,6 +104,14 @@ export class DashboardComponent {
 
   constructor() {
     this.loadRecentTrades();
+    this.loadAccountSettings();
+  }
+
+  private loadAccountSettings(): void {
+    this.api.getAccountSettings().subscribe({
+      next: (settings) => this.accountSettings.set(settings),
+      error: () => this.accountSettings.set(null),
+    });
   }
 
   private loadRecentTrades(): void {
