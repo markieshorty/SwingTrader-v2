@@ -10,8 +10,10 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatDialog } from '@angular/material/dialog';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
+import { ConfirmDeleteDialogComponent } from '../../shared/components/confirm-delete-dialog/confirm-delete-dialog.component';
 import {
   AccountMemberDto,
   ApiKeyProvider,
@@ -63,6 +65,7 @@ const PROVIDER_LABELS: Record<ApiKeyProvider, string> = {
 export class SettingsComponent {
   private api = inject(ApiService);
   private snackbar = inject(MatSnackBar);
+  private dialog = inject(MatDialog);
   auth = inject(AuthService);
 
   providers = Object.keys(PROVIDER_LABELS) as ApiKeyProvider[];
@@ -307,14 +310,25 @@ export class SettingsComponent {
   }
 
   deleteAccount(): void {
-    if (!confirm('This deactivates your account and revokes access for every member. This cannot be undone from the app. Continue?')) return;
-
-    this.api.deleteAccount().subscribe({
-      next: () => this.auth.logout(),
-      error: (err) => {
-        const message = err.status === 403 ? 'Only the account Owner can delete the account.' : 'Failed to delete account.';
-        this.snackbar.open(message, 'Dismiss', { duration: 4000 });
+    const dialogRef = this.dialog.open(ConfirmDeleteDialogComponent, {
+      data: {
+        title: 'Delete account',
+        message: 'This deactivates your account and revokes access for every member. This cannot be undone from the app.',
+        confirmWord: 'DELETE',
       },
+      width: '420px',
+    });
+
+    dialogRef.afterClosed().subscribe((confirmed) => {
+      if (!confirmed) return;
+
+      this.api.deleteAccount().subscribe({
+        next: () => this.auth.logout(),
+        error: (err) => {
+          const message = err.status === 403 ? 'Only the account Owner can delete the account.' : 'Failed to delete account.';
+          this.snackbar.open(message, 'Dismiss', { duration: 4000 });
+        },
+      });
     });
   }
 }
