@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Infrastructure.Configuration;
 using SwingTrader.Infrastructure.HttpClients;
+using SwingTrader.Infrastructure.Market;
 using SwingTrader.Infrastructure.RateLimiting;
 
 namespace SwingTrader.Agents.Watchlist;
@@ -11,6 +12,7 @@ public class StockScreener(
     IRateLimiter rateLimiter,
     IWatchlistRepository watchlist,
     ITradeRepository trades,
+    IMarketUniverseService universeService,
     IOptions<WatchlistConfig> config,
     ILogger<StockScreener> logger) : IStockScreener
 {
@@ -18,13 +20,24 @@ public class StockScreener(
     {
         var cfg = config.Value;
 
+        // Dynamic universe (live S&P 500/Nasdaq 100 constituents, cached for
+        // UniverseCacheDays) replaces the old hardcoded symbol list, so the
+        // screening pool stays current and captures index-rebalance
+        // momentum automatically rather than going stale between builds.
+        var fullUniverse = await universeService.GetUniverseAsync(finnhub, ct);
+        if (fullUniverse.Count == 0)
+        {
+            logger.LogError("Universe fetch failed — watchlist refresh aborted. Check Finnhub index endpoints.");
+            return [];
+        }
+
         var activeSymbols = (await watchlist.GetActiveAsync(accountId))
             .Select(w => w.Symbol).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var openTradeSymbols = (await trades.GetOpenTradesAsync(accountId))
             .Select(t => t.Symbol).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var universe = StockUniverse.Symbols
+        var universe = fullUniverse
             .Where(s => !activeSymbols.Contains(s) && !openTradeSymbols.Contains(s))
             .ToList();
 

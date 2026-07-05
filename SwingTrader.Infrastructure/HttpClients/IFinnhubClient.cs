@@ -54,4 +54,9 @@ public interface IFinnhubClient
     Task<RevenueEstimateResponse> GetRevenueEstimatesAsync(
         [AliasAs("symbol")] string symbol,
         [AliasAs("freq")] string freq = "quarterly");
+
+    // ^GSPC, ^NDX, ^DJI, ^RUT etc. - used by MarketUniverseService to build
+    // the dynamic screening universe instead of a hardcoded symbol list.
+    [Get("/index/constituents")]
+    Task<IndexConstituentsResponse> GetIndexConstituentsAsync([AliasAs("symbol")] string indexSymbol);
 }

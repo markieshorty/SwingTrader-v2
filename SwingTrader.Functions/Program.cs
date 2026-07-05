@@ -94,6 +94,7 @@ builder.Services.AddScoped<IEarningsService, EarningsService>();
 builder.Services.AddScoped<IRelativeStrengthService, RelativeStrengthService>();
 builder.Services.AddScoped<IPriceLevelService, PriceLevelService>();
 builder.Services.AddScoped<IMarketRegimeService, MarketRegimeService>();
+builder.Services.AddScoped<IMarketUniverseService, MarketUniverseService>();
 builder.Services.AddScoped<IFundamentalDataService, FundamentalDataService>();
 builder.Services.AddScoped<IFundamentalScoringService, FundamentalScoringService>();
 builder.Services.AddScoped<IResearchPipeline, ResearchPipeline>();

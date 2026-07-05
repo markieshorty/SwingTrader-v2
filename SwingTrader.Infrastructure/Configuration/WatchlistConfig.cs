@@ -17,4 +17,12 @@ public class WatchlistConfig
     // Off by default — purely additive supplementary candidate source (Finnhub top
     // movers), safe to enable at any time once you want a wider candidate pool.
     public bool TopMoversEnabled { get; set; } = false;
+
+    // Dynamic screening universe (MarketUniverseService) — replaces the old
+    // hardcoded StockUniverse symbol list with live index constituents, so
+    // the universe stays current and captures index-rebalance momentum
+    // automatically instead of going stale.
+    public List<string> IndexSymbols { get; set; } = ["^GSPC", "^NDX"];
+    public int UniverseCacheDays { get; set; } = 7;
+    public decimal TopMoverOrderBoost { get; set; } = 1.2m;
 }
