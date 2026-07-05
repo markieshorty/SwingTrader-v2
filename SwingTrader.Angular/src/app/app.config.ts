@@ -69,7 +69,13 @@ export const appConfig: ApplicationConfig = {
         },
         {
           interactionType: InteractionType.Redirect,
-          protectedResourceMap: new Map([[`${environment.apiUrl}/api/*`, [environment.b2cScope]]]),
+          // /run/* (manual "run now" triggers) is also RequireAuthorization()
+          // on the backend but was missing here, so MsalInterceptor never
+          // attached a Bearer token to those requests - every click 401'd.
+          protectedResourceMap: new Map([
+            [`${environment.apiUrl}/api/*`, [environment.b2cScope]],
+            [`${environment.apiUrl}/run/*`, [environment.b2cScope]],
+          ]),
         },
       ),
     ),
