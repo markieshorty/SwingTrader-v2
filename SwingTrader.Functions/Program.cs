@@ -12,6 +12,7 @@ using OpenTelemetry;
 using Refit;
 using Serilog;
 using SwingTrader.Agents.Monitor;
+using SwingTrader.Agents.Refinement;
 using SwingTrader.Agents.Report;
 using SwingTrader.Agents.Research;
 using SwingTrader.Agents.Watchlist;
@@ -76,6 +77,7 @@ builder.Services.Configure<ReportConfig>(builder.Configuration.GetSection(Report
 builder.Services.Configure<ApprovalConfig>(builder.Configuration.GetSection(ApprovalConfig.SectionName));
 builder.Services.Configure<EmailConfig>(builder.Configuration.GetSection(EmailConfig.SectionName));
 builder.Services.Configure<MonitorConfig>(builder.Configuration.GetSection(MonitorConfig.SectionName));
+builder.Services.Configure<RefinementConfig>(builder.Configuration.GetSection(RefinementConfig.SectionName));
 
 builder.Services.AddRefitClient<IExchangeRateClient>()
     .ConfigureHttpClient(c => c.BaseAddress = new Uri("https://api.frankfurter.dev"));
@@ -99,6 +101,9 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IPositionMonitorService, PositionMonitorService>();
 builder.Services.AddScoped<IPortfolioCircuitBreakerService, PortfolioCircuitBreakerService>();
 builder.Services.AddScoped<IMonitorService, MonitorService>();
+builder.Services.AddScoped<IComponentCorrelationService, ComponentCorrelationService>();
+builder.Services.AddScoped<IRefinementService, RefinementService>();
+builder.Services.AddScoped<IApplyRefinementService, ApplyRefinementService>();
 
 // Managed-identity Service Bus client (ServiceBusConnection__fullyQualifiedNamespace
 // env var, set by Bicep) - the Scheduler sends via this; each Consumer's
