@@ -12,6 +12,7 @@ using OpenTelemetry;
 using Refit;
 using Serilog;
 using SwingTrader.Agents.Research;
+using SwingTrader.Agents.Watchlist;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Data;
 using SwingTrader.Data.Repositories;
@@ -83,6 +84,9 @@ builder.Services.AddScoped<IMarketRegimeService, MarketRegimeService>();
 builder.Services.AddScoped<IFundamentalDataService, FundamentalDataService>();
 builder.Services.AddScoped<IFundamentalScoringService, FundamentalScoringService>();
 builder.Services.AddScoped<IResearchPipeline, ResearchPipeline>();
+builder.Services.AddScoped<IStockScreener, StockScreener>();
+builder.Services.AddScoped<IWatchlistSelectionService, WatchlistSelectionService>();
+builder.Services.AddScoped<IWatchlistUpdateService, WatchlistUpdateService>();
 
 // Managed-identity Service Bus client (ServiceBusConnection__fullyQualifiedNamespace
 // env var, set by Bicep) - the Scheduler sends via this; each Consumer's
