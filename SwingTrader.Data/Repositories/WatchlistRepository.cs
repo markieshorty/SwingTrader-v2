@@ -44,4 +44,47 @@ public class WatchlistRepository(SwingTraderDbContext db) : IWatchlistRepository
         db.WatchlistItems.AddRange(items);
         await db.SaveChangesAsync(ct);
     }
+
+    public Task<WatchlistItem?> GetByIdAsync(int accountId, int id) =>
+        db.WatchlistItems.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x => x.AccountId == accountId && x.Id == id);
+
+    public async Task<IEnumerable<WatchlistItem>> GetAllAsync(int accountId) =>
+        await db.WatchlistItems.IgnoreQueryFilters()
+            .Where(x => x.AccountId == accountId)
+            .ToListAsync();
+
+    public async Task<IEnumerable<WatchlistItem>> GetActiveAsync(int accountId) =>
+        await db.WatchlistItems.Where(x => x.AccountId == accountId).ToListAsync();
+
+    public Task<WatchlistItem?> GetBySymbolAsync(int accountId, string symbol) =>
+        db.WatchlistItems.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x => x.AccountId == accountId && x.Symbol == symbol.ToUpperInvariant());
+
+    public async Task<WatchlistItem> AddAsync(WatchlistItem item)
+    {
+        item.Symbol = item.Symbol.ToUpperInvariant();
+        db.WatchlistItems.Add(item);
+        await db.SaveChangesAsync();
+        return item;
+    }
+
+    public async Task UpdateAsync(WatchlistItem item)
+    {
+        item.UpdatedAt = DateTime.UtcNow;
+        db.WatchlistItems.Update(item);
+        await db.SaveChangesAsync();
+    }
+
+    public async Task DeleteAsync(int accountId, int id)
+    {
+        var item = await db.WatchlistItems.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x => x.AccountId == accountId && x.Id == id);
+        if (item is not null)
+        {
+            item.IsActive = false;
+            item.UpdatedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+        }
+    }
 }
