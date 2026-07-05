@@ -5,8 +5,17 @@ import { ApiService } from '../services/api.service';
 import { ApiKeyProvider, KeyStatusesDto } from '../models/dtos';
 
 // Keys required before the account can actually run research/execution.
-// Email creds are optional (notifications only), so they don't block entry.
-const REQUIRED_PROVIDERS: ApiKeyProvider[] = ['Finnhub', 'Tiingo', 'Trading212Key', 'Trading212Secret', 'Claude'];
+// New accounts always start in TradingMode.Demo, so only the demo Trading212
+// pair is required here - the live pair is optional until the account is
+// switched to Live (Settings), since Trading212 issues separate credentials
+// per environment. Email creds are optional too (notifications only).
+const REQUIRED_PROVIDERS: ApiKeyProvider[] = [
+  'Finnhub',
+  'Tiingo',
+  'Trading212DemoKey',
+  'Trading212DemoSecret',
+  'Claude',
+];
 
 export function isOnboardingComplete(statuses: KeyStatusesDto): boolean {
   return REQUIRED_PROVIDERS.every((p) => statuses[p] !== 'NotSet');

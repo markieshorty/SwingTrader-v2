@@ -6,7 +6,7 @@
     </div>
 
     <div class="progress">
-      @for (step of steps; track step.provider; let i = $index) {
+      @for (step of steps; track step.title; let i = $index) {
         <div
           class="progress-dot"
           [class.active]="i === currentIndex()"
@@ -28,13 +28,13 @@
         Where do I find this? <mat-icon inline>open_in_new</mat-icon>
       </a>
 
-      @if (isStepComplete(currentStep())) {
-        <div class="already-connected">
-          <mat-icon>check_circle</mat-icon>
-          <span>Already connected</span>
-        </div>
-      } @else {
-        @for (field of currentStep().fields; track field.key) {
+      @for (field of currentStep().fields; track field.key) {
+        @if (keyStatuses() && keyStatuses()![field.key] !== 'NotSet') {
+          <div class="already-connected">
+            <mat-icon>check_circle</mat-icon>
+            <span>{{ field.label }} — already saved</span>
+          </div>
+        } @else {
           <mat-form-field appearance="outline" class="key-field">
             <mat-label>{{ field.label }}</mat-label>
             <input matInput type="password" [placeholder]="field.placeholder" [(ngModel)]="values[field.key]" />

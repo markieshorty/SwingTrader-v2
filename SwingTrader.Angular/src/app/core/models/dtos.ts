@@ -226,8 +226,10 @@ export type KeyStatus = 'NotSet' | 'SetNotTested' | 'Valid' | 'Invalid';
 export type ApiKeyProvider =
   | 'Finnhub'
   | 'Tiingo'
-  | 'Trading212Key'
-  | 'Trading212Secret'
+  | 'Trading212DemoKey'
+  | 'Trading212DemoSecret'
+  | 'Trading212LiveKey'
+  | 'Trading212LiveSecret'
   | 'Claude'
   | 'EmailUsername'
   | 'EmailPassword';

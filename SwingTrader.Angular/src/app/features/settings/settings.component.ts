@@ -23,8 +23,10 @@ import {
 const PROVIDER_LABELS: Record<ApiKeyProvider, string> = {
   Finnhub: 'Finnhub',
   Tiingo: 'Tiingo',
-  Trading212Key: 'Trading 212 API Key',
-  Trading212Secret: 'Trading 212 API Secret',
+  Trading212DemoKey: 'Trading 212 API Key (Demo)',
+  Trading212DemoSecret: 'Trading 212 API Secret (Demo)',
+  Trading212LiveKey: 'Trading 212 API Key (Live)',
+  Trading212LiveSecret: 'Trading 212 API Secret (Live)',
   Claude: 'Claude (Anthropic)',
   EmailUsername: 'Email Username',
   EmailPassword: 'Email Password',

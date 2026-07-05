@@ -11,6 +11,7 @@ public class UserKeyService(
     IUserApiKeyRepository repository,
     IKeyEncryptionService encryption,
     IUserHttpClientFactory clientFactory,
+    IAccountRepository accountsRepo,
     IConfiguration config) : IUserKeyService
 {
     public async Task<string> GetKeyAsync(int accountId, string provider, CancellationToken ct = default)
@@ -81,14 +82,40 @@ public class UserKeyService(
                     var prices = await tiingo.GetDailyPricesAsync("AAPL", from.ToString("yyyy-MM-dd"), to.ToString("yyyy-MM-dd"));
                     return (prices.Count > 0, "Connected");
                 }
-                // Trading212 needs both Key and Secret before a real call can
-                // be made - testing either one alone just confirms it
-                // decrypts, since there's nothing to call yet.
-                case ApiKeyProviders.Trading212Key or ApiKeyProviders.Trading212Secret:
+                // Trading212 needs both Key and Secret (for the same
+                // environment - demo or live) before a real call can be
+                // made - testing either one alone just confirms it
+                // decrypts, since there's nothing to call yet. The actual
+                // connectivity call always exercises whichever pair
+                // matches the account's current TradingMode
+                // (CreateTrading212Async picks it), so testing a Demo key
+                // while the account is set to Live (or vice versa) only
+                // confirms decryption too - the mismatched pair can't be
+                // verified against the other environment's endpoint.
+                case ApiKeyProviders.Trading212DemoKey or ApiKeyProviders.Trading212DemoSecret:
                 {
-                    var hasKey = await repository.GetAsync(accountId, ApiKeyProviders.Trading212Key, ct) is not null;
-                    var hasSecret = await repository.GetAsync(accountId, ApiKeyProviders.Trading212Secret, ct) is not null;
+                    var hasKey = await repository.GetAsync(accountId, ApiKeyProviders.Trading212DemoKey, ct) is not null;
+                    var hasSecret = await repository.GetAsync(accountId, ApiKeyProviders.Trading212DemoSecret, ct) is not null;
                     if (!hasKey || !hasSecret)
+                        return await DecryptOnlyCheckAsync(accountId, provider, ct);
+
+                    var account = await accountsRepo.GetAsync(accountId, ct);
+                    if (account?.TradingMode != TradingMode.Demo)
+                        return await DecryptOnlyCheckAsync(accountId, provider, ct);
+
+                    var t212 = await clientFactory.CreateTrading212Async<ITrading212Client>(accountId, ct);
+                    var cash = await t212.GetAccountCashAsync();
+                    return (cash is not null, "Connected");
+                }
+                case ApiKeyProviders.Trading212LiveKey or ApiKeyProviders.Trading212LiveSecret:
+                {
+                    var hasKey = await repository.GetAsync(accountId, ApiKeyProviders.Trading212LiveKey, ct) is not null;
+                    var hasSecret = await repository.GetAsync(accountId, ApiKeyProviders.Trading212LiveSecret, ct) is not null;
+                    if (!hasKey || !hasSecret)
+                        return await DecryptOnlyCheckAsync(accountId, provider, ct);
+
+                    var account = await accountsRepo.GetAsync(accountId, ct);
+                    if (account?.TradingMode != TradingMode.Live)
                         return await DecryptOnlyCheckAsync(accountId, provider, ct);
 
                     var t212 = await clientFactory.CreateTrading212Async<ITrading212Client>(accountId, ct);

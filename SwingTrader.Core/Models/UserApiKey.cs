@@ -6,7 +6,8 @@ namespace SwingTrader.Core.Models;
 public class UserApiKey : BaseEntity
 {
     public string Provider { get; set; } = string.Empty;
-    // "Finnhub", "Tiingo", "Trading212Key", "Trading212Secret", "Claude",
+    // "Finnhub", "Tiingo", "Trading212DemoKey", "Trading212DemoSecret",
+    // "Trading212LiveKey", "Trading212LiveSecret", "Claude",
     // "EmailUsername", "EmailPassword"
     public string EncryptedValue { get; set; } = string.Empty;
     public string EncryptedDek { get; set; } = string.Empty;
@@ -19,14 +20,25 @@ public static class ApiKeyProviders
 {
     public const string Finnhub = "Finnhub";
     public const string Tiingo = "Tiingo";
-    public const string Trading212Key = "Trading212Key";
-    public const string Trading212Secret = "Trading212Secret";
+
+    // Trading212 issues separate API credentials per environment - a demo
+    // key is rejected by the live endpoint and vice versa - so these are
+    // stored (and tested) as two independent pairs rather than one pair
+    // reused across both, letting an account keep both parked at once and
+    // switch TradingMode without re-entering keys.
+    public const string Trading212DemoKey = "Trading212DemoKey";
+    public const string Trading212DemoSecret = "Trading212DemoSecret";
+    public const string Trading212LiveKey = "Trading212LiveKey";
+    public const string Trading212LiveSecret = "Trading212LiveSecret";
+
     public const string Claude = "Claude";
     public const string EmailUsername = "EmailUsername";
     public const string EmailPassword = "EmailPassword";
 
     public static readonly string[] All =
     [
-        Finnhub, Tiingo, Trading212Key, Trading212Secret, Claude, EmailUsername, EmailPassword,
+        Finnhub, Tiingo,
+        Trading212DemoKey, Trading212DemoSecret, Trading212LiveKey, Trading212LiveSecret,
+        Claude, EmailUsername, EmailPassword,
     ];
 }

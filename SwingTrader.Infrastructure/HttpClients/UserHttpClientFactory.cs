@@ -35,12 +35,17 @@ public class UserHttpClientFactory(IUserKeyService keys, IAccountRepository acco
 
     public async Task<TClient> CreateTrading212Async<TClient>(int accountId, CancellationToken ct = default)
     {
-        var apiKey = await keys.GetKeyAsync(accountId, ApiKeyProviders.Trading212Key, ct);
-        var apiSecret = await keys.GetKeyAsync(accountId, ApiKeyProviders.Trading212Secret, ct);
         var account = await accounts.GetAsync(accountId, ct)
             ?? throw new InvalidOperationException($"Account {accountId} not found.");
 
-        var baseUrl = account.TradingMode == TradingMode.Live ? Trading212LiveBaseUrl : Trading212DemoBaseUrl;
+        var isLive = account.TradingMode == TradingMode.Live;
+        var keyProvider = isLive ? ApiKeyProviders.Trading212LiveKey : ApiKeyProviders.Trading212DemoKey;
+        var secretProvider = isLive ? ApiKeyProviders.Trading212LiveSecret : ApiKeyProviders.Trading212DemoSecret;
+
+        var apiKey = await keys.GetKeyAsync(accountId, keyProvider, ct);
+        var apiSecret = await keys.GetKeyAsync(accountId, secretProvider, ct);
+
+        var baseUrl = isLive ? Trading212LiveBaseUrl : Trading212DemoBaseUrl;
         var credentials = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{apiKey}:{apiSecret}"));
         var httpClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
         httpClient.DefaultRequestHeaders.Add("Authorization", $"Basic {credentials}");
