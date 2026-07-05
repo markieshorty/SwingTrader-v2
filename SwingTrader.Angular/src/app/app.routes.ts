@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
+import { onboardingGuard, onboardingCompleteGuard } from './core/guards/onboarding.guard';
 
 export const routes: Routes = [
   {
@@ -18,36 +19,43 @@ export const routes: Routes = [
     title: 'Join account',
   },
   {
+    path: 'onboarding',
+    canActivate: [authGuard, onboardingCompleteGuard],
+    loadComponent: () =>
+      import('./features/onboarding/onboarding.component').then((m) => m.OnboardingComponent),
+    title: 'Get started',
+  },
+  {
     path: 'dashboard',
-    canActivate: [authGuard],
+    canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>
       import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
     title: 'Dashboard',
   },
   {
     path: 'signals',
-    canActivate: [authGuard],
+    canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>
       import('./features/signals/signals.component').then((m) => m.SignalsComponent),
     title: 'Signals',
   },
   {
     path: 'trades',
-    canActivate: [authGuard],
+    canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>
       import('./features/trades/trades.component').then((m) => m.TradesComponent),
     title: 'Trades',
   },
   {
     path: 'refinement',
-    canActivate: [authGuard],
+    canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>
       import('./features/refinement/refinement.component').then((m) => m.RefinementComponent),
     title: 'Refinement',
   },
   {
     path: 'readiness',
-    canActivate: [authGuard],
+    canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>
       import('./features/readiness/readiness.component').then((m) => m.ReadinessComponent),
     title: 'Readiness',

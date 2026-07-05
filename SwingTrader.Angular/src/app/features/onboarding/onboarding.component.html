@@ -1,0 +1,60 @@
+<div class="onboarding-container">
+  <mat-card class="onboarding-card">
+    <div class="header">
+      <h1>Welcome to SwingTrader</h1>
+      <p>Connect your accounts to get started. This only takes a few minutes.</p>
+    </div>
+
+    <div class="progress">
+      @for (step of steps; track step.provider; let i = $index) {
+        <div
+          class="progress-dot"
+          [class.active]="i === currentIndex()"
+          [class.done]="isStepComplete(step)"
+        >
+          @if (isStepComplete(step)) {
+            <mat-icon>check</mat-icon>
+          } @else {
+            {{ i + 1 }}
+          }
+        </div>
+      }
+    </div>
+
+    <div class="step">
+      <h2>{{ currentStep().title }}</h2>
+      <p class="description">{{ currentStep().description }}</p>
+      <a [href]="currentStep().helpUrl" target="_blank" rel="noopener" class="help-link">
+        Where do I find this? <mat-icon inline>open_in_new</mat-icon>
+      </a>
+
+      @if (isStepComplete(currentStep())) {
+        <div class="already-connected">
+          <mat-icon>check_circle</mat-icon>
+          <span>Already connected</span>
+        </div>
+      } @else {
+        @for (field of currentStep().fields; track field.key) {
+          <mat-form-field appearance="outline" class="key-field">
+            <mat-label>{{ field.label }}</mat-label>
+            <input matInput type="password" [placeholder]="field.placeholder" [(ngModel)]="values[field.key]" />
+          </mat-form-field>
+        }
+      }
+    </div>
+
+    <div class="actions">
+      <button mat-button (click)="goBack()" [disabled]="currentIndex() === 0 || saving()">Back</button>
+      <span class="spacer"></span>
+      <button mat-raised-button color="primary" (click)="saveAndContinue()" [disabled]="!canProceed() || saving()">
+        @if (saving()) {
+          <mat-spinner diameter="20"></mat-spinner>
+        } @else {
+          {{ isLastStep() ? 'Finish' : 'Save & continue' }}
+        }
+      </button>
+    </div>
+  </mat-card>
+
+  <button mat-button class="logout-link" (click)="auth.logout()">Log out</button>
+</div>
