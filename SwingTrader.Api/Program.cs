@@ -5,6 +5,7 @@ using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
@@ -551,7 +552,7 @@ api.MapDelete("/account", async (IAccountRepository accounts, IAccountContext ct
 var runGroup = app.MapGroup("/run").RequireAuthorization();
 runGroup.MapPost("/{jobType}", async (
     string jobType,
-    ServiceBusClient? serviceBus,
+    [FromServices] ServiceBusClient? serviceBus,
     IAccountContext ctx) =>
 {
     if (serviceBus is null)
