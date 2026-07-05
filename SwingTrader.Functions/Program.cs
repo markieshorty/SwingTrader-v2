@@ -13,6 +13,7 @@ using Serilog;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Data;
 using SwingTrader.Data.Repositories;
+using SwingTrader.Infrastructure.HttpClients;
 using SwingTrader.Infrastructure.Security;
 
 var builder = FunctionsApplication.CreateBuilder(args);
@@ -36,6 +37,7 @@ builder.Services.AddScoped<IJobLogRepository, JobLogRepository>();
 builder.Services.AddScoped<IUserApiKeyRepository, UserApiKeyRepository>();
 builder.Services.AddScoped<IKeyEncryptionService, KeyEncryptionService>();
 builder.Services.AddScoped<IUserKeyService, UserKeyService>();
+builder.Services.AddScoped<IUserHttpClientFactory, UserHttpClientFactory>();
 
 // Managed-identity Service Bus client (ServiceBusConnection__fullyQualifiedNamespace
 // env var, set by Bicep) - the Scheduler sends via this; each Consumer's

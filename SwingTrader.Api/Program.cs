@@ -17,6 +17,7 @@ using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
 using SwingTrader.Data;
 using SwingTrader.Data.Repositories;
+using SwingTrader.Infrastructure.HttpClients;
 using SwingTrader.Infrastructure.Security;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -119,6 +120,7 @@ builder.Services.AddScoped<IJobLogRepository, JobLogRepository>();
 builder.Services.AddScoped<INotificationRecipientRepository, NotificationRecipientRepository>();
 builder.Services.AddScoped<IKeyEncryptionService, KeyEncryptionService>();
 builder.Services.AddScoped<IUserKeyService, UserKeyService>();
+builder.Services.AddScoped<IUserHttpClientFactory, UserHttpClientFactory>();
 
 var app = builder.Build();
 

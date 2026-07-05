@@ -4,6 +4,8 @@ using NSubstitute;
 using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
+using SwingTrader.Infrastructure.HttpClients;
+using SwingTrader.Infrastructure.HttpClients.Dtos;
 using SwingTrader.Infrastructure.Security;
 using Xunit;
 
@@ -13,12 +15,13 @@ public class UserKeyServiceTests
 {
     private readonly IUserApiKeyRepository _repository = Substitute.For<IUserApiKeyRepository>();
     private readonly IKeyEncryptionService _encryption = Substitute.For<IKeyEncryptionService>();
+    private readonly IUserHttpClientFactory _clientFactory = Substitute.For<IUserHttpClientFactory>();
     private readonly IConfiguration _config = new ConfigurationBuilder().Build();
     private readonly UserKeyService _sut;
 
     public UserKeyServiceTests()
     {
-        _sut = new UserKeyService(_repository, _encryption, _config);
+        _sut = new UserKeyService(_repository, _encryption, _clientFactory, _config);
     }
 
     [Fact]
@@ -119,5 +122,51 @@ public class UserKeyServiceTests
         var act = () => _sut.GetKeyAsync(1, ApiKeyProviders.Finnhub);
 
         await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task TestKeyAsync_Finnhub_ValidQuote_MarksValid()
+    {
+        var stored = new UserApiKey { AccountId = 1, Provider = ApiKeyProviders.Finnhub };
+        _repository.GetAsync(1, ApiKeyProviders.Finnhub, Arg.Any<CancellationToken>()).Returns(stored);
+
+        var finnhubClient = Substitute.For<IFinnhubClient>();
+        finnhubClient.GetQuoteAsync("AAPL").Returns(new FinnhubQuoteResponse(
+            CurrentPrice: 150m, Change: null, PercentChange: null, High: null, Low: null, Open: null, PreviousClose: null, Timestamp: 0));
+        _clientFactory.CreateFinnhubAsync<IFinnhubClient>(1, Arg.Any<CancellationToken>()).Returns(finnhubClient);
+
+        var result = await _sut.TestKeyAsync(1, ApiKeyProviders.Finnhub);
+
+        result.Should().BeTrue();
+        stored.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task TestKeyAsync_Finnhub_ApiThrows_MarksInvalidWithoutBlowingUp()
+    {
+        var stored = new UserApiKey { AccountId = 1, Provider = ApiKeyProviders.Finnhub };
+        _repository.GetAsync(1, ApiKeyProviders.Finnhub, Arg.Any<CancellationToken>()).Returns(stored);
+        _clientFactory.CreateFinnhubAsync<IFinnhubClient>(1, Arg.Any<CancellationToken>())
+            .Returns<Task<IFinnhubClient>>(_ => throw new InvalidOperationException("boom"));
+
+        var result = await _sut.TestKeyAsync(1, ApiKeyProviders.Finnhub);
+
+        result.Should().BeFalse();
+        stored.IsValid.Should().BeFalse();
+        stored.LastTestResult.Should().Contain("Connection failed");
+    }
+
+    [Fact]
+    public async Task TestKeyAsync_Trading212WithOnlyKeySet_DoesNotCallApi()
+    {
+        var stored = new UserApiKey { AccountId = 1, Provider = ApiKeyProviders.Trading212Key, EncryptedValue = "v", EncryptedDek = "d" };
+        _repository.GetAsync(1, ApiKeyProviders.Trading212Key, Arg.Any<CancellationToken>()).Returns(stored);
+        _repository.GetAsync(1, ApiKeyProviders.Trading212Secret, Arg.Any<CancellationToken>()).Returns((UserApiKey?)null);
+        _encryption.DecryptAsync(1, "v", "d", Arg.Any<CancellationToken>()).Returns("decrypted-value");
+
+        var result = await _sut.TestKeyAsync(1, ApiKeyProviders.Trading212Key);
+
+        result.Should().BeTrue();
+        await _clientFactory.DidNotReceive().CreateTrading212Async<ITrading212Client>(Arg.Any<int>(), Arg.Any<CancellationToken>());
     }
 }
