@@ -50,14 +50,13 @@ public class MonitorService(
         // Step 2 — check each position
         var trades = (await tradeRepo.GetOpenTradesAsync(accountId)).ToList();
 
+        int checked_ = 0, trailingUpdated = 0;
+        var flaggedExits = new List<FlaggedExit>();
+
         if (trades.Count == 0)
         {
             logger.LogDebug("No open positions to monitor for account {AccountId}", accountId);
-            return new MonitorCycleResult(0, 0, [], false);
         }
-
-        int checked_ = 0, trailingUpdated = 0;
-        var flaggedExits = new List<FlaggedExit>();
 
         foreach (var trade in trades)
         {
