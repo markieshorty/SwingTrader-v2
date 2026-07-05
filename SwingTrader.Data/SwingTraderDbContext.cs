@@ -22,6 +22,9 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<AppUser> AppUsers => Set<AppUser>();
     public DbSet<AccountInvite> AccountInvites => Set<AccountInvite>();
+    public DbSet<UserApiKey> UserApiKeys => Set<UserApiKey>();
+    public DbSet<JobLogEntry> JobLogEntries => Set<JobLogEntry>();
+    public DbSet<NotificationRecipient> NotificationRecipients => Set<NotificationRecipient>();
 
     // The 'system' Account created by the AddMultiTenancy migration - all
     // pre-existing (pre-Phase-10c) data defaults to this AccountId.
@@ -283,6 +286,31 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.ObservedWinRate).HasPrecision(18, 8);
             e.Property(x => x.TradesPerWeekWeighted).HasPrecision(18, 8);
             e.HasIndex(x => new { x.AccountId, x.SnapshotDate }).IsUnique();
+        });
+
+        modelBuilder.Entity<UserApiKey>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Provider).IsRequired().HasMaxLength(50);
+            e.Property(x => x.EncryptedValue).IsRequired();
+            e.Property(x => x.EncryptedDek).IsRequired();
+            e.Property(x => x.LastTestResult).HasMaxLength(500);
+            e.HasIndex(x => new { x.AccountId, x.Provider }).IsUnique();
+        });
+
+        modelBuilder.Entity<JobLogEntry>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.JobType).IsRequired().HasMaxLength(50);
+            e.Property(x => x.ErrorMessage).HasMaxLength(2000);
+            e.HasIndex(x => new { x.AccountId, x.JobType, x.JobDate }).IsUnique();
+        });
+
+        modelBuilder.Entity<NotificationRecipient>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Email).IsRequired().HasMaxLength(320);
+            e.HasIndex(x => new { x.AccountId, x.Email }).IsUnique();
         });
 
         // FK constraint from every scoped (BaseEntity-derived) table's

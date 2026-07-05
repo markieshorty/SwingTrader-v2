@@ -72,6 +72,13 @@ public class UserRegistrationMiddleware(RequestDelegate next)
             }
             else
             {
+                var account = await accounts.GetAsync(user.AccountId!.Value);
+                if (account is null || account.IsDeleted)
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    return;
+                }
+
                 await users.UpdateLastLoginAsync(userId);
             }
 

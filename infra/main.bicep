@@ -80,6 +80,15 @@ module containerApp 'modules/containerapp.bicep' = {
   }
 }
 
+module serviceBus 'modules/servicebus.bicep' = {
+  name: 'servicebus'
+  params: {
+    name: '${prefix}-sb-${environment}'
+    location: location
+    tags: tags
+  }
+}
+
 module functions 'modules/functionapp.bicep' = {
   name: 'functions'
   params: {
@@ -87,7 +96,16 @@ module functions 'modules/functionapp.bicep' = {
     location: location
     appInsightsConnectionString: appInsights.outputs.connectionString
     keyVaultUri: keyVault.outputs.uri
+    serviceBusNamespace: serviceBus.outputs.fullyQualifiedNamespace
     tags: tags
+  }
+}
+
+module serviceBusAccess 'modules/servicebusaccess.bicep' = {
+  name: 'servicebusaccess'
+  params: {
+    serviceBusNamespaceName: serviceBus.outputs.namespaceName
+    principalId: functions.outputs.principalId
   }
 }
 
@@ -109,6 +127,26 @@ module kvAccessFunctions 'modules/keyvaultaccess.bicep' = {
   }
 }
 
+// Both the API (encrypting new keys) and Functions (decrypting them for
+// consumer jobs) need to wrap/unwrap DEKs via Key Vault crypto operations.
+module kvCryptoApi 'modules/keyvaultaccess.bicep' = {
+  name: 'kvcrypto-api'
+  params: {
+    keyVaultName: keyVault.outputs.name
+    principalId: containerApp.outputs.principalId
+    roleType: 'CryptoOfficer'
+  }
+}
+
+module kvCryptoFunctions 'modules/keyvaultaccess.bicep' = {
+  name: 'kvcrypto-functions'
+  params: {
+    keyVaultName: keyVault.outputs.name
+    principalId: functions.outputs.principalId
+    roleType: 'CryptoOfficer'
+  }
+}
+
 output acrLoginServer string = acr.outputs.loginServer
 output containerAppName string = containerApp.outputs.appName
 output containerAppFqdn string = containerApp.outputs.fqdn
@@ -116,3 +154,4 @@ output functionAppName string = functions.outputs.name
 output keyVaultName string = keyVault.outputs.name
 output sqlServerFqdn string = sql.outputs.serverFqdn
 output sqlDatabaseName string = sql.outputs.databaseName
+output serviceBusNamespace string = serviceBus.outputs.fullyQualifiedNamespace

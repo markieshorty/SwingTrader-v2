@@ -14,8 +14,10 @@ using SwingTrader.Api.Middleware;
 using SwingTrader.Api.Services;
 using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
+using SwingTrader.Core.Models;
 using SwingTrader.Data;
 using SwingTrader.Data.Repositories;
+using SwingTrader.Infrastructure.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -112,6 +114,11 @@ builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 builder.Services.AddScoped<IAccountInviteRepository, AccountInviteRepository>();
 builder.Services.AddScoped<IWatchlistRepository, WatchlistRepository>();
 builder.Services.AddScoped<IStrategyWeightsRepository, StrategyWeightsRepository>();
+builder.Services.AddScoped<IUserApiKeyRepository, UserApiKeyRepository>();
+builder.Services.AddScoped<IJobLogRepository, JobLogRepository>();
+builder.Services.AddScoped<INotificationRecipientRepository, NotificationRecipientRepository>();
+builder.Services.AddScoped<IKeyEncryptionService, KeyEncryptionService>();
+builder.Services.AddScoped<IUserKeyService, UserKeyService>();
 
 var app = builder.Build();
 
@@ -195,6 +202,19 @@ api.MapPost("/account/invites", async (
 api.MapGet("/account/members", async (IUserRepository users, IAccountContext ctx) =>
     Results.Ok(await users.ListByAccountAsync(ctx.AccountId)));
 
+api.MapGet("/account", async (IAccountRepository accounts, IAccountContext ctx) =>
+{
+    var account = await accounts.GetAsync(ctx.AccountId)
+        ?? throw new InvalidOperationException("Authenticated caller has no account.");
+    return Results.Ok(new
+    {
+        account.TradingMode,
+        account.ApprovalRequired,
+        account.T212AccountId,
+        account.GlobalRefinementOptIn,
+    });
+});
+
 api.MapDelete("/account/members/{userId}", async (
     string userId,
     IUserRepository users,
@@ -211,6 +231,123 @@ api.MapDelete("/account/members/{userId}", async (
     }
 
     await users.RemoveAsync(userId);
+    return Results.Ok();
+});
+
+// Per-account API key storage (Phase 10d). GetKeyStatuses never returns the
+// actual key values - only status - since these are third-party trading/
+// data credentials.
+api.MapGet("/keys", async (IUserKeyService keys, IAccountContext ctx) =>
+    Results.Ok(await keys.GetKeyStatusesAsync(ctx.AccountId)));
+
+api.MapPost("/keys/{provider}", async (
+    string provider,
+    SaveKeyRequest req,
+    IUserKeyService keys,
+    IAccountContext ctx) =>
+{
+    if (!ApiKeyProviders.All.Contains(provider))
+        return Results.BadRequest(new { message = $"Unknown provider '{provider}'." });
+    if (string.IsNullOrWhiteSpace(req.Value))
+        return Results.BadRequest(new { message = "Value cannot be empty." });
+
+    await keys.SaveKeyAsync(ctx.AccountId, provider, req.Value);
+    var isValid = await keys.TestKeyAsync(ctx.AccountId, provider);
+    return Results.Ok(new { valid = isValid });
+});
+
+api.MapGet("/keys/{provider}/test", async (
+    string provider,
+    IUserKeyService keys,
+    IAccountContext ctx) =>
+{
+    var isValid = await keys.TestKeyAsync(ctx.AccountId, provider);
+    return Results.Ok(new { valid = isValid });
+});
+
+api.MapDelete("/keys/{provider}", async (
+    string provider,
+    IUserKeyService keys,
+    IAccountContext ctx) =>
+{
+    await keys.DeleteKeyAsync(ctx.AccountId, provider);
+    return Results.Ok();
+});
+
+// Trading config, notifications, and account lifecycle (Phase 10d Settings page)
+api.MapPut("/account/trading-config", async (
+    UpdateTradingConfigRequest req,
+    IAccountRepository accounts,
+    IAccountContext ctx) =>
+{
+    if (ctx.Role != AccountRole.Owner)
+        return Results.Forbid();
+
+    var account = await accounts.GetAsync(ctx.AccountId)
+        ?? throw new InvalidOperationException("Authenticated caller has no account.");
+    account.TradingMode = req.TradingMode;
+    account.ApprovalRequired = req.ApprovalRequired;
+    await accounts.UpdateAsync(account);
+    return Results.Ok();
+});
+
+api.MapPut("/account/global-refinement-optin/{enabled:bool}", async (
+    bool enabled,
+    IAccountRepository accounts,
+    IAccountContext ctx) =>
+{
+    var account = await accounts.GetAsync(ctx.AccountId)
+        ?? throw new InvalidOperationException("Authenticated caller has no account.");
+    account.GlobalRefinementOptIn = enabled;
+    await accounts.UpdateAsync(account);
+    return Results.Ok();
+});
+
+api.MapGet("/account/notifications", async (INotificationRecipientRepository recipients, IAccountContext ctx) =>
+    Results.Ok(await recipients.ListAsync(ctx.AccountId)));
+
+api.MapPost("/account/notifications", async (
+    AddNotificationRecipientRequest req,
+    INotificationRecipientRepository recipients,
+    IAccountContext ctx) =>
+{
+    if (ctx.Role != AccountRole.Owner)
+        return Results.Forbid();
+    if (string.IsNullOrWhiteSpace(req.Email))
+        return Results.BadRequest(new { message = "Email cannot be empty." });
+
+    var created = await recipients.AddAsync(new NotificationRecipient
+    {
+        AccountId = ctx.AccountId,
+        Email = req.Email,
+        Categories = req.Categories,
+    });
+    return Results.Ok(created);
+});
+
+api.MapDelete("/account/notifications/{recipientId:int}", async (
+    int recipientId,
+    INotificationRecipientRepository recipients,
+    IAccountContext ctx) =>
+{
+    if (ctx.Role != AccountRole.Owner)
+        return Results.Forbid();
+
+    await recipients.RemoveAsync(ctx.AccountId, recipientId);
+    return Results.Ok();
+});
+
+// Soft-delete only - see Account.IsDeleted for why a hard delete isn't
+// feasible without cascading through every scoped table.
+api.MapDelete("/account", async (IAccountRepository accounts, IAccountContext ctx) =>
+{
+    if (ctx.Role != AccountRole.Owner)
+        return Results.Forbid();
+
+    var account = await accounts.GetAsync(ctx.AccountId)
+        ?? throw new InvalidOperationException("Authenticated caller has no account.");
+    account.IsDeleted = true;
+    await accounts.UpdateAsync(account);
     return Results.Ok();
 });
 

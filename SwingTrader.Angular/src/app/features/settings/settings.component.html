@@ -1,41 +1,144 @@
-<mat-card class="panel">
-  <p>Settings will be available in a future update. API keys and account configuration will be managed here.</p>
-</mat-card>
+<mat-tab-group>
+  <mat-tab label="API Keys">
+    <mat-card class="panel">
+      <h3>API Keys</h3>
+      <p class="muted small">Keys are encrypted and never stored in plaintext.</p>
 
-<mat-card class="panel">
-  <h3>Account Members</h3>
+      @for (provider of providers; track provider) {
+        <div class="key-row">
+          <span class="provider-name">{{ providerLabel(provider) }}</span>
+          <span class="status-badge" [class]="statusClass(provider)">{{ statusLabel(provider) }}</span>
 
-  @if (members().length === 0) {
-    <p class="muted">No members loaded yet.</p>
-  } @else {
-    <div class="member-row" *ngFor="let member of members()">
-      <span class="name">{{ member.displayName }}</span>
-      <span class="email muted">{{ member.email }}</span>
-      <span class="role-badge" [class.owner]="member.role === 'Owner'">{{ member.role }}</span>
-      @if (member.role !== 'Owner') {
-        <button mat-icon-button (click)="removeMember(member.userId)" title="Remove member">
-          <mat-icon>close</mat-icon>
-        </button>
+          @if (editingProvider() === provider) {
+            <mat-form-field appearance="outline" class="key-field">
+              <mat-label>New value</mat-label>
+              <input matInput type="password" [(ngModel)]="keyInput" />
+            </mat-form-field>
+            <button mat-raised-button color="primary" (click)="saveAndTestKey()">Save and Test</button>
+            <button mat-button (click)="cancelEditing()">Cancel</button>
+          } @else {
+            <button mat-stroked-button (click)="startEditing(provider)">Replace</button>
+            <button mat-stroked-button (click)="testKey(provider)">Test</button>
+            <button mat-icon-button (click)="removeKey(provider)" title="Remove key">
+              <mat-icon>delete</mat-icon>
+            </button>
+          }
+        </div>
       }
-    </div>
-  }
+    </mat-card>
+  </mat-tab>
 
-  <div class="invite-form">
-    <mat-form-field appearance="outline" class="email-field">
-      <mat-label>Invite by email</mat-label>
-      <input matInput [(ngModel)]="inviteEmail" placeholder="friend@example.com" />
-    </mat-form-field>
-    <button mat-raised-button color="primary" (click)="createInvite()">Generate Invite Link</button>
-  </div>
+  <mat-tab label="Trading">
+    <mat-card class="panel">
+      <h3>Trading</h3>
 
-  @if (inviteLink()) {
-    <div class="invite-link-row">
-      <code>{{ inviteLink() }}</code>
-      <button mat-stroked-button (click)="copyInviteLink()">Copy</button>
-    </div>
-    <p class="muted small">
-      Share this link directly (e.g. by message or email) — no email is sent automatically. The
-      invited person signs in with their own Google account and joins your account as a Member.
-    </p>
-  }
-</mat-card>
+      <mat-form-field appearance="outline" class="mode-field">
+        <mat-label>Trading 212 mode</mat-label>
+        <mat-select [(ngModel)]="tradingMode">
+          <mat-option value="Demo">Demo</mat-option>
+          <mat-option value="Live">Live</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      @if (tradingMode() === 'Live') {
+        <p class="warning">⚠ Live mode places real trades with real money.</p>
+      }
+
+      <div class="toggle-row">
+        <mat-slide-toggle [(ngModel)]="approvalRequired">Require approval before each trade</mat-slide-toggle>
+      </div>
+
+      @if (t212AccountId()) {
+        <p class="muted small">Account ID: {{ t212AccountId() }}</p>
+      }
+
+      <button mat-raised-button color="primary" (click)="saveTradingConfig()">Save</button>
+    </mat-card>
+  </mat-tab>
+
+  <mat-tab label="Notifications">
+    <mat-card class="panel">
+      <h3>Notification Recipients</h3>
+
+      @if (recipients().length === 0) {
+        <p class="muted">No recipients configured.</p>
+      } @else {
+        <div class="recipient-row" *ngFor="let recipient of recipients()">
+          <span>{{ recipient.email }}</span>
+          <button mat-icon-button (click)="removeRecipient(recipient.id)" title="Remove">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+      }
+
+      <div class="invite-form">
+        <mat-form-field appearance="outline" class="email-field">
+          <mat-label>Add email address</mat-label>
+          <input matInput [(ngModel)]="newRecipientEmail" placeholder="you@example.com" />
+        </mat-form-field>
+        <button mat-raised-button color="primary" (click)="addRecipient()">Add</button>
+      </div>
+    </mat-card>
+  </mat-tab>
+
+  <mat-tab label="Account">
+    <mat-card class="panel">
+      <h3>Your Account</h3>
+      @if (auth.currentUser(); as user) {
+        <p>{{ user.name }} ({{ user.email }})</p>
+      }
+
+      <div class="toggle-row">
+        <mat-slide-toggle [checked]="globalRefinementOptIn()" (change)="toggleGlobalRefinement($event.checked)">
+          Share anonymized trade outcomes for global strategy refinement
+        </mat-slide-toggle>
+      </div>
+
+      <button mat-stroked-button (click)="auth.logout()">Sign out</button>
+    </mat-card>
+
+    <mat-card class="panel">
+      <h3>Account Members</h3>
+
+      @if (members().length === 0) {
+        <p class="muted">No members loaded yet.</p>
+      } @else {
+        <div class="member-row" *ngFor="let member of members()">
+          <span class="name">{{ member.displayName }}</span>
+          <span class="email muted">{{ member.email }}</span>
+          <span class="role-badge" [class.owner]="member.role === 'Owner'">{{ member.role }}</span>
+          @if (member.role !== 'Owner') {
+            <button mat-icon-button (click)="removeMember(member.userId)" title="Remove member">
+              <mat-icon>close</mat-icon>
+            </button>
+          }
+        </div>
+      }
+
+      <div class="invite-form">
+        <mat-form-field appearance="outline" class="email-field">
+          <mat-label>Invite by email</mat-label>
+          <input matInput [(ngModel)]="inviteEmail" placeholder="friend@example.com" />
+        </mat-form-field>
+        <button mat-raised-button color="primary" (click)="createInvite()">Generate Invite Link</button>
+      </div>
+
+      @if (inviteLink()) {
+        <div class="invite-link-row">
+          <code>{{ inviteLink() }}</code>
+          <button mat-stroked-button (click)="copyInviteLink()">Copy</button>
+        </div>
+        <p class="muted small">
+          Share this link directly (e.g. by message or email) — no email is sent automatically. The
+          invited person signs in with their own Google account and joins your account as a Member.
+        </p>
+      }
+    </mat-card>
+
+    <mat-card class="panel danger-zone">
+      <h3>Danger Zone</h3>
+      <p class="muted small">Deactivates the account and revokes access for every member. Trading history is retained but no longer accessible from the app.</p>
+      <button mat-stroked-button color="warn" (click)="deleteAccount()">Delete Account</button>
+    </mat-card>
+  </mat-tab>
+</mat-tab-group>

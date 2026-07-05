@@ -4,6 +4,9 @@ param appInsightsConnectionString string
 param keyVaultUri string
 param tags object
 
+@description('Service Bus fully-qualified namespace - empty until Phase 10d deploys it')
+param serviceBusNamespace string = ''
+
 var storageAccountName = take(replace(name, '-', ''), 24)
 var deploymentContainerName = 'app-package'
 
@@ -88,6 +91,12 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
         }
         { name: 'KeyVaultUrl', value: keyVaultUri }
         { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
+        {
+          // Double underscore = managed identity auth - no connection
+          // string or shared access key needed.
+          name: 'ServiceBusConnection__fullyQualifiedNamespace'
+          value: serviceBusNamespace
+        }
       ]
     }
   }

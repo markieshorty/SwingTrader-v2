@@ -1,6 +1,6 @@
 .panel {
   padding: 16px;
-  margin-bottom: 16px;
+  margin: 16px 0;
 
   h3 {
     margin-top: 0;
@@ -13,6 +13,70 @@
 
 .small {
   font-size: 12px;
+}
+
+.warning {
+  color: var(--st-red, #d32f2f);
+  font-size: 13px;
+}
+
+.key-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--st-border);
+  flex-wrap: wrap;
+}
+
+.provider-name {
+  min-width: 180px;
+  font-weight: 600;
+}
+
+.key-field {
+  flex: 1;
+  min-width: 200px;
+}
+
+.status-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--st-border);
+  color: var(--st-text);
+
+  &.valid {
+    background: var(--st-green, #2e7d32);
+    color: white;
+  }
+
+  &.invalid {
+    background: var(--st-red, #d32f2f);
+    color: white;
+  }
+
+  &.setnottested {
+    background: var(--st-amber, #ed6c02);
+    color: white;
+  }
+}
+
+.mode-field {
+  display: block;
+  max-width: 240px;
+}
+
+.toggle-row {
+  margin: 12px 0;
+}
+
+.recipient-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--st-border);
 }
 
 .member-row {
@@ -70,4 +134,8 @@
     flex: 1;
     overflow-wrap: anywhere;
   }
+}
+
+.danger-zone {
+  border: 1px solid var(--st-red, #d32f2f);
 }

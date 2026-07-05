@@ -6,6 +6,8 @@ import {
   AccountMemberDto,
   ApplyResultDto,
   InviteResultDto,
+  KeyStatusesDto,
+  NotificationRecipientDto,
   PortfolioDto,
   PositionDto,
   ReadinessReportDto,
@@ -15,6 +17,7 @@ import {
   SignalGroupDto,
   StatusDto,
   TradeDto,
+  TradingConfigDto,
 } from '../models/dtos';
 
 @Injectable({ providedIn: 'root' })
@@ -103,5 +106,52 @@ export class ApiService {
 
   removeMember(userId: string): Observable<unknown> {
     return this.http.delete(`${this.baseUrl}/api/account/members/${userId}`);
+  }
+
+  getKeyStatuses(): Observable<KeyStatusesDto> {
+    return this.http.get<KeyStatusesDto>(`${this.baseUrl}/api/keys`);
+  }
+
+  saveKey(provider: string, value: string): Observable<{ valid: boolean }> {
+    return this.http.post<{ valid: boolean }>(`${this.baseUrl}/api/keys/${provider}`, { value });
+  }
+
+  testKey(provider: string): Observable<{ valid: boolean }> {
+    return this.http.get<{ valid: boolean }>(`${this.baseUrl}/api/keys/${provider}/test`);
+  }
+
+  deleteKey(provider: string): Observable<unknown> {
+    return this.http.delete(`${this.baseUrl}/api/keys/${provider}`);
+  }
+
+  getAccountSettings(): Observable<TradingConfigDto & { globalRefinementOptIn: boolean }> {
+    return this.http.get<TradingConfigDto & { globalRefinementOptIn: boolean }>(`${this.baseUrl}/api/account`);
+  }
+
+  updateTradingConfig(tradingMode: string, approvalRequired: boolean): Observable<unknown> {
+    return this.http.put(`${this.baseUrl}/api/account/trading-config`, { tradingMode, approvalRequired });
+  }
+
+  setGlobalRefinementOptIn(enabled: boolean): Observable<unknown> {
+    return this.http.put(`${this.baseUrl}/api/account/global-refinement-optin/${enabled}`, {});
+  }
+
+  getNotificationRecipients(): Observable<NotificationRecipientDto[]> {
+    return this.http.get<NotificationRecipientDto[]>(`${this.baseUrl}/api/account/notifications`);
+  }
+
+  addNotificationRecipient(email: string, categories: number): Observable<NotificationRecipientDto> {
+    return this.http.post<NotificationRecipientDto>(`${this.baseUrl}/api/account/notifications`, {
+      email,
+      categories,
+    });
+  }
+
+  removeNotificationRecipient(id: number): Observable<unknown> {
+    return this.http.delete(`${this.baseUrl}/api/account/notifications/${id}`);
+  }
+
+  deleteAccount(): Observable<unknown> {
+    return this.http.delete(`${this.baseUrl}/api/account`);
   }
 }

@@ -220,3 +220,30 @@ export interface AccountMemberDto {
   role: 'Owner' | 'Member';
   lastLoginAt: string;
 }
+
+export type KeyStatus = 'NotSet' | 'SetNotTested' | 'Valid' | 'Invalid';
+
+export type ApiKeyProvider =
+  | 'Finnhub'
+  | 'Tiingo'
+  | 'Trading212Key'
+  | 'Trading212Secret'
+  | 'Claude'
+  | 'EmailUsername'
+  | 'EmailPassword';
+
+export type KeyStatusesDto = Record<ApiKeyProvider, KeyStatus>;
+
+export type TradingMode = 'Demo' | 'Live';
+
+export interface TradingConfigDto {
+  tradingMode: TradingMode;
+  approvalRequired: boolean;
+  t212AccountId: string | null;
+}
+
+export interface NotificationRecipientDto {
+  id: number;
+  email: string;
+  categories: number;
+}

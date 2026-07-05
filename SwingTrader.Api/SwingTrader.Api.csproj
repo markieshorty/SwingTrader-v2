@@ -28,6 +28,7 @@
   <ItemGroup>
     <ProjectReference Include="..\SwingTrader.Agents\SwingTrader.Agents.csproj" />
     <ProjectReference Include="..\SwingTrader.Data\SwingTrader.Data.csproj" />
+    <ProjectReference Include="..\SwingTrader.Infrastructure\SwingTrader.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
