@@ -14,6 +14,7 @@ using Serilog;
 using SwingTrader.Agents.Monitor;
 using SwingTrader.Agents.Refinement;
 using SwingTrader.Agents.Report;
+using SwingTrader.Agents.Risk;
 using SwingTrader.Agents.Research;
 using SwingTrader.Agents.Watchlist;
 using SwingTrader.Core.Interfaces;
@@ -78,6 +79,7 @@ builder.Services.Configure<ApprovalConfig>(builder.Configuration.GetSection(Appr
 builder.Services.Configure<EmailConfig>(builder.Configuration.GetSection(EmailConfig.SectionName));
 builder.Services.Configure<MonitorConfig>(builder.Configuration.GetSection(MonitorConfig.SectionName));
 builder.Services.Configure<RefinementConfig>(builder.Configuration.GetSection(RefinementConfig.SectionName));
+builder.Services.Configure<RiskManagementConfig>(builder.Configuration.GetSection(RiskManagementConfig.SectionName));
 
 builder.Services.AddRefitClient<IExchangeRateClient>()
     .ConfigureHttpClient(c => c.BaseAddress = new Uri("https://api.frankfurter.dev"));
@@ -104,6 +106,7 @@ builder.Services.AddScoped<IMonitorService, MonitorService>();
 builder.Services.AddScoped<IComponentCorrelationService, ComponentCorrelationService>();
 builder.Services.AddScoped<IRefinementService, RefinementService>();
 builder.Services.AddScoped<IApplyRefinementService, ApplyRefinementService>();
+builder.Services.AddScoped<ITierEvaluationService, TierEvaluationService>();
 
 // Managed-identity Service Bus client (ServiceBusConnection__fullyQualifiedNamespace
 // env var, set by Bicep) - the Scheduler sends via this; each Consumer's

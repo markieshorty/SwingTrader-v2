@@ -1,12 +1,22 @@
 using System.Text.Json;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
+using SwingTrader.Agents.Risk;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
+using SwingTrader.Infrastructure.HttpClients;
 
 namespace SwingTrader.Functions;
 
-public class RiskConsumerFunction(IJobLogRepository jobLog, ILogger<RiskConsumerFunction> logger)
+// Consumer half of the Scheduler/Consumer pair (risk-jobs queue): monthly
+// capital-tier evaluation (unlock/downgrade based on trailing win rate and
+// return). Only ever changes how much of the account's own capital future
+// trades may use — no orders placed.
+public class RiskConsumerFunction(
+    IJobLogRepository jobLog,
+    ITierEvaluationService tierEvaluation,
+    IUserHttpClientFactory clientFactory,
+    ILogger<RiskConsumerFunction> logger)
 {
     [Function("RiskConsumer")]
     public async Task Run(
@@ -18,9 +28,12 @@ public class RiskConsumerFunction(IJobLogRepository jobLog, ILogger<RiskConsumer
 
         try
         {
+            var claude = await clientFactory.CreateClaudeAsync<IClaudeClient>(message.AccountId, ct);
+            var record = await tierEvaluation.EvaluateAsync(message.AccountId, claude, ct);
+
             logger.LogInformation(
-                "Risk job {JobId} for account {AccountId} — pipeline not yet implemented",
-                message.JobId, message.AccountId);
+                "Risk job {JobId} for account {AccountId} — tier {Current} -> {Suggested} (applied: {Applied})",
+                message.JobId, message.AccountId, record.CurrentTier, record.SuggestedTier, record.WasApplied);
 
             await jobLog.MarkCompletedAsync(message.AccountId, "Risk", message.EvaluationDate, ct);
         }
