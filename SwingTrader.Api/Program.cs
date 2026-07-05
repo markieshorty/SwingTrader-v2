@@ -82,6 +82,12 @@ builder.Services.AddCors(options =>
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        // Without this, JwtSecurityTokenHandler remaps "sub" to the long
+        // XML-schema ClaimTypes.NameIdentifier URI, so every
+        // FindFirst("sub")/FindFirst("email") lookup below silently returns
+        // null instead of throwing - which surfaced as a NULL UserId insert
+        // into AppUsers rather than an obvious auth failure.
+        options.MapInboundClaims = false;
         options.Authority = builder.Configuration["AzureAdB2C:Authority"];
         options.Audience = builder.Configuration["AzureAdB2C:Audience"];
         options.TokenValidationParameters = new TokenValidationParameters
