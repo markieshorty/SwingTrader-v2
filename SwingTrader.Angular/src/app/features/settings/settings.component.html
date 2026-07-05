@@ -184,6 +184,10 @@
           <span class="name">{{ member.displayName }}</span>
           <span class="email muted">{{ member.email }}</span>
           <span class="role-badge" [class.owner]="member.role === 'Owner'">{{ member.role }}</span>
+          @if (!member.isApproved) {
+            <span class="role-badge pending">Pending approval</span>
+            <button mat-stroked-button color="primary" (click)="approveMember(member.userId)">Approve</button>
+          }
           @if (member.role !== 'Owner') {
             <button mat-icon-button (click)="removeMember(member.userId)" title="Remove member">
               <mat-icon>close</mat-icon>

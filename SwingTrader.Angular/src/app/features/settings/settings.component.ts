@@ -285,6 +285,19 @@ export class SettingsComponent {
     });
   }
 
+  approveMember(userId: string): void {
+    this.api.approveMember(userId).subscribe({
+      next: () => {
+        this.snackbar.open('Member approved', 'Dismiss', { duration: 3000 });
+        this.loadMembers();
+      },
+      error: (err) => {
+        const message = err.status === 403 ? 'Only the account Owner can approve members.' : 'Failed to approve member.';
+        this.snackbar.open(message, 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
   copyInviteLink(): void {
     const link = this.inviteLink();
     if (link) {

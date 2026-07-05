@@ -219,6 +219,7 @@ export interface AccountMemberDto {
   displayName: string;
   role: 'Owner' | 'Member';
   lastLoginAt: string;
+  isApproved: boolean;
 }
 
 export type KeyStatus = 'NotSet' | 'SetNotTested' | 'Valid' | 'Invalid';

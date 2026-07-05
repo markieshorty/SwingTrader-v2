@@ -109,6 +109,14 @@ export class ApiService {
     return this.http.delete(`${this.baseUrl}/api/account/members/${userId}`);
   }
 
+  approveMember(userId: string): Observable<unknown> {
+    return this.http.put(`${this.baseUrl}/api/account/members/${userId}/approve`, {});
+  }
+
+  getApprovalStatus(): Observable<{ isApproved: boolean }> {
+    return this.http.get<{ isApproved: boolean }>(`${this.baseUrl}/api/account/approval-status`);
+  }
+
   getKeyStatuses(): Observable<KeyStatusesDto> {
     return this.http.get<KeyStatusesDto>(`${this.baseUrl}/api/keys`);
   }

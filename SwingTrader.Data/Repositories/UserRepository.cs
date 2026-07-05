@@ -34,4 +34,12 @@ public class UserRepository(SwingTraderDbContext db) : IUserRepository
         db.AppUsers.Remove(user);
         await db.SaveChangesAsync(ct);
     }
+
+    public async Task ApproveAsync(string userId, CancellationToken ct = default)
+    {
+        var user = await db.AppUsers.FirstOrDefaultAsync(u => u.UserId == userId, ct);
+        if (user is null) return;
+        user.IsApproved = true;
+        await db.SaveChangesAsync(ct);
+    }
 }

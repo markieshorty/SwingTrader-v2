@@ -75,8 +75,28 @@ public class UserRegistrationMiddleware(RequestDelegate next)
                 await users.UpdateLastLoginAsync(userId);
             }
 
+            // Set before the approval gate below - IAccountContext (used by
+            // the exempted /api/account/approval-status endpoint itself)
+            // needs AccountId/Role resolvable even for an unapproved user.
             context.Items["AccountId"] = user.AccountId!.Value.ToString();
             context.Items["AccountRole"] = user.Role.ToString();
+
+            // Members who joined via an invite link start unapproved and
+            // can't touch anything else on the app - not a UI-only gate,
+            // enforced here so a direct API call can't route around it
+            // either. GET /api/account/approval-status is the one exempt
+            // path, so the frontend has something to poll for the "waiting
+            // for approval" screen.
+            if (!user.IsApproved && !context.Request.Path.StartsWithSegments("/api/account/approval-status"))
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    pendingApproval = true,
+                    message = "Your account is awaiting approval from the account owner.",
+                });
+                return;
+            }
         }
 
         await next(context);
@@ -126,6 +146,7 @@ public class UserRegistrationMiddleware(RequestDelegate next)
             Role = role,
             FirstLoginAt = DateTime.UtcNow,
             LastLoginAt = DateTime.UtcNow,
+            IsApproved = role == AccountRole.Owner,
         };
 
         await users.CreateAsync(user);

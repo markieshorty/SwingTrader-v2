@@ -64,7 +64,12 @@ export class AppComponent {
 
   isAuthRoute = computed(() => {
     const url = this.currentUrl();
-    return url.startsWith('/login') || url.startsWith('/join') || url.startsWith('/onboarding');
+    return (
+      url.startsWith('/login') ||
+      url.startsWith('/join') ||
+      url.startsWith('/onboarding') ||
+      url.startsWith('/pending-approval')
+    );
   });
 
   private titleFromUrl(): string {

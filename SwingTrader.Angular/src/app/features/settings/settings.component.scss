@@ -109,6 +109,11 @@
   color: white;
 }
 
+.role-badge.pending {
+  background: var(--st-amber, #ed6c02);
+  color: white;
+}
+
 .invite-form {
   display: flex;
   align-items: center;

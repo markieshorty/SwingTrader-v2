@@ -18,4 +18,11 @@ public class AppUser : UnscopedEntity
     public DateTime? SuspendedAt { get; set; }
     public bool IsOnboarded { get; set; } = false;
     public int OnboardingStep { get; set; } = 0;
+
+    // Owners (self-registered, no invite) are auto-approved. Members joining
+    // via an invite link start unapproved and can't do anything on the app
+    // (enforced in UserRegistrationMiddleware) until the Owner explicitly
+    // approves them - a link leak/interception only gets someone as far as
+    // a "pending approval" screen, not real account access.
+    public bool IsApproved { get; set; } = true;
 }

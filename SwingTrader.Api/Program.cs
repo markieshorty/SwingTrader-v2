@@ -467,7 +467,12 @@ api.MapPost("/account/invites", async (
         InvitedByUserId = ctx.UserId,
         InvitedEmail = req.Email,
         Token = Guid.NewGuid().ToString("N"),
-        ExpiresAt = DateTime.UtcNow.AddDays(7),
+        // Short-lived deliberately: this token is the entire authentication
+        // for joining someone's account. A 7-day window meant a leaked/
+        // forwarded link (chat scrollback, shared clipboard, proxy logs)
+        // stayed exploitable for a week; 30 minutes still comfortably covers
+        // "share the link, they click it" while shrinking that exposure a lot.
+        ExpiresAt = DateTime.UtcNow.AddMinutes(30),
     };
     await invites.CreateAsync(invite);
 
@@ -508,6 +513,31 @@ api.MapDelete("/account/members/{userId}", async (
 
     await users.RemoveAsync(userId);
     return Results.Ok();
+});
+
+api.MapPut("/account/members/{userId}/approve", async (
+    string userId,
+    IUserRepository users,
+    IAccountContext ctx) =>
+{
+    if (ctx.Role != AccountRole.Owner)
+        return Results.Forbid();
+
+    var members = await users.ListByAccountAsync(ctx.AccountId);
+    if (!members.Any(m => m.UserId == userId))
+        return Results.NotFound();
+
+    await users.ApproveAsync(userId);
+    return Results.Ok();
+});
+
+// The one path UserRegistrationMiddleware exempts from the pending-approval
+// block, so an unapproved user's "waiting for approval" screen has
+// something to poll without a 403 loop.
+api.MapGet("/account/approval-status", async (IUserRepository users, IAccountContext ctx) =>
+{
+    var user = await users.FindAsync(ctx.UserId);
+    return Results.Ok(new { isApproved = user?.IsApproved ?? false });
 });
 
 // Per-account API key storage (Phase 10d). GetKeyStatuses never returns the
