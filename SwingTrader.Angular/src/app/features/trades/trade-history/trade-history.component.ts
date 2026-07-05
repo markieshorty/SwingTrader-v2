@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, computed, input } from '@angular/core';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
+import { defaultColDef } from '../../../shared/ag-grid-defaults';
 import { TradeDto } from '../../../core/models/dtos';
 
 @Component({
@@ -19,6 +20,7 @@ import { TradeDto } from '../../../core/models/dtos';
       style="width: 100%; height: 400px;"
       [rowData]="trades()"
       [columnDefs]="columnDefs"
+      [defaultColDef]="defaultColDef"
       [getRowClass]="rowClass"
     />
   `,
@@ -36,6 +38,8 @@ import { TradeDto } from '../../../core/models/dtos';
 })
 export class TradeHistoryComponent {
   trades = input.required<TradeDto[]>();
+
+  defaultColDef = defaultColDef;
 
   columnDefs: ColDef<TradeDto>[] = [
     { field: 'symbol', headerName: 'Symbol', sortable: true, filter: true },

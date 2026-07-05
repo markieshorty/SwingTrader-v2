@@ -15,6 +15,7 @@ import { PercentSignedPipe } from '../../shared/pipes/percent-signed.pipe';
 import { StopTargetBarComponent } from '../../shared/components/stop-target-bar/stop-target-bar.component';
 import { ConvictionBarComponent } from '../../shared/components/conviction-bar/conviction-bar.component';
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
+import { defaultColDef } from '../../shared/ag-grid-defaults';
 import { SignalDto, TradeDto } from '../../core/models/dtos';
 
 const AGENTS = ['Research', 'Report', 'Execution', 'Monitor', 'Risk', 'Refinement'] as const;
@@ -69,6 +70,8 @@ export class DashboardComponent {
   });
 
   activeTabIndex = signal(0);
+
+  defaultColDef = defaultColDef;
 
   tradeColumnDefs: ColDef<TradeDto>[] = [
     { field: 'symbol', headerName: 'Symbol' },

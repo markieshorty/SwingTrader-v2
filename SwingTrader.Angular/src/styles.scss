@@ -1,5 +1,13 @@
 @use '@angular/material' as mat;
 
+// AG Grid's own structural + theme CSS. Without these, the grid renders
+// as unstyled raw DOM (checkboxes/labels stacked vertically instead of
+// a table) — ag-theme-alpine.css ships both light and dark variants,
+// selected by the container class ("ag-theme-alpine-dark" is used in the
+// templates), so only ag-grid.css + ag-theme-alpine.css are needed.
+@import 'ag-grid-community/styles/ag-grid.css';
+@import 'ag-grid-community/styles/ag-theme-alpine.css';
+
 @include mat.core();
 
 $primary: mat.define-palette(mat.$blue-palette, 600);
@@ -37,6 +45,7 @@ $theme: mat.define-dark-theme(
 html,
 body {
   height: 100%;
+  overflow-x: hidden;
 }
 
 body {
