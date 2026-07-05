@@ -21,31 +21,36 @@
   </div>
 
   <!-- Row 1: Stat cards -->
-  <div class="stat-row">
-    <mat-card class="stat-card">
-      <div class="stat-label">Total Capital</div>
-      <div class="stat-value">{{ portfolio()?.totalCapital | currencyGbp }}</div>
+  @if (portfolio(); as p) {
+    <div class="stat-row">
+      <mat-card class="stat-card">
+        <div class="stat-label">Total Capital</div>
+        <div class="stat-value">{{ p.totalCapital | currencyGbp }}</div>
+      </mat-card>
+      <mat-card class="stat-card">
+        <div class="stat-label">Cash Available</div>
+        <div class="stat-value">{{ p.cashAvailable | currencyGbp }}</div>
+      </mat-card>
+      <mat-card class="stat-card">
+        <div class="stat-label">Today P&amp;L</div>
+        <div class="stat-value" [class.positive]="p.todayPnl >= 0" [class.negative]="p.todayPnl < 0">
+          {{ p.todayPnl | currencyGbp }}
+          <span class="stat-sub">{{ p.todayPnlPercent | percentSigned }}</span>
+        </div>
+      </mat-card>
+      <mat-card class="stat-card">
+        <div class="stat-label">30-Day Win Rate</div>
+        <div class="stat-value">{{ p.winRate30d | number: '1.0-1' }}%</div>
+      </mat-card>
+    </div>
+  } @else {
+    <mat-card class="panel no-portfolio">
+      <p class="muted">
+        No portfolio snapshot yet — this fills in once Monitor, Execution, or Risk has run at least once for this
+        account. Trigger one manually below if you'd like to see it now.
+      </p>
     </mat-card>
-    <mat-card class="stat-card">
-      <div class="stat-label">Cash Available</div>
-      <div class="stat-value">{{ portfolio()?.cashAvailable | currencyGbp }}</div>
-    </mat-card>
-    <mat-card class="stat-card">
-      <div class="stat-label">Today P&amp;L</div>
-      <div
-        class="stat-value"
-        [class.positive]="(portfolio()?.todayPnl ?? 0) >= 0"
-        [class.negative]="(portfolio()?.todayPnl ?? 0) < 0"
-      >
-        {{ portfolio()?.todayPnl | currencyGbp }}
-        <span class="stat-sub">{{ portfolio()?.todayPnlPercent | percentSigned }}</span>
-      </div>
-    </mat-card>
-    <mat-card class="stat-card">
-      <div class="stat-label">30-Day Win Rate</div>
-      <div class="stat-value">{{ (portfolio()?.winRate30d ?? 0) | number: '1.0-1' }}%</div>
-    </mat-card>
-  </div>
+  }
 
   <!-- Row 2: Positions + Workers -->
   <div class="two-col">
