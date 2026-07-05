@@ -22,7 +22,12 @@ public class UserRegistrationMiddleware(RequestDelegate next)
         if (context.User.Identity?.IsAuthenticated == true)
         {
             var userId = context.User.FindFirst("sub")?.Value!;
-            var email = context.User.FindFirst("emails")?.Value ?? string.Empty;
+            // CIAM emits a singular "email" claim (unlike classic B2C's
+            // "emails" array) and only when the "email" scope is requested.
+            var email = context.User.FindFirst("email")?.Value
+                ?? context.User.FindFirst("emails")?.Value
+                ?? context.User.FindFirst("preferred_username")?.Value
+                ?? string.Empty;
             var user = await users.FindAsync(userId);
 
             if (user is null)

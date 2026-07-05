@@ -64,7 +64,7 @@ export const appConfig: ApplicationConfig = {
         {
           interactionType: InteractionType.Redirect,
           authRequest: {
-            scopes: ['openid', 'profile', environment.b2cScope],
+            scopes: ['openid', 'profile', 'email', environment.b2cScope],
           },
         },
         {
