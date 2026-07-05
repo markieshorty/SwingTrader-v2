@@ -14,6 +14,12 @@ param sqlAdminPassword string
 #disable-next-line no-unused-params
 param adminUserId string = ''
 
+@description('Azure AD B2C authority URL - empty until Phase 10c manual B2C setup is complete')
+param b2cAuthority string = ''
+
+@description('Azure AD B2C application client ID - empty until Phase 10c manual B2C setup is complete')
+param b2cClientId string = ''
+
 var prefix = 'swingtrader'
 var tags = {
   project: 'SwingTrader'
@@ -68,6 +74,8 @@ module containerApp 'modules/containerapp.bicep' = {
     location: location
     appInsightsConnectionString: appInsights.outputs.connectionString
     keyVaultUri: keyVault.outputs.uri
+    b2cAuthority: b2cAuthority
+    b2cClientId: b2cClientId
     tags: tags
   }
 }

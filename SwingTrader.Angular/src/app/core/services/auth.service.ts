@@ -1,20 +1,36 @@
-import { Injectable, signal } from '@angular/core';
-import { UserDto } from '../models/dtos';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { MsalService } from '@azure/msal-angular';
+import { ApiService } from './api.service';
 
-// Phase 10c will implement MSAL here. For now: always authenticated.
-// Guards use this service — when 10c wires it up, no guard changes needed.
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  isAuthenticated = signal<boolean>(true);
-  currentUser = signal<UserDto | null>(null);
+  private msal = inject(MsalService);
+  private api = inject(ApiService);
 
-  login(): void {
-    // Phase 10c: redirect to Google OAuth via MSAL
-    console.log('Auth not yet implemented');
+  isAuthenticated = computed(() => this.msal.instance.getAllAccounts().length > 0);
+
+  currentUser = computed(() => {
+    const accounts = this.msal.instance.getAllAccounts();
+    if (accounts.length === 0) return null;
+    return {
+      name: accounts[0].name ?? accounts[0].username,
+      email: accounts[0].username,
+      userId: accounts[0].localAccountId,
+    };
+  });
+
+  isAdmin = signal<boolean>(false);
+
+  constructor() {
+    if (this.isAuthenticated()) {
+      this.api.getAdminMe().subscribe({
+        next: () => this.isAdmin.set(true),
+        error: () => this.isAdmin.set(false),
+      });
+    }
   }
 
   logout(): void {
-    // Phase 10c: MSAL logout
-    console.log('Auth not yet implemented');
+    this.msal.logoutRedirect();
   }
 }

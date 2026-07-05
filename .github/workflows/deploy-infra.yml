@@ -34,6 +34,8 @@ jobs:
         env:
           SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
           ADMIN_USER_ID: ${{ secrets.ADMIN_USER_ID }}
+          B2C_AUTHORITY: ${{ secrets.B2C_AUTHORITY }}
+          B2C_CLIENT_ID: ${{ secrets.B2C_CLIENT_ID }}
         run: |
           az deployment group what-if \
             --resource-group ${{ secrets.RESOURCE_GROUP }} \
@@ -45,6 +47,8 @@ jobs:
         env:
           SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
           ADMIN_USER_ID: ${{ secrets.ADMIN_USER_ID }}
+          B2C_AUTHORITY: ${{ secrets.B2C_AUTHORITY }}
+          B2C_CLIENT_ID: ${{ secrets.B2C_CLIENT_ID }}
         run: |
           output=$(az deployment group create \
             --resource-group ${{ secrets.RESOURCE_GROUP }} \
@@ -94,6 +98,7 @@ jobs:
           set_secret_if_missing "Email--Password" "${{ secrets.EMAIL_PASSWORD }}"
           set_secret_if_missing "Email--ToAddresses--0" "${{ secrets.EMAIL_TO_0 }}"
           set_secret_if_missing "Email--ToAddresses--1" "${{ secrets.EMAIL_TO_1 }}"
+          set_secret_if_missing "Admin--UserId" "${{ secrets.ADMIN_USER_ID }}"
 
           # Always overwritten, unlike the secrets above: this value is fully
           # computed by this workflow (server FQDN + db name + admin

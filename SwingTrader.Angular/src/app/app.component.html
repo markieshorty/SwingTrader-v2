@@ -1,57 +1,61 @@
-<mat-sidenav-container class="app-shell">
-  <mat-sidenav mode="side" opened class="sidenav">
-    <div class="logo">
-      <span>SwingTrader</span>
-      <app-regime-badge [regime]="regime()" />
-    </div>
+@if (isAuthRoute()) {
+  <router-outlet />
+} @else {
+  <mat-sidenav-container class="app-shell">
+    <mat-sidenav mode="side" opened class="sidenav">
+      <div class="logo">
+        <span>SwingTrader</span>
+        <app-regime-badge [regime]="regime()" />
+      </div>
 
-    <mat-nav-list>
-      <a mat-list-item routerLink="/dashboard" routerLinkActive="active">
-        <mat-icon>dashboard</mat-icon>
-        Dashboard
-      </a>
-      <a mat-list-item routerLink="/signals" routerLinkActive="active">
-        <mat-icon>analytics</mat-icon>
-        Signals
-      </a>
-      <a mat-list-item routerLink="/trades" routerLinkActive="active">
-        <mat-icon>swap_horiz</mat-icon>
-        Trades
-      </a>
-      <a mat-list-item routerLink="/refinement" routerLinkActive="active">
-        <mat-icon>tune</mat-icon>
-        Refinement
-      </a>
-      <a mat-list-item routerLink="/readiness" routerLinkActive="active">
-        <mat-icon>checklist</mat-icon>
-        Readiness
-      </a>
-      <a mat-list-item routerLink="/settings" routerLinkActive="active">
-        <mat-icon>settings</mat-icon>
-        Settings
-      </a>
-    </mat-nav-list>
+      <mat-nav-list>
+        <a mat-list-item routerLink="/dashboard" routerLinkActive="active">
+          <mat-icon>dashboard</mat-icon>
+          Dashboard
+        </a>
+        <a mat-list-item routerLink="/signals" routerLinkActive="active">
+          <mat-icon>analytics</mat-icon>
+          Signals
+        </a>
+        <a mat-list-item routerLink="/trades" routerLinkActive="active">
+          <mat-icon>swap_horiz</mat-icon>
+          Trades
+        </a>
+        <a mat-list-item routerLink="/refinement" routerLinkActive="active">
+          <mat-icon>tune</mat-icon>
+          Refinement
+        </a>
+        <a mat-list-item routerLink="/readiness" routerLinkActive="active">
+          <mat-icon>checklist</mat-icon>
+          Readiness
+        </a>
+        <a mat-list-item routerLink="/settings" routerLinkActive="active">
+          <mat-icon>settings</mat-icon>
+          Settings
+        </a>
+      </mat-nav-list>
 
-    <div class="sidenav-footer">
-      <span class="last-updated">Updated {{ lastUpdated() | relativeTime }}</span>
-    </div>
-  </mat-sidenav>
+      <div class="sidenav-footer">
+        <span class="last-updated">Updated {{ lastUpdated() | relativeTime }}</span>
+      </div>
+    </mat-sidenav>
 
-  <mat-sidenav-content>
-    <mat-toolbar>
-      <span>{{ pageTitle() }}</span>
-      <span class="spacer"></span>
-      <button mat-icon-button (click)="data.refresh()" [disabled]="data.isLoading()">
-        <mat-icon>refresh</mat-icon>
-      </button>
-    </mat-toolbar>
+    <mat-sidenav-content>
+      <mat-toolbar>
+        <span>{{ pageTitle() }}</span>
+        <span class="spacer"></span>
+        <button mat-icon-button (click)="data.refresh()" [disabled]="data.isLoading()">
+          <mat-icon>refresh</mat-icon>
+        </button>
+      </mat-toolbar>
 
-    @if (data.error()) {
-      <app-error-card [message]="data.error()!" />
-    }
+      @if (data.error()) {
+        <app-error-card [message]="data.error()!" />
+      }
 
-    <div class="content">
-      <router-outlet />
-    </div>
-  </mat-sidenav-content>
-</mat-sidenav-container>
+      <div class="content">
+        <router-outlet />
+      </div>
+    </mat-sidenav-content>
+  </mat-sidenav-container>
+}

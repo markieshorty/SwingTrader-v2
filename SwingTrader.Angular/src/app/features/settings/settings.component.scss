@@ -1,0 +1,73 @@
+.panel {
+  padding: 16px;
+  margin-bottom: 16px;
+
+  h3 {
+    margin-top: 0;
+  }
+}
+
+.muted {
+  color: var(--st-muted);
+}
+
+.small {
+  font-size: 12px;
+}
+
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--st-border);
+}
+
+.name {
+  font-weight: 600;
+  min-width: 140px;
+}
+
+.email {
+  flex: 1;
+}
+
+.role-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--st-border);
+  color: var(--st-text);
+}
+
+.role-badge.owner {
+  background: var(--st-blue);
+  color: white;
+}
+
+.invite-form {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.email-field {
+  flex: 1;
+  max-width: 300px;
+}
+
+.invite-link-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: var(--st-border);
+  border-radius: 6px;
+
+  code {
+    flex: 1;
+    overflow-wrap: anywhere;
+  }
+}

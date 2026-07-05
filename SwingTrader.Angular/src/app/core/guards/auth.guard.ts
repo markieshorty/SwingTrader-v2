@@ -1,11 +1,18 @@
 import { inject } from '@angular/core';
 import { CanActivateFn } from '@angular/router';
-import { AuthService } from '../services/auth.service';
+import { MsalService } from '@azure/msal-angular';
+import { environment } from '../../../environments/environment';
 
-// Inactive until Phase 10c: AuthService.isAuthenticated is always true, so
-// this guard is currently a no-op. Once 10c wires up MSAL, this starts
-// redirecting unauthenticated users without any guard code changes.
 export const authGuard: CanActivateFn = () => {
-  const auth = inject(AuthService);
-  return auth.isAuthenticated();
+  const msal = inject(MsalService);
+
+  if (msal.instance.getAllAccounts().length > 0) {
+    return true;
+  }
+
+  msal.instance.loginRedirect({
+    scopes: ['openid', 'profile', environment.b2cScope],
+  });
+
+  return false;
 };

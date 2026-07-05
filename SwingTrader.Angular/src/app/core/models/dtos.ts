@@ -208,3 +208,15 @@ export interface UserDto {
   email: string;
   displayName: string;
 }
+
+export interface InviteResultDto {
+  inviteUrl: string;
+}
+
+export interface AccountMemberDto {
+  userId: string;
+  email: string;
+  displayName: string;
+  role: 'Owner' | 'Member';
+  lastLoginAt: string;
+}

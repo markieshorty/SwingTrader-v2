@@ -19,6 +19,13 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     public DbSet<RefinementSuggestion> RefinementSuggestions => Set<RefinementSuggestion>();
     public DbSet<SystemChecklist> SystemChecklists => Set<SystemChecklist>();
     public DbSet<ReadinessSnapshot> ReadinessSnapshots => Set<ReadinessSnapshot>();
+    public DbSet<Account> Accounts => Set<Account>();
+    public DbSet<AppUser> AppUsers => Set<AppUser>();
+    public DbSet<AccountInvite> AccountInvites => Set<AccountInvite>();
+
+    // The 'system' Account created by the AddMultiTenancy migration - all
+    // pre-existing (pre-Phase-10c) data defaults to this AccountId.
+    public const int SystemAccountId = 1;
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -30,13 +37,51 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     {
         base.OnModelCreating(modelBuilder);
 
+        modelBuilder.Entity<Account>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).IsRequired().HasMaxLength(200);
+            e.Property(x => x.T212AccountId).HasMaxLength(100);
+            e.HasData(new Account
+            {
+                Id = SystemAccountId,
+                Name = "system",
+                CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            });
+        });
+
+        modelBuilder.Entity<AppUser>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.UserId).IsRequired().HasMaxLength(200);
+            e.Property(x => x.Email).IsRequired().HasMaxLength(320);
+            e.Property(x => x.DisplayName).IsRequired().HasMaxLength(200);
+            e.HasIndex(x => x.UserId).IsUnique();
+            e.HasIndex(x => x.AccountId);
+        });
+
+        modelBuilder.Entity<AccountInvite>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.InvitedByUserId).IsRequired().HasMaxLength(200);
+            e.Property(x => x.InvitedEmail).IsRequired().HasMaxLength(320);
+            e.Property(x => x.Token).IsRequired().HasMaxLength(64);
+            e.Property(x => x.AcceptedByUserId).HasMaxLength(200);
+            e.HasIndex(x => x.Token).IsUnique();
+            e.HasIndex(x => x.AccountId);
+        });
+
         modelBuilder.Entity<WatchlistItem>(e =>
         {
             e.HasKey(x => x.Id);
             e.Property(x => x.Symbol).IsRequired().HasMaxLength(20);
             e.Property(x => x.CompanyName).IsRequired().HasMaxLength(200);
             e.Property(x => x.Sector).IsRequired().HasMaxLength(100);
-            e.HasIndex(x => x.Symbol).IsUnique();
+            // Was globally unique on Symbol pre-multi-tenancy; every account
+            // now has its own independent watchlist, so the same symbol can
+            // legitimately appear once per account.
+            e.HasIndex(x => new { x.AccountId, x.Symbol }).IsUnique();
             e.HasQueryFilter(x => x.IsActive);
         });
 
@@ -74,7 +119,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.CalculatedStopLoss).HasPrecision(18, 8);
             e.Property(x => x.CalculatedTarget).HasPrecision(18, 8);
             e.Property(x => x.RiskRewardRatio).HasPrecision(18, 8);
-            e.HasIndex(x => new { x.Symbol, x.SignalDate });
+            e.HasIndex(x => new { x.AccountId, x.Symbol, x.SignalDate });
         });
 
         modelBuilder.Entity<Trade>(e =>
@@ -92,7 +137,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.SpyPriceAtExit).HasPrecision(18, 8);
             e.Property(x => x.VixAtEntry).HasPrecision(18, 8);
             e.Property(x => x.SpyReturnDuringTrade).HasPrecision(18, 8);
-            e.HasIndex(x => new { x.Symbol, x.Status });
+            e.HasIndex(x => new { x.AccountId, x.Symbol, x.Status });
         });
 
         modelBuilder.Entity<DailyReport>(e =>
@@ -100,7 +145,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.HasKey(x => x.Id);
             e.Property(x => x.PortfolioValue).HasPrecision(18, 8);
             e.Property(x => x.DailyPnl).HasPrecision(18, 8);
-            e.HasIndex(x => x.ReportDate).IsUnique();
+            e.HasIndex(x => new { x.AccountId, x.ReportDate }).IsUnique();
         });
 
         modelBuilder.Entity<PortfolioSnapshot>(e =>
@@ -113,7 +158,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.CashAvailable).HasPrecision(18, 8);
             e.Property(x => x.OpenPositionsValue).HasPrecision(18, 8);
             e.Property(x => x.TotalPnl).HasPrecision(18, 8);
-            e.HasIndex(x => x.SnapshotDate);
+            e.HasIndex(x => new { x.AccountId, x.SnapshotDate });
         });
 
         modelBuilder.Entity<StockCandle>(e =>
@@ -125,6 +170,9 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.High).HasPrecision(18, 8);
             e.Property(x => x.Low).HasPrecision(18, 8);
             e.Property(x => x.Close).HasPrecision(18, 8);
+            // Candles are market data, not account-specific, but still carry
+            // AccountId via BaseEntity for consistency/query-filtering; the
+            // uniqueness constraint stays scoped to the market data itself.
             e.HasIndex(x => new { x.Symbol, x.Resolution, x.Timestamp }).IsUnique();
         });
 
@@ -135,7 +183,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.CompanyName).IsRequired().HasMaxLength(200);
             e.Property(x => x.Reason).IsRequired();
             e.Property(x => x.ConvictionAtAdd).HasPrecision(18, 8);
-            e.HasIndex(x => new { x.Symbol, x.WeekStarting });
+            e.HasIndex(x => new { x.AccountId, x.Symbol, x.WeekStarting });
         });
 
         modelBuilder.Entity<TradeApproval>(e =>
@@ -145,7 +193,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.ApprovedVia).HasMaxLength(20);
             e.Property(x => x.ApprovedSymbols).HasMaxLength(500);
             e.HasIndex(x => x.ApprovalToken).IsUnique();
-            e.HasIndex(x => x.TradeDate).IsUnique();
+            e.HasIndex(x => new { x.AccountId, x.TradeDate }).IsUnique();
         });
 
         modelBuilder.Entity<StrategyWeights>(e =>
@@ -162,9 +210,11 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.BuyThreshold).HasPrecision(18, 8);
             e.Property(x => x.WatchThreshold).HasPrecision(18, 8);
             e.Property(x => x.StopLossPctDefault).HasPrecision(18, 8);
+            e.HasIndex(x => x.AccountId);
             e.HasData(new StrategyWeights
             {
                 Id = 1,
+                AccountId = SystemAccountId,
                 RsiWeight = 0.17m,
                 MacdWeight = 0.09m,
                 VolumeWeight = 0.21m,
@@ -191,7 +241,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.AvgReturnPct).HasPrecision(18, 8);
             e.Property(x => x.SharpeRatio).HasPrecision(18, 8);
             e.Property(x => x.MaxDrawdownPct).HasPrecision(18, 8);
-            e.HasIndex(x => x.EvaluatedAt);
+            e.HasIndex(x => new { x.AccountId, x.EvaluatedAt });
         });
 
         modelBuilder.Entity<WorkerHeartbeat>(e =>
@@ -199,6 +249,9 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.HasKey(x => x.Id);
             e.Property(x => x.WorkerName).IsRequired().HasMaxLength(50);
             e.Property(x => x.LastRunResult).IsRequired().HasMaxLength(20);
+            // Worker heartbeats are process-wide (one Functions app), not
+            // per-account, but still carry AccountId via BaseEntity - kept
+            // unique on WorkerName alone rather than per-account.
             e.HasIndex(x => x.WorkerName).IsUnique();
         });
 
@@ -210,17 +263,17 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.SuggestedWeightsJson).IsRequired();
             e.Property(x => x.ComponentAnalysisJson).IsRequired();
             e.Property(x => x.MarketAdjustedWinRate).HasPrecision(18, 8);
-            e.HasIndex(x => x.GeneratedAt);
+            e.HasIndex(x => new { x.AccountId, x.GeneratedAt });
         });
 
         modelBuilder.Entity<SystemChecklist>(e =>
         {
             e.HasKey(x => x.Id);
             e.Property(x => x.CheckName).IsRequired().HasMaxLength(100);
-            e.HasIndex(x => x.CheckName).IsUnique();
+            e.HasIndex(x => new { x.AccountId, x.CheckName }).IsUnique();
             e.HasData(
-                new SystemChecklist { Id = 1, CheckName = "AccountIdVerified", CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-                new SystemChecklist { Id = 2, CheckName = "LiveTradingConfirmed", CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
+                new SystemChecklist { Id = 1, AccountId = SystemAccountId, CheckName = "AccountIdVerified", CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+                new SystemChecklist { Id = 2, AccountId = SystemAccountId, CheckName = "LiveTradingConfirmed", CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
             );
         });
 
@@ -229,8 +282,25 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.HasKey(x => x.Id);
             e.Property(x => x.ObservedWinRate).HasPrecision(18, 8);
             e.Property(x => x.TradesPerWeekWeighted).HasPrecision(18, 8);
-            e.HasIndex(x => x.SnapshotDate).IsUnique();
+            e.HasIndex(x => new { x.AccountId, x.SnapshotDate }).IsUnique();
         });
+
+        // FK constraint from every scoped (BaseEntity-derived) table's
+        // AccountId column to Accounts(Id), applied generically rather than
+        // repeating HasOne/WithMany in all 14 entity blocks above. Restrict
+        // (not Cascade) so an Account row can never be deleted out from
+        // under trading data by accident.
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            if (entityType.ClrType != typeof(Account) && typeof(BaseEntity).IsAssignableFrom(entityType.ClrType))
+            {
+                modelBuilder.Entity(entityType.ClrType)
+                    .HasOne(typeof(Account))
+                    .WithMany()
+                    .HasForeignKey(nameof(BaseEntity.AccountId))
+                    .OnDelete(DeleteBehavior.Restrict);
+            }
+        }
 
         SeedWatchlist(modelBuilder);
     }
@@ -240,26 +310,26 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
         var seedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var items = new[]
         {
-            new WatchlistItem { Id = 1, Symbol = "AAPL", CompanyName = "Apple Inc.", Sector = "Technology", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 2, Symbol = "MSFT", CompanyName = "Microsoft Corporation", Sector = "Technology", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 3, Symbol = "NVDA", CompanyName = "NVIDIA Corporation", Sector = "Technology", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 4, Symbol = "AMD", CompanyName = "Advanced Micro Devices", Sector = "Technology", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 5, Symbol = "GOOGL", CompanyName = "Alphabet Inc.", Sector = "Technology", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 6, Symbol = "JNJ", CompanyName = "Johnson & Johnson", Sector = "Healthcare", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 7, Symbol = "UNH", CompanyName = "UnitedHealth Group", Sector = "Healthcare", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 8, Symbol = "PFE", CompanyName = "Pfizer Inc.", Sector = "Healthcare", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 9, Symbol = "ABBV", CompanyName = "AbbVie Inc.", Sector = "Healthcare", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 10, Symbol = "MRK", CompanyName = "Merck & Co.", Sector = "Healthcare", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 11, Symbol = "JPM", CompanyName = "JPMorgan Chase & Co.", Sector = "Finance", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 12, Symbol = "BAC", CompanyName = "Bank of America", Sector = "Finance", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 13, Symbol = "GS", CompanyName = "Goldman Sachs Group", Sector = "Finance", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 14, Symbol = "MS", CompanyName = "Morgan Stanley", Sector = "Finance", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 15, Symbol = "V", CompanyName = "Visa Inc.", Sector = "Finance", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 16, Symbol = "AMZN", CompanyName = "Amazon.com Inc.", Sector = "Consumer", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 17, Symbol = "TSLA", CompanyName = "Tesla Inc.", Sector = "Consumer", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 18, Symbol = "WMT", CompanyName = "Walmart Inc.", Sector = "Consumer", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 19, Symbol = "HD", CompanyName = "The Home Depot", Sector = "Consumer", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 20, Symbol = "MCD", CompanyName = "McDonald's Corporation", Sector = "Consumer", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 1, AccountId = SystemAccountId, Symbol = "AAPL", CompanyName = "Apple Inc.", Sector = "Technology", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 2, AccountId = SystemAccountId, Symbol = "MSFT", CompanyName = "Microsoft Corporation", Sector = "Technology", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 3, AccountId = SystemAccountId, Symbol = "NVDA", CompanyName = "NVIDIA Corporation", Sector = "Technology", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 4, AccountId = SystemAccountId, Symbol = "AMD", CompanyName = "Advanced Micro Devices", Sector = "Technology", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 5, AccountId = SystemAccountId, Symbol = "GOOGL", CompanyName = "Alphabet Inc.", Sector = "Technology", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 6, AccountId = SystemAccountId, Symbol = "JNJ", CompanyName = "Johnson & Johnson", Sector = "Healthcare", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 7, AccountId = SystemAccountId, Symbol = "UNH", CompanyName = "UnitedHealth Group", Sector = "Healthcare", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 8, AccountId = SystemAccountId, Symbol = "PFE", CompanyName = "Pfizer Inc.", Sector = "Healthcare", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 9, AccountId = SystemAccountId, Symbol = "ABBV", CompanyName = "AbbVie Inc.", Sector = "Healthcare", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 10, AccountId = SystemAccountId, Symbol = "MRK", CompanyName = "Merck & Co.", Sector = "Healthcare", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 11, AccountId = SystemAccountId, Symbol = "JPM", CompanyName = "JPMorgan Chase & Co.", Sector = "Finance", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 12, AccountId = SystemAccountId, Symbol = "BAC", CompanyName = "Bank of America", Sector = "Finance", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 13, AccountId = SystemAccountId, Symbol = "GS", CompanyName = "Goldman Sachs Group", Sector = "Finance", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 14, AccountId = SystemAccountId, Symbol = "MS", CompanyName = "Morgan Stanley", Sector = "Finance", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 15, AccountId = SystemAccountId, Symbol = "V", CompanyName = "Visa Inc.", Sector = "Finance", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 16, AccountId = SystemAccountId, Symbol = "AMZN", CompanyName = "Amazon.com Inc.", Sector = "Consumer", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 17, AccountId = SystemAccountId, Symbol = "TSLA", CompanyName = "Tesla Inc.", Sector = "Consumer", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 18, AccountId = SystemAccountId, Symbol = "WMT", CompanyName = "Walmart Inc.", Sector = "Consumer", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 19, AccountId = SystemAccountId, Symbol = "HD", CompanyName = "The Home Depot", Sector = "Consumer", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 20, AccountId = SystemAccountId, Symbol = "MCD", CompanyName = "McDonald's Corporation", Sector = "Consumer", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
         };
 
         modelBuilder.Entity<WatchlistItem>().HasData(items);

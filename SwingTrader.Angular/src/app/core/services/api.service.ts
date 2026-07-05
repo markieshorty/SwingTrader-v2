@@ -3,7 +3,9 @@ import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  AccountMemberDto,
   ApplyResultDto,
+  InviteResultDto,
   PortfolioDto,
   PositionDto,
   ReadinessReportDto,
@@ -82,5 +84,24 @@ export class ApiService {
 
   getCurrentRegime(): Observable<RegimeDto> {
     return this.http.get<RegimeDto>(`${this.baseUrl}/api/refinement/current-regime`);
+  }
+
+  getAdminMe(): Observable<{ isAdmin: boolean }> {
+    return this.http.get<{ isAdmin: boolean }>(`${this.baseUrl}/api/admin/me`);
+  }
+
+  createInvite(email: string, appBaseUrl: string): Observable<InviteResultDto> {
+    return this.http.post<InviteResultDto>(`${this.baseUrl}/api/account/invites`, {
+      email,
+      appBaseUrl,
+    });
+  }
+
+  getMembers(): Observable<AccountMemberDto[]> {
+    return this.http.get<AccountMemberDto[]>(`${this.baseUrl}/api/account/members`);
+  }
+
+  removeMember(userId: string): Observable<unknown> {
+    return this.http.delete(`${this.baseUrl}/api/account/members/${userId}`);
   }
 }

@@ -49,6 +49,22 @@ export class AppComponent {
 
   pageTitle = computed(() => this.currentTitle());
 
+  // Login/join pages render standalone (no sidenav chrome) since there's
+  // no account context / nav data to show yet at that point.
+  private currentUrl = toSignal(
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      map(() => this.router.url),
+      startWith(this.router.url),
+    ),
+    { initialValue: this.router.url },
+  );
+
+  isAuthRoute = computed(() => {
+    const url = this.currentUrl();
+    return url.startsWith('/login') || url.startsWith('/join');
+  });
+
   private titleFromUrl(): string {
     const segment = this.router.url.split('/')[1] ?? 'dashboard';
     if (!segment) return 'Dashboard';
