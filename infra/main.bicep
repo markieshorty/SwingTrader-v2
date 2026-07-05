@@ -66,6 +66,15 @@ module sql 'modules/sql.bicep' = {
   }
 }
 
+module serviceBus 'modules/servicebus.bicep' = {
+  name: 'servicebus'
+  params: {
+    name: '${prefix}-sb-${environment}'
+    location: location
+    tags: tags
+  }
+}
+
 module containerApp 'modules/containerapp.bicep' = {
   name: 'containerapp'
   params: {
@@ -76,15 +85,7 @@ module containerApp 'modules/containerapp.bicep' = {
     keyVaultUri: keyVault.outputs.uri
     b2cAuthority: b2cAuthority
     b2cAudience: b2cAudience
-    tags: tags
-  }
-}
-
-module serviceBus 'modules/servicebus.bicep' = {
-  name: 'servicebus'
-  params: {
-    name: '${prefix}-sb-${environment}'
-    location: location
+    serviceBusNamespace: serviceBus.outputs.fullyQualifiedNamespace
     tags: tags
   }
 }
@@ -106,6 +107,18 @@ module serviceBusAccess 'modules/servicebusaccess.bicep' = {
   params: {
     serviceBusNamespaceName: serviceBus.outputs.namespaceName
     principalId: functions.outputs.principalId
+  }
+}
+
+// The API's manual /run/{jobType} endpoints only ever send onto these
+// queues (the Consumer Functions above receive), but reuses the same
+// Data Owner grant as the Functions app rather than a narrower Sender-only
+// module - one role definition to maintain instead of two.
+module serviceBusAccessApi 'modules/servicebusaccess.bicep' = {
+  name: 'servicebusaccess-api'
+  params: {
+    serviceBusNamespaceName: serviceBus.outputs.namespaceName
+    principalId: containerApp.outputs.principalId
   }
 }
 
