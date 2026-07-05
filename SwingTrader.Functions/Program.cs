@@ -11,6 +11,7 @@ using Microsoft.Extensions.Hosting;
 using OpenTelemetry;
 using Refit;
 using Serilog;
+using SwingTrader.Agents.Report;
 using SwingTrader.Agents.Research;
 using SwingTrader.Agents.Watchlist;
 using SwingTrader.Core.Interfaces;
@@ -60,6 +61,7 @@ builder.Services.AddScoped<IRefinementSuggestionRepository, RefinementSuggestion
 builder.Services.AddScoped<ITierEvaluationRepository, TierEvaluationRepository>();
 builder.Services.AddScoped<IReadinessSnapshotRepository, ReadinessSnapshotRepository>();
 builder.Services.AddScoped<ISystemChecklistRepository, SystemChecklistRepository>();
+builder.Services.AddScoped<INotificationRecipientRepository, NotificationRecipientRepository>();
 
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<IRateLimiter>(_ => new RateLimiter(maxCallsPerMinute: 50));
@@ -69,6 +71,9 @@ builder.Services.Configure<EarningsConfig>(builder.Configuration.GetSection(Earn
 builder.Services.Configure<FundamentalConfig>(builder.Configuration.GetSection(FundamentalConfig.SectionName));
 builder.Services.Configure<PriceLevelConfig>(builder.Configuration.GetSection(PriceLevelConfig.SectionName));
 builder.Services.Configure<WatchlistConfig>(builder.Configuration.GetSection(WatchlistConfig.SectionName));
+builder.Services.Configure<ReportConfig>(builder.Configuration.GetSection(ReportConfig.SectionName));
+builder.Services.Configure<ApprovalConfig>(builder.Configuration.GetSection(ApprovalConfig.SectionName));
+builder.Services.Configure<EmailConfig>(builder.Configuration.GetSection(EmailConfig.SectionName));
 
 builder.Services.AddRefitClient<IExchangeRateClient>()
     .ConfigureHttpClient(c => c.BaseAddress = new Uri("https://api.frankfurter.dev"));
@@ -87,6 +92,8 @@ builder.Services.AddScoped<IResearchPipeline, ResearchPipeline>();
 builder.Services.AddScoped<IStockScreener, StockScreener>();
 builder.Services.AddScoped<IWatchlistSelectionService, WatchlistSelectionService>();
 builder.Services.AddScoped<IWatchlistUpdateService, WatchlistUpdateService>();
+builder.Services.AddScoped<IReportGenerationService, ReportGenerationService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 
 // Managed-identity Service Bus client (ServiceBusConnection__fullyQualifiedNamespace
 // env var, set by Bicep) - the Scheduler sends via this; each Consumer's

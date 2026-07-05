@@ -1,0 +1,15 @@
+namespace SwingTrader.Infrastructure.Configuration;
+
+// SMTP credentials are a platform-level secret (one relay for all accounts),
+// unlike Finnhub/Tiingo/T212/Claude keys — recipients themselves are per-account
+// (NotificationRecipient), not configured here.
+public class EmailConfig
+{
+    public const string SectionName = "Email";
+
+    public string SmtpHost { get; set; } = string.Empty;
+    public int SmtpPort { get; set; } = 587;
+    public string FromAddress { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+}
