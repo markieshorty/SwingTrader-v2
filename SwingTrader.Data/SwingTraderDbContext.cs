@@ -25,6 +25,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     public DbSet<UserApiKey> UserApiKeys => Set<UserApiKey>();
     public DbSet<JobLogEntry> JobLogEntries => Set<JobLogEntry>();
     public DbSet<NotificationRecipient> NotificationRecipients => Set<NotificationRecipient>();
+    public DbSet<AccountRiskProfile> AccountRiskProfiles => Set<AccountRiskProfile>();
 
     // The 'system' Account created by the AddMultiTenancy migration - all
     // pre-existing (pre-Phase-10c) data defaults to this AccountId.

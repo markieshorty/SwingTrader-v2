@@ -129,6 +129,7 @@ builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 builder.Services.AddScoped<IAccountInviteRepository, AccountInviteRepository>();
 builder.Services.AddScoped<IWatchlistRepository, WatchlistRepository>();
 builder.Services.AddScoped<IStrategyWeightsRepository, StrategyWeightsRepository>();
+builder.Services.AddScoped<IAccountRiskProfileRepository, AccountRiskProfileRepository>();
 builder.Services.AddScoped<IUserApiKeyRepository, UserApiKeyRepository>();
 builder.Services.AddScoped<IJobLogRepository, JobLogRepository>();
 builder.Services.AddScoped<INotificationRecipientRepository, NotificationRecipientRepository>();

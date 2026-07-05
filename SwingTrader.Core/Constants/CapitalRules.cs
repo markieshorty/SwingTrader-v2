@@ -15,4 +15,22 @@ public static class CapitalRules
     public const decimal DailyLossCircuitBreakerPct = 0.05m;
     public const decimal DowngradeWinRateThreshold = 0.40m;
     public const decimal DowngradeAvgReturnThreshold = -2.0m;
+
+    // Hard safety bounds for AccountRiskProfile.Validate() — a misconfigured
+    // profile can never allow a single bad day to wipe an account, no
+    // matter what the account owner tries to set it to.
+    public const decimal MinLockedCapitalPct = 0.50m;
+    public const decimal MaxLockedCapitalPct = 0.90m;
+    public const decimal MinMaxPositionPctOfActive = 0.05m;
+    public const decimal MaxMaxPositionPctOfActive = 0.33m;
+    public const int MinMaxOpenPositions = 1;
+    public const int MaxMaxOpenPositions = 10;
+    public const decimal MinDailyLossCircuitBreakerPct = 0.02m;
+    public const decimal MaxDailyLossCircuitBreakerPct = 0.15m;
+    public const int MinTier1UnlockMinTrades = 20;
+    public const int MaxTier1UnlockMinTrades = 100;
+    public const int MaxTier2UnlockMinTrades = 200;
+    public const decimal MinTier1UnlockMinWinRate = 0.50m;
+    public const decimal MaxTier1UnlockMinWinRate = 0.80m;
+    public const decimal MaxTier2UnlockMinWinRate = 0.85m;
 }

@@ -53,6 +53,7 @@ builder.Services.AddScoped<IUserKeyService, UserKeyService>();
 builder.Services.AddScoped<IUserHttpClientFactory, UserHttpClientFactory>();
 builder.Services.AddScoped<IWatchlistRepository, WatchlistRepository>();
 builder.Services.AddScoped<IStrategyWeightsRepository, StrategyWeightsRepository>();
+builder.Services.AddScoped<IAccountRiskProfileRepository, AccountRiskProfileRepository>();
 builder.Services.AddScoped<ICandleRepository, CandleRepository>();
 builder.Services.AddScoped<ISignalRepository, SignalRepository>();
 builder.Services.AddScoped<ITradeRepository, TradeRepository>();

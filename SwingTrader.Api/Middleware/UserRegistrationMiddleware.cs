@@ -34,7 +34,8 @@ public class UserRegistrationMiddleware(RequestDelegate next)
         IAccountRepository accounts,
         IAccountInviteRepository invites,
         IWatchlistRepository watchlists,
-        IStrategyWeightsRepository weights)
+        IStrategyWeightsRepository weights,
+        IAccountRiskProfileRepository riskProfiles)
     {
         if (context.User.Identity?.IsAuthenticated == true)
         {
@@ -56,7 +57,7 @@ public class UserRegistrationMiddleware(RequestDelegate next)
                     // Re-check now that we hold the lock - a concurrent request
                     // may have already finished creating this user while we waited.
                     user = await users.FindAsync(userId);
-                    user ??= await RegisterNewUserAsync(context, userId, email, users, accounts, invites, watchlists, weights);
+                    user ??= await RegisterNewUserAsync(context, userId, email, users, accounts, invites, watchlists, weights, riskProfiles);
                 }
                 finally
                 {
@@ -110,7 +111,8 @@ public class UserRegistrationMiddleware(RequestDelegate next)
         IAccountRepository accounts,
         IAccountInviteRepository invites,
         IWatchlistRepository watchlists,
-        IStrategyWeightsRepository weights)
+        IStrategyWeightsRepository weights,
+        IAccountRiskProfileRepository riskProfiles)
     {
         var inviteToken = context.Request.Headers["X-Invite-Token"].FirstOrDefault();
 
@@ -135,6 +137,7 @@ public class UserRegistrationMiddleware(RequestDelegate next)
 
             await watchlists.SeedDefaultAsync(accountId);
             await weights.SeedDefaultAsync(accountId);
+            await riskProfiles.SeedDefaultAsync(accountId);
         }
 
         var user = new AppUser
