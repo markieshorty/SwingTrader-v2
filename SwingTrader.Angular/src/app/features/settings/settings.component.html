@@ -216,10 +216,12 @@
       }
     </mat-card>
 
-    <mat-card class="panel danger-zone">
-      <h3>Danger Zone</h3>
-      <p class="muted small">Deactivates the account and revokes access for every member. Trading history is retained but no longer accessible from the app.</p>
-      <button mat-stroked-button color="warn" (click)="deleteAccount()">Delete Account</button>
-    </mat-card>
+    @if (isOwner()) {
+      <mat-card class="panel danger-zone">
+        <h3>Danger Zone</h3>
+        <p class="muted small">Deactivates the account and revokes access for every member. Trading history is retained but no longer accessible from the app.</p>
+        <button mat-stroked-button color="warn" (click)="deleteAccount()">Delete Account</button>
+      </mat-card>
+    }
   </mat-tab>
 </mat-tab-group>

@@ -493,6 +493,7 @@ api.MapGet("/account", async (IAccountRepository accounts, IAccountContext ctx) 
         account.ApprovalRequired,
         account.T212AccountId,
         account.GlobalRefinementOptIn,
+        role = ctx.Role,
     });
 });
 

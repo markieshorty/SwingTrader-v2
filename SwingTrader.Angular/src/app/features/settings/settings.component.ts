@@ -88,6 +88,10 @@ export class SettingsComponent {
   approvalRequired = signal(true);
   t212AccountId = signal<string | null>(null);
   globalRefinementOptIn = signal(false);
+  // Only the Owner can delete the account (enforced server-side too) - hide
+  // the button from Members entirely rather than let them click it and hit
+  // a 403, since Danger Zone actions shouldn't invite trial-and-error.
+  isOwner = signal(false);
 
   recipients = signal<NotificationRecipientDto[]>([]);
   newRecipientEmail = '';
@@ -163,6 +167,7 @@ export class SettingsComponent {
         this.approvalRequired.set(settings.approvalRequired);
         this.t212AccountId.set(settings.t212AccountId);
         this.globalRefinementOptIn.set(settings.globalRefinementOptIn);
+        this.isOwner.set(settings.role === 'Owner');
       },
     });
   }

@@ -133,8 +133,10 @@ export class ApiService {
     return this.http.delete(`${this.baseUrl}/api/keys/${provider}`);
   }
 
-  getAccountSettings(): Observable<TradingConfigDto & { globalRefinementOptIn: boolean }> {
-    return this.http.get<TradingConfigDto & { globalRefinementOptIn: boolean }>(`${this.baseUrl}/api/account`);
+  getAccountSettings(): Observable<TradingConfigDto & { globalRefinementOptIn: boolean; role: 'Owner' | 'Member' }> {
+    return this.http.get<TradingConfigDto & { globalRefinementOptIn: boolean; role: 'Owner' | 'Member' }>(
+      `${this.baseUrl}/api/account`,
+    );
   }
 
   updateTradingConfig(tradingMode: string, approvalRequired: boolean): Observable<unknown> {
