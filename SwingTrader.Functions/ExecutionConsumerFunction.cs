@@ -1,12 +1,23 @@
 using System.Text.Json;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
+using SwingTrader.Agents.Execution;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
+using SwingTrader.Infrastructure.HttpClients;
 
 namespace SwingTrader.Functions;
 
-public class ExecutionConsumerFunction(IJobLogRepository jobLog, ILogger<ExecutionConsumerFunction> logger)
+// Consumer half of the Scheduler/Consumer pair (execution-jobs queue): places
+// real Trading212 market orders for today's approved Buy signals, gated by
+// Account.ApprovalRequired (TradeApproval token flow) and the account's own
+// TradingMode (Demo vs Live T212 endpoint, chosen by IUserHttpClientFactory).
+public class ExecutionConsumerFunction(
+    IJobLogRepository jobLog,
+    IExecutionService executionService,
+    IWorkerHeartbeatRepository heartbeats,
+    IUserHttpClientFactory clientFactory,
+    ILogger<ExecutionConsumerFunction> logger)
 {
     [Function("ExecutionConsumer")]
     public async Task Run(
@@ -18,14 +29,20 @@ public class ExecutionConsumerFunction(IJobLogRepository jobLog, ILogger<Executi
 
         try
         {
-            logger.LogInformation(
-                "Execution job {JobId} for account {AccountId} — pipeline not yet implemented",
-                message.JobId, message.AccountId);
+            var finnhub = await clientFactory.CreateFinnhubAsync<IFinnhubClient>(message.AccountId, ct);
+            var tiingo = await clientFactory.CreateTiingoAsync<ITiingoClient>(message.AccountId, ct);
+            var t212 = await clientFactory.CreateTrading212Async<ITrading212Client>(message.AccountId, ct);
+
+            var result = await executionService.RunAsync(message.AccountId, finnhub, tiingo, t212, message.TradeDate, ct);
+
+            await heartbeats.UpsertAsync("Execution", "Success", result.Summary);
+            logger.LogInformation("Execution job {JobId} for account {AccountId} — {Summary}", message.JobId, message.AccountId, result.Summary);
 
             await jobLog.MarkCompletedAsync(message.AccountId, "Execution", message.TradeDate, ct);
         }
         catch (Exception ex)
         {
+            await heartbeats.UpsertAsync("Execution", "Failed", ex.Message);
             await jobLog.MarkFailedAsync(message.AccountId, "Execution", message.TradeDate, ex.Message, ct);
             throw;
         }
