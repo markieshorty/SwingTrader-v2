@@ -125,7 +125,21 @@ if (!string.IsNullOrEmpty(serviceBusNamespace))
 // Same DI registrations as the API (minus HTTP endpoints) land here once
 // SwingTrader.Agents/Infrastructure business logic is ported.
 
-Log.Logger = new LoggerConfiguration().ReadFrom.Configuration(builder.Configuration).CreateLogger();
+// ReadFrom.Configuration alone produces zero sinks without a "Serilog"
+// appsettings.json section (which this project has never had) - every
+// LogInformation/LogWarning/LogError call across every agent silently went
+// nowhere, not even Console, which is exactly what made a real Trading212
+// API failure inside MonitorService.UpdateSnapshotAsync's try/catch
+// undiagnosable. Console always gets wired so `func azure functionapp
+// logstream` / Kudu show something. (Serilog.Sinks.ApplicationInsights
+// isn't used here - it pins Microsoft.ApplicationInsights <3.0, which
+// conflicts with Microsoft.ApplicationInsights.WorkerService 3.1.2 this
+// project already needs; the OpenTelemetry Azure Monitor exporter below
+// covers request/dependency telemetry instead.)
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .WriteTo.Console()
+    .CreateLogger();
 builder.Services.AddSerilog();
 
 if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING")))
