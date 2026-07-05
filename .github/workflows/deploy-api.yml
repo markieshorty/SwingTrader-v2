@@ -10,6 +10,7 @@ on:
       - 'SwingTrader.Agents/**'
       - 'SwingTrader.Infrastructure/**'
       - 'SwingTrader.Angular/**'
+      - 'SwingTrader.Tests/**'
   workflow_dispatch:
 
 permissions:
