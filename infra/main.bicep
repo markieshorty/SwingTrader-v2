@@ -98,6 +98,7 @@ module functions 'modules/functionapp.bicep' = {
     appInsightsConnectionString: appInsights.outputs.connectionString
     keyVaultUri: keyVault.outputs.uri
     serviceBusNamespace: serviceBus.outputs.fullyQualifiedNamespace
+    apiFqdn: containerApp.outputs.fqdn
     tags: tags
   }
 }

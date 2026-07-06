@@ -7,6 +7,9 @@ param tags object
 @description('Service Bus fully-qualified namespace - empty until Phase 10d deploys it')
 param serviceBusNamespace string = ''
 
+@description('Container App FQDN, for the KeepWarm timer to ping')
+param apiFqdn string = ''
+
 var storageAccountName = take(replace(name, '-', ''), 24)
 var deploymentContainerName = 'app-package'
 
@@ -97,6 +100,7 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
           name: 'ServiceBusConnection__fullyQualifiedNamespace'
           value: serviceBusNamespace
         }
+        { name: 'ApiBaseUrl', value: apiFqdn == '' ? '' : 'https://${apiFqdn}' }
       ]
     }
   }

@@ -87,6 +87,10 @@ builder.Services.Configure<ExecutionConfig>(builder.Configuration.GetSection(Exe
 builder.Services.AddRefitClient<IExchangeRateClient>()
     .ConfigureHttpClient(c => c.BaseAddress = new Uri("https://api.frankfurter.dev"));
 
+// Named client for KeepWarmFunction - no base address here since ApiBaseUrl
+// may be empty locally (no Container App to ping in dev).
+builder.Services.AddHttpClient("KeepWarm");
+
 builder.Services.AddSingleton<IIndicatorService, IndicatorService>();
 builder.Services.AddScoped<IMarketDataService, MarketDataService>();
 builder.Services.AddScoped<IMarketCalendarService, MarketCalendarService>();
