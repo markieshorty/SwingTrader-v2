@@ -24,3 +24,13 @@ public record UpdateStrategyWeightsRequest(
     decimal BuyThreshold,
     decimal WatchThreshold,
     decimal StopLossPctDefault);
+
+public record UpdateRiskProfileRequest(
+    decimal LockedCapitalPct,
+    decimal MaxPositionPctOfActive,
+    int MaxOpenPositions,
+    decimal DailyLossCircuitBreakerPct,
+    int Tier1UnlockMinTrades,
+    decimal Tier1UnlockMinWinRate,
+    int Tier2UnlockMinTrades,
+    decimal Tier2UnlockMinWinRate);
