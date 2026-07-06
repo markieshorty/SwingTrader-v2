@@ -5,6 +5,7 @@ namespace SwingTrader.Data;
 
 public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options) : DbContext(options)
 {
+    public DbSet<Watchlist> Watchlists => Set<Watchlist>();
     public DbSet<WatchlistItem> WatchlistItems => Set<WatchlistItem>();
     public DbSet<StockSignal> StockSignals => Set<StockSignal>();
     public DbSet<Trade> Trades => Set<Trade>();
@@ -76,16 +77,28 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.HasIndex(x => x.AccountId);
         });
 
+        modelBuilder.Entity<Watchlist>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).IsRequired().HasMaxLength(100);
+            e.Property(x => x.Description).HasMaxLength(500);
+            e.HasIndex(x => x.AccountId);
+        });
+
         modelBuilder.Entity<WatchlistItem>(e =>
         {
             e.HasKey(x => x.Id);
             e.Property(x => x.Symbol).IsRequired().HasMaxLength(20);
             e.Property(x => x.CompanyName).IsRequired().HasMaxLength(200);
             e.Property(x => x.Sector).IsRequired().HasMaxLength(100);
-            // Was globally unique on Symbol pre-multi-tenancy; every account
-            // now has its own independent watchlist, so the same symbol can
-            // legitimately appear once per account.
-            e.HasIndex(x => new { x.AccountId, x.Symbol }).IsUnique();
+            // Was globally unique on Symbol pre-multi-tenancy, then unique per
+            // account; now unique per watchlist, since the same symbol can
+            // legitimately sit on more than one of an account's watchlists.
+            e.HasIndex(x => new { x.WatchlistId, x.Symbol }).IsUnique();
+            e.HasOne(x => x.Watchlist)
+                .WithMany(w => w.Items)
+                .HasForeignKey(x => x.WatchlistId)
+                .OnDelete(DeleteBehavior.Cascade);
             e.HasQueryFilter(x => x.IsActive);
         });
 
@@ -334,31 +347,49 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
         SeedWatchlist(modelBuilder);
     }
 
+    // Seeded watchlist row every pre-existing WatchlistItem is backfilled onto -
+    // see the AddMultipleWatchlists migration for the equivalent backfill
+    // applied to every other (non-seed-data) account's existing items.
+    public const int SystemWatchlistId = 1;
+
     private static void SeedWatchlist(ModelBuilder modelBuilder)
     {
         var seedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        modelBuilder.Entity<Watchlist>().HasData(new Watchlist
+        {
+            Id = SystemWatchlistId,
+            AccountId = SystemAccountId,
+            Name = "AI Picks",
+            Type = SwingTrader.Core.Enums.WatchlistType.AiManaged,
+            IsEnabled = true,
+            IsDefault = true,
+            CreatedAt = seedDate,
+            UpdatedAt = seedDate,
+        });
+
         var items = new[]
         {
-            new WatchlistItem { Id = 1, AccountId = SystemAccountId, Symbol = "AAPL", CompanyName = "Apple Inc.", Sector = "Technology", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 2, AccountId = SystemAccountId, Symbol = "MSFT", CompanyName = "Microsoft Corporation", Sector = "Technology", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 3, AccountId = SystemAccountId, Symbol = "NVDA", CompanyName = "NVIDIA Corporation", Sector = "Technology", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 4, AccountId = SystemAccountId, Symbol = "AMD", CompanyName = "Advanced Micro Devices", Sector = "Technology", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 5, AccountId = SystemAccountId, Symbol = "GOOGL", CompanyName = "Alphabet Inc.", Sector = "Technology", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 6, AccountId = SystemAccountId, Symbol = "JNJ", CompanyName = "Johnson & Johnson", Sector = "Healthcare", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 7, AccountId = SystemAccountId, Symbol = "UNH", CompanyName = "UnitedHealth Group", Sector = "Healthcare", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 8, AccountId = SystemAccountId, Symbol = "PFE", CompanyName = "Pfizer Inc.", Sector = "Healthcare", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 9, AccountId = SystemAccountId, Symbol = "ABBV", CompanyName = "AbbVie Inc.", Sector = "Healthcare", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 10, AccountId = SystemAccountId, Symbol = "MRK", CompanyName = "Merck & Co.", Sector = "Healthcare", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 11, AccountId = SystemAccountId, Symbol = "JPM", CompanyName = "JPMorgan Chase & Co.", Sector = "Finance", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 12, AccountId = SystemAccountId, Symbol = "BAC", CompanyName = "Bank of America", Sector = "Finance", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 13, AccountId = SystemAccountId, Symbol = "GS", CompanyName = "Goldman Sachs Group", Sector = "Finance", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 14, AccountId = SystemAccountId, Symbol = "MS", CompanyName = "Morgan Stanley", Sector = "Finance", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 15, AccountId = SystemAccountId, Symbol = "V", CompanyName = "Visa Inc.", Sector = "Finance", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 16, AccountId = SystemAccountId, Symbol = "AMZN", CompanyName = "Amazon.com Inc.", Sector = "Consumer", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 17, AccountId = SystemAccountId, Symbol = "TSLA", CompanyName = "Tesla Inc.", Sector = "Consumer", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 18, AccountId = SystemAccountId, Symbol = "WMT", CompanyName = "Walmart Inc.", Sector = "Consumer", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 19, AccountId = SystemAccountId, Symbol = "HD", CompanyName = "The Home Depot", Sector = "Consumer", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
-            new WatchlistItem { Id = 20, AccountId = SystemAccountId, Symbol = "MCD", CompanyName = "McDonald's Corporation", Sector = "Consumer", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 1, AccountId = SystemAccountId, WatchlistId = SystemWatchlistId, Symbol = "AAPL", CompanyName = "Apple Inc.", Sector = "Technology", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 2, AccountId = SystemAccountId, WatchlistId = SystemWatchlistId, Symbol = "MSFT", CompanyName = "Microsoft Corporation", Sector = "Technology", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 3, AccountId = SystemAccountId, WatchlistId = SystemWatchlistId, Symbol = "NVDA", CompanyName = "NVIDIA Corporation", Sector = "Technology", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 4, AccountId = SystemAccountId, WatchlistId = SystemWatchlistId, Symbol = "AMD", CompanyName = "Advanced Micro Devices", Sector = "Technology", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 5, AccountId = SystemAccountId, WatchlistId = SystemWatchlistId, Symbol = "GOOGL", CompanyName = "Alphabet Inc.", Sector = "Technology", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 6, AccountId = SystemAccountId, WatchlistId = SystemWatchlistId, Symbol = "JNJ", CompanyName = "Johnson & Johnson", Sector = "Healthcare", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 7, AccountId = SystemAccountId, WatchlistId = SystemWatchlistId, Symbol = "UNH", CompanyName = "UnitedHealth Group", Sector = "Healthcare", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 8, AccountId = SystemAccountId, WatchlistId = SystemWatchlistId, Symbol = "PFE", CompanyName = "Pfizer Inc.", Sector = "Healthcare", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 9, AccountId = SystemAccountId, WatchlistId = SystemWatchlistId, Symbol = "ABBV", CompanyName = "AbbVie Inc.", Sector = "Healthcare", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 10, AccountId = SystemAccountId, WatchlistId = SystemWatchlistId, Symbol = "MRK", CompanyName = "Merck & Co.", Sector = "Healthcare", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 11, AccountId = SystemAccountId, WatchlistId = SystemWatchlistId, Symbol = "JPM", CompanyName = "JPMorgan Chase & Co.", Sector = "Finance", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 12, AccountId = SystemAccountId, WatchlistId = SystemWatchlistId, Symbol = "BAC", CompanyName = "Bank of America", Sector = "Finance", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 13, AccountId = SystemAccountId, WatchlistId = SystemWatchlistId, Symbol = "GS", CompanyName = "Goldman Sachs Group", Sector = "Finance", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 14, AccountId = SystemAccountId, WatchlistId = SystemWatchlistId, Symbol = "MS", CompanyName = "Morgan Stanley", Sector = "Finance", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 15, AccountId = SystemAccountId, WatchlistId = SystemWatchlistId, Symbol = "V", CompanyName = "Visa Inc.", Sector = "Finance", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 16, AccountId = SystemAccountId, WatchlistId = SystemWatchlistId, Symbol = "AMZN", CompanyName = "Amazon.com Inc.", Sector = "Consumer", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 17, AccountId = SystemAccountId, WatchlistId = SystemWatchlistId, Symbol = "TSLA", CompanyName = "Tesla Inc.", Sector = "Consumer", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 18, AccountId = SystemAccountId, WatchlistId = SystemWatchlistId, Symbol = "WMT", CompanyName = "Walmart Inc.", Sector = "Consumer", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 19, AccountId = SystemAccountId, WatchlistId = SystemWatchlistId, Symbol = "HD", CompanyName = "The Home Depot", Sector = "Consumer", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
+            new WatchlistItem { Id = 20, AccountId = SystemAccountId, WatchlistId = SystemWatchlistId, Symbol = "MCD", CompanyName = "McDonald's Corporation", Sector = "Consumer", IsActive = true, CreatedAt = seedDate, UpdatedAt = seedDate },
         };
 
         modelBuilder.Entity<WatchlistItem>().HasData(items);

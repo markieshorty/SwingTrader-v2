@@ -149,3 +149,10 @@ public enum RevenueDirection
     Decelerating,
     Insufficient
 }
+
+public enum WatchlistType
+{
+    AiManaged, // Watchlist Agent refreshes weekly
+    Manual,    // User fully controls
+    Mixed,     // AI adds but never removes user-added symbols
+}
