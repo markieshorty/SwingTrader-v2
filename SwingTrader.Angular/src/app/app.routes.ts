@@ -13,7 +13,7 @@ export const routes: Routes = [
   },
   {
     path: 'join',
-    loadComponent: () => import('./features/auth/join.component').then((m) => m.JoinComponent),
+    loadComponent: () => import('./features/splash/splash.component').then((m) => m.SplashComponent),
     title: 'Join account',
   },
   {
