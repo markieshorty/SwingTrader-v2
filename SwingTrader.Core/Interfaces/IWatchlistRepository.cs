@@ -29,7 +29,11 @@ public interface IWatchlistRepository
     Task<List<WatchlistItem>> GetAllEnabledSymbolsAsync(int accountId, CancellationToken ct = default);
 
     Task<Watchlist> CreateWatchlistAsync(int accountId, string name, WatchlistType type, string? description, CancellationToken ct = default);
-    Task UpdateWatchlistAsync(int accountId, int watchlistId, string name, string? description, CancellationToken ct = default);
+    Task UpdateWatchlistAsync(int accountId, int watchlistId, string name, string? description, bool topMoversEnabled, CancellationToken ct = default);
+
+    // Whether the account's default (AiManaged + IsDefault) watchlist wants
+    // Finnhub top movers merged into the Watchlist Agent's candidate pool.
+    Task<bool> IsTopMoversEnabledAsync(int accountId, CancellationToken ct = default);
 
     // Validates: at most WatchlistLimits.MaxEnabledWatchlists enabled at once.
     Task EnableWatchlistAsync(int accountId, int watchlistId, CancellationToken ct = default);

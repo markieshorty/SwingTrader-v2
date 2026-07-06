@@ -56,6 +56,14 @@
           <p class="muted small description">{{ watchlist.description }}</p>
         }
 
+        @if (watchlist.type === 'AiManaged') {
+          <div class="top-movers-row">
+            <mat-slide-toggle [checked]="watchlist.topMoversEnabled" (change)="toggleTopMovers(watchlist)">
+              Include top movers (Finnhub gainers/losers/most-active) as extra candidates
+            </mat-slide-toggle>
+          </div>
+        }
+
         <div class="card-actions">
           <button mat-stroked-button (click)="toggleExpanded(watchlist.id)">
             {{ expandedId() === watchlist.id ? 'Hide symbols' : 'View symbols' }}

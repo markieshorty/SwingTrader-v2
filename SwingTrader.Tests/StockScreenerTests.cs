@@ -22,9 +22,10 @@ public class StockScreenerTests
     private readonly IMarketUniverseService _universe = Substitute.For<IMarketUniverseService>();
     private readonly IFinnhubClient _finnhub = Substitute.For<IFinnhubClient>();
 
-    private StockScreener CreateSut(WatchlistConfig cfg)
+    private StockScreener CreateSut(WatchlistConfig cfg, bool topMoversEnabled = false)
     {
         _watchlist.GetActiveAsync(1).Returns(new List<WatchlistItem>());
+        _watchlist.IsTopMoversEnabledAsync(1, Arg.Any<CancellationToken>()).Returns(topMoversEnabled);
         _trades.GetOpenTradesAsync(1).Returns(new List<Trade>());
         return new StockScreener(_rateLimiter, _watchlist, _trades, _universe, Options.Create(cfg), NullLogger<StockScreener>.Instance);
     }
@@ -49,9 +50,8 @@ public class StockScreenerTests
     public async Task ScreenAsync_TopMoversDisabled_NeverCallsMoverEndpoints()
     {
         var cfg = DefaultConfig();
-        cfg.TopMoversEnabled = false;
         SetupUniverse("AAA");
-        var sut = CreateSut(cfg);
+        var sut = CreateSut(cfg, topMoversEnabled: false);
 
         await sut.ScreenAsync(1, _finnhub);
 
@@ -64,12 +64,11 @@ public class StockScreenerTests
     public async Task ScreenAsync_TopMoversEnabled_AddsNewMoverNotInIndexUniverse()
     {
         var cfg = DefaultConfig();
-        cfg.TopMoversEnabled = true;
         SetupUniverse("AAA");
         _finnhub.GetTopGainersAsync().Returns(new List<MarketMoverItem> { new("ZZZ", "Zzz Corp", 50m, 5m, 8m, 1_000_000) });
         _finnhub.GetTopLosersAsync().Returns(new List<MarketMoverItem>());
         _finnhub.GetMostActiveAsync().Returns(new List<MarketMoverItem>());
-        var sut = CreateSut(cfg);
+        var sut = CreateSut(cfg, topMoversEnabled: true);
 
         var results = await sut.ScreenAsync(1, _finnhub);
 
@@ -80,12 +79,11 @@ public class StockScreenerTests
     public async Task ScreenAsync_TopMoversEnabled_UpgradesExistingCandidateInsteadOfDuplicating()
     {
         var cfg = DefaultConfig();
-        cfg.TopMoversEnabled = true;
         SetupUniverse("AAA");
         _finnhub.GetTopGainersAsync().Returns(new List<MarketMoverItem> { new("AAA", "Aaa Corp", 12m, 3m, 6m, 500_000) });
         _finnhub.GetTopLosersAsync().Returns(new List<MarketMoverItem>());
         _finnhub.GetMostActiveAsync().Returns(new List<MarketMoverItem>());
-        var sut = CreateSut(cfg);
+        var sut = CreateSut(cfg, topMoversEnabled: true);
 
         var results = await sut.ScreenAsync(1, _finnhub);
 
@@ -97,13 +95,12 @@ public class StockScreenerTests
     public async Task ScreenAsync_TopMoversEnabled_FiltersOutMoversFailingChangeThreshold()
     {
         var cfg = DefaultConfig();
-        cfg.TopMoversEnabled = true;
         cfg.MinAbsChangePercent = 5m;
         SetupUniverse("AAA");
         _finnhub.GetTopGainersAsync().Returns(new List<MarketMoverItem> { new("ZZZ", "Zzz Corp", 50m, 1m, 1m, 1_000_000) }); // 1% < 5% min
         _finnhub.GetTopLosersAsync().Returns(new List<MarketMoverItem>());
         _finnhub.GetMostActiveAsync().Returns(new List<MarketMoverItem>());
-        var sut = CreateSut(cfg);
+        var sut = CreateSut(cfg, topMoversEnabled: true);
 
         var results = await sut.ScreenAsync(1, _finnhub);
 
@@ -114,12 +111,11 @@ public class StockScreenerTests
     public async Task ScreenAsync_TopMoversEnabled_ExcludesSymbolsAlreadyOnActiveWatchlist()
     {
         var cfg = DefaultConfig();
-        cfg.TopMoversEnabled = true;
         SetupUniverse("AAA");
         _finnhub.GetTopGainersAsync().Returns(new List<MarketMoverItem> { new("ZZZ", "Zzz Corp", 50m, 5m, 8m, 1_000_000) });
         _finnhub.GetTopLosersAsync().Returns(new List<MarketMoverItem>());
         _finnhub.GetMostActiveAsync().Returns(new List<MarketMoverItem>());
-        var sut = CreateSut(cfg);
+        var sut = CreateSut(cfg, topMoversEnabled: true);
         _watchlist.GetActiveAsync(1).Returns(new List<WatchlistItem> { new() { Symbol = "ZZZ" } });
 
         var results = await sut.ScreenAsync(1, _finnhub);
@@ -131,10 +127,9 @@ public class StockScreenerTests
     public async Task ScreenAsync_TopMoversFetchThrows_StillReturnsIndexUniverseCandidates()
     {
         var cfg = DefaultConfig();
-        cfg.TopMoversEnabled = true;
         SetupUniverse("AAA");
         _finnhub.GetTopGainersAsync().Returns<List<MarketMoverItem>>(_ => throw new HttpRequestException("boom"));
-        var sut = CreateSut(cfg);
+        var sut = CreateSut(cfg, topMoversEnabled: true);
 
         var results = await sut.ScreenAsync(1, _finnhub);
 
@@ -145,14 +140,13 @@ public class StockScreenerTests
     public async Task ScreenAsync_TopMoverBoost_CanOutrankALargerNonMoverWhenTruncated()
     {
         var cfg = DefaultConfig();
-        cfg.TopMoversEnabled = true;
         cfg.MaxCandidatesForClaude = 1;
         cfg.TopMoverOrderBoost = 3m;
         SetupUniverse("AAA"); // AAA quote change = 1% via SetupUniverse's fixed quote
         _finnhub.GetTopGainersAsync().Returns(new List<MarketMoverItem> { new("ZZZ", "Zzz Corp", 50m, 2m, 2m, 1_000_000) }); // 2% * 3 boost = 6 > AAA's 1%
         _finnhub.GetTopLosersAsync().Returns(new List<MarketMoverItem>());
         _finnhub.GetMostActiveAsync().Returns(new List<MarketMoverItem>());
-        var sut = CreateSut(cfg);
+        var sut = CreateSut(cfg, topMoversEnabled: true);
 
         var results = await sut.ScreenAsync(1, _finnhub);
 

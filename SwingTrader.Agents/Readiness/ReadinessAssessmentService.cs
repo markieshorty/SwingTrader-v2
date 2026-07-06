@@ -304,8 +304,8 @@ public class ReadinessAssessmentService(
     }
 
     private static FeatureReadiness BuildTopMoversFeature() => new(
-        "Top Movers Watchlist", "Watchlist:TopMoversEnabled", "true", ReadinessStatus.NoDataRequirement,
-        "Purely additive — expands the candidate pool without changing how signals are scored or traded. Safe to enable at any time.",
+        "Top Movers Watchlist", "Watchlists page — per-watchlist toggle", "Enabled", ReadinessStatus.NoDataRequirement,
+        "Purely additive — expands the candidate pool without changing how signals are scored or traded. Toggle per-account from the default watchlist's card on the Watchlists page.",
         null, [], null, null, false, FeatureRiskLevel.Low);
 
     private static FeatureReadiness BuildMediumTermFeature(bool isLiveTrading, int totalClosedTrades, PortfolioSnapshot? latestPortfolio)

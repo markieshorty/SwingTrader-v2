@@ -82,7 +82,11 @@ public class StockScreener(
 
         await Task.WhenAll(tasks);
 
-        if (cfg.TopMoversEnabled)
+        // Per-account toggle (Watchlist.TopMoversEnabled on the default
+        // AiManaged watchlist), settable from the /watchlists UI - not a
+        // global on/off switch, since different accounts may want a wider
+        // or narrower candidate net.
+        if (await watchlist.IsTopMoversEnabledAsync(accountId, ct))
             await MergeTopMoversAsync(candidates, activeSymbols, openTradeSymbols, cfg, finnhub, ct);
 
         // TopMoverOrderBoost nudges top movers up the ranking without hard-pinning

@@ -170,15 +170,23 @@ public class WatchlistRepository(SwingTraderDbContext db) : IWatchlistRepository
         return watchlist;
     }
 
-    public async Task UpdateWatchlistAsync(int accountId, int watchlistId, string name, string? description, CancellationToken ct = default)
+    public async Task UpdateWatchlistAsync(int accountId, int watchlistId, string name, string? description, bool topMoversEnabled, CancellationToken ct = default)
     {
         var watchlist = await db.Watchlists.FirstOrDefaultAsync(w => w.AccountId == accountId && w.Id == watchlistId, ct)
             ?? throw new InvalidOperationException($"Watchlist {watchlistId} not found for account {accountId}.");
 
         watchlist.Name = name;
         watchlist.Description = description;
+        watchlist.TopMoversEnabled = topMoversEnabled;
         watchlist.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
+    }
+
+    public async Task<bool> IsTopMoversEnabledAsync(int accountId, CancellationToken ct = default)
+    {
+        var defaultWatchlist = await db.Watchlists.FirstOrDefaultAsync(
+            w => w.AccountId == accountId && w.Type == WatchlistType.AiManaged && w.IsDefault, ct);
+        return defaultWatchlist?.TopMoversEnabled ?? false;
     }
 
     public async Task EnableWatchlistAsync(int accountId, int watchlistId, CancellationToken ct = default)

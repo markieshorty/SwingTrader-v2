@@ -213,8 +213,8 @@ export class ApiService {
     return this.http.post<WatchlistDto>(`${this.baseUrl}/api/watchlists`, { name, type, description });
   }
 
-  updateWatchlist(id: number, name: string, description?: string): Observable<unknown> {
-    return this.http.put(`${this.baseUrl}/api/watchlists/${id}`, { name, description });
+  updateWatchlist(id: number, name: string, description?: string, topMoversEnabled?: boolean): Observable<unknown> {
+    return this.http.put(`${this.baseUrl}/api/watchlists/${id}`, { name, description, topMoversEnabled });
   }
 
   deleteWatchlist(id: number): Observable<unknown> {

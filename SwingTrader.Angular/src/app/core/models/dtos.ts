@@ -331,6 +331,7 @@ export interface WatchlistDto {
   isDefault: boolean;
   description: string | null;
   items: WatchlistItemDto[];
+  topMoversEnabled: boolean;
 }
 
 export interface RiskProfileRangeDto {

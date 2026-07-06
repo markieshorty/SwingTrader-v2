@@ -14,10 +14,6 @@ public class WatchlistConfig
     public decimal MinAbsChangePercent { get; set; } = 1.0m;
     public decimal MaxAbsChangePercent { get; set; } = 15.0m;
 
-    // Off by default — purely additive supplementary candidate source (Finnhub top
-    // movers), safe to enable at any time once you want a wider candidate pool.
-    public bool TopMoversEnabled { get; set; } = false;
-
     // Dynamic screening universe (MarketUniverseService) — replaces the old
     // hardcoded StockUniverse symbol list with live index constituents, so
     // the universe stays current and captures index-rebalance momentum

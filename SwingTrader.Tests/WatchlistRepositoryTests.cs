@@ -269,10 +269,47 @@ public class WatchlistRepositoryTests
         var repo = new WatchlistRepository(db);
         var created = await repo.CreateWatchlistAsync(1, "Old Name", WatchlistType.Manual, null);
 
-        await repo.UpdateWatchlistAsync(1, created.Id, "New Name", "New description");
+        await repo.UpdateWatchlistAsync(1, created.Id, "New Name", "New description", topMoversEnabled: true);
 
         var reloaded = await repo.GetWatchlistAsync(1, created.Id);
         reloaded!.Name.Should().Be("New Name");
         reloaded.Description.Should().Be("New description");
+        reloaded.TopMoversEnabled.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task IsTopMoversEnabledAsync_DefaultsToFalse()
+    {
+        await using var db = CreateDb();
+        var repo = new WatchlistRepository(db);
+        await repo.SeedDefaultAsync(1);
+
+        (await repo.IsTopMoversEnabledAsync(1)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task IsTopMoversEnabledAsync_ReflectsUpdateOnDefaultWatchlist()
+    {
+        await using var db = CreateDb();
+        var repo = new WatchlistRepository(db);
+        await repo.SeedDefaultAsync(1);
+        var defaultWatchlist = (await repo.GetAllWatchlistsAsync(1))[0];
+
+        await repo.UpdateWatchlistAsync(1, defaultWatchlist.Id, defaultWatchlist.Name, defaultWatchlist.Description, topMoversEnabled: true);
+
+        (await repo.IsTopMoversEnabledAsync(1)).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task IsTopMoversEnabledAsync_IgnoresNonDefaultWatchlist()
+    {
+        await using var db = CreateDb();
+        var repo = new WatchlistRepository(db);
+        await repo.SeedDefaultAsync(1);
+        var manual = await repo.CreateWatchlistAsync(1, "Manual", WatchlistType.Manual, null);
+
+        await repo.UpdateWatchlistAsync(1, manual.Id, manual.Name, manual.Description, topMoversEnabled: true);
+
+        (await repo.IsTopMoversEnabledAsync(1)).Should().BeFalse();
     }
 }

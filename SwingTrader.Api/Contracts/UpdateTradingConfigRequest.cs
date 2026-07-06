@@ -37,7 +37,7 @@ public record UpdateRiskProfileRequest(
 
 public record CreateWatchlistRequest(string Name, WatchlistType Type, string? Description);
 
-public record UpdateWatchlistRequest(string Name, string? Description);
+public record UpdateWatchlistRequest(string Name, string? Description, bool TopMoversEnabled = false);
 
 public record AddWatchlistSymbolRequest(string Symbol);
 

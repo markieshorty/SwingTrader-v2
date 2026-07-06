@@ -8,6 +8,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/services/api.service';
@@ -30,6 +31,7 @@ const MAX_SYMBOLS_PER_WATCHLIST = 50;
     MatSelectModule,
     MatChipsModule,
     MatTooltipModule,
+    MatSlideToggleModule,
   ],
   templateUrl: './watchlists.component.html',
   styleUrl: './watchlists.component.scss',
@@ -144,5 +146,12 @@ export class WatchlistsComponent {
 
   typeBadgeClass(type: WatchlistType): string {
     return { AiManaged: 'ai', Manual: 'manual', Mixed: 'mixed' }[type];
+  }
+
+  toggleTopMovers(watchlist: WatchlistDto): void {
+    this.api.updateWatchlist(watchlist.id, watchlist.name, watchlist.description ?? undefined, !watchlist.topMoversEnabled).subscribe({
+      next: () => this.load(),
+      error: () => this.snackbar.open('Failed to update top movers setting.', 'Dismiss', { duration: 4000 }),
+    });
   }
 }

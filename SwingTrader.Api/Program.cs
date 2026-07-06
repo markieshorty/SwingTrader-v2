@@ -789,7 +789,7 @@ watchlistsGroup.MapPut("/{id:int}", async (
 
     try
     {
-        await watchlists.UpdateWatchlistAsync(ctx.AccountId, id, req.Name.Trim(), req.Description);
+        await watchlists.UpdateWatchlistAsync(ctx.AccountId, id, req.Name.Trim(), req.Description, req.TopMoversEnabled);
         return Results.Ok();
     }
     catch (InvalidOperationException ex)
