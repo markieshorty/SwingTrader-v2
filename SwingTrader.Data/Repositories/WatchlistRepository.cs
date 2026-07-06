@@ -84,9 +84,14 @@ public class WatchlistRepository(SwingTraderDbContext db) : IWatchlistRepository
             .ToListAsync();
     }
 
-    public Task<WatchlistItem?> GetBySymbolAsync(int accountId, string symbol) =>
-        db.WatchlistItems.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(x => x.AccountId == accountId && x.Symbol == symbol.ToUpperInvariant());
+    public async Task<WatchlistItem?> GetBySymbolAsync(int accountId, string symbol)
+    {
+        var defaultWatchlist = await GetDefaultWatchlistAsync(accountId);
+        if (defaultWatchlist is null) return null;
+
+        return await db.WatchlistItems.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x => x.AccountId == accountId && x.WatchlistId == defaultWatchlist.Id && x.Symbol == symbol.ToUpperInvariant());
+    }
 
     public async Task<WatchlistItem> AddAsync(WatchlistItem item)
     {

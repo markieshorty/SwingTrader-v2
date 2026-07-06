@@ -32,7 +32,10 @@ public class ResearchConsumerFunction(
 
         try
         {
-            var symbols = (await watchlist.GetActiveAsync(message.AccountId)).ToList();
+            // Deduplicated union of every enabled watchlist, not just the
+            // default AI-managed one - a symbol on multiple enabled
+            // watchlists is researched once.
+            var symbols = await watchlist.GetAllEnabledSymbolsAsync(message.AccountId, ct);
             logger.LogInformation(
                 "Research job {JobId} for account {AccountId} — scoring {Count} symbols",
                 message.JobId, message.AccountId, symbols.Count);
