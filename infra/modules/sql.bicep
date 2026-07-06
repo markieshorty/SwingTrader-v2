@@ -30,14 +30,21 @@ resource firewallAzure 'Microsoft.Sql/servers/firewallRules@2023-05-01-preview' 
   }
 }
 
+// sqlTier here is actually the SKU *name* ('Basic', 'S0', 'S1', 'P1', ...),
+// not the SKU tier - Azure SQL's sku.tier is the service tier family
+// ('Basic'/'Standard'/'Premium'), a distinct field from sku.name. Passing
+// sqlTier directly into both name and tier meant a non-Basic value (e.g.
+// 'S0') produced sku.tier = 'S0', which isn't a valid tier at all.
+var sqlSkuTier = sqlTier == 'Basic' ? 'Basic' : (startsWith(sqlTier, 'P') ? 'Premium' : 'Standard')
+
 resource database 'Microsoft.Sql/servers/databases@2023-05-01-preview' = {
   parent: sqlServer
   name: databaseName
   location: location
   tags: tags
   sku: {
-    name: sqlTier == 'Basic' ? 'Basic' : 'S0'
-    tier: sqlTier
+    name: sqlTier
+    tier: sqlSkuTier
     capacity: sqlCapacity
   }
   properties: {
