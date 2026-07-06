@@ -3,6 +3,7 @@ using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
 using SwingTrader.Infrastructure.HttpClients;
+using SwingTrader.Infrastructure.HttpClients.Dtos;
 using SwingTrader.Infrastructure.Services;
 
 namespace SwingTrader.Agents.Monitor;
@@ -29,8 +30,22 @@ public class MonitorService(
         ITrading212Client t212,
         CancellationToken ct = default)
     {
+        // Fetch account/summary once per cycle and share it between the
+        // circuit breaker check and the snapshot update - T212's rate limit
+        // is tight enough that hitting this endpoint twice every 5-minute
+        // cycle was a meaningful contributor to 429s.
+        T212AccountSummary? summary = null;
+        try
+        {
+            summary = await t212.GetAccountSummaryAsync();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not fetch T212 account summary for account {AccountId} this cycle", accountId);
+        }
+
         // Step 1 — circuit breaker check
-        if (await circuitBreaker.ShouldTriggerAsync(accountId, t212, ct))
+        if (await circuitBreaker.ShouldTriggerAsync(accountId, summary, ct))
         {
             var openTrades = (await tradeRepo.GetOpenTradesAsync(accountId)).ToList();
             var flagged = openTrades.Select(t => new FlaggedExit(t.Symbol, ExitReason.CircuitBreaker, t.EntryPrice)).ToList();
@@ -119,7 +134,7 @@ public class MonitorService(
         }
 
         // Step 3 — refresh snapshot every cycle so the portfolio API/report reads current values
-        await UpdateSnapshotAsync(accountId, t212, ct);
+        await UpdateSnapshotAsync(accountId, summary);
 
         return new MonitorCycleResult(checked_, trailingUpdated, flaggedExits, false);
     }
@@ -142,12 +157,16 @@ public class MonitorService(
         }
     }
 
-    private async Task UpdateSnapshotAsync(int accountId, ITrading212Client t212, CancellationToken ct)
+    private async Task UpdateSnapshotAsync(int accountId, T212AccountSummary? summary)
     {
+        if (summary is null)
+        {
+            logger.LogWarning("No account summary available — skipping portfolio snapshot update for account {AccountId}", accountId);
+            return;
+        }
+
         try
         {
-            var summary = await t212.GetAccountSummaryAsync();
-
             // TotalValue/Investments.CurrentValue are already in the
             // account's base currency (GBP) - T212 computes these itself.
             var totalValue = summary.TotalValue;

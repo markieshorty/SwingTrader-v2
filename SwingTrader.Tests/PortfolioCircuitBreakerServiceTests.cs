@@ -4,7 +4,6 @@ using NSubstitute;
 using SwingTrader.Agents.Monitor;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
-using SwingTrader.Infrastructure.HttpClients;
 using SwingTrader.Infrastructure.HttpClients.Dtos;
 using Xunit;
 
@@ -14,7 +13,6 @@ public class PortfolioCircuitBreakerServiceTests
 {
     private readonly IPortfolioRepository _portfolioRepo = Substitute.For<IPortfolioRepository>();
     private readonly IAccountRiskProfileRepository _riskProfileRepo = Substitute.For<IAccountRiskProfileRepository>();
-    private readonly ITrading212Client _t212 = Substitute.For<ITrading212Client>();
     private readonly PortfolioCircuitBreakerService _sut;
 
     public PortfolioCircuitBreakerServiceTests()
@@ -29,17 +27,13 @@ public class PortfolioCircuitBreakerServiceTests
             .Returns(new List<PortfolioSnapshot> { new() { TotalCapital = totalCapital, CreatedAt = DateTime.UtcNow.AddHours(-1) } });
     }
 
-    private void SetupLiveValue(decimal cash, decimal positionsValue)
-    {
-        // ShouldTriggerAsync reads TotalValue directly (already GBP,
-        // computed by T212 itself) rather than recomputing from
-        // GetPortfolioAsync.
-        var total = cash + positionsValue;
-        _t212.GetAccountSummaryAsync().Returns(new T212AccountSummary(
-            total,
+    // ShouldTriggerAsync now takes an already-fetched summary directly
+    // (MonitorService fetches it once per cycle and shares it with
+    // UpdateSnapshotAsync, rather than each hitting T212 separately).
+    private static T212AccountSummary BuildSummary(decimal cash, decimal positionsValue) =>
+        new(cash + positionsValue,
             new T212AccountSummaryCash(cash, 0, 0),
-            new T212AccountSummaryInvestments(positionsValue, positionsValue, 0, 0)));
-    }
+            new T212AccountSummaryInvestments(positionsValue, positionsValue, 0, 0));
 
     [Fact]
     public async Task ShouldTriggerAsync_DrawdownBelowProfileThreshold_ReturnsFalse()
@@ -47,9 +41,9 @@ public class PortfolioCircuitBreakerServiceTests
         _riskProfileRepo.GetAsync(1, Arg.Any<CancellationToken>())
             .Returns(new AccountRiskProfile { DailyLossCircuitBreakerPct = 0.10m });
         SetupBaseline(10000m);
-        SetupLiveValue(cash: 0, positionsValue: 9500m); // 5% down
+        var summary = BuildSummary(cash: 0, positionsValue: 9500m); // 5% down
 
-        var triggered = await _sut.ShouldTriggerAsync(1, _t212);
+        var triggered = await _sut.ShouldTriggerAsync(1, summary);
 
         triggered.Should().BeFalse();
     }
@@ -60,9 +54,9 @@ public class PortfolioCircuitBreakerServiceTests
         _riskProfileRepo.GetAsync(1, Arg.Any<CancellationToken>())
             .Returns(new AccountRiskProfile { DailyLossCircuitBreakerPct = 0.05m });
         SetupBaseline(10000m);
-        SetupLiveValue(cash: 0, positionsValue: 9000m); // 10% down
+        var summary = BuildSummary(cash: 0, positionsValue: 9000m); // 10% down
 
-        var triggered = await _sut.ShouldTriggerAsync(1, _t212);
+        var triggered = await _sut.ShouldTriggerAsync(1, summary);
 
         triggered.Should().BeTrue();
     }
@@ -71,15 +65,15 @@ public class PortfolioCircuitBreakerServiceTests
     public async Task ShouldTriggerAsync_SameDrawdown_TighterProfileTriggersLooserDoesNot()
     {
         SetupBaseline(10000m);
-        SetupLiveValue(cash: 0, positionsValue: 9300m); // 7% down
+        var summary = BuildSummary(cash: 0, positionsValue: 9300m); // 7% down
 
         _riskProfileRepo.GetAsync(1, Arg.Any<CancellationToken>())
             .Returns(new AccountRiskProfile { DailyLossCircuitBreakerPct = 0.05m });
-        var tighterTriggered = await _sut.ShouldTriggerAsync(1, _t212);
+        var tighterTriggered = await _sut.ShouldTriggerAsync(1, summary);
 
         _riskProfileRepo.GetAsync(1, Arg.Any<CancellationToken>())
             .Returns(new AccountRiskProfile { DailyLossCircuitBreakerPct = 0.15m });
-        var looserTriggered = await _sut.ShouldTriggerAsync(1, _t212);
+        var looserTriggered = await _sut.ShouldTriggerAsync(1, summary);
 
         tighterTriggered.Should().BeTrue();
         looserTriggered.Should().BeFalse();
@@ -93,7 +87,19 @@ public class PortfolioCircuitBreakerServiceTests
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         _portfolioRepo.GetSnapshotHistoryAsync(1, today, today).Returns(new List<PortfolioSnapshot>());
 
-        var triggered = await _sut.ShouldTriggerAsync(1, _t212);
+        var triggered = await _sut.ShouldTriggerAsync(1, BuildSummary(0, 100));
+
+        triggered.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ShouldTriggerAsync_NullSummary_ReturnsFalse()
+    {
+        _riskProfileRepo.GetAsync(1, Arg.Any<CancellationToken>())
+            .Returns(new AccountRiskProfile());
+        SetupBaseline(10000m);
+
+        var triggered = await _sut.ShouldTriggerAsync(1, null);
 
         triggered.Should().BeFalse();
     }

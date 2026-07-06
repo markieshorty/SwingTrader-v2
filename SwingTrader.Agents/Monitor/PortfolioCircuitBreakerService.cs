@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using SwingTrader.Core.Interfaces;
-using SwingTrader.Infrastructure.HttpClients;
+using SwingTrader.Infrastructure.HttpClients.Dtos;
 
 namespace SwingTrader.Agents.Monitor;
 
@@ -9,8 +9,14 @@ public class PortfolioCircuitBreakerService(
     IAccountRiskProfileRepository riskProfileRepo,
     ILogger<PortfolioCircuitBreakerService> logger) : IPortfolioCircuitBreakerService
 {
-    public async Task<bool> ShouldTriggerAsync(int accountId, ITrading212Client t212, CancellationToken ct = default)
+    public async Task<bool> ShouldTriggerAsync(int accountId, T212AccountSummary? summary, CancellationToken ct = default)
     {
+        if (summary is null)
+        {
+            logger.LogWarning("No account summary available for circuit breaker check (account {AccountId}) — skipping", accountId);
+            return false;
+        }
+
         var riskProfile = await riskProfileRepo.GetAsync(accountId, ct);
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
@@ -26,17 +32,7 @@ public class PortfolioCircuitBreakerService(
 
         // TotalValue is already in the account's base currency (GBP),
         // computed by T212 itself.
-        decimal currentValue;
-        try
-        {
-            var summary = await t212.GetAccountSummaryAsync();
-            currentValue = summary.TotalValue;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Could not fetch live account value for circuit breaker check (account {AccountId}) — skipping", accountId);
-            return false;
-        }
+        var currentValue = summary.TotalValue;
 
         // Defensive: a real account with open positions is never actually
         // worth £0. Kept as a sanity check even after fixing the DTO
