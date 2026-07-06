@@ -168,8 +168,8 @@
             }
             {{ agent }}
           </button>
-          @if (nextRunLabelFor(agent); as label) {
-            <span class="next-run muted small">Next: {{ label }}</span>
+          @if (nextRunLabelFor(agent); as nextRun) {
+            <span class="next-run muted small">Next: {{ nextRun | date: 'EEE d MMM, HH:mm' }}</span>
           }
         </div>
       }

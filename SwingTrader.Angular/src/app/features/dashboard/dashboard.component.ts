@@ -116,8 +116,12 @@ export class DashboardComponent {
     });
   }
 
-  nextRunLabelFor(agent: string): string | null {
-    return this.nextRuns().find((r) => r.jobType.toLowerCase() === agent.toLowerCase())?.nextRunLabel ?? null;
+  // The API's nextRunLabel is formatted in ET (the market's own timezone) -
+  // build the label from the raw UTC instant instead so it displays in the
+  // viewer's local time via the `date` pipe's default timezone.
+  nextRunLabelFor(agent: string): Date | null {
+    const match = this.nextRuns().find((r) => r.jobType.toLowerCase() === agent.toLowerCase());
+    return match ? new Date(match.nextRunAtUtc) : null;
   }
 
   private loadAccountSettings(): void {
