@@ -57,4 +57,10 @@ public interface IAdminRepository
     // fires it again - no direct Service Bus access needed from the admin
     // API layer.
     Task<bool> RetryJobAsync(int jobLogId, CancellationToken ct = default);
+
+    // Dismisses a failed job without waiting for it to be re-enqueued -
+    // same underlying row removal as RetryJobAsync (that's the only way to
+    // clear a Failed JobLogEntry from GetJobFailuresAsync's query), just
+    // without the "this will run again soon" implication.
+    Task<bool> DeleteJobFailureAsync(int jobLogId, CancellationToken ct = default);
 }

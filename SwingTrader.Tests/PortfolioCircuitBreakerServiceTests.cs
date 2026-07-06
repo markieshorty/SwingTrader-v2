@@ -31,12 +31,11 @@ public class PortfolioCircuitBreakerServiceTests
 
     private void SetupLiveValue(decimal cash, decimal positionsValue)
     {
+        // ShouldTriggerAsync reads Cash.Total directly (already GBP, computed
+        // by T212 itself) rather than recomputing from GetPortfolioAsync.
+        var total = cash + positionsValue;
         _t212.GetAccountSummaryAsync().Returns(new T212AccountSummary(
-            new T212AccountSummaryCash(cash, cash, 0, 0, 0, 0, cash)));
-        _t212.GetPortfolioAsync().Returns(new List<PortfolioPositionResponse>
-        {
-            new("AAA_US_EQ", 1, 100, positionsValue, 0, null, null, null, null, null, null)
-        });
+            new T212AccountSummaryCash(cash, total, 0, positionsValue, 0, 0, cash)));
     }
 
     [Fact]

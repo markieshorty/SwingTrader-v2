@@ -101,7 +101,10 @@
                 <span class="error-message small">{{ failure.errorMessage }}</span>
                 <span class="muted small">Attempt {{ failure.attemptCount }}</span>
               </div>
-              <button mat-raised-button color="primary" (click)="retryJob(failure)">Retry</button>
+              <div class="job-actions">
+                <button mat-raised-button color="primary" (click)="retryJob(failure)">Retry</button>
+                <button mat-raised-button color="warn" (click)="deleteJobFailure(failure)">Delete</button>
+              </div>
             </mat-card>
           }
         </div>

@@ -94,19 +94,12 @@ public class ExecutionService(
         // price share a currency and the quantity isn't off by ~the FX rate.
         var gbpUsd = await forex.GetGbpUsdRateAsync(ct);
 
-        // Derive total portfolio value live from T212 — cash + current market value of open positions
-        decimal openPositionsValue = 0m;
-        try
-        {
-            var portfolio = await t212.GetPortfolioAsync();
-            openPositionsValue = portfolio.Sum(p => p.Quantity * p.CurrentPrice);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Could not fetch T212 portfolio for account {AccountId} — open position value treated as 0", accountId);
-        }
-
-        var totalPortfolioValue = availableCash + openPositionsValue;
+        // Cash.Invested/Ppl/Total are already in the account's base currency
+        // (GBP), computed by T212 itself - summing Quantity * CurrentPrice
+        // (native instrument currency, USD for US stocks) with GBP cash
+        // would mix currencies and skew position sizing.
+        var openPositionsValue = accountSummary.Cash.Invested + accountSummary.Cash.Ppl;
+        var totalPortfolioValue = accountSummary.Cash.Total;
         var latestSnapshot = await portfolioRepo.GetLatestSnapshotAsync(accountId);
         var currentTier = latestSnapshot?.CurrentTier ?? CapitalTier.Tier1;
 

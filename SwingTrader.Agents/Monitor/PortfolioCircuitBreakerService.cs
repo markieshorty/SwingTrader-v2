@@ -24,14 +24,15 @@ public class PortfolioCircuitBreakerService(
             return false;
         }
 
-        // Live portfolio value: cash + open position market values
+        // Live portfolio value - Cash.Total is already in the account's base
+        // currency (GBP), computed by T212 itself. Recomputing from
+        // Quantity * CurrentPrice (native instrument currency, USD for US
+        // stocks) and adding it to GBP cash would mix currencies.
         decimal currentValue;
         try
         {
             var summary = await t212.GetAccountSummaryAsync();
-            var portfolio = await t212.GetPortfolioAsync();
-            var positionsValue = portfolio.Sum(p => p.Quantity * p.CurrentPrice);
-            currentValue = summary.Cash.AvailableToTrade + positionsValue;
+            currentValue = summary.Cash.Total;
         }
         catch (Exception ex)
         {

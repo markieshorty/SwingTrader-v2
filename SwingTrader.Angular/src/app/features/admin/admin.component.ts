@@ -119,4 +119,15 @@ export class AdminComponent {
       error: () => this.snackbar.open('Failed to retry job.', 'Dismiss', { duration: 4000 }),
     });
   }
+
+  deleteJobFailure(failure: AdminJobFailureDto): void {
+    this.api.deleteAdminJobFailure(failure.jobLogId).subscribe({
+      next: () => {
+        this.snackbar.open(`Dismissed ${failure.jobType} failure for account ${failure.accountId}`, 'Dismiss', { duration: 3000 });
+        this.loadJobFailures();
+        this.loadLogs();
+      },
+      error: () => this.snackbar.open('Failed to delete job.', 'Dismiss', { duration: 4000 }),
+    });
+  }
 }

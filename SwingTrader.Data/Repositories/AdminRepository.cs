@@ -115,4 +115,14 @@ public class AdminRepository(SwingTraderDbContext db) : IAdminRepository
         await db.SaveChangesAsync(ct);
         return true;
     }
+
+    public async Task<bool> DeleteJobFailureAsync(int jobLogId, CancellationToken ct = default)
+    {
+        var entry = await db.JobLogEntries.FirstOrDefaultAsync(j => j.Id == jobLogId, ct);
+        if (entry is null || entry.Status != JobStatus.Failed) return false;
+
+        db.JobLogEntries.Remove(entry);
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
 }

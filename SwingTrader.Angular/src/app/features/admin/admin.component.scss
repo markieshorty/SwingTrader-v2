@@ -131,6 +131,12 @@
   font-weight: 600;
 }
 
+.job-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .error-message {
   color: var(--st-red, #d32f2f);
 }

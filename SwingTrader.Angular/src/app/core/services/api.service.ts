@@ -144,6 +144,10 @@ export class ApiService {
     return this.http.post(`${this.baseUrl}/api/admin/jobs/retry`, { jobLogId });
   }
 
+  deleteAdminJobFailure(jobLogId: number): Observable<unknown> {
+    return this.http.delete(`${this.baseUrl}/api/admin/jobs/${jobLogId}`);
+  }
+
   getAdminLogs(): Observable<AdminActionLogDto[]> {
     return this.http.get<AdminActionLogDto[]>(`${this.baseUrl}/api/admin/logs`);
   }

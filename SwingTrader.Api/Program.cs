@@ -1396,6 +1396,26 @@ adminGroup.MapPost("/jobs/retry", async (
     return Results.Ok();
 });
 
+adminGroup.MapDelete("/jobs/{jobLogId:int}", async (
+    int jobLogId,
+    IAdminRepository admin,
+    IAdminLogRepository adminLog,
+    HttpContext http,
+    CancellationToken ct) =>
+{
+    var deleted = await admin.DeleteJobFailureAsync(jobLogId, ct);
+    if (!deleted) return Results.NotFound(new { message = "Job not found or not in a failed state." });
+
+    await adminLog.LogAsync(new AdminActionLog
+    {
+        AdminUserId = AdminId(http),
+        TargetUserId = "system",
+        Action = "DeleteJobFailure",
+        Details = $"JobLogId: {jobLogId}",
+    }, ct);
+    return Results.Ok();
+});
+
 adminGroup.MapGet("/logs", async (IAdminLogRepository adminLog, CancellationToken ct) =>
     Results.Ok(await adminLog.GetRecentAsync(200, ct)));
 
