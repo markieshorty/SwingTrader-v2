@@ -55,18 +55,30 @@ public record InstrumentResponse(
     [property: JsonPropertyName("isin")] string Isin
 );
 
+// Matches T212's actual /equity/account/summary response shape - the
+// previous version of this DTO (Free/Total/Blocked/Invested/Ppl/Result all
+// nested under "cash") didn't match any real field T212 returns, so every
+// one of those properties silently deserialized to 0 rather than throwing.
+// That's what caused both the GBP/USD "total = 0" false circuit-breaker
+// trigger and a small but persistent mismatch against T212's own app,
+// confirmed by inspecting the raw logged response body.
 public record T212AccountSummaryCash(
-    [property: JsonPropertyName("free")] decimal Free,
-    [property: JsonPropertyName("total")] decimal Total,
-    [property: JsonPropertyName("blocked")] decimal Blocked,
-    [property: JsonPropertyName("invested")] decimal Invested,
-    [property: JsonPropertyName("ppl")] decimal Ppl,
-    [property: JsonPropertyName("result")] decimal Result,
-    [property: JsonPropertyName("availableToTrade")] decimal AvailableToTrade
+    [property: JsonPropertyName("availableToTrade")] decimal AvailableToTrade,
+    [property: JsonPropertyName("reservedForOrders")] decimal ReservedForOrders,
+    [property: JsonPropertyName("inPies")] decimal InPies
+);
+
+public record T212AccountSummaryInvestments(
+    [property: JsonPropertyName("currentValue")] decimal CurrentValue,
+    [property: JsonPropertyName("totalCost")] decimal TotalCost,
+    [property: JsonPropertyName("realizedProfitLoss")] decimal RealizedProfitLoss,
+    [property: JsonPropertyName("unrealizedProfitLoss")] decimal UnrealizedProfitLoss
 );
 
 public record T212AccountSummary(
-    [property: JsonPropertyName("cash")] T212AccountSummaryCash Cash
+    [property: JsonPropertyName("totalValue")] decimal TotalValue,
+    [property: JsonPropertyName("cash")] T212AccountSummaryCash Cash,
+    [property: JsonPropertyName("investments")] T212AccountSummaryInvestments Investments
 );
 
 public record T212AccountInfo(

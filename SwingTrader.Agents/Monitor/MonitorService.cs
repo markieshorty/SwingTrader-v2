@@ -148,13 +148,10 @@ public class MonitorService(
         {
             var summary = await t212.GetAccountSummaryAsync();
 
-            // Cash.Total/Invested/Ppl are already in the account's base
-            // currency (GBP) - T212 computes these itself. Positions
-            // (Quantity * CurrentPrice) are in each instrument's native
-            // currency (USD for US stocks), so summing them with GBP cash
-            // without conversion silently mixed currencies.
-            var totalValue = summary.Cash.Total;
-            var openValue = summary.Cash.Invested + summary.Cash.Ppl;
+            // TotalValue/Investments.CurrentValue are already in the
+            // account's base currency (GBP) - T212 computes these itself.
+            var totalValue = summary.TotalValue;
+            var openValue = summary.Investments.CurrentValue;
 
             await portfolioRepo.AddAsync(new PortfolioSnapshot
             {

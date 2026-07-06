@@ -24,15 +24,13 @@ public class PortfolioCircuitBreakerService(
             return false;
         }
 
-        // Live portfolio value - Cash.Total is already in the account's base
-        // currency (GBP), computed by T212 itself. Recomputing from
-        // Quantity * CurrentPrice (native instrument currency, USD for US
-        // stocks) and adding it to GBP cash would mix currencies.
+        // TotalValue is already in the account's base currency (GBP),
+        // computed by T212 itself.
         decimal currentValue;
         try
         {
             var summary = await t212.GetAccountSummaryAsync();
-            currentValue = summary.Cash.Total;
+            currentValue = summary.TotalValue;
         }
         catch (Exception ex)
         {
@@ -40,12 +38,12 @@ public class PortfolioCircuitBreakerService(
             return false;
         }
 
-        // A real account with open positions is never actually worth £0 -
-        // this only happens when T212 returns a degraded/incomplete 200
-        // response (observed during sustained rate-limiting), which Refit
-        // doesn't treat as an error since the HTTP call itself succeeded.
-        // Treating that as a real 100% drawdown would falsely trigger the
-        // breaker and skip real stop/target monitoring for the cycle.
+        // Defensive: a real account with open positions is never actually
+        // worth £0. Kept as a sanity check even after fixing the DTO
+        // mismatch that used to make this reliably true (Cash.Total didn't
+        // match any real T212 field and always deserialized to 0) - a
+        // future degraded/incomplete 200 response should still be treated
+        // as bad data rather than a real 100% drawdown.
         if (currentValue <= 0)
         {
             logger.LogWarning(

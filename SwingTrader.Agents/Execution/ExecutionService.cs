@@ -86,16 +86,14 @@ public class ExecutionService(
             return new ExecutionResult(0, 0, signals.Count, "Account summary unavailable");
         }
 
-        // A real account is never actually worth £0 - this only happens when
-        // T212 returns a degraded/incomplete 200 response (observed during
-        // sustained rate-limiting), which doesn't throw since the HTTP call
-        // itself succeeded. Sizing trades against a bad £0 budget would be
-        // worse than just skipping this run.
-        if (accountSummary.Cash.Total <= 0)
+        // Defensive: a real account is never actually worth £0. Sizing
+        // trades against a bad £0 budget would be worse than just skipping
+        // this run if T212 ever returns a degraded/incomplete 200 response.
+        if (accountSummary.TotalValue <= 0)
         {
             logger.LogError(
                 "T212 account summary returned a non-positive total ({Total:F2}) for account {AccountId} — aborting execution",
-                accountSummary.Cash.Total, accountId);
+                accountSummary.TotalValue, accountId);
             return new ExecutionResult(0, 0, signals.Count, "Account summary looked invalid (zero total)");
         }
 
@@ -107,12 +105,10 @@ public class ExecutionService(
         // price share a currency and the quantity isn't off by ~the FX rate.
         var gbpUsd = await forex.GetGbpUsdRateAsync(ct);
 
-        // Cash.Invested/Ppl/Total are already in the account's base currency
-        // (GBP), computed by T212 itself - summing Quantity * CurrentPrice
-        // (native instrument currency, USD for US stocks) with GBP cash
-        // would mix currencies and skew position sizing.
-        var openPositionsValue = accountSummary.Cash.Invested + accountSummary.Cash.Ppl;
-        var totalPortfolioValue = accountSummary.Cash.Total;
+        // TotalValue/Investments.CurrentValue are already in the account's
+        // base currency (GBP), computed by T212 itself.
+        var openPositionsValue = accountSummary.Investments.CurrentValue;
+        var totalPortfolioValue = accountSummary.TotalValue;
         var latestSnapshot = await portfolioRepo.GetLatestSnapshotAsync(accountId);
         var currentTier = latestSnapshot?.CurrentTier ?? CapitalTier.Tier1;
 
