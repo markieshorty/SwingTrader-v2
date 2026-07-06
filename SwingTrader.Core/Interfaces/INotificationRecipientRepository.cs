@@ -14,4 +14,10 @@ public interface INotificationRecipientRepository
     // client reconstruct a bitmask to send back would be fragile. This is
     // the only category the UI lets a user toggle per-recipient today.
     Task<bool> SetTradeApprovalAsync(int accountId, int recipientId, bool enabled, CancellationToken ct = default);
+
+    // Keeps the auto-seeded owner recipient row (created at account
+    // registration, before the email-confirmation step) in sync once the
+    // user confirms their real email - a no-op if oldEmail no longer
+    // matches any recipient (e.g. it was already changed manually).
+    Task UpdateEmailIfMatchesAsync(int accountId, string oldEmail, string newEmail, CancellationToken ct = default);
 }

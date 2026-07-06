@@ -35,7 +35,8 @@ public class UserRegistrationMiddleware(RequestDelegate next)
         IAccountInviteRepository invites,
         IWatchlistRepository watchlists,
         IStrategyWeightsRepository weights,
-        IAccountRiskProfileRepository riskProfiles)
+        IAccountRiskProfileRepository riskProfiles,
+        INotificationRecipientRepository recipients)
     {
         if (context.User.Identity?.IsAuthenticated == true)
         {
@@ -58,7 +59,7 @@ public class UserRegistrationMiddleware(RequestDelegate next)
                     // Re-check now that we hold the lock - a concurrent request
                     // may have already finished creating this user while we waited.
                     user = await users.FindAsync(userId);
-                    user ??= await RegisterNewUserAsync(context, userId, email, displayName, users, accounts, invites, watchlists, weights, riskProfiles);
+                    user ??= await RegisterNewUserAsync(context, userId, email, displayName, users, accounts, invites, watchlists, weights, riskProfiles, recipients);
                 }
                 finally
                 {
@@ -134,7 +135,8 @@ public class UserRegistrationMiddleware(RequestDelegate next)
         IAccountInviteRepository invites,
         IWatchlistRepository watchlists,
         IStrategyWeightsRepository weights,
-        IAccountRiskProfileRepository riskProfiles)
+        IAccountRiskProfileRepository riskProfiles,
+        INotificationRecipientRepository recipients)
     {
         var inviteToken = context.Request.Headers["X-Invite-Token"].FirstOrDefault();
 
@@ -160,6 +162,21 @@ public class UserRegistrationMiddleware(RequestDelegate next)
             await watchlists.SeedDefaultAsync(accountId);
             await weights.SeedDefaultAsync(accountId);
             await riskProfiles.SeedDefaultAsync(accountId);
+
+            // Guarantees at least one person is subscribed to trade approval
+            // emails the moment "Require approval" gets turned on - without
+            // this, a brand-new account has zero recipients, so approval
+            // requests would silently go nowhere until someone remembers to
+            // add themselves in Settings. Email is best-effort at this point
+            // (may still be a synthetic fallback for some identity
+            // providers) but gets corrected in place once the user confirms
+            // their real email in the onboarding wizard.
+            await recipients.AddAsync(new NotificationRecipient
+            {
+                AccountId = accountId,
+                Email = email,
+                Categories = NotificationCategory.All,
+            });
         }
 
         var user = new AppUser

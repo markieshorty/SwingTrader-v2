@@ -39,4 +39,14 @@ public class NotificationRecipientRepository(SwingTraderDbContext db) : INotific
         await db.SaveChangesAsync(ct);
         return true;
     }
+
+    public async Task UpdateEmailIfMatchesAsync(int accountId, string oldEmail, string newEmail, CancellationToken ct = default)
+    {
+        var existing = await db.NotificationRecipients
+            .FirstOrDefaultAsync(r => r.AccountId == accountId && r.Email == oldEmail, ct);
+        if (existing is null) return;
+
+        existing.Email = newEmail;
+        await db.SaveChangesAsync(ct);
+    }
 }

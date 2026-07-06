@@ -702,12 +702,24 @@ api.MapGet("/account/me", async (IUserRepository users, IAccountContext ctx) =>
 api.MapPut("/account/me/email", async (
     UpdateMyEmailRequest req,
     IUserRepository users,
+    INotificationRecipientRepository recipients,
     IAccountContext ctx) =>
 {
     if (string.IsNullOrWhiteSpace(req.Email) || !req.Email.Contains('@'))
         return Results.BadRequest(new { message = "Enter a valid email address." });
 
-    await users.UpdateEmailAsync(ctx.UserId, req.Email.Trim());
+    var newEmail = req.Email.Trim();
+    var user = await users.FindAsync(ctx.UserId);
+    var oldEmail = user?.Email;
+
+    await users.UpdateEmailAsync(ctx.UserId, newEmail);
+
+    // Keeps the auto-seeded notification recipient (created at registration
+    // with a best-effort, possibly-synthetic email) in sync with the real,
+    // user-confirmed one - a no-op if it was never seeded or already differs.
+    if (!string.IsNullOrWhiteSpace(oldEmail))
+        await recipients.UpdateEmailIfMatchesAsync(ctx.AccountId, oldEmail, newEmail);
+
     return Results.Ok();
 });
 
