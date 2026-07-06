@@ -246,11 +246,91 @@ api.MapGet("/trades/recent", async (int? days, ITradeRepository trades, IAccount
     return Results.Ok(await trades.GetTradeHistoryAsync(ctx.AccountId, from, DateTime.UtcNow));
 });
 
-// Open Trade rows double as "positions" - there's no separate live-pricing
-// pass in the request path, so CurrentPrice/UnrealizedPnl aren't included
-// here; the Monitor Agent updates TrailingStopPrice out of band.
-api.MapGet("/positions", async (ITradeRepository trades, IAccountContext ctx) =>
-    Results.Ok(await trades.GetOpenTradesAsync(ctx.AccountId)));
+// Open Trade rows double as "positions", enriched here with a live quote
+// (for currentPrice/unrealisedPnl) and the originating signal (for
+// setupType/convictionScoreAtEntry) - the Angular PositionDto shape needs
+// fields (stopLoss, target, daysHeld, etc.) that don't exist by those names
+// on the Trade entity itself, so this was previously returning raw Trade
+// JSON that silently didn't match what the dashboard's position cards and
+// stop-target-bar expected (blank prices/PnL/days-held in the UI).
+api.MapGet("/positions", async (
+    ITradeRepository trades,
+    ISignalRepository signals,
+    IWatchlistRepository watchlist,
+    IUserHttpClientFactory clientFactory,
+    IAccountContext ctx,
+    CancellationToken ct) =>
+{
+    var openTrades = (await trades.GetOpenTradesAsync(ctx.AccountId)).ToList();
+    if (openTrades.Count == 0) return Results.Ok(Array.Empty<object>());
+
+    IFinnhubClient? finnhub = null;
+    try
+    {
+        finnhub = await clientFactory.CreateFinnhubAsync<IFinnhubClient>(ctx.AccountId, ct);
+    }
+    catch
+    {
+        // No Finnhub key configured - fall back to entry price below rather
+        // than failing the whole positions list.
+    }
+
+    var results = new List<object>(openTrades.Count);
+    foreach (var trade in openTrades)
+    {
+        var currentPrice = trade.EntryPrice;
+        if (finnhub is not null)
+        {
+            try
+            {
+                var quote = await finnhub.GetQuoteAsync(trade.Symbol);
+                if (quote.CurrentPrice is > 0) currentPrice = quote.CurrentPrice.Value;
+            }
+            catch
+            {
+                // Keep the entry-price fallback - one symbol's quote failure
+                // shouldn't blank out the whole positions list.
+            }
+        }
+
+        var unrealisedPnl = (currentPrice - trade.EntryPrice) * trade.Quantity;
+        var unrealisedPnlPercent = trade.EntryPrice > 0 ? (currentPrice - trade.EntryPrice) / trade.EntryPrice * 100m : 0m;
+        var daysHeld = Math.Max(0, (int)(DateTime.UtcNow - trade.OpenedAt).TotalDays);
+
+        var signal = trade.SignalId.HasValue ? await signals.GetByIdAsync(ctx.AccountId, trade.SignalId.Value) : null;
+        var watchlistItem = await watchlist.GetBySymbolAsync(ctx.AccountId, trade.Symbol);
+
+        // "Near" the stop/target = within 2% of that boundary price - close
+        // enough to flag on the dashboard without being a hard trigger
+        // (MonitorService owns the actual stop/target exit logic).
+        var isNearStop = trade.StopLossPrice > 0 && Math.Abs(currentPrice - trade.StopLossPrice) / trade.StopLossPrice <= 0.02m;
+        var isNearTarget = trade.TargetPrice > 0 && Math.Abs(currentPrice - trade.TargetPrice) / trade.TargetPrice <= 0.02m;
+
+        results.Add(new
+        {
+            trade.Id,
+            trade.Symbol,
+            CompanyName = watchlistItem?.CompanyName ?? trade.Symbol,
+            trade.EntryPrice,
+            CurrentPrice = currentPrice,
+            StopLoss = trade.StopLossPrice,
+            Target = trade.TargetPrice,
+            trade.TrailingStopPrice,
+            trade.Quantity,
+            UnrealisedPnl = unrealisedPnl,
+            UnrealisedPnlPercent = unrealisedPnlPercent,
+            DaysHeld = daysHeld,
+            EntryDate = trade.OpenedAt,
+            SetupType = signal?.SetupType.ToString() ?? "Unknown",
+            ConvictionScoreAtEntry = signal?.ConvictionScore,
+            trade.MarketRegimeAtEntry,
+            IsNearStop = isNearStop,
+            IsNearTarget = isNearTarget,
+        });
+    }
+
+    return Results.Ok(results);
+});
 
 api.MapGet("/portfolio", async (IPortfolioRepository portfolio, IAccountContext ctx) =>
 {
