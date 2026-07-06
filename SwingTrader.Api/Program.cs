@@ -134,6 +134,7 @@ builder.Services.AddScoped<IWatchlistRepository, WatchlistRepository>();
 builder.Services.AddScoped<IStrategyWeightsRepository, StrategyWeightsRepository>();
 builder.Services.AddScoped<IAccountRiskProfileRepository, AccountRiskProfileRepository>();
 builder.Services.AddScoped<IAdminLogRepository, AdminLogRepository>();
+builder.Services.AddScoped<IAdminRepository, AdminRepository>();
 builder.Services.AddScoped<IUserApiKeyRepository, UserApiKeyRepository>();
 builder.Services.AddScoped<IJobLogRepository, JobLogRepository>();
 builder.Services.AddScoped<INotificationRecipientRepository, NotificationRecipientRepository>();
@@ -1033,10 +1034,147 @@ runGroup.MapPost("/{jobType}", async (
 });
 
 // Admin area — global across all accounts, gated by Admin:UserId (a single
-// B2C object ID), a separate concept from AccountRole.Owner.
-app.MapGroup("/api/admin")
-    .RequireAuthorization("Admin")
-    .MapGet("/me", () => Results.Ok(new { isAdmin = true }));
+// B2C object ID), a separate concept from AccountRole.Owner. SendMessage is
+// deliberately not implemented in this pass (no in-app messaging channel
+// exists yet - deferred rather than half-built as an endpoint with nowhere
+// to deliver to).
+var adminGroup = app.MapGroup("/api/admin").RequireAuthorization("Admin");
+
+adminGroup.MapGet("/me", () => Results.Ok(new { isAdmin = true }));
+
+adminGroup.MapGet("/stats", async (IAdminRepository admin, CancellationToken ct) =>
+    Results.Ok(await admin.GetStatsAsync(ct)));
+
+adminGroup.MapGet("/users", async (IAdminRepository admin, CancellationToken ct) =>
+    Results.Ok(await admin.GetUsersAsync(ct)));
+
+adminGroup.MapGet("/users/{userId}", async (string userId, IAdminRepository admin, CancellationToken ct) =>
+{
+    var user = await admin.GetUserAsync(userId, ct);
+    return user is null ? Results.NotFound() : Results.Ok(user);
+});
+
+static string AdminId(HttpContext context) => context.User.FindFirst("sub")?.Value ?? "unknown";
+
+adminGroup.MapPost("/users/{userId}/suspend", async (
+    string userId,
+    SuspendUserRequest req,
+    IUserRepository users,
+    IAdminLogRepository adminLog,
+    HttpContext http,
+    CancellationToken ct) =>
+{
+    await users.SuspendAsync(userId, req.Reason, ct);
+    await adminLog.LogAsync(new AdminActionLog
+    {
+        AdminUserId = AdminId(http),
+        TargetUserId = userId,
+        Action = "Suspend",
+        Details = req.Reason is null ? null : $"Reason: {req.Reason}",
+    }, ct);
+    return Results.Ok();
+});
+
+adminGroup.MapPost("/users/{userId}/unsuspend", async (
+    string userId,
+    IUserRepository users,
+    IAdminLogRepository adminLog,
+    HttpContext http,
+    CancellationToken ct) =>
+{
+    await users.UnsuspendAsync(userId, ct);
+    await adminLog.LogAsync(new AdminActionLog { AdminUserId = AdminId(http), TargetUserId = userId, Action = "Unsuspend" }, ct);
+    return Results.Ok();
+});
+
+adminGroup.MapPost("/users/{userId}/reset-onboarding", async (
+    string userId,
+    IUserRepository users,
+    IAdminLogRepository adminLog,
+    HttpContext http,
+    CancellationToken ct) =>
+{
+    await users.ResetOnboardingAsync(userId, ct);
+    await adminLog.LogAsync(new AdminActionLog { AdminUserId = AdminId(http), TargetUserId = userId, Action = "ResetOnboarding" }, ct);
+    return Results.Ok();
+});
+
+adminGroup.MapPost("/users/{userId}/force-demo", async (
+    string userId,
+    IUserRepository users,
+    IAccountRepository accounts,
+    IAdminLogRepository adminLog,
+    HttpContext http,
+    CancellationToken ct) =>
+{
+    var user = await users.FindAsync(userId, ct);
+    if (user?.AccountId is null) return Results.NotFound();
+
+    var account = await accounts.GetAsync(user.AccountId.Value);
+    if (account is null) return Results.NotFound();
+
+    account.TradingMode = TradingMode.Demo;
+    await accounts.UpdateAsync(account, ct);
+    await adminLog.LogAsync(new AdminActionLog { AdminUserId = AdminId(http), TargetUserId = userId, Action = "ForceDemo" }, ct);
+    return Results.Ok();
+});
+
+adminGroup.MapDelete("/users/{userId}", async (
+    string userId,
+    IUserRepository users,
+    IAccountRepository accounts,
+    IAdminLogRepository adminLog,
+    HttpContext http,
+    CancellationToken ct) =>
+{
+    var user = await users.FindAsync(userId, ct);
+    if (user is null) return Results.NotFound();
+
+    if (user.Role == AccountRole.Owner && user.AccountId is not null)
+    {
+        // Soft-delete the whole Account, matching the self-service delete
+        // path - an Owner's Account is theirs, not just their AppUser row.
+        var account = await accounts.GetAsync(user.AccountId.Value);
+        if (account is not null)
+        {
+            account.IsDeleted = true;
+            await accounts.UpdateAsync(account, ct);
+        }
+    }
+    else
+    {
+        await users.RemoveAsync(userId, ct);
+    }
+
+    await adminLog.LogAsync(new AdminActionLog { AdminUserId = AdminId(http), TargetUserId = userId, Action = "DeleteUser" }, ct);
+    return Results.Ok();
+});
+
+adminGroup.MapGet("/jobs/failures", async (IAdminRepository admin, CancellationToken ct) =>
+    Results.Ok(await admin.GetJobFailuresAsync(TimeSpan.FromHours(48), ct)));
+
+adminGroup.MapPost("/jobs/retry", async (
+    RetryJobRequest req,
+    IAdminRepository admin,
+    IAdminLogRepository adminLog,
+    HttpContext http,
+    CancellationToken ct) =>
+{
+    var retried = await admin.RetryJobAsync(req.JobLogId, ct);
+    if (!retried) return Results.NotFound(new { message = "Job not found or not in a failed state." });
+
+    await adminLog.LogAsync(new AdminActionLog
+    {
+        AdminUserId = AdminId(http),
+        TargetUserId = "system",
+        Action = "RetryJob",
+        Details = $"JobLogId: {req.JobLogId}",
+    }, ct);
+    return Results.Ok();
+});
+
+adminGroup.MapGet("/logs", async (IAdminLogRepository adminLog, CancellationToken ct) =>
+    Results.Ok(await adminLog.GetRecentAsync(200, ct)));
 
 // Angular static files (Phase 10b populates wwwroot)
 app.UseDefaultFiles();

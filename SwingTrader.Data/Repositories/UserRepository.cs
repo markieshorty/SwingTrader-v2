@@ -42,4 +42,33 @@ public class UserRepository(SwingTraderDbContext db) : IUserRepository
         user.IsApproved = true;
         await db.SaveChangesAsync(ct);
     }
+
+    public async Task SuspendAsync(string userId, string? reason, CancellationToken ct = default)
+    {
+        var user = await db.AppUsers.FirstOrDefaultAsync(u => u.UserId == userId, ct);
+        if (user is null) return;
+        user.IsSuspended = true;
+        user.SuspendedAt = DateTime.UtcNow;
+        user.SuspendReason = reason;
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task UnsuspendAsync(string userId, CancellationToken ct = default)
+    {
+        var user = await db.AppUsers.FirstOrDefaultAsync(u => u.UserId == userId, ct);
+        if (user is null) return;
+        user.IsSuspended = false;
+        user.SuspendedAt = null;
+        user.SuspendReason = null;
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task ResetOnboardingAsync(string userId, CancellationToken ct = default)
+    {
+        var user = await db.AppUsers.FirstOrDefaultAsync(u => u.UserId == userId, ct);
+        if (user is null) return;
+        user.IsOnboarded = false;
+        user.OnboardingStep = 0;
+        await db.SaveChangesAsync(ct);
+    }
 }

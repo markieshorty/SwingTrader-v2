@@ -40,3 +40,7 @@ public record CreateWatchlistRequest(string Name, WatchlistType Type, string? De
 public record UpdateWatchlistRequest(string Name, string? Description);
 
 public record AddWatchlistSymbolRequest(string Symbol);
+
+public record SuspendUserRequest(string? Reason);
+
+public record RetryJobRequest(int JobLogId);
