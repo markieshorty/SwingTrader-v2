@@ -105,13 +105,27 @@ export class SplashComponent implements OnInit {
     const token = this.route.snapshot.queryParamMap.get('invite');
     this.inviteToken.set(token);
 
-    if (this.msal.instance.getAllAccounts().length > 0) {
-      if (token) {
-        this.alreadySignedIn.set(true);
-        setTimeout(() => this.router.navigateByUrl('/dashboard'), 3000);
-      } else {
-        this.router.navigateByUrl('/dashboard');
-      }
+    if (this.msal.instance.getAllAccounts().length === 0) return;
+
+    // MSAL restores the exact page (including ?invite=...) you were on
+    // before loginRedirect() sent you to Google/CIAM - so a brand-new visitor
+    // who just clicked "Join Account" lands right back here, now
+    // authenticated, with the invite param still in the URL. Without this
+    // marker that looks identical to someone who already had a session
+    // clicking a fresh invite link, which incorrectly showed "this invite
+    // doesn't apply" on every successful first-time join.
+    const returningFromJoin = sessionStorage.getItem('inviteJoinReturn') === '1';
+    if (returningFromJoin) {
+      sessionStorage.removeItem('inviteJoinReturn');
+      this.router.navigateByUrl('/dashboard');
+      return;
+    }
+
+    if (token) {
+      this.alreadySignedIn.set(true);
+      setTimeout(() => this.router.navigateByUrl('/dashboard'), 3000);
+    } else {
+      this.router.navigateByUrl('/dashboard');
     }
   }
 
@@ -120,6 +134,7 @@ export class SplashComponent implements OnInit {
     if (token) {
       sessionStorage.setItem('pendingInviteToken', token);
     }
+    sessionStorage.setItem('inviteJoinReturn', '1');
     this.authenticate();
   }
 
