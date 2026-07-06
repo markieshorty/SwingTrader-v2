@@ -52,6 +52,9 @@
               @if (!user.isOnboarded) {
                 <span class="badge pending">Not onboarded</span>
               }
+              @if (user.accountDeleted) {
+                <span class="badge suspended">Account deleted — click Delete to clean up</span>
+              }
               <span class="stats muted small">
                 {{ user.totalTrades }} trades
                 @if (user.winRate !== null) {

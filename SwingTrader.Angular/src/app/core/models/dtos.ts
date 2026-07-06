@@ -291,6 +291,7 @@ export interface AdminUserSummaryDto {
   winRate: number | null;
   riskLabel: string;
   enabledWatchlistCount: number;
+  accountDeleted: boolean;
 }
 
 export interface AdminJobFailureDto {

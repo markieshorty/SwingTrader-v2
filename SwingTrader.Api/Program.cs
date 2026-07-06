@@ -1244,7 +1244,7 @@ api.MapPut("/account/notifications/{recipientId:int}/trade-approval", async (
 
 // Soft-delete only - see Account.IsDeleted for why a hard delete isn't
 // feasible without cascading through every scoped table.
-api.MapDelete("/account", async (IAccountRepository accounts, IAccountContext ctx) =>
+api.MapDelete("/account", async (IAccountRepository accounts, IUserRepository users, IAccountContext ctx) =>
 {
     if (ctx.Role != AccountRole.Owner)
         return Results.Forbid();
@@ -1253,6 +1253,15 @@ api.MapDelete("/account", async (IAccountRepository accounts, IAccountContext ct
         ?? throw new InvalidOperationException("Authenticated caller has no account.");
     account.IsDeleted = true;
     await accounts.UpdateAsync(account);
+
+    // Also remove every AppUser tied to this Account (Owner and any
+    // Members) - otherwise their UserId row survives with AccountId
+    // pointing at a now-deleted Account, and UserRegistrationMiddleware
+    // permanently 403s them on every future login instead of letting them
+    // re-register fresh.
+    foreach (var member in await users.ListByAccountAsync(ctx.AccountId))
+        await users.RemoveAsync(member.UserId);
+
     return Results.Ok();
 });
 
@@ -1437,12 +1446,21 @@ adminGroup.MapDelete("/users/{userId}", async (
     {
         // Soft-delete the whole Account, matching the self-service delete
         // path - an Owner's Account is theirs, not just their AppUser row.
+        // Also remove every AppUser tied to it (Owner and any Members) -
+        // otherwise their UserId row survives with AccountId pointing at a
+        // now-deleted Account, and UserRegistrationMiddleware permanently
+        // 403s them on every future login instead of letting them
+        // re-register fresh, since it only creates a new Account when no
+        // AppUser row exists yet for that identity.
         var account = await accounts.GetAsync(user.AccountId.Value);
         if (account is not null)
         {
             account.IsDeleted = true;
             await accounts.UpdateAsync(account, ct);
         }
+
+        foreach (var member in await users.ListByAccountAsync(user.AccountId.Value, ct))
+            await users.RemoveAsync(member.UserId, ct);
     }
     else
     {

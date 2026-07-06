@@ -60,6 +60,43 @@ public class AdminRepositoryTests
     }
 
     [Fact]
+    public async Task GetStatsAsync_ExcludesUsersWithDeletedAccountFromTotalUsers()
+    {
+        await using var db = CreateDb();
+        db.Accounts.Add(new Account { Id = 1, TradingMode = TradingMode.Demo });
+        db.Accounts.Add(new Account { Id = 2, TradingMode = TradingMode.Live, IsDeleted = true });
+        db.AppUsers.Add(MakeUser("u1", 1));
+        db.AppUsers.Add(MakeUser("u2", 2));
+        await db.SaveChangesAsync();
+        var repo = new AdminRepository(db);
+
+        var stats = await repo.GetStatsAsync();
+
+        stats.TotalUsers.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GetUsersAsync_FlagsButDoesNotExcludeUsersWithDeletedAccount()
+    {
+        // Deliberately not excluded, unlike GetStatsAsync's counts - a
+        // leftover row from before the delete-cleanup fix existed needs to
+        // stay visible so admin can click Delete on it to actually clean it
+        // up, rather than it being invisibly stuck forever.
+        await using var db = CreateDb();
+        db.Accounts.Add(new Account { Id = 1, TradingMode = TradingMode.Demo });
+        db.Accounts.Add(new Account { Id = 2, TradingMode = TradingMode.Live, IsDeleted = true });
+        db.AppUsers.Add(MakeUser("u1", 1));
+        db.AppUsers.Add(MakeUser("u2", 2));
+        await db.SaveChangesAsync();
+        var repo = new AdminRepository(db);
+
+        var users = await repo.GetUsersAsync();
+
+        users.Should().Contain(u => u.UserId == "u1" && !u.AccountDeleted);
+        users.Should().Contain(u => u.UserId == "u2" && u.AccountDeleted);
+    }
+
+    [Fact]
     public async Task GetStatsAsync_ComputesAverageWinRateAcrossAllClosedTrades()
     {
         await using var db = CreateDb();

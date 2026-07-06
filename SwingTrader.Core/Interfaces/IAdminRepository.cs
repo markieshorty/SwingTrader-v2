@@ -24,7 +24,14 @@ public record AdminUserSummary(
     int TotalTrades,
     decimal? WinRate,
     string RiskLabel,
-    int EnabledWatchlistCount);
+    int EnabledWatchlistCount,
+    // True for a leftover AppUser row whose Account was already
+    // soft-deleted before the cleanup fix existed (deleting used to only
+    // set Account.IsDeleted, never remove the AppUser row itself). Kept
+    // visible rather than filtered out entirely so admin can still click
+    // Delete on it to run the real cleanup, instead of it being invisibly
+    // stuck forever.
+    bool AccountDeleted);
 
 public record AdminStats(
     int TotalUsers,

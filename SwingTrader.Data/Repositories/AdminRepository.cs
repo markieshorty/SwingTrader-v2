@@ -7,15 +7,25 @@ namespace SwingTrader.Data.Repositories;
 
 public class AdminRepository(SwingTraderDbContext db) : IAdminRepository
 {
+    // Deleting a user (Owner) soft-deletes their Account rather than removing
+    // the AppUser row (RemoveAsync is only used for Members) - without this
+    // exclusion, a "deleted" user kept showing up in every admin list/count
+    // forever, since nothing ever filtered on the account's IsDeleted flag.
+    private async Task<List<int>> GetDeletedAccountIdsAsync(CancellationToken ct) =>
+        await db.Accounts.Where(a => a.IsDeleted).Select(a => a.Id).ToListAsync(ct);
+
     public async Task<AdminStats> GetStatsAsync(CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;
         var sevenDaysAgo = now.AddDays(-7);
         var oneDayAgo = now.AddHours(-24);
 
-        var totalUsers = await db.AppUsers.CountAsync(ct);
-        var activeLast7Days = await db.AppUsers.CountAsync(u => u.LastLoginAt >= sevenDaysAgo, ct);
-        var notOnboarded = await db.AppUsers.CountAsync(u => !u.IsOnboarded, ct);
+        var deletedAccountIds = await GetDeletedAccountIdsAsync(ct);
+        var totalUsers = await db.AppUsers.CountAsync(u => u.AccountId == null || !deletedAccountIds.Contains(u.AccountId.Value), ct);
+        var activeLast7Days = await db.AppUsers.CountAsync(
+            u => u.LastLoginAt >= sevenDaysAgo && (u.AccountId == null || !deletedAccountIds.Contains(u.AccountId.Value)), ct);
+        var notOnboarded = await db.AppUsers.CountAsync(
+            u => !u.IsOnboarded && (u.AccountId == null || !deletedAccountIds.Contains(u.AccountId.Value)), ct);
 
         var closedTrades = await db.Trades
             .Where(t => t.Status != TradeStatus.Open && t.RealizedPnl.HasValue)
@@ -40,6 +50,10 @@ public class AdminRepository(SwingTraderDbContext db) : IAdminRepository
 
     public async Task<List<AdminUserSummary>> GetUsersAsync(CancellationToken ct = default)
     {
+        // Deliberately not filtered by deleted-account status (unlike
+        // GetStatsAsync's counts) - a leftover row from before the delete
+        // cleanup fix needs to stay visible so admin can click Delete on it
+        // to actually clean it up, rather than it being invisibly stuck.
         var users = await db.AppUsers.ToListAsync(ct);
         var summaries = new List<AdminUserSummary>(users.Count);
         foreach (var user in users)
@@ -86,7 +100,8 @@ public class AdminRepository(SwingTraderDbContext db) : IAdminRepository
             totalTrades,
             winRate,
             riskProfile?.RiskLabel ?? "Unknown",
-            enabledWatchlistCount);
+            enabledWatchlistCount,
+            account?.IsDeleted ?? false);
     }
 
     public async Task<List<AdminJobFailure>> GetJobFailuresAsync(TimeSpan lookback, CancellationToken ct = default)
