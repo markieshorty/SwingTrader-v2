@@ -18,6 +18,7 @@ public class ReportGenerationService(
     IPortfolioRepository portfolioRepo,
     IReportRepository reportRepo,
     IApprovalRepository approvalRepo,
+    IAccountRepository accountRepo,
     IForexService forex,
     IOptions<ClaudeConfig> claudeConfig,
     IOptions<ReportConfig> reportConfig,
@@ -69,13 +70,18 @@ public class ReportGenerationService(
         // Step 5
         await CalculateEntryLevelsAsync(buys, finnhub, ct);
 
-        // Step 6 — generate token before markdown so footer URL can include it
-        var token = approvalConfig.Value.RequireApproval ? Guid.NewGuid().ToString("N") : null;
+        // Step 6 - ApprovalRequired is a per-account setting (Settings page),
+        // not a global one - ApprovalConfig now only carries the base URL and
+        // approval-window timing, both genuinely environment-level.
+        var account = await accountRepo.GetAsync(accountId, ct)
+            ?? throw new InvalidOperationException($"Account {accountId} not found.");
+        var token = account.ApprovalRequired ? Guid.NewGuid().ToString("N") : null;
         var cfg = reportConfig.Value;
-        var markdown = BuildMarkdown(reportDate, buys, watches, holds, avoids, portfolio, market, narratives, cfg, token, gbpUsd);
+        var markdown = BuildMarkdown(reportDate, buys, watches, holds, avoids, portfolio, market, narratives, cfg, gbpUsd);
+        var approvalMarkdown = token is null ? null : BuildApprovalMarkdown(reportDate, buys, token);
 
         // Step 7
-        return await PersistAsync(accountId, reportDate, markdown, buys, portfolio, narratives.MarketContext, token);
+        return await PersistAsync(accountId, reportDate, markdown, approvalMarkdown, buys, portfolio, narratives.MarketContext, token);
     }
 
     // ── Step 1 ───────────────────────────────────────────────────────────────
@@ -402,7 +408,7 @@ public class ReportGenerationService(
     private string BuildMarkdown(
         DateOnly reportDate, List<StockSignal> buys, List<StockSignal> watches,
         int holds, List<StockSignal> avoids, PortfolioState portfolio,
-        MarketContext market, ReportNarratives narratives, ReportConfig cfg, string? token,
+        MarketContext market, ReportNarratives narratives, ReportConfig cfg,
         decimal gbpUsd)
     {
         var sb = new StringBuilder();
@@ -598,31 +604,38 @@ public class ReportGenerationService(
         var totalSignals = buys.Count + watches.Count + holds + avoids.Count;
         sb.AppendLine($"*{now:HH:mm} ET · Research: {totalSignals} signals · Next run: tomorrow {runTime} ET*");
 
-        if (token is not null)
+        return sb.ToString();
+    }
+
+    // Kept separate from BuildMarkdown so the approve/reject links can be
+    // emailed only to recipients with TradeApproval ticked, rather than to
+    // everyone who gets the general daily report.
+    private string BuildApprovalMarkdown(DateOnly reportDate, List<StockSignal> buys, string token)
+    {
+        var baseUrl = approvalConfig.Value.BaseUrl.TrimEnd('/');
+        var closeH = approvalConfig.Value.ApprovalWindowCloseHourEt;
+        var closeM = approvalConfig.Value.ApprovalWindowCloseMinuteEt;
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"# \U0001F6A6 Action Required: Approve Today's Trades — {reportDate:dd MMM yyyy}");
+        sb.AppendLine();
+        sb.AppendLine("**Approve today's trades:**");
+        sb.AppendLine($"{baseUrl}/approve?token={token}");
+        sb.AppendLine();
+        sb.AppendLine("To approve specific symbols only:");
+        if (buys.Count > 0)
         {
-            var baseUrl = approvalConfig.Value.BaseUrl.TrimEnd('/');
-            var closeH = approvalConfig.Value.ApprovalWindowCloseHourEt;
-            var closeM = approvalConfig.Value.ApprovalWindowCloseMinuteEt;
-            sb.AppendLine();
-            sb.AppendLine("---");
-            sb.AppendLine("**Approve today's trades:**");
-            sb.AppendLine($"{baseUrl}/approve?token={token}");
-            sb.AppendLine();
-            sb.AppendLine("To approve specific symbols only:");
-            if (buys.Count > 0)
-            {
-                var firstSym = buys[0].Symbol;
-                var twoSyms = buys.Count > 1 ? $"{buys[0].Symbol},{buys[1].Symbol}" : firstSym;
-                sb.AppendLine($"{baseUrl}/approve?token={token}&symbols={firstSym}");
-                sb.AppendLine($"{baseUrl}/approve?token={token}&symbols={twoSyms}");
-            }
-            else
-            {
-                sb.AppendLine($"{baseUrl}/approve?token={token}&symbols=SYMBOL");
-            }
-            sb.AppendLine();
-            sb.AppendLine($"_Approval window closes {closeH}:{closeM:D2} AM ET. No action = no trades today._");
+            var firstSym = buys[0].Symbol;
+            var twoSyms = buys.Count > 1 ? $"{buys[0].Symbol},{buys[1].Symbol}" : firstSym;
+            sb.AppendLine($"{baseUrl}/approve?token={token}&symbols={firstSym}");
+            sb.AppendLine($"{baseUrl}/approve?token={token}&symbols={twoSyms}");
         }
+        else
+        {
+            sb.AppendLine($"{baseUrl}/approve?token={token}&symbols=SYMBOL");
+        }
+        sb.AppendLine();
+        sb.AppendLine($"_Approval window closes {closeH}:{closeM:D2} AM ET. No action = no trades today._");
 
         return sb.ToString();
     }
@@ -630,7 +643,7 @@ public class ReportGenerationService(
     // ── Step 7 ───────────────────────────────────────────────────────────────
 
     private async Task<DailyReport> PersistAsync(
-        int accountId, DateOnly reportDate, string markdown, List<StockSignal> buys,
+        int accountId, DateOnly reportDate, string markdown, string? approvalMarkdown, List<StockSignal> buys,
         PortfolioState portfolio, string marketContext, string? token)
     {
         var topBuySymbols = buys.Take(reportConfig.Value.MaxBuysInReport)
@@ -650,6 +663,7 @@ public class ReportGenerationService(
         }
 
         report.ReportMarkdown = markdown;
+        report.ApprovalMarkdown = approvalMarkdown;
         report.TopBuysJson = JsonSerializer.Serialize(topBuySymbols);
         report.TopSellsJson = JsonSerializer.Serialize(nearStopSymbols);
         report.MarketContext = marketContext;

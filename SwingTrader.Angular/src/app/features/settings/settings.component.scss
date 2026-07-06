@@ -75,8 +75,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
   padding: 8px 0;
   border-bottom: 1px solid var(--st-border);
+
+  span {
+    flex: 1;
+  }
 }
 
 .member-row {

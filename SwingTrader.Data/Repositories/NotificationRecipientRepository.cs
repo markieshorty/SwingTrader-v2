@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
 
@@ -24,5 +25,18 @@ public class NotificationRecipientRepository(SwingTraderDbContext db) : INotific
 
         db.NotificationRecipients.Remove(existing);
         await db.SaveChangesAsync(ct);
+    }
+
+    public async Task<bool> SetTradeApprovalAsync(int accountId, int recipientId, bool enabled, CancellationToken ct = default)
+    {
+        var existing = await db.NotificationRecipients
+            .FirstOrDefaultAsync(r => r.AccountId == accountId && r.Id == recipientId, ct);
+        if (existing is null) return false;
+
+        existing.Categories = enabled
+            ? existing.Categories | NotificationCategory.TradeApproval
+            : existing.Categories & ~NotificationCategory.TradeApproval;
+        await db.SaveChangesAsync(ct);
+        return true;
     }
 }

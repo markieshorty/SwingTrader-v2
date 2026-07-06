@@ -38,7 +38,8 @@ public class ReportConsumerFunction(
 
             var report = await reportService.GenerateAsync(message.AccountId, finnhub, t212, claude, message.ReportDate, ct);
 
-            var toAddresses = (await recipients.ListAsync(message.AccountId, ct))
+            var allRecipients = await recipients.ListAsync(message.AccountId, ct);
+            var toAddresses = allRecipients
                 .Where(r => r.Categories.HasFlag(NotificationCategory.DailyReport))
                 .Select(r => r.Email)
                 .ToList();
@@ -52,6 +53,29 @@ public class ReportConsumerFunction(
             else
             {
                 logger.LogInformation("No DailyReport recipients for account {AccountId} — report generated but not emailed", message.AccountId);
+            }
+
+            // Sent separately, and only to recipients who've explicitly opted
+            // into TradeApproval - not everyone who gets the general report.
+            if (report.ApprovalMarkdown is not null)
+            {
+                var approvalAddresses = allRecipients
+                    .Where(r => r.Categories.HasFlag(NotificationCategory.TradeApproval))
+                    .Select(r => r.Email)
+                    .ToList();
+
+                if (approvalAddresses.Count > 0)
+                {
+                    await email.SendSimpleEmailAsync(
+                        approvalAddresses, report.ApprovalMarkdown,
+                        $"SwingTrader — Action Required: Approve Today's Trades ({message.ReportDate:dd MMM yyyy})");
+                }
+                else
+                {
+                    logger.LogWarning(
+                        "Approval required for account {AccountId} but no recipient has TradeApproval enabled — trades will not be approved today",
+                        message.AccountId);
+                }
             }
 
             await jobLog.MarkCompletedAsync(message.AccountId, "Report", message.ReportDate, ct);

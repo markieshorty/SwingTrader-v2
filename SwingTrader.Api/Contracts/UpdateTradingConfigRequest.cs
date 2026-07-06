@@ -6,6 +6,8 @@ public record UpdateTradingConfigRequest(TradingMode TradingMode, bool ApprovalR
 
 public record AddNotificationRecipientRequest(string Email, NotificationCategory Categories);
 
+public record SetTradeApprovalRequest(bool Enabled);
+
 public record CompleteChecklistRequest(string CheckName, string? Notes);
 
 public record ApplyRefinementRequest(int SuggestionId);

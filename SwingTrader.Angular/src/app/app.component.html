@@ -59,9 +59,6 @@
 
       <div class="sidenav-footer">
         <span class="last-updated">Updated {{ lastUpdated() | relativeTime }}</span>
-        <button mat-icon-button (click)="auth.logout()" title="Log out">
-          <mat-icon>logout</mat-icon>
-        </button>
       </div>
     </mat-sidenav>
 
@@ -69,8 +66,11 @@
       <mat-toolbar>
         <span>{{ pageTitle() }}</span>
         <span class="spacer"></span>
-        <button mat-icon-button (click)="data.refresh()" [disabled]="data.isLoading()">
+        <button mat-icon-button (click)="data.refresh()" [disabled]="data.isLoading()" title="Refresh">
           <mat-icon>refresh</mat-icon>
+        </button>
+        <button mat-icon-button (click)="auth.logout()" title="Log out">
+          <mat-icon>logout</mat-icon>
         </button>
       </mat-toolbar>
 

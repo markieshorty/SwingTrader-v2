@@ -9,5 +9,9 @@ public enum NotificationCategory
     PositionClosed = 4,
     CircuitBreaker = 8,
     MonthlySummary = 16,
-    All = DailyReport | Execution | PositionClosed | CircuitBreaker | MonthlySummary,
+    // Separate from DailyReport - the report is informational for anyone with
+    // that category on, but the ability to actually approve/reject today's
+    // trades is a distinct, deliberately opt-in permission.
+    TradeApproval = 32,
+    All = DailyReport | Execution | PositionClosed | CircuitBreaker | MonthlySummary | TradeApproval,
 }

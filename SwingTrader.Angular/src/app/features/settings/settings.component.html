@@ -277,6 +277,12 @@
       } @else {
         <div class="recipient-row" *ngFor="let recipient of recipients()">
           <span>{{ recipient.email }}</span>
+          <mat-slide-toggle
+            [checked]="recipient.tradeApprovalEnabled"
+            (change)="toggleTradeApproval(recipient, $event.checked)"
+          >
+            Receive trade approval emails
+          </mat-slide-toggle>
           <button mat-icon-button (click)="removeRecipient(recipient.id)" title="Remove">
             <mat-icon>close</mat-icon>
           </button>

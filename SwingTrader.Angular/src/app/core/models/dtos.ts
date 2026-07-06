@@ -383,5 +383,5 @@ export interface UpdateRiskProfileDto {
 export interface NotificationRecipientDto {
   id: number;
   email: string;
-  categories: number;
+  tradeApprovalEnabled: boolean;
 }

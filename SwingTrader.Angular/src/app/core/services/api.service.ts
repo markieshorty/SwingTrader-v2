@@ -276,6 +276,10 @@ export class ApiService {
     return this.http.delete(`${this.baseUrl}/api/account/notifications/${id}`);
   }
 
+  setTradeApproval(id: number, enabled: boolean): Observable<unknown> {
+    return this.http.put(`${this.baseUrl}/api/account/notifications/${id}/trade-approval`, { enabled });
+  }
+
   deleteAccount(): Observable<unknown> {
     return this.http.delete(`${this.baseUrl}/api/account`);
   }

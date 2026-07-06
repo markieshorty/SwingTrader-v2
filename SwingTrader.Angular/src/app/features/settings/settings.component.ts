@@ -357,7 +357,9 @@ export class SettingsComponent {
 
   addRecipient(): void {
     if (!this.newRecipientEmail.trim()) return;
-    this.api.addNotificationRecipient(this.newRecipientEmail.trim(), 31 /* NotificationCategory.All */).subscribe({
+    // Every category except TradeApproval - that one is off by default and
+    // opted into per-recipient via the toggle below.
+    this.api.addNotificationRecipient(this.newRecipientEmail.trim(), 31).subscribe({
       next: () => {
         this.newRecipientEmail = '';
         this.loadRecipients();
@@ -371,6 +373,13 @@ export class SettingsComponent {
 
   removeRecipient(id: number): void {
     this.api.removeNotificationRecipient(id).subscribe({ next: () => this.loadRecipients() });
+  }
+
+  toggleTradeApproval(recipient: NotificationRecipientDto, enabled: boolean): void {
+    this.api.setTradeApproval(recipient.id, enabled).subscribe({
+      next: () => this.loadRecipients(),
+      error: () => this.snackbar.open('Failed to update trade approval setting.', 'Dismiss', { duration: 4000 }),
+    });
   }
 
   createInvite(): void {

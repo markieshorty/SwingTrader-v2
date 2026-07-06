@@ -17,6 +17,7 @@ public class ExecutionService(
     ITradeRepository tradeRepo,
     IPortfolioRepository portfolioRepo,
     IApprovalRepository approvalRepo,
+    IAccountRepository accountRepo,
     IPositionSizingService sizingService,
     IAccountRiskProfileRepository riskProfileRepo,
     INotificationRecipientRepository recipients,
@@ -24,11 +25,9 @@ public class ExecutionService(
     IMemoryCache cache,
     IForexService forex,
     IMarketRegimeService marketRegimeService,
-    IOptions<ApprovalConfig> approvalConfig,
     IOptions<ExecutionConfig> executionConfig,
     ILogger<ExecutionService> logger) : IExecutionService
 {
-    private readonly ApprovalConfig _approval = approvalConfig.Value;
     private readonly ExecutionConfig _execution = executionConfig.Value;
 
     public async Task<ExecutionResult> RunAsync(
@@ -39,9 +38,13 @@ public class ExecutionService(
         DateOnly date,
         CancellationToken ct = default)
     {
-        // Step 1 — check approval gate
+        // Step 1 — check approval gate (ApprovalRequired is a per-account
+        // setting, Settings page - not a global environment flag).
+        var account = await accountRepo.GetAsync(accountId, ct)
+            ?? throw new InvalidOperationException($"Account {accountId} not found.");
+
         HashSet<string>? approvedSymbols = null;
-        if (_approval.RequireApproval)
+        if (account.ApprovalRequired)
         {
             var approval = await approvalRepo.GetByDateAsync(accountId, date);
             if (approval is null || !approval.IsApproved)

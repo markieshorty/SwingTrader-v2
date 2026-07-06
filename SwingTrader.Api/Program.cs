@@ -620,7 +620,33 @@ api.MapPost("/refinement/reject", async (
 });
 
 // Approve endpoint stays public - the token in the query string IS the auth.
-// Not yet implemented (lands with Agents/Infrastructure porting).
+// Not behind app.MapGroup("/api")/RequireAuthorization() since it's clicked
+// directly from an email link, not called by the Angular app.
+app.MapGet("/approve", async (
+    string token,
+    string? symbols,
+    IApprovalRepository approvals,
+    CancellationToken ct) =>
+{
+    var approval = await approvals.GetByTokenAsync(token);
+    if (approval is null)
+        return Results.Content("<h2>This approval link is invalid or has expired.</h2>", "text/html");
+
+    if (approval.IsApproved)
+        return Results.Content(
+            $"<h2>Already approved</h2><p>Trades for {approval.TradeDate:dd MMM yyyy} were already approved " +
+            $"at {approval.ApprovedAt:HH:mm} ET.</p>", "text/html");
+
+    approval.IsApproved = true;
+    approval.ApprovedAt = DateTime.UtcNow;
+    approval.ApprovedSymbols = string.IsNullOrWhiteSpace(symbols) ? null : symbols;
+    approval.ApprovedVia = "email";
+    await approvals.UpdateAsync(approval);
+
+    var scopeText = string.IsNullOrWhiteSpace(symbols) ? "all of today's buy signals" : $"symbols: {symbols}";
+    return Results.Content(
+        $"<h2>Approved</h2><p>Trades approved for {approval.TradeDate:dd MMM yyyy} ({scopeText}).</p>", "text/html");
+});
 
 // Account/invite management (Owner-only for mutating operations)
 api.MapPost("/account/invites", async (
@@ -1129,7 +1155,18 @@ api.MapPut("/account/global-refinement-optin/{enabled:bool}", async (
 });
 
 api.MapGet("/account/notifications", async (INotificationRecipientRepository recipients, IAccountContext ctx) =>
-    Results.Ok(await recipients.ListAsync(ctx.AccountId)));
+{
+    var list = await recipients.ListAsync(ctx.AccountId);
+    // Categories serializes as a comma-separated flag-name string (the global
+    // JsonStringEnumConverter's default [Flags] behaviour) - expose a plain
+    // computed bool instead of making the client parse that string.
+    return Results.Ok(list.Select(r => new
+    {
+        r.Id,
+        r.Email,
+        TradeApprovalEnabled = r.Categories.HasFlag(NotificationCategory.TradeApproval),
+    }));
+});
 
 api.MapPost("/account/notifications", async (
     AddNotificationRecipientRequest req,
@@ -1160,6 +1197,19 @@ api.MapDelete("/account/notifications/{recipientId:int}", async (
 
     await recipients.RemoveAsync(ctx.AccountId, recipientId);
     return Results.Ok();
+});
+
+api.MapPut("/account/notifications/{recipientId:int}/trade-approval", async (
+    int recipientId,
+    SetTradeApprovalRequest req,
+    INotificationRecipientRepository recipients,
+    IAccountContext ctx) =>
+{
+    if (ctx.Role != AccountRole.Owner)
+        return Results.Forbid();
+
+    var updated = await recipients.SetTradeApprovalAsync(ctx.AccountId, recipientId, req.Enabled);
+    return updated ? Results.Ok() : Results.NotFound();
 });
 
 // Soft-delete only - see Account.IsDeleted for why a hard delete isn't

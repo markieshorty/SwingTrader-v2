@@ -4,12 +4,6 @@ public class ApprovalConfig
 {
     public const string SectionName = "Approval";
 
-    /// <summary>
-    /// When false, trades execute without waiting for approval.
-    /// Set to false for demo/paper trading; true for live.
-    /// </summary>
-    public bool RequireApproval { get; set; } = false;
-
     public string BaseUrl { get; set; } = "http://localhost:5001";
 
     /// <summary>
