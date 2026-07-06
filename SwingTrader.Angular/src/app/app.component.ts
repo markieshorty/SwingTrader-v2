@@ -7,6 +7,7 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatListModule } from '@angular/material/list';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDividerModule } from '@angular/material/divider';
 import { RegimeBadgeComponent } from './shared/components/regime-badge/regime-badge.component';
 import { ErrorCardComponent } from './shared/components/error-card/error-card.component';
 import { RelativeTimePipe } from './shared/pipes/relative-time.pipe';
@@ -25,6 +26,7 @@ import { AuthService } from './core/services/auth.service';
     MatListModule,
     MatIconModule,
     MatButtonModule,
+    MatDividerModule,
     RegimeBadgeComponent,
     ErrorCardComponent,
     RelativeTimePipe,

@@ -1,0 +1,130 @@
+<div class="admin-page">
+  <mat-tab-group>
+    <mat-tab label="Overview">
+      @if (stats(); as s) {
+        <div class="stat-grid">
+          <mat-card class="stat-card">
+            <span class="stat-value">{{ s.totalUsers }}</span>
+            <span class="stat-label">Total Users</span>
+          </mat-card>
+          <mat-card class="stat-card">
+            <span class="stat-value">{{ s.activeUsersLast7Days }}</span>
+            <span class="stat-label">Active (7d)</span>
+          </mat-card>
+          <mat-card class="stat-card">
+            <span class="stat-value">{{ s.totalTradesAllTime }}</span>
+            <span class="stat-label">Total Trades</span>
+          </mat-card>
+          <mat-card class="stat-card">
+            <span class="stat-value">{{ s.averageWinRateAllUsers | percent: '1.0-1' }}</span>
+            <span class="stat-label">Avg Win Rate</span>
+          </mat-card>
+          <mat-card class="stat-card">
+            <span class="stat-value">{{ s.usersInDemoMode }} / {{ s.usersInLiveMode }}</span>
+            <span class="stat-label">Demo / Live</span>
+          </mat-card>
+          <mat-card class="stat-card" [class.warn]="s.usersNotOnboarded > 0">
+            <span class="stat-value">{{ s.usersNotOnboarded }}</span>
+            <span class="stat-label">Not Onboarded</span>
+          </mat-card>
+          <mat-card class="stat-card" [class.warn]="s.totalJobFailuresLast24h > 5">
+            <span class="stat-value">{{ s.totalJobFailuresLast24h }}</span>
+            <span class="stat-label">Job Failures (24h)</span>
+          </mat-card>
+        </div>
+      } @else {
+        <p class="muted">Loading stats...</p>
+      }
+    </mat-tab>
+
+    <mat-tab label="Users">
+      <div class="users-list">
+        @for (user of users(); track user.userId) {
+          <mat-card class="panel user-card">
+            <div class="user-row">
+              <span class="name">{{ user.displayName }}</span>
+              <span class="email muted">{{ user.email }}</span>
+              <span class="badge" [class.owner]="user.role === 'Owner'">{{ user.role }}</span>
+              <span class="badge" [class.live]="user.tradingMode === 'Live'">{{ user.tradingMode }}</span>
+              @if (user.isSuspended) {
+                <span class="badge suspended">Suspended</span>
+              }
+              @if (!user.isOnboarded) {
+                <span class="badge pending">Not onboarded</span>
+              }
+              <span class="stats muted small">
+                {{ user.totalTrades }} trades
+                @if (user.winRate !== null) {
+                  · {{ user.winRate | percent: '1.0-0' }} win
+                }
+                · {{ user.riskLabel }} · {{ user.enabledWatchlistCount }} watchlists
+              </span>
+              <button mat-icon-button (click)="toggleExpanded(user.userId)" title="Actions">
+                <mat-icon>{{ expandedUserId() === user.userId ? 'expand_less' : 'expand_more' }}</mat-icon>
+              </button>
+            </div>
+
+            @if (expandedUserId() === user.userId) {
+              <div class="user-actions">
+                @if (user.isSuspended) {
+                  <p class="muted small">Suspended{{ user.suspendReason ? ': ' + user.suspendReason : '' }}</p>
+                  <button mat-stroked-button (click)="unsuspend(user)">Unsuspend</button>
+                } @else {
+                  <input
+                    type="text"
+                    class="reason-input"
+                    placeholder="Suspend reason (optional)"
+                    [(ngModel)]="suspendReasonInput[user.userId]"
+                  />
+                  <button mat-stroked-button color="warn" (click)="suspend(user)">Suspend</button>
+                }
+                <button mat-stroked-button (click)="resetOnboarding(user)">Reset Onboarding</button>
+                <button mat-stroked-button (click)="forceDemo(user)">Force Demo</button>
+                <button mat-stroked-button color="warn" (click)="deleteUser(user)">Delete Account</button>
+              </div>
+            }
+          </mat-card>
+        }
+      </div>
+    </mat-tab>
+
+    <mat-tab label="Jobs">
+      @if (jobFailures().length === 0) {
+        <p class="muted">No job failures in the last 48 hours.</p>
+      } @else {
+        <div class="job-failures">
+          @for (failure of jobFailures(); track failure.jobLogId) {
+            <mat-card class="panel job-row">
+              <div class="job-info">
+                <span class="job-type">{{ failure.jobType }}</span>
+                <span class="muted small">{{ failure.ownerEmail ?? ('Account ' + failure.accountId) }} · {{ failure.jobDate }}</span>
+                <span class="error-message small">{{ failure.errorMessage }}</span>
+                <span class="muted small">Attempt {{ failure.attemptCount }}</span>
+              </div>
+              <button mat-raised-button color="primary" (click)="retryJob(failure)">Retry</button>
+            </mat-card>
+          }
+        </div>
+      }
+    </mat-tab>
+
+    <mat-tab label="Logs">
+      @if (logs().length === 0) {
+        <p class="muted">No admin actions logged yet.</p>
+      } @else {
+        <div class="logs-list">
+          @for (log of logs(); track log.id) {
+            <div class="log-row">
+              <span class="muted small">{{ log.performedAt | date: 'short' }}</span>
+              <span class="action-badge">{{ log.action }}</span>
+              <span>{{ log.targetUserId }}</span>
+              @if (log.details) {
+                <span class="muted small">{{ log.details }}</span>
+              }
+            </div>
+          }
+        </div>
+      }
+    </mat-tab>
+  </mat-tab-group>
+</div>

@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { approvalGuard, approvalCompleteGuard } from './core/guards/approval.guard';
 import { onboardingGuard, onboardingCompleteGuard } from './core/guards/onboarding.guard';
+import { adminGuard } from './core/guards/admin.guard';
 
 export const routes: Routes = [
   {
@@ -74,6 +75,12 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/watchlists/watchlists.component').then((m) => m.WatchlistsComponent),
     title: 'Watchlists',
+  },
+  {
+    path: 'admin',
+    canActivate: [authGuard, adminGuard],
+    loadComponent: () => import('./features/admin/admin.component').then((m) => m.AdminComponent),
+    title: 'Admin',
   },
   {
     path: 'settings',

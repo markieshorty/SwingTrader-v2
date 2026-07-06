@@ -257,6 +257,55 @@ export interface StrategyWeightsDto {
   stopLossPctDefault: number;
 }
 
+export interface AdminStatsDto {
+  totalUsers: number;
+  activeUsersLast7Days: number;
+  totalTradesAllTime: number;
+  averageWinRateAllUsers: number;
+  usersInDemoMode: number;
+  usersInLiveMode: number;
+  usersNotOnboarded: number;
+  totalJobFailuresLast24h: number;
+}
+
+export interface AdminUserSummaryDto {
+  userId: string;
+  email: string;
+  displayName: string;
+  role: 'Owner' | 'Member';
+  accountId: number;
+  firstLoginAt: string;
+  lastLoginAt: string;
+  isOnboarded: boolean;
+  isApproved: boolean;
+  isSuspended: boolean;
+  suspendReason: string | null;
+  tradingMode: 'Demo' | 'Live';
+  totalTrades: number;
+  winRate: number | null;
+  riskLabel: string;
+  enabledWatchlistCount: number;
+}
+
+export interface AdminJobFailureDto {
+  jobLogId: number;
+  accountId: number;
+  ownerEmail: string | null;
+  jobType: string;
+  jobDate: string;
+  errorMessage: string | null;
+  attemptCount: number;
+}
+
+export interface AdminActionLogDto {
+  id: number;
+  adminUserId: string;
+  targetUserId: string;
+  action: string;
+  details: string | null;
+  performedAt: string;
+}
+
 export type WatchlistType = 'AiManaged' | 'Manual' | 'Mixed';
 
 export interface WatchlistItemDto {

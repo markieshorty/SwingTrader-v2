@@ -4,6 +4,10 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   AccountMemberDto,
+  AdminActionLogDto,
+  AdminJobFailureDto,
+  AdminStatsDto,
+  AdminUserSummaryDto,
   ApplyResultDto,
   InviteResultDto,
   KeyStatusesDto,
@@ -97,6 +101,46 @@ export class ApiService {
 
   getAdminMe(): Observable<{ isAdmin: boolean }> {
     return this.http.get<{ isAdmin: boolean }>(`${this.baseUrl}/api/admin/me`);
+  }
+
+  getAdminStats(): Observable<AdminStatsDto> {
+    return this.http.get<AdminStatsDto>(`${this.baseUrl}/api/admin/stats`);
+  }
+
+  getAdminUsers(): Observable<AdminUserSummaryDto[]> {
+    return this.http.get<AdminUserSummaryDto[]>(`${this.baseUrl}/api/admin/users`);
+  }
+
+  suspendUser(userId: string, reason?: string): Observable<unknown> {
+    return this.http.post(`${this.baseUrl}/api/admin/users/${userId}/suspend`, { reason });
+  }
+
+  unsuspendUser(userId: string): Observable<unknown> {
+    return this.http.post(`${this.baseUrl}/api/admin/users/${userId}/unsuspend`, {});
+  }
+
+  resetUserOnboarding(userId: string): Observable<unknown> {
+    return this.http.post(`${this.baseUrl}/api/admin/users/${userId}/reset-onboarding`, {});
+  }
+
+  forceUserDemo(userId: string): Observable<unknown> {
+    return this.http.post(`${this.baseUrl}/api/admin/users/${userId}/force-demo`, {});
+  }
+
+  deleteAdminUser(userId: string): Observable<unknown> {
+    return this.http.delete(`${this.baseUrl}/api/admin/users/${userId}`);
+  }
+
+  getAdminJobFailures(): Observable<AdminJobFailureDto[]> {
+    return this.http.get<AdminJobFailureDto[]>(`${this.baseUrl}/api/admin/jobs/failures`);
+  }
+
+  retryAdminJob(jobLogId: number): Observable<unknown> {
+    return this.http.post(`${this.baseUrl}/api/admin/jobs/retry`, { jobLogId });
+  }
+
+  getAdminLogs(): Observable<AdminActionLogDto[]> {
+    return this.http.get<AdminActionLogDto[]>(`${this.baseUrl}/api/admin/logs`);
   }
 
   createInvite(email: string, appBaseUrl: string): Observable<InviteResultDto> {

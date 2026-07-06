@@ -1,0 +1,152 @@
+.admin-page {
+  padding: 16px;
+}
+
+.muted {
+  color: var(--st-muted);
+}
+
+.small {
+  font-size: 12px;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+
+  &.warn {
+    border: 1px solid var(--st-amber, #ed6c02);
+  }
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.stat-label {
+  color: var(--st-muted);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.panel {
+  padding: 16px;
+  margin: 12px 0;
+}
+
+.users-list,
+.job-failures,
+.logs-list {
+  margin-top: 16px;
+}
+
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.name {
+  font-weight: 600;
+}
+
+.email {
+  flex: 0 0 auto;
+}
+
+.badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--st-border);
+  color: var(--st-text);
+
+  &.owner {
+    background: var(--st-blue);
+    color: white;
+  }
+
+  &.live {
+    background: var(--st-red, #d32f2f);
+    color: white;
+  }
+
+  &.suspended {
+    background: var(--st-red, #d32f2f);
+    color: white;
+  }
+
+  &.pending {
+    background: var(--st-amber, #ed6c02);
+    color: white;
+  }
+}
+
+.stats {
+  margin-left: auto;
+}
+
+.user-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--st-border);
+  flex-wrap: wrap;
+}
+
+.reason-input {
+  padding: 6px 10px;
+  border: 1px solid var(--st-border);
+  border-radius: 4px;
+  min-width: 220px;
+}
+
+.job-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.job-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.job-type {
+  font-weight: 600;
+}
+
+.error-message {
+  color: var(--st-red, #d32f2f);
+}
+
+.log-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--st-border);
+}
+
+.action-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--st-border);
+  font-weight: 600;
+}
