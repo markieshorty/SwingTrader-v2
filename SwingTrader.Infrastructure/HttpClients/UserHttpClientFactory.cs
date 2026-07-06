@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Refit;
 using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
@@ -17,7 +18,8 @@ public class UserHttpClientFactory(
     IUserApiKeyRepository repository,
     IKeyEncryptionService encryption,
     IAccountRepository accounts,
-    IConfiguration config) : IUserHttpClientFactory
+    IConfiguration config,
+    ILogger<UserHttpClientFactory> logger) : IUserHttpClientFactory
 {
     private const string FinnhubBaseUrl = "https://finnhub.io/api/v1";
     private const string TiingoBaseUrl = "https://api.tiingo.com";
@@ -59,7 +61,8 @@ public class UserHttpClientFactory(
 
         var baseUrl = isLive ? Trading212LiveBaseUrl : Trading212DemoBaseUrl;
         var credentials = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{apiKey}:{apiSecret}"));
-        var httpClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
+        var handler = new T212DiagnosticHandler(logger) { InnerHandler = new HttpClientHandler() };
+        var httpClient = new HttpClient(handler) { BaseAddress = new Uri(baseUrl) };
         httpClient.DefaultRequestHeaders.Add("Authorization", $"Basic {credentials}");
         return RestService.For<TClient>(httpClient);
     }
@@ -104,5 +107,38 @@ public class UserHttpClientFactory(
             request.RequestUri = uriBuilder.Uri;
             return await base.SendAsync(request, ct);
         }
+    }
+
+    // Logs the real T212 status code + body instead of relying on Refit's
+    // thrown-exception path for visibility - a prior incident (T212 returning
+    // 200 OK with a zeroed-out Cash object during rate-limiting) could only be
+    // diagnosed by reasoning about which catch block didn't fire, since there
+    // was no actual telemetry of the response. account/summary is always
+    // logged (success or not) since that's the endpoint that produced the
+    // ambiguous response; other endpoints only log on non-success.
+    private class T212DiagnosticHandler(ILogger logger) : DelegatingHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken ct)
+        {
+            var response = await base.SendAsync(request, ct);
+            var path = request.RequestUri?.AbsolutePath ?? "";
+
+            if (!response.IsSuccessStatusCode || path.Contains("account/summary"))
+            {
+                var body = await response.Content.ReadAsStringAsync(ct);
+                var level = response.IsSuccessStatusCode ? LogLevel.Information : LogLevel.Warning;
+                logger.Log(level, "T212 {Method} {Path} returned {StatusCode}: {Body}",
+                    request.Method, path, (int)response.StatusCode, Truncate(body));
+
+                // Content can only be read once - replace it so Refit's own
+                // deserialization downstream still sees the same body.
+                response.Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
+            }
+
+            return response;
+        }
+
+        private static string Truncate(string body) => body.Length > 500 ? body[..500] + "..." : body;
     }
 }
