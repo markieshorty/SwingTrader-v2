@@ -133,6 +133,141 @@
     </mat-card>
   </mat-tab>
 
+  <mat-tab label="Risk Management">
+    <mat-card class="panel">
+      <h3>Risk Management</h3>
+      <p class="muted small">Adjust how much capital is put at risk and how positions are sized, within hard safety bounds.</p>
+
+      @if (riskProfile(); as profile) {
+        @if (riskProfileDraft(); as draft) {
+          <p class="risk-label">Current profile: <strong>{{ profile.riskLabel }}</strong></p>
+
+          <h4>Capital Allocation</h4>
+          <div class="slider-row">
+            <label>Locked Capital: {{ draft.lockedCapitalPct | percent: '1.0-0' }}</label>
+            <mat-slider
+              [min]="profile.allowedRanges.lockedCapitalPct.min"
+              [max]="profile.allowedRanges.lockedCapitalPct.max"
+              step="0.01"
+              discrete
+            >
+              <input matSliderThumb [ngModel]="draft.lockedCapitalPct" (ngModelChange)="updateRiskDraftField('lockedCapitalPct', $event)" />
+            </mat-slider>
+          </div>
+          @if (riskLivePreview(); as preview) {
+            <p class="muted small">
+              At {{ preview.total | currency: 'GBP' }}: Protected {{ preview.locked | currency: 'GBP' }}, Available to
+              trade {{ preview.active | currency: 'GBP' }}
+            </p>
+          }
+
+          <h4>Position Sizing</h4>
+          <div class="slider-row">
+            <label>Max Position Size: {{ draft.maxPositionPctOfActive | percent: '1.0-0' }} of active capital</label>
+            <mat-slider
+              [min]="profile.allowedRanges.maxPositionPctOfActive.min"
+              [max]="profile.allowedRanges.maxPositionPctOfActive.max"
+              step="0.01"
+              discrete
+            >
+              <input matSliderThumb [ngModel]="draft.maxPositionPctOfActive" (ngModelChange)="updateRiskDraftField('maxPositionPctOfActive', $event)" />
+            </mat-slider>
+          </div>
+          @if (riskLivePreview(); as preview) {
+            <p class="muted small">Max per trade: {{ preview.maxPerTrade | currency: 'GBP' }}</p>
+          }
+
+          <div class="slider-row">
+            <label>Max Open Positions: {{ draft.maxOpenPositions }}</label>
+            <mat-slider
+              [min]="profile.allowedRanges.maxOpenPositions.min"
+              [max]="profile.allowedRanges.maxOpenPositions.max"
+              step="1"
+              discrete
+            >
+              <input matSliderThumb [ngModel]="draft.maxOpenPositions" (ngModelChange)="updateRiskDraftField('maxOpenPositions', $event)" />
+            </mat-slider>
+          </div>
+
+          <div class="slider-row">
+            <label>Daily Loss Circuit Breaker: {{ draft.dailyLossCircuitBreakerPct | percent: '1.0-0' }}</label>
+            <mat-slider
+              [min]="profile.allowedRanges.dailyLossCircuitBreakerPct.min"
+              [max]="profile.allowedRanges.dailyLossCircuitBreakerPct.max"
+              step="0.01"
+              discrete
+            >
+              <input matSliderThumb [ngModel]="draft.dailyLossCircuitBreakerPct" (ngModelChange)="updateRiskDraftField('dailyLossCircuitBreakerPct', $event)" />
+            </mat-slider>
+          </div>
+
+          @if (profile.buyThreshold !== null) {
+            <h4>Signal Thresholds</h4>
+            <p class="muted small">
+              Buy threshold {{ profile.buyThreshold }} / Watch threshold {{ profile.watchThreshold }} — edit these
+              on the Strategy tab.
+            </p>
+          }
+
+          <details class="advanced-section">
+            <summary>Advanced: Tier Unlock Criteria</summary>
+            <div class="slider-row">
+              <label>Tier 1 → 2: Min Trades: {{ draft.tier1UnlockMinTrades }}</label>
+              <mat-slider
+                [min]="profile.allowedRanges.tier1UnlockMinTrades.min"
+                [max]="profile.allowedRanges.tier1UnlockMinTrades.max"
+                step="1"
+                discrete
+              >
+                <input matSliderThumb [ngModel]="draft.tier1UnlockMinTrades" (ngModelChange)="updateRiskDraftField('tier1UnlockMinTrades', $event)" />
+              </mat-slider>
+            </div>
+            <div class="slider-row">
+              <label>Tier 1 → 2: Min Win Rate: {{ draft.tier1UnlockMinWinRate | percent: '1.0-0' }}</label>
+              <mat-slider
+                [min]="profile.allowedRanges.tier1UnlockMinWinRate.min"
+                [max]="profile.allowedRanges.tier1UnlockMinWinRate.max"
+                step="0.01"
+                discrete
+              >
+                <input matSliderThumb [ngModel]="draft.tier1UnlockMinWinRate" (ngModelChange)="updateRiskDraftField('tier1UnlockMinWinRate', $event)" />
+              </mat-slider>
+            </div>
+            <mat-form-field appearance="outline" class="weight-field">
+              <mat-label>Tier 2 → 3: Min Trades</mat-label>
+              <input
+                matInput
+                type="number"
+                [ngModel]="draft.tier2UnlockMinTrades"
+                (ngModelChange)="updateRiskDraftField('tier2UnlockMinTrades', $event)"
+              />
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="weight-field">
+              <mat-label>Tier 2 → 3: Min Win Rate</mat-label>
+              <input
+                matInput
+                type="number"
+                step="0.01"
+                [ngModel]="draft.tier2UnlockMinWinRate"
+                (ngModelChange)="updateRiskDraftField('tier2UnlockMinWinRate', $event)"
+              />
+            </mat-form-field>
+          </details>
+
+          <div class="button-row">
+            <button mat-raised-button color="primary" (click)="saveRiskProfile()">Save</button>
+            @if (riskProfileDirty()) {
+              <button mat-button (click)="discardRiskProfileChanges()">Discard Changes</button>
+            }
+            <button mat-stroked-button (click)="resetRiskProfile()">Reset to Defaults</button>
+          </div>
+        }
+      } @else {
+        <p class="muted">Could not load risk profile.</p>
+      }
+    </mat-card>
+  </mat-tab>
+
   <mat-tab label="Notifications">
     <mat-card class="panel">
       <h3>Notification Recipients</h3>

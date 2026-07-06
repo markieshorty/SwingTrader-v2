@@ -155,3 +155,41 @@
 .weight-field {
   width: 160px;
 }
+
+.risk-label {
+  font-size: 14px;
+}
+
+.slider-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 12px 0 4px;
+
+  mat-slider {
+    width: 100%;
+    max-width: 400px;
+  }
+
+  label {
+    font-size: 13px;
+    font-weight: 600;
+  }
+}
+
+.advanced-section {
+  margin: 16px 0;
+
+  summary {
+    cursor: pointer;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+}
+
+.button-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}

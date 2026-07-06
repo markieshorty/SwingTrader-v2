@@ -13,12 +13,14 @@ import {
   ReadinessReportDto,
   RefinementStatusDto,
   RegimeDto,
+  RiskProfileDto,
   RunResultDto,
   SignalGroupDto,
   StatusDto,
   StrategyWeightsDto,
   TradeDto,
   TradingConfigDto,
+  UpdateRiskProfileDto,
 } from '../models/dtos';
 
 @Injectable({ providedIn: 'root' })
@@ -149,6 +151,18 @@ export class ApiService {
 
   updateStrategyWeights(weights: StrategyWeightsDto): Observable<unknown> {
     return this.http.put(`${this.baseUrl}/api/strategy-weights`, weights);
+  }
+
+  getRiskProfile(): Observable<RiskProfileDto> {
+    return this.http.get<RiskProfileDto>(`${this.baseUrl}/api/risk-profile`);
+  }
+
+  updateRiskProfile(profile: UpdateRiskProfileDto): Observable<unknown> {
+    return this.http.put(`${this.baseUrl}/api/risk-profile`, profile);
+  }
+
+  resetRiskProfile(): Observable<RiskProfileDto> {
+    return this.http.post<RiskProfileDto>(`${this.baseUrl}/api/risk-profile/reset`, {});
   }
 
   setGlobalRefinementOptIn(enabled: boolean): Observable<unknown> {

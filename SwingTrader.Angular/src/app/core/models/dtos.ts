@@ -257,6 +257,52 @@ export interface StrategyWeightsDto {
   stopLossPctDefault: number;
 }
 
+export interface RiskProfileRangeDto {
+  min: number;
+  max: number;
+}
+
+export interface RiskProfileDto {
+  lockedCapitalPct: number;
+  maxPositionPctOfActive: number;
+  maxOpenPositions: number;
+  dailyLossCircuitBreakerPct: number;
+  tier1UnlockMinTrades: number;
+  tier1UnlockMinWinRate: number;
+  tier2UnlockMinTrades: number;
+  tier2UnlockMinWinRate: number;
+  riskLabel: string;
+  buyThreshold: number | null;
+  watchThreshold: number | null;
+  stopLossPctDefault: number | null;
+  capitalBreakdown: {
+    totalCapital: number;
+    lockedCapital: number;
+    activeCapital: number;
+    maxPerTrade: number;
+    currentTier: string;
+  } | null;
+  allowedRanges: {
+    lockedCapitalPct: RiskProfileRangeDto;
+    maxPositionPctOfActive: RiskProfileRangeDto;
+    maxOpenPositions: RiskProfileRangeDto;
+    dailyLossCircuitBreakerPct: RiskProfileRangeDto;
+    tier1UnlockMinTrades: RiskProfileRangeDto;
+    tier1UnlockMinWinRate: RiskProfileRangeDto;
+  };
+}
+
+export interface UpdateRiskProfileDto {
+  lockedCapitalPct: number;
+  maxPositionPctOfActive: number;
+  maxOpenPositions: number;
+  dailyLossCircuitBreakerPct: number;
+  tier1UnlockMinTrades: number;
+  tier1UnlockMinWinRate: number;
+  tier2UnlockMinTrades: number;
+  tier2UnlockMinWinRate: number;
+}
+
 export interface NotificationRecipientDto {
   id: number;
   email: string;

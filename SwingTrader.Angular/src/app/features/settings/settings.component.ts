@@ -9,6 +9,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSliderModule } from '@angular/material/slider';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDialog } from '@angular/material/dialog';
 import { ApiService } from '../../core/services/api.service';
@@ -19,8 +20,10 @@ import {
   ApiKeyProvider,
   KeyStatusesDto,
   NotificationRecipientDto,
+  RiskProfileDto,
   StrategyWeightsDto,
   TradingMode,
+  UpdateRiskProfileDto,
 } from '../../core/models/dtos';
 
 const COMPONENT_WEIGHT_FIELDS: { key: keyof StrategyWeightsDto; label: string }[] = [
@@ -44,6 +47,19 @@ const PROVIDER_LABELS: Record<ApiKeyProvider, string> = {
   Claude: 'Claude (Anthropic)',
 };
 
+function toUpdateRiskProfileDto(profile: RiskProfileDto): UpdateRiskProfileDto {
+  return {
+    lockedCapitalPct: profile.lockedCapitalPct,
+    maxPositionPctOfActive: profile.maxPositionPctOfActive,
+    maxOpenPositions: profile.maxOpenPositions,
+    dailyLossCircuitBreakerPct: profile.dailyLossCircuitBreakerPct,
+    tier1UnlockMinTrades: profile.tier1UnlockMinTrades,
+    tier1UnlockMinWinRate: profile.tier1UnlockMinWinRate,
+    tier2UnlockMinTrades: profile.tier2UnlockMinTrades,
+    tier2UnlockMinWinRate: profile.tier2UnlockMinWinRate,
+  };
+}
+
 @Component({
   selector: 'app-settings',
   standalone: true,
@@ -58,6 +74,7 @@ const PROVIDER_LABELS: Record<ApiKeyProvider, string> = {
     MatTabsModule,
     MatSlideToggleModule,
     MatSelectModule,
+    MatSliderModule,
   ],
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.scss',
@@ -111,12 +128,101 @@ export class SettingsComponent {
 
   weightsSumValid = computed(() => Math.abs(this.weightsSum() - 1) < 0.001);
 
+  riskProfile = signal<RiskProfileDto | null>(null);
+  // Working copy the sliders bind to - saved explicitly via saveRiskProfile(),
+  // so a user can cancel/reload without their in-progress drag committing.
+  riskProfileDraft = signal<UpdateRiskProfileDto | null>(null);
+
+  riskProfileDirty = computed(() => {
+    const original = this.riskProfile();
+    const draft = this.riskProfileDraft();
+    if (!original || !draft) return false;
+    return (
+      original.lockedCapitalPct !== draft.lockedCapitalPct ||
+      original.maxPositionPctOfActive !== draft.maxPositionPctOfActive ||
+      original.maxOpenPositions !== draft.maxOpenPositions ||
+      original.dailyLossCircuitBreakerPct !== draft.dailyLossCircuitBreakerPct ||
+      original.tier1UnlockMinTrades !== draft.tier1UnlockMinTrades ||
+      original.tier1UnlockMinWinRate !== draft.tier1UnlockMinWinRate ||
+      original.tier2UnlockMinTrades !== draft.tier2UnlockMinTrades ||
+      original.tier2UnlockMinWinRate !== draft.tier2UnlockMinWinRate
+    );
+  });
+
+  riskLivePreview = computed(() => {
+    const draft = this.riskProfileDraft();
+    const breakdown = this.riskProfile()?.capitalBreakdown;
+    const total = breakdown?.totalCapital ?? 1000;
+    if (!draft) return null;
+    const locked = total * draft.lockedCapitalPct;
+    const active = total - locked;
+    const maxPerTrade = active * draft.maxPositionPctOfActive;
+    return { total, locked, active, maxPerTrade };
+  });
+
   constructor() {
     this.loadKeyStatuses();
     this.loadAccountSettings();
     this.loadRecipients();
     this.loadMembers();
     this.loadWeights();
+    this.loadRiskProfile();
+  }
+
+  private loadRiskProfile(): void {
+    this.api.getRiskProfile().subscribe({
+      next: (profile) => {
+        this.riskProfile.set(profile);
+        this.riskProfileDraft.set(toUpdateRiskProfileDto(profile));
+      },
+      error: () => {
+        this.riskProfile.set(null);
+        this.riskProfileDraft.set(null);
+      },
+    });
+  }
+
+  updateRiskDraftField(key: keyof UpdateRiskProfileDto, value: number): void {
+    const draft = this.riskProfileDraft();
+    if (!draft) return;
+    this.riskProfileDraft.set({ ...draft, [key]: value });
+  }
+
+  saveRiskProfile(): void {
+    const draft = this.riskProfileDraft();
+    if (!draft) return;
+
+    this.api.updateRiskProfile(draft).subscribe({
+      next: () => {
+        this.snackbar.open('Risk profile saved', 'Dismiss', { duration: 3000 });
+        this.loadRiskProfile();
+      },
+      error: (err) => {
+        const message =
+          err.status === 403
+            ? 'Only the account Owner can change the risk profile.'
+            : (err.error?.message ?? 'Failed to save.');
+        this.snackbar.open(message, 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  resetRiskProfile(): void {
+    this.api.resetRiskProfile().subscribe({
+      next: () => {
+        this.snackbar.open('Risk profile reset to defaults', 'Dismiss', { duration: 3000 });
+        this.loadRiskProfile();
+      },
+      error: (err) => {
+        const message = err.status === 403 ? 'Only the account Owner can reset the risk profile.' : 'Failed to reset.';
+        this.snackbar.open(message, 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  discardRiskProfileChanges(): void {
+    const original = this.riskProfile();
+    if (original) this.riskProfileDraft.set(toUpdateRiskProfileDto(original));
   }
 
   private loadWeights(): void {
