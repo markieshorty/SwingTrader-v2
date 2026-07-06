@@ -89,6 +89,7 @@ public class UserRepository(SwingTraderDbContext db) : IUserRepository
         var user = await db.AppUsers.FirstOrDefaultAsync(u => u.UserId == userId, ct);
         if (user is null) return;
         user.Email = email;
+        user.HasConfirmedEmail = true;
         await db.SaveChangesAsync(ct);
     }
 }

@@ -116,6 +116,7 @@ export class OnboardingComponent {
 
   constructor() {
     this.api.getKeyStatuses().subscribe({ next: (s) => this.keyStatuses.set(s) });
+    this.api.getMe().subscribe({ next: (me) => this.emailConfirmed.set(me.hasConfirmedEmail) });
     this.emailInput = this.auth.currentUser()?.email ?? '';
   }
 

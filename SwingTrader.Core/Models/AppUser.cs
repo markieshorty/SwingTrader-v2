@@ -20,6 +20,13 @@ public class AppUser : UnscopedEntity
     public bool IsOnboarded { get; set; } = false;
     public int OnboardingStep { get; set; } = 0;
 
+    // Per-user, deliberately separate from IsOnboarded (which tracks the
+    // account's API-key setup) - a Member joining an account whose keys are
+    // already configured would otherwise skip the onboarding wizard
+    // entirely (isOnboardingComplete only checks account-level key status),
+    // meaning they'd never see the email-confirmation step either.
+    public bool HasConfirmedEmail { get; set; } = false;
+
     // Owners (self-registered, no invite) are auto-approved. Members joining
     // via an invite link start unapproved and can't do anything on the app
     // (enforced in UserRegistrationMiddleware) until the Owner explicitly

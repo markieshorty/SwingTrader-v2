@@ -693,6 +693,12 @@ api.MapGet("/account", async (IAccountRepository accounts, IAccountContext ctx) 
     });
 });
 
+api.MapGet("/account/me", async (IUserRepository users, IAccountContext ctx) =>
+{
+    var user = await users.FindAsync(ctx.UserId);
+    return Results.Ok(new { hasConfirmedEmail = user?.HasConfirmedEmail ?? false });
+});
+
 api.MapPut("/account/me/email", async (
     UpdateMyEmailRequest req,
     IUserRepository users,

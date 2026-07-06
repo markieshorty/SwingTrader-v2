@@ -1,6 +1,6 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { catchError, map, of } from 'rxjs';
+import { catchError, forkJoin, map, of } from 'rxjs';
 import { ApiService } from '../services/api.service';
 import { ApiKeyProvider, KeyStatusesDto } from '../models/dtos';
 
@@ -24,6 +24,15 @@ export function isOnboardingComplete(statuses: KeyStatusesDto): boolean {
   return REQUIRED_PROVIDERS.every((p) => statuses[p] !== 'NotSet') && hasAnyTrading212Pair(statuses);
 }
 
+// Email confirmation is per-user (AppUser.HasConfirmedEmail), separate from
+// the account-level key statuses above - a Member joining an account whose
+// keys are already configured would otherwise have isOnboardingComplete
+// return true immediately and skip the wizard entirely, meaning they'd
+// never see the email-confirmation step either.
+function isFullyOnboarded(statuses: KeyStatusesDto, me: { hasConfirmedEmail: boolean }): boolean {
+  return isOnboardingComplete(statuses) && me.hasConfirmedEmail;
+}
+
 // Runs after authGuard on every main app route. A brand-new account has no
 // keys saved yet (UserRegistrationMiddleware only seeds the watchlist/
 // weights, not credentials), so this redirects straight to the wizard on
@@ -32,8 +41,8 @@ export const onboardingGuard: CanActivateFn = () => {
   const api = inject(ApiService);
   const router = inject(Router);
 
-  return api.getKeyStatuses().pipe(
-    map((statuses) => (isOnboardingComplete(statuses) ? true : router.createUrlTree(['/onboarding']))),
+  return forkJoin([api.getKeyStatuses(), api.getMe()]).pipe(
+    map(([statuses, me]) => (isFullyOnboarded(statuses, me) ? true : router.createUrlTree(['/onboarding']))),
     // If the status check fails (e.g. transient API error), don't trap the
     // user on the wizard - let them through and the page-level API calls
     // will surface the real error.
@@ -47,8 +56,8 @@ export const onboardingCompleteGuard: CanActivateFn = () => {
   const api = inject(ApiService);
   const router = inject(Router);
 
-  return api.getKeyStatuses().pipe(
-    map((statuses) => (isOnboardingComplete(statuses) ? router.createUrlTree(['/dashboard']) : true)),
+  return forkJoin([api.getKeyStatuses(), api.getMe()]).pipe(
+    map(([statuses, me]) => (isFullyOnboarded(statuses, me) ? router.createUrlTree(['/dashboard']) : true)),
     catchError(() => of(true)),
   );
 };
