@@ -76,11 +76,31 @@ public class UserRegistrationMiddleware(RequestDelegate next)
                 await users.UpdateLastLoginAsync(userId);
             }
 
-            // Set before the approval gate below - IAccountContext (used by
-            // the exempted /api/account/approval-status endpoint itself)
-            // needs AccountId/Role resolvable even for an unapproved user.
+            // Set before the suspension/approval gates below - IAccountContext
+            // (used by the exempted /api/account/approval-status endpoint
+            // itself) needs AccountId/Role resolvable even for a gated user.
             context.Items["AccountId"] = user.AccountId!.Value.ToString();
             context.Items["AccountRole"] = user.Role.ToString();
+
+            // Suspension blocks this specific person's API access - it does
+            // NOT pause the Account's automated trading. Jobs are scheduled
+            // per-Account (SchedulerFunction.ListActiveAsync), not per-user,
+            // and a suspended Member shouldn't be able to halt the Owner's
+            // trading (or vice versa) just by being suspended themselves.
+            // Freezing a suspended Owner's own live trading, if ever needed,
+            // is a separate deliberate action (e.g. switching TradingMode or
+            // deactivating the Account), not an automatic side effect of
+            // suspending the person's login.
+            if (user.IsSuspended)
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    error = "Account suspended",
+                    message = "Contact support",
+                });
+                return;
+            }
 
             // Members who joined via an invite link start unapproved and
             // can't touch anything else on the app - not a UI-only gate,
