@@ -200,4 +200,79 @@ public class WatchlistRepositoryTests
 
         active.Should().HaveCount(10);
     }
+
+    [Fact]
+    public async Task LegacyGetBySymbolAsync_IgnoresSameSymbolOnOtherWatchlists()
+    {
+        await using var db = CreateDb();
+        var repo = new WatchlistRepository(db);
+        await repo.SeedDefaultAsync(1);
+        var manual = await repo.CreateWatchlistAsync(1, "Manual", WatchlistType.Manual, null);
+        await repo.AddSymbolAsync(1, manual.Id, "ZZZZ", "Zzz Corp", "Other");
+
+        var found = await repo.GetBySymbolAsync(1, "ZZZZ");
+
+        found.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task LegacyGetBySymbolAsync_FindsSymbolOnDefaultWatchlist()
+    {
+        await using var db = CreateDb();
+        var repo = new WatchlistRepository(db);
+        await repo.SeedDefaultAsync(1);
+
+        var found = await repo.GetBySymbolAsync(1, "aapl");
+
+        found.Should().NotBeNull();
+        found!.Symbol.Should().Be("AAPL");
+    }
+
+    [Fact]
+    public async Task RemoveSymbolAsync_SoftDeletesItem()
+    {
+        await using var db = CreateDb();
+        var repo = new WatchlistRepository(db);
+        var created = await repo.CreateWatchlistAsync(1, "W", WatchlistType.Manual, null);
+        await repo.AddSymbolAsync(1, created.Id, "AAPL", "Apple", "Tech");
+
+        await repo.RemoveSymbolAsync(1, created.Id, "AAPL");
+
+        // GetSymbolsAsync applies the IsActive query filter, so a removed
+        // item disappears from the normal view...
+        var symbols = await repo.GetSymbolsAsync(1, created.Id);
+        symbols.Should().BeEmpty();
+
+        // ...but the row itself is soft-deleted, not hard-deleted.
+        var raw = await db.WatchlistItems.IgnoreQueryFilters().SingleAsync(i => i.WatchlistId == created.Id);
+        raw.IsActive.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task DisableWatchlistAsync_TurnsOffEnabledFlag()
+    {
+        await using var db = CreateDb();
+        var repo = new WatchlistRepository(db);
+        await repo.SeedDefaultAsync(1);
+        var defaultWatchlist = (await repo.GetAllWatchlistsAsync(1))[0];
+
+        await repo.DisableWatchlistAsync(1, defaultWatchlist.Id);
+
+        var reloaded = await repo.GetWatchlistAsync(1, defaultWatchlist.Id);
+        reloaded!.IsEnabled.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task UpdateWatchlistAsync_RenamesAndSetsDescription()
+    {
+        await using var db = CreateDb();
+        var repo = new WatchlistRepository(db);
+        var created = await repo.CreateWatchlistAsync(1, "Old Name", WatchlistType.Manual, null);
+
+        await repo.UpdateWatchlistAsync(1, created.Id, "New Name", "New description");
+
+        var reloaded = await repo.GetWatchlistAsync(1, created.Id);
+        reloaded!.Name.Should().Be("New Name");
+        reloaded.Description.Should().Be("New description");
+    }
 }
