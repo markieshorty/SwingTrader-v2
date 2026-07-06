@@ -40,6 +40,20 @@ public class PortfolioCircuitBreakerService(
             return false;
         }
 
+        // A real account with open positions is never actually worth £0 -
+        // this only happens when T212 returns a degraded/incomplete 200
+        // response (observed during sustained rate-limiting), which Refit
+        // doesn't treat as an error since the HTTP call itself succeeded.
+        // Treating that as a real 100% drawdown would falsely trigger the
+        // breaker and skip real stop/target monitoring for the cycle.
+        if (currentValue <= 0)
+        {
+            logger.LogWarning(
+                "T212 account summary returned a non-positive total ({Current:F2}) for account {AccountId} — " +
+                "treating as bad data and skipping circuit breaker check", currentValue, accountId);
+            return false;
+        }
+
         if (baseline.TotalCapital <= 0)
             return false;
 

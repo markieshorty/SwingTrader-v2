@@ -86,6 +86,19 @@ public class ExecutionService(
             return new ExecutionResult(0, 0, signals.Count, "Account summary unavailable");
         }
 
+        // A real account is never actually worth £0 - this only happens when
+        // T212 returns a degraded/incomplete 200 response (observed during
+        // sustained rate-limiting), which doesn't throw since the HTTP call
+        // itself succeeded. Sizing trades against a bad £0 budget would be
+        // worse than just skipping this run.
+        if (accountSummary.Cash.Total <= 0)
+        {
+            logger.LogError(
+                "T212 account summary returned a non-positive total ({Total:F2}) for account {AccountId} — aborting execution",
+                accountSummary.Cash.Total, accountId);
+            return new ExecutionResult(0, 0, signals.Count, "Account summary looked invalid (zero total)");
+        }
+
         var availableCash = accountSummary.Cash.AvailableToTrade;
         var openTrades = (await tradeRepo.GetOpenTradesAsync(accountId)).ToList();
 
