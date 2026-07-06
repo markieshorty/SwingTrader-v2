@@ -12,12 +12,13 @@ public class PositionSizingService : IPositionSizingService
         int currentOpenPositions,
         decimal availableCash,
         decimal totalPortfolioValue,
+        AccountRiskProfile riskProfile,
         decimal? priceOverride = null)
     {
         // Step 1 — hard cap on concurrent positions
-        if (currentOpenPositions >= CapitalRules.MaxOpenPositions)
+        if (currentOpenPositions >= riskProfile.MaxOpenPositions)
             return Task.FromResult(new PositionSizeResult(false, 0, 0,
-                $"Max open positions ({CapitalRules.MaxOpenPositions}) already reached"));
+                $"Max open positions ({riskProfile.MaxOpenPositions}) already reached"));
 
         // Step 2 — determine active capital % for the current tier (cumulative)
         var activeCapitalPct = currentTier switch
@@ -32,7 +33,7 @@ public class PositionSizingService : IPositionSizingService
         var activeCapital = totalPortfolioValue * activeCapitalPct;
 
         // Step 4 — max position size = active capital * MaxPositionPctOfActive
-        var maxPositionBudget = activeCapital * CapitalRules.MaxPositionPctOfActive;
+        var maxPositionBudget = activeCapital * riskProfile.MaxPositionPctOfActive;
 
         // Step 5 — apply 2% cash buffer: never spend more than (available - 2% of total)
         var cashBuffer = totalPortfolioValue * 0.02m;

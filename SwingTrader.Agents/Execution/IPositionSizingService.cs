@@ -24,5 +24,6 @@ public interface IPositionSizingService
         int currentOpenPositions,
         decimal availableCash,
         decimal totalPortfolioValue,
+        AccountRiskProfile riskProfile,
         decimal? priceOverride = null);
 }

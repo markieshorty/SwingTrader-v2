@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using SwingTrader.Core.Constants;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Infrastructure.HttpClients;
 
@@ -7,10 +6,12 @@ namespace SwingTrader.Agents.Monitor;
 
 public class PortfolioCircuitBreakerService(
     IPortfolioRepository portfolioRepo,
+    IAccountRiskProfileRepository riskProfileRepo,
     ILogger<PortfolioCircuitBreakerService> logger) : IPortfolioCircuitBreakerService
 {
     public async Task<bool> ShouldTriggerAsync(int accountId, ITrading212Client t212, CancellationToken ct = default)
     {
+        var riskProfile = await riskProfileRepo.GetAsync(accountId, ct);
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
         // Find the snapshot taken at the start of today's trading session
@@ -43,13 +44,13 @@ public class PortfolioCircuitBreakerService(
 
         var drawdownPct = (baseline.TotalCapital - currentValue) / baseline.TotalCapital;
 
-        if (drawdownPct >= CapitalRules.DailyLossCircuitBreakerPct)
+        if (drawdownPct >= riskProfile.DailyLossCircuitBreakerPct)
         {
             logger.LogCritical(
                 "CIRCUIT BREAKER TRIGGERED for account {AccountId} — portfolio down {DrawdownPct:P1} today " +
                 "(baseline={Baseline:F2}, current={Current:F2}, threshold={Threshold:P0})",
                 accountId, drawdownPct, baseline.TotalCapital, currentValue,
-                CapitalRules.DailyLossCircuitBreakerPct);
+                riskProfile.DailyLossCircuitBreakerPct);
             return true;
         }
 

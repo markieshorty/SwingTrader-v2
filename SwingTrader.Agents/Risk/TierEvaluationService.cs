@@ -19,6 +19,7 @@ public class TierEvaluationService(
     ITradeRepository tradeRepo,
     IPortfolioRepository portfolioRepo,
     ITierEvaluationRepository evaluationRepo,
+    IAccountRiskProfileRepository riskProfileRepo,
     IIndicatorService indicators,
     INotificationRecipientRepository recipients,
     IEmailService email,
@@ -29,6 +30,7 @@ public class TierEvaluationService(
     public async Task<TierEvaluationRecord> EvaluateAsync(int accountId, IClaudeClient claude, CancellationToken ct = default)
     {
         var cfg = riskConfig.Value;
+        var riskProfile = await riskProfileRepo.GetAsync(accountId, ct);
         var prefix = cfg.Active ? string.Empty : cfg.ShadowModeLogPrefix;
         var now = DateTime.UtcNow;
         var from = now.AddDays(-90);
@@ -72,7 +74,7 @@ public class TierEvaluationService(
         var maxDrawdown = indicators.CalculateMaxDrawdown(equityCurve);
 
         // ── Step 3: unlock / downgrade decision ───────────────────────────────
-        var (unlockMet, suggestedTier) = EvaluateTierChange(currentTier, totalTrades, winRate);
+        var (unlockMet, suggestedTier) = EvaluateTierChange(currentTier, totalTrades, winRate, riskProfile);
 
         // Downgrade check on the most recent 30 closed trades
         var recent30 = closed.OrderByDescending(t => t.ClosedAt!.Value).Take(30).ToList();
@@ -154,18 +156,18 @@ public class TierEvaluationService(
     }
 
     private static (bool unlockMet, CapitalTier suggested) EvaluateTierChange(
-        CapitalTier current, int totalTrades, decimal winRate)
+        CapitalTier current, int totalTrades, decimal winRate, AccountRiskProfile riskProfile)
     {
         switch (current)
         {
             case CapitalTier.Tier1:
-                if (totalTrades >= CapitalRules.Tier1UnlockMinTrades
-                    && winRate >= CapitalRules.Tier1UnlockMinWinRate)
+                if (totalTrades >= riskProfile.Tier1UnlockMinTrades
+                    && winRate >= riskProfile.Tier1UnlockMinWinRate)
                     return (true, CapitalTier.Tier2);
                 return (false, CapitalTier.Tier1);
             case CapitalTier.Tier2:
-                if (totalTrades >= CapitalRules.Tier2UnlockMinTrades
-                    && winRate >= CapitalRules.Tier2UnlockMinWinRate)
+                if (totalTrades >= riskProfile.Tier2UnlockMinTrades
+                    && winRate >= riskProfile.Tier2UnlockMinWinRate)
                     return (true, CapitalTier.Tier3);
                 return (false, CapitalTier.Tier2);
             default:

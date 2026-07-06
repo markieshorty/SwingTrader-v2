@@ -18,6 +18,7 @@ public class ExecutionService(
     IPortfolioRepository portfolioRepo,
     IApprovalRepository approvalRepo,
     IPositionSizingService sizingService,
+    IAccountRiskProfileRepository riskProfileRepo,
     INotificationRecipientRepository recipients,
     IEmailService emailService,
     IMemoryCache cache,
@@ -53,6 +54,8 @@ public class ExecutionService(
                     .Select(s => s.Trim().ToUpperInvariant())
                     .ToHashSet();
         }
+
+        var riskProfile = await riskProfileRepo.GetAsync(accountId, ct);
 
         // Step 2 — load eligible signals
         var allSignals = (await signalRepo.GetByDateAsync(accountId, date))
@@ -142,7 +145,7 @@ public class ExecutionService(
             }
 
             var sizing = await sizingService.CalculateAsync(
-                signal, currentTier, openTrades.Count, availableCash, totalPortfolioValue,
+                signal, currentTier, openTrades.Count, availableCash, totalPortfolioValue, riskProfile,
                 priceOverride: signal.CurrentPrice * gbpUsd);
 
             if (!sizing.CanTrade)
@@ -235,8 +238,8 @@ public class ExecutionService(
                     CashAvailable = availableCash,
                     OpenPositionsValue = openValue,
                     ActiveCapital = totalPortfolioValue * activeCapitalPct,
-                    LockedCapital = totalPortfolioValue * Core.Constants.CapitalRules.LockedCapitalPct,
-                    ReserveCapital = totalPortfolioValue * (1 - activeCapitalPct - Core.Constants.CapitalRules.LockedCapitalPct),
+                    LockedCapital = totalPortfolioValue * riskProfile.LockedCapitalPct,
+                    ReserveCapital = totalPortfolioValue * (1 - activeCapitalPct - riskProfile.LockedCapitalPct),
                     TotalPnl = 0,
                     CurrentTier = currentTier,
                 };
