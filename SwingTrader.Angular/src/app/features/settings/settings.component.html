@@ -306,6 +306,19 @@
         <p>{{ me.displayName }} ({{ me.email }})</p>
       }
 
+      @if (editingEmail()) {
+        <div class="invite-form">
+          <mat-form-field appearance="outline" class="email-field">
+            <mat-label>Email address</mat-label>
+            <input matInput type="email" [(ngModel)]="emailInput" placeholder="you@example.com" />
+          </mat-form-field>
+          <button mat-raised-button color="primary" (click)="saveEmail()">Save</button>
+          <button mat-button (click)="editingEmail.set(false)">Cancel</button>
+        </div>
+      } @else {
+        <button mat-button (click)="startEditingEmail()">Edit email address</button>
+      }
+
       <div class="toggle-row">
         <mat-slide-toggle [checked]="globalRefinementOptIn()" (change)="toggleGlobalRefinement($event.checked)">
           Share anonymized trade outcomes for global strategy refinement

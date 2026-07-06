@@ -95,6 +95,8 @@ export class SettingsComponent {
   // email claim is frequently a synthetic {objectId}@tenant fallback for
   // identity providers that don't return a real one.
   me = signal<{ email: string; displayName: string } | null>(null);
+  editingEmail = signal(false);
+  emailInput = '';
 
   hasDemoPair = computed(() => {
     const s = this.keyStatuses();
@@ -359,6 +361,25 @@ export class SettingsComponent {
   toggleGlobalRefinement(enabled: boolean): void {
     this.globalRefinementOptIn.set(enabled);
     this.api.setGlobalRefinementOptIn(enabled).subscribe();
+  }
+
+  startEditingEmail(): void {
+    this.emailInput = this.me()?.email ?? '';
+    this.editingEmail.set(true);
+  }
+
+  saveEmail(): void {
+    const email = this.emailInput.trim();
+    if (!email || !email.includes('@')) return;
+
+    this.api.updateMyEmail(email).subscribe({
+      next: () => {
+        this.editingEmail.set(false);
+        this.api.getMe().subscribe({ next: (me) => this.me.set({ email: me.email, displayName: me.displayName }) });
+        this.snackbar.open('Email address updated', 'Dismiss', { duration: 3000 });
+      },
+      error: () => this.snackbar.open('Failed to update email address.', 'Dismiss', { duration: 4000 }),
+    });
   }
 
   addRecipient(): void {

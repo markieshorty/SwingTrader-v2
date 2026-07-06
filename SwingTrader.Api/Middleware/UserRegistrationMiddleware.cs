@@ -75,7 +75,7 @@ public class UserRegistrationMiddleware(RequestDelegate next)
                     return;
                 }
 
-                await users.UpdateLastLoginAsync(userId, email, displayName);
+                await users.UpdateLastLoginAsync(userId);
             }
 
             // Set before the suspension/approval gates below - IAccountContext
