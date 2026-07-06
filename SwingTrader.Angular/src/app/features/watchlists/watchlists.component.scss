@@ -1,0 +1,134 @@
+.watchlists-page {
+  padding: 16px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.muted {
+  color: var(--st-muted);
+}
+
+.small {
+  font-size: 12px;
+}
+
+.panel {
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.create-form {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.name-field {
+  min-width: 220px;
+}
+
+.type-field {
+  min-width: 160px;
+}
+
+.description-field {
+  flex: 1;
+  min-width: 200px;
+}
+
+.watchlist-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.watchlist-card {
+  margin-bottom: 0;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.enabled-dot {
+  color: var(--st-border);
+  font-size: 14px;
+
+  &.on {
+    color: var(--st-green, #2e7d32);
+  }
+}
+
+.name {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.type-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--st-border);
+  color: var(--st-text);
+
+  &.ai {
+    background: var(--st-blue);
+    color: white;
+  }
+
+  &.mixed {
+    background: var(--st-amber, #ed6c02);
+    color: white;
+  }
+}
+
+.default-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--st-green, #2e7d32);
+  color: white;
+}
+
+.symbol-count {
+  margin-left: auto;
+}
+
+.description {
+  margin: 8px 0 0;
+}
+
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.symbols-section {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--st-border);
+}
+
+.add-symbol-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.symbol-field {
+  max-width: 200px;
+}

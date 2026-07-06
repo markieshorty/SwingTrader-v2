@@ -257,6 +257,27 @@ export interface StrategyWeightsDto {
   stopLossPctDefault: number;
 }
 
+export type WatchlistType = 'AiManaged' | 'Manual' | 'Mixed';
+
+export interface WatchlistItemDto {
+  id: number;
+  symbol: string;
+  companyName: string;
+  sector: string;
+  isActive: boolean;
+  notes: string | null;
+}
+
+export interface WatchlistDto {
+  id: number;
+  name: string;
+  type: WatchlistType;
+  isEnabled: boolean;
+  isDefault: boolean;
+  description: string | null;
+  items: WatchlistItemDto[];
+}
+
 export interface RiskProfileRangeDto {
   min: number;
   max: number;

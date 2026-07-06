@@ -21,6 +21,9 @@ import {
   TradeDto,
   TradingConfigDto,
   UpdateRiskProfileDto,
+  WatchlistDto,
+  WatchlistItemDto,
+  WatchlistType,
 } from '../models/dtos';
 
 @Injectable({ providedIn: 'root' })
@@ -151,6 +154,42 @@ export class ApiService {
 
   updateStrategyWeights(weights: StrategyWeightsDto): Observable<unknown> {
     return this.http.put(`${this.baseUrl}/api/strategy-weights`, weights);
+  }
+
+  getWatchlists(): Observable<WatchlistDto[]> {
+    return this.http.get<WatchlistDto[]>(`${this.baseUrl}/api/watchlists`);
+  }
+
+  createWatchlist(name: string, type: WatchlistType, description?: string): Observable<WatchlistDto> {
+    return this.http.post<WatchlistDto>(`${this.baseUrl}/api/watchlists`, { name, type, description });
+  }
+
+  updateWatchlist(id: number, name: string, description?: string): Observable<unknown> {
+    return this.http.put(`${this.baseUrl}/api/watchlists/${id}`, { name, description });
+  }
+
+  deleteWatchlist(id: number): Observable<unknown> {
+    return this.http.delete(`${this.baseUrl}/api/watchlists/${id}`);
+  }
+
+  enableWatchlist(id: number): Observable<unknown> {
+    return this.http.post(`${this.baseUrl}/api/watchlists/${id}/enable`, {});
+  }
+
+  disableWatchlist(id: number): Observable<unknown> {
+    return this.http.post(`${this.baseUrl}/api/watchlists/${id}/disable`, {});
+  }
+
+  setDefaultWatchlist(id: number): Observable<unknown> {
+    return this.http.post(`${this.baseUrl}/api/watchlists/${id}/set-default`, {});
+  }
+
+  addWatchlistSymbol(id: number, symbol: string): Observable<WatchlistItemDto> {
+    return this.http.post<WatchlistItemDto>(`${this.baseUrl}/api/watchlists/${id}/symbols`, { symbol });
+  }
+
+  removeWatchlistSymbol(id: number, symbol: string): Observable<unknown> {
+    return this.http.delete(`${this.baseUrl}/api/watchlists/${id}/symbols/${symbol}`);
   }
 
   getRiskProfile(): Observable<RiskProfileDto> {

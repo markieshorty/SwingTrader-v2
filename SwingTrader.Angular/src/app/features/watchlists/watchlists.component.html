@@ -1,0 +1,106 @@
+<div class="watchlists-page">
+  <div class="page-header">
+    <p class="muted small">
+      {{ enabledCount() }} of {{ maxEnabled }} watchlists enabled. The Research Agent scans the combined,
+      deduplicated symbols of every enabled watchlist.
+    </p>
+    <button mat-raised-button color="primary" (click)="showCreateForm.set(!showCreateForm())">
+      <mat-icon>add</mat-icon>
+      New Watchlist
+    </button>
+  </div>
+
+  @if (showCreateForm()) {
+    <mat-card class="panel create-form">
+      <mat-form-field appearance="outline" class="name-field">
+        <mat-label>Name</mat-label>
+        <input matInput [(ngModel)]="newName" placeholder="e.g. Biotech Watch" />
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="type-field">
+        <mat-label>Type</mat-label>
+        <mat-select [(ngModel)]="newType">
+          <mat-option value="Manual">Manual</mat-option>
+          <mat-option value="AiManaged">AI Managed</mat-option>
+          <mat-option value="Mixed">Mixed</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="description-field">
+        <mat-label>Description (optional)</mat-label>
+        <input matInput [(ngModel)]="newDescription" />
+      </mat-form-field>
+      <button mat-raised-button color="primary" (click)="createWatchlist()">Create</button>
+      <button mat-button (click)="showCreateForm.set(false)">Cancel</button>
+    </mat-card>
+  }
+
+  @if (loaded() && watchlists().length === 0) {
+    <p class="muted">No watchlists yet.</p>
+  }
+
+  <div class="watchlist-cards">
+    @for (watchlist of watchlists(); track watchlist.id) {
+      <mat-card class="panel watchlist-card">
+        <div class="card-header">
+          <span class="enabled-dot" [class.on]="watchlist.isEnabled" [title]="watchlist.isEnabled ? 'Enabled' : 'Disabled'">
+            ●
+          </span>
+          <span class="name">{{ watchlist.name }}</span>
+          <span class="type-badge" [class]="typeBadgeClass(watchlist.type)">{{ watchlist.type }}</span>
+          @if (watchlist.isDefault) {
+            <span class="default-badge">Default</span>
+          }
+          <span class="symbol-count muted small">{{ watchlist.items.length }} / {{ maxSymbols }} symbols</span>
+        </div>
+
+        @if (watchlist.description) {
+          <p class="muted small description">{{ watchlist.description }}</p>
+        }
+
+        <div class="card-actions">
+          <button mat-stroked-button (click)="toggleExpanded(watchlist.id)">
+            {{ expandedId() === watchlist.id ? 'Hide symbols' : 'View symbols' }}
+          </button>
+          <button mat-stroked-button (click)="toggleEnabled(watchlist)">
+            {{ watchlist.isEnabled ? 'Disable' : 'Enable' }}
+          </button>
+          @if (!watchlist.isDefault) {
+            <button mat-stroked-button (click)="setDefault(watchlist)">Set as default</button>
+          }
+          @if (!watchlist.isDefault) {
+            <button mat-icon-button (click)="deleteWatchlist(watchlist)" title="Delete watchlist">
+              <mat-icon>delete</mat-icon>
+            </button>
+          }
+        </div>
+
+        @if (expandedId() === watchlist.id) {
+          <div class="symbols-section">
+            <mat-chip-set>
+              @for (item of watchlist.items; track item.id) {
+                <mat-chip (removed)="removeSymbol(watchlist, item.symbol)" [matTooltip]="item.companyName">
+                  {{ item.symbol }}
+                  <button matChipRemove title="Remove {{ item.symbol }}">
+                    <mat-icon>cancel</mat-icon>
+                  </button>
+                </mat-chip>
+              }
+            </mat-chip-set>
+
+            <div class="add-symbol-row">
+              <mat-form-field appearance="outline" class="symbol-field">
+                <mat-label>Add symbol</mat-label>
+                <input
+                  matInput
+                  [(ngModel)]="newSymbolInput[watchlist.id]"
+                  placeholder="e.g. AAPL"
+                  (keydown.enter)="addSymbol(watchlist)"
+                />
+              </mat-form-field>
+              <button mat-raised-button color="primary" (click)="addSymbol(watchlist)">Add</button>
+            </div>
+          </div>
+        }
+      </mat-card>
+    }
+  </div>
+</div>
