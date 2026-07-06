@@ -7,13 +7,9 @@ import { adminGuard } from './core/guards/admin.guard';
 export const routes: Routes = [
   {
     path: '',
-    redirectTo: 'dashboard',
     pathMatch: 'full',
-  },
-  {
-    path: 'login',
-    loadComponent: () => import('./features/auth/login.component').then((m) => m.LoginComponent),
-    title: 'Sign in',
+    loadComponent: () => import('./features/splash/splash.component').then((m) => m.SplashComponent),
+    title: 'SwingTrader',
   },
   {
     path: 'join',
@@ -91,6 +87,6 @@ export const routes: Routes = [
   },
   {
     path: '**',
-    redirectTo: 'dashboard',
+    redirectTo: '',
   },
 ];
