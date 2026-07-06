@@ -24,6 +24,11 @@ const msalConfig = {
     // listed or MSAL rejects the issuer.
     knownAuthorities: [environment.b2cDomain, environment.b2cTenantId + '.ciamlogin.com'],
     redirectUri: typeof window !== 'undefined' ? window.location.origin : '',
+    // MSAL does NOT fall back to redirectUri for this - without it set
+    // explicitly, logoutRedirect() lands on a generic Microsoft/CIAM
+    // "you've signed out" page instead of coming back to the app's splash
+    // screen.
+    postLogoutRedirectUri: typeof window !== 'undefined' ? window.location.origin : '',
   },
   cache: {
     cacheLocation: BrowserCacheLocation.SessionStorage,

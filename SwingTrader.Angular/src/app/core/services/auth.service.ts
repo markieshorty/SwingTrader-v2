@@ -31,6 +31,10 @@ export class AuthService {
   }
 
   logout(): void {
-    this.msal.logoutRedirect();
+    // postLogoutRedirectUri is also set globally in app.config.ts's
+    // msalConfig, but passed explicitly here too since MSAL doesn't
+    // otherwise fall back to redirectUri for this - without it, logout
+    // lands on a generic Microsoft/CIAM page instead of back on the splash.
+    this.msal.logoutRedirect({ postLogoutRedirectUri: window.location.origin });
   }
 }
