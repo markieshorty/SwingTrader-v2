@@ -162,7 +162,7 @@ public class RefinementService(
             }
 
             var request = new ClaudeRequest(
-                claudeConfig.Value.Model,
+                claudeConfig.Value.RefinementModel ?? claudeConfig.Value.Model,
                 claudeConfig.Value.MaxTokens,
                 systemPrompt,
                 [new ClaudeMessage("user", userPrompt)]);
