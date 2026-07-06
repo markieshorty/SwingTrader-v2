@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Infrastructure.Configuration;
 using SwingTrader.Infrastructure.HttpClients;
+using SwingTrader.Infrastructure.HttpClients.Dtos;
 using SwingTrader.Infrastructure.Market;
 using SwingTrader.Infrastructure.RateLimiting;
 
@@ -81,13 +82,76 @@ public class StockScreener(
 
         await Task.WhenAll(tasks);
 
+        if (cfg.TopMoversEnabled)
+            await MergeTopMoversAsync(candidates, activeSymbols, openTradeSymbols, cfg, finnhub, ct);
+
+        // TopMoverOrderBoost nudges top movers up the ranking without hard-pinning
+        // them above everything else regardless of how small their move is.
         var results = candidates
-            .OrderByDescending(c => Math.Abs(c.ChangePercent))
+            .OrderByDescending(c => Math.Abs(c.ChangePercent) * (c.IsTopMover ? cfg.TopMoverOrderBoost : 1m))
             .Take(cfg.MaxCandidatesForClaude)
             .ToList();
 
-        logger.LogInformation("Screener produced {Count} candidates from {Universe} universe symbols",
-            results.Count, universe.Count);
+        logger.LogInformation("Screener produced {Count} candidates from {Universe} universe symbols ({TopMovers} top movers)",
+            results.Count, universe.Count, results.Count(c => c.IsTopMover));
         return results;
+    }
+
+    // Supplementary candidate source: Finnhub's top gainers/losers/most-active
+    // lists, layered on top of the index-based universe rather than
+    // replacing it. Off by default (WatchlistConfig.TopMoversEnabled) since
+    // it can surface symbols outside the usual S&P 500/Nasdaq 100 universe.
+    private async Task MergeTopMoversAsync(
+        List<ScreenedCandidate> candidates,
+        HashSet<string> activeSymbols,
+        HashSet<string> openTradeSymbols,
+        WatchlistConfig cfg,
+        IFinnhubClient finnhub,
+        CancellationToken ct)
+    {
+        List<MarketMoverItem> movers;
+        try
+        {
+            await rateLimiter.WaitAsync(ct);
+            var gainers = await finnhub.GetTopGainersAsync();
+            await rateLimiter.WaitAsync(ct);
+            var losers = await finnhub.GetTopLosersAsync();
+            await rateLimiter.WaitAsync(ct);
+            var mostActive = await finnhub.GetMostActiveAsync();
+            movers = gainers.Concat(losers).Concat(mostActive).ToList();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Top movers fetch failed — continuing with the index universe only");
+            return;
+        }
+
+        var byIndex = candidates.ToDictionary(c => c.Symbol, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var mover in movers.DistinctBy(m => m.Symbol, StringComparer.OrdinalIgnoreCase))
+        {
+            if (activeSymbols.Contains(mover.Symbol) || openTradeSymbols.Contains(mover.Symbol)) continue;
+
+            var absChange = Math.Abs(mover.ChangePercent);
+            if (mover.Price < cfg.MinPrice || mover.Price > cfg.MaxPrice) continue;
+            if (absChange < cfg.MinAbsChangePercent || absChange > cfg.MaxAbsChangePercent) continue;
+
+            if (byIndex.TryGetValue(mover.Symbol, out var existing))
+            {
+                // Already in the pool from the index universe - just flag it,
+                // rather than adding a duplicate entry.
+                var upgraded = existing with { IsTopMover = true };
+                candidates.Remove(existing);
+                candidates.Add(upgraded);
+                byIndex[mover.Symbol] = upgraded;
+            }
+            else
+            {
+                var added = new ScreenedCandidate(
+                    mover.Symbol, mover.Name, mover.Price, mover.ChangePercent, mover.Volume, string.Empty, IsTopMover: true);
+                candidates.Add(added);
+                byIndex[mover.Symbol] = added;
+            }
+        }
     }
 }
