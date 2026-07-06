@@ -1042,16 +1042,55 @@ var adminGroup = app.MapGroup("/api/admin").RequireAuthorization("Admin");
 
 adminGroup.MapGet("/me", () => Results.Ok(new { isAdmin = true }));
 
-adminGroup.MapGet("/stats", async (IAdminRepository admin, CancellationToken ct) =>
-    Results.Ok(await admin.GetStatsAsync(ct)));
+// AppUser.IsOnboarded is never actually written anywhere - "onboarding
+// complete" only ever existed as a client-side computation from key
+// statuses (see onboarding.guard.ts's isOnboardingComplete). Recomputed the
+// same way here rather than trusting the always-false DB column, which was
+// showing every account as "Not onboarded" regardless of real setup state.
+static bool IsReallyOnboarded(Dictionary<string, KeyStatus> statuses)
+{
+    bool HasPair(string keyProvider, string secretProvider) =>
+        statuses.GetValueOrDefault(keyProvider) != KeyStatus.NotSet && statuses.GetValueOrDefault(secretProvider) != KeyStatus.NotSet;
 
-adminGroup.MapGet("/users", async (IAdminRepository admin, CancellationToken ct) =>
-    Results.Ok(await admin.GetUsersAsync(ct)));
+    var hasCoreKeys = statuses.GetValueOrDefault(ApiKeyProviders.Finnhub) != KeyStatus.NotSet
+        && statuses.GetValueOrDefault(ApiKeyProviders.Tiingo) != KeyStatus.NotSet
+        && statuses.GetValueOrDefault(ApiKeyProviders.Claude) != KeyStatus.NotSet;
+    var hasTrading212Pair = HasPair(ApiKeyProviders.Trading212DemoKey, ApiKeyProviders.Trading212DemoSecret)
+        || HasPair(ApiKeyProviders.Trading212LiveKey, ApiKeyProviders.Trading212LiveSecret);
 
-adminGroup.MapGet("/users/{userId}", async (string userId, IAdminRepository admin, CancellationToken ct) =>
+    return hasCoreKeys && hasTrading212Pair;
+}
+
+adminGroup.MapGet("/stats", async (IAdminRepository admin, IUserKeyService keys, CancellationToken ct) =>
+{
+    var stats = await admin.GetStatsAsync(ct);
+    var users = await admin.GetUsersAsync(ct);
+
+    var notOnboarded = 0;
+    foreach (var user in users)
+        if (!IsReallyOnboarded(await keys.GetKeyStatusesAsync(user.AccountId, ct)))
+            notOnboarded++;
+
+    return Results.Ok(stats with { UsersNotOnboarded = notOnboarded });
+});
+
+adminGroup.MapGet("/users", async (IAdminRepository admin, IUserKeyService keys, CancellationToken ct) =>
+{
+    var users = await admin.GetUsersAsync(ct);
+    var withRealOnboarding = new List<AdminUserSummary>(users.Count);
+    foreach (var user in users)
+        withRealOnboarding.Add(user with { IsOnboarded = IsReallyOnboarded(await keys.GetKeyStatusesAsync(user.AccountId, ct)) });
+
+    return Results.Ok(withRealOnboarding);
+});
+
+adminGroup.MapGet("/users/{userId}", async (string userId, IAdminRepository admin, IUserKeyService keys, CancellationToken ct) =>
 {
     var user = await admin.GetUserAsync(userId, ct);
-    return user is null ? Results.NotFound() : Results.Ok(user);
+    if (user is null) return Results.NotFound();
+
+    var isOnboarded = IsReallyOnboarded(await keys.GetKeyStatusesAsync(user.AccountId, ct));
+    return Results.Ok(user with { IsOnboarded = isOnboarded });
 });
 
 static string AdminId(HttpContext context) => context.User.FindFirst("sub")?.Value ?? "unknown";
