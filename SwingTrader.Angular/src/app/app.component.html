@@ -46,6 +46,17 @@
         }
       </mat-nav-list>
 
+      <div class="clock-panel">
+        <div class="clock-row">
+          <span class="clock-label">Local</span>
+          <span class="clock-value">{{ localTime() }}</span>
+        </div>
+        <div class="clock-row">
+          <span class="clock-label">ET</span>
+          <span class="clock-value">{{ easternTime() }}</span>
+        </div>
+      </div>
+
       <div class="sidenav-footer">
         <span class="last-updated">Updated {{ lastUpdated() | relativeTime }}</span>
         <button mat-icon-button (click)="auth.logout()" title="Log out">

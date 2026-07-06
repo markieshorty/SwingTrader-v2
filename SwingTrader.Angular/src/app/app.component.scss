@@ -36,6 +36,33 @@
     }
   }
 
+  .clock-panel {
+    padding: 8px 16px;
+    border-top: 1px solid var(--st-border);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    .clock-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+
+    .clock-label {
+      font-size: 11px;
+      color: var(--st-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .clock-value {
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+      color: var(--st-text);
+    }
+  }
+
   .sidenav-footer {
     padding: 12px 16px;
     border-top: 1px solid var(--st-border);

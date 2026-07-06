@@ -1,7 +1,7 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { filter, map, startWith } from 'rxjs';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { filter, interval, map, startWith } from 'rxjs';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatListModule } from '@angular/material/list';
@@ -79,4 +79,26 @@ export class AppComponent {
     if (!segment) return 'Dashboard';
     return segment.charAt(0).toUpperCase() + segment.slice(1);
   }
+
+  // Live clocks under the nav menu - Eastern is the market's own timezone,
+  // shown alongside the visitor's local time so it's obvious at a glance
+  // whether the market is open without doing the timezone math by hand.
+  private now = signal(new Date());
+
+  constructor() {
+    interval(1000)
+      .pipe(takeUntilDestroyed())
+      .subscribe(() => this.now.set(new Date()));
+  }
+
+  private static readonly timeFormat: Intl.DateTimeFormatOptions = {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  };
+
+  localTime = computed(() => this.now().toLocaleTimeString([], AppComponent.timeFormat));
+  easternTime = computed(() =>
+    this.now().toLocaleTimeString([], { ...AppComponent.timeFormat, timeZone: 'America/New_York' }),
+  );
 }

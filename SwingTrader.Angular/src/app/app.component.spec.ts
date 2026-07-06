@@ -49,4 +49,21 @@ describe('AppComponent', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('.logo')).toBeNull();
   });
+
+  it('should render live local and Eastern clocks under the nav menu', async () => {
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/dashboard');
+
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const compiled = fixture.nativeElement as HTMLElement;
+
+    const rows = compiled.querySelectorAll('.clock-panel .clock-row');
+    expect(rows.length).toBe(2);
+    expect(rows[0].querySelector('.clock-label')?.textContent).toContain('Local');
+    expect(rows[1].querySelector('.clock-label')?.textContent).toContain('ET');
+    // Both should render a formatted time (HH:MM:SS), not be empty.
+    expect(rows[0].querySelector('.clock-value')?.textContent).toMatch(/\d{1,2}:\d{2}:\d{2}/);
+    expect(rows[1].querySelector('.clock-value')?.textContent).toMatch(/\d{1,2}:\d{2}:\d{2}/);
+  });
 });
