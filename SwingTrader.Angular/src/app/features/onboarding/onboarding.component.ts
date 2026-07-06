@@ -73,12 +73,6 @@ const STEPS: WizardStep[] = [
       hasPair(statuses, pendingValues, 'Trading212DemoKey', 'Trading212DemoSecret') ||
       hasPair(statuses, pendingValues, 'Trading212LiveKey', 'Trading212LiveSecret'),
   },
-  {
-    title: 'Claude (Anthropic)',
-    description: 'Used for research narratives, watchlist selection, and refinement commentary.',
-    helpUrl: 'https://console.anthropic.com/settings/keys',
-    fields: [{ key: 'Claude', label: 'API key', placeholder: 'Paste your Anthropic API key', required: true }],
-  },
 ];
 
 @Component({

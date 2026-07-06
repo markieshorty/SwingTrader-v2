@@ -71,4 +71,12 @@ public class UserRepository(SwingTraderDbContext db) : IUserRepository
         user.OnboardingStep = 0;
         await db.SaveChangesAsync(ct);
     }
+
+    public async Task MarkOnboardedAsync(string userId, CancellationToken ct = default)
+    {
+        var user = await db.AppUsers.FirstOrDefaultAsync(u => u.UserId == userId, ct);
+        if (user is null) return;
+        user.IsOnboarded = true;
+        await db.SaveChangesAsync(ct);
+    }
 }

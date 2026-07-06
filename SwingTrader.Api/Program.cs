@@ -721,6 +721,8 @@ api.MapPost("/keys/{provider}", async (
     string provider,
     SaveKeyRequest req,
     IUserKeyService keys,
+    IUserRepository users,
+    [FromServices] ServiceBusClient? serviceBus,
     IAccountContext ctx) =>
 {
     if (!ApiKeyProviders.All.Contains(provider))
@@ -730,6 +732,26 @@ api.MapPost("/keys/{provider}", async (
 
     await keys.SaveKeyAsync(ctx.AccountId, provider, req.Value);
     var isValid = await keys.TestKeyAsync(ctx.AccountId, provider);
+
+    // The moment a user's keys satisfy onboarding for the first time, kick
+    // off an immediate Watchlist run rather than making them wait until the
+    // next Sunday 20:00 ET schedule - IsOnboarded is otherwise unused, so it
+    // doubles as the "have we already fired this" guard.
+    var user = await users.FindAsync(ctx.UserId);
+    if (user is { IsOnboarded: false } && serviceBus is not null)
+    {
+        var statuses = await keys.GetKeyStatusesAsync(ctx.AccountId);
+        if (IsReallyOnboarded(statuses))
+        {
+            await users.MarkOnboardedAsync(ctx.UserId);
+            var nowEt = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow,
+                TimeZoneInfo.FindSystemTimeZoneById(OperatingSystem.IsWindows() ? "Eastern Standard Time" : "America/New_York"));
+            await using var sender = serviceBus.CreateSender("watchlist-jobs");
+            await sender.SendMessageAsync(new ServiceBusMessage(JsonSerializer.Serialize(
+                new WatchlistJobMessage(ctx.AccountId, Guid.NewGuid().ToString("N"), nowEt))));
+        }
+    }
+
     return Results.Ok(new { valid = isValid });
 });
 
@@ -1206,19 +1228,17 @@ var adminGroup = app.MapGroup("/api/admin").RequireAuthorization("Admin");
 
 adminGroup.MapGet("/me", () => Results.Ok(new { isAdmin = true }));
 
-// AppUser.IsOnboarded is never actually written anywhere - "onboarding
-// complete" only ever existed as a client-side computation from key
-// statuses (see onboarding.guard.ts's isOnboardingComplete). Recomputed the
-// same way here rather than trusting the always-false DB column, which was
-// showing every account as "Not onboarded" regardless of real setup state.
+// "Onboarding complete" is computed from key statuses (see
+// onboarding.guard.ts's isOnboardingComplete) rather than trusted from the
+// DB column alone. Claude isn't required here - it has a shared fallback
+// key (see UserKeyService.GetKeyAsync), so accounts never need their own.
 static bool IsReallyOnboarded(Dictionary<string, KeyStatus> statuses)
 {
     bool HasPair(string keyProvider, string secretProvider) =>
         statuses.GetValueOrDefault(keyProvider) != KeyStatus.NotSet && statuses.GetValueOrDefault(secretProvider) != KeyStatus.NotSet;
 
     var hasCoreKeys = statuses.GetValueOrDefault(ApiKeyProviders.Finnhub) != KeyStatus.NotSet
-        && statuses.GetValueOrDefault(ApiKeyProviders.Tiingo) != KeyStatus.NotSet
-        && statuses.GetValueOrDefault(ApiKeyProviders.Claude) != KeyStatus.NotSet;
+        && statuses.GetValueOrDefault(ApiKeyProviders.Tiingo) != KeyStatus.NotSet;
     var hasTrading212Pair = HasPair(ApiKeyProviders.Trading212DemoKey, ApiKeyProviders.Trading212DemoSecret)
         || HasPair(ApiKeyProviders.Trading212LiveKey, ApiKeyProviders.Trading212LiveSecret);
 

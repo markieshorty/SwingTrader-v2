@@ -15,4 +15,5 @@ public interface IUserRepository
     Task SuspendAsync(string userId, string? reason, CancellationToken ct = default);
     Task UnsuspendAsync(string userId, CancellationToken ct = default);
     Task ResetOnboardingAsync(string userId, CancellationToken ct = default);
+    Task MarkOnboardedAsync(string userId, CancellationToken ct = default);
 }
