@@ -18,7 +18,7 @@ import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner
 import { defaultColDef } from '../../shared/ag-grid-defaults';
 import { NextRunDto, SignalDto, TradeDto, TradingConfigDto } from '../../core/models/dtos';
 
-const AGENTS = ['Research', 'Report', 'Execution', 'Monitor', 'Risk', 'Refinement'] as const;
+const AGENTS = ['Research', 'Watchlist', 'Report', 'Execution', 'Monitor', 'Risk', 'Refinement'] as const;
 
 @Component({
   selector: 'app-dashboard',

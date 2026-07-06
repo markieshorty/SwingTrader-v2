@@ -36,7 +36,7 @@ public static class JobScheduleInfo
         // "next run" time.
         var nextMonitorTick = NextMonitorTick(nowEt);
         var monitorLabel = IsInMonitorWindow(nowEt)
-            ? $"Every 5 min (09:30-16:00 ET) - next {nextMonitorTick:HH:mm} ET"
+            ? $"next {nextMonitorTick:HH:mm} ET"
             : $"Every 5 min, 09:30-16:00 ET weekdays - next window: {nextMonitorTick:ddd d MMM, HH:mm} ET";
         runs.Add(new NextRunDto("Monitor", TimeZoneInfo.ConvertTimeToUtc(nextMonitorTick, EasternTimeZone), monitorLabel));
 

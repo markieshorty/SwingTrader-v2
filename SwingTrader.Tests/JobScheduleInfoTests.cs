@@ -102,7 +102,7 @@ public class JobScheduleInfoTests
         var runs = JobScheduleInfo.GetNextRuns(insideWindowUtc);
 
         var monitor = runs.Single(r => r.JobType == "Monitor");
-        monitor.NextRunLabel.Should().Contain("Every 5 min");
+        monitor.NextRunLabel.Should().NotContain("Every 5 min");
         monitor.NextRunLabel.Should().NotContain("next window");
         // Next tick after 10:07 ET should be 10:10 ET (14:10 UTC).
         monitor.NextRunAtUtc.Should().Be(new DateTime(2026, 7, 6, 14, 10, 0, DateTimeKind.Utc));
