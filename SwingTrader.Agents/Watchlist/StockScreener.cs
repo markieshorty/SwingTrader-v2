@@ -25,7 +25,7 @@ public class StockScreener(
         // UniverseCacheDays) replaces the old hardcoded symbol list, so the
         // screening pool stays current and captures index-rebalance
         // momentum automatically rather than going stale between builds.
-        var fullUniverse = await universeService.GetUniverseAsync(finnhub, ct);
+        var fullUniverse = await universeService.GetUniverseAsync(ct);
         if (fullUniverse.Count == 0)
         {
             logger.LogError("Universe fetch failed — watchlist refresh aborted. Check Finnhub index endpoints.");

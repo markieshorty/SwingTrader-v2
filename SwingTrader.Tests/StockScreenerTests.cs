@@ -41,7 +41,7 @@ public class StockScreenerTests
 
     private void SetupUniverse(params string[] symbols)
     {
-        _universe.GetUniverseAsync(_finnhub, Arg.Any<CancellationToken>()).Returns(symbols.ToList());
+        _universe.GetUniverseAsync(Arg.Any<CancellationToken>()).Returns(symbols.ToList());
         foreach (var s in symbols)
             _finnhub.GetQuoteAsync(s).Returns(new FinnhubQuoteResponse(100m, 1m, 1m, 101m, 99m, 99m, 99m, 0));
     }

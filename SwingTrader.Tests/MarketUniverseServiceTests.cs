@@ -4,8 +4,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using SwingTrader.Infrastructure.Configuration;
-using SwingTrader.Infrastructure.HttpClients;
-using SwingTrader.Infrastructure.HttpClients.Dtos;
 using SwingTrader.Infrastructure.Market;
 using Xunit;
 
@@ -13,8 +11,10 @@ namespace SwingTrader.Tests;
 
 public class MarketUniverseServiceTests
 {
-    private static MarketUniverseService CreateSut(IMemoryCache cache, WatchlistConfig? config = null) =>
-        new(cache, Options.Create(config ?? new WatchlistConfig()), NullLogger<MarketUniverseService>.Instance);
+    private readonly IWikipediaIndexClient _wikipedia = Substitute.For<IWikipediaIndexClient>();
+
+    private MarketUniverseService CreateSut(IMemoryCache cache, WatchlistConfig? config = null) =>
+        new(cache, _wikipedia, Options.Create(config ?? new WatchlistConfig()), NullLogger<MarketUniverseService>.Instance);
 
     // IsValidSymbol requires letters only (real tickers never contain digits) -
     // this generates distinct letters-only fake tickers for bulk test data,
@@ -34,14 +34,13 @@ public class MarketUniverseServiceTests
     [Fact]
     public async Task GetUniverse_FetchesBothIndices()
     {
-        var finnhub = Substitute.For<IFinnhubClient>();
-        finnhub.GetIndexConstituentsAsync("^GSPC").Returns(new IndexConstituentsResponse(
-            Enumerable.Range(0, 503).Select(FakeSymbol).ToList(), "^GSPC"));
-        finnhub.GetIndexConstituentsAsync("^NDX").Returns(new IndexConstituentsResponse(
-            Enumerable.Range(1000, 101).Select(FakeSymbol).ToList(), "^NDX"));
+        _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>())
+            .Returns(Enumerable.Range(0, 503).Select(FakeSymbol).ToList());
+        _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>())
+            .Returns(Enumerable.Range(1000, 101).Select(FakeSymbol).ToList());
 
         var sut = CreateSut(new MemoryCache(new MemoryCacheOptions()));
-        var result = await sut.GetUniverseAsync(finnhub);
+        var result = await sut.GetUniverseAsync();
 
         result.Should().Contain(FakeSymbol(0)).And.Contain(FakeSymbol(1000));
         result.Should().HaveCount(604);
@@ -50,12 +49,11 @@ public class MarketUniverseServiceTests
     [Fact]
     public async Task GetUniverse_Deduplicates()
     {
-        var finnhub = Substitute.For<IFinnhubClient>();
-        finnhub.GetIndexConstituentsAsync("^GSPC").Returns(new IndexConstituentsResponse(["AAPL", "MSFT", "SPXO"], "^GSPC"));
-        finnhub.GetIndexConstituentsAsync("^NDX").Returns(new IndexConstituentsResponse(["AAPL", "MSFT", "NDXO"], "^NDX"));
+        _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(["AAPL", "MSFT", "SPXO"]);
+        _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(["AAPL", "MSFT", "NDXO"]);
 
         var sut = CreateSut(new MemoryCache(new MemoryCacheOptions()));
-        var result = await sut.GetUniverseAsync(finnhub);
+        var result = await sut.GetUniverseAsync();
 
         result.Count(s => s.Equals("AAPL", StringComparison.OrdinalIgnoreCase)).Should().Be(1);
         result.Count(s => s.Equals("MSFT", StringComparison.OrdinalIgnoreCase)).Should().Be(1);
@@ -65,28 +63,26 @@ public class MarketUniverseServiceTests
     [Fact]
     public async Task GetUniverse_CachedForConfiguredDays()
     {
-        var finnhub = Substitute.For<IFinnhubClient>();
-        finnhub.GetIndexConstituentsAsync("^GSPC").Returns(new IndexConstituentsResponse(["AAPL"], "^GSPC"));
-        finnhub.GetIndexConstituentsAsync("^NDX").Returns(new IndexConstituentsResponse(["MSFT"], "^NDX"));
+        _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(["AAPL"]);
+        _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(["MSFT"]);
 
         var sut = CreateSut(new MemoryCache(new MemoryCacheOptions()));
 
-        await sut.GetUniverseAsync(finnhub);
-        await sut.GetUniverseAsync(finnhub);
+        await sut.GetUniverseAsync();
+        await sut.GetUniverseAsync();
 
-        await finnhub.Received(1).GetIndexConstituentsAsync("^GSPC");
-        await finnhub.Received(1).GetIndexConstituentsAsync("^NDX");
+        await _wikipedia.Received(1).GetSp500ConstituentsAsync(Arg.Any<CancellationToken>());
+        await _wikipedia.Received(1).GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task GetUniverse_InvalidSymbolsExcluded()
     {
-        var finnhub = Substitute.For<IFinnhubClient>();
-        finnhub.GetIndexConstituentsAsync("^GSPC").Returns(new IndexConstituentsResponse(["BRK.B", "BF-B", "AAPL"], "^GSPC"));
-        finnhub.GetIndexConstituentsAsync("^NDX").Returns(new IndexConstituentsResponse([], "^NDX"));
+        _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(["BRK.B", "BF-B", "AAPL"]);
+        _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>()).Returns([]);
 
         var sut = CreateSut(new MemoryCache(new MemoryCacheOptions()));
-        var result = await sut.GetUniverseAsync(finnhub);
+        var result = await sut.GetUniverseAsync();
 
         result.Should().NotContain("BRK.B").And.NotContain("BF-B");
         result.Should().Contain("AAPL");
@@ -95,13 +91,13 @@ public class MarketUniverseServiceTests
     [Fact]
     public async Task GetUniverse_OneFails_OtherSucceeds()
     {
-        var finnhub = Substitute.For<IFinnhubClient>();
-        finnhub.GetIndexConstituentsAsync("^GSPC").Returns<Task<IndexConstituentsResponse>>(_ => throw new HttpRequestException("boom"));
-        finnhub.GetIndexConstituentsAsync("^NDX").Returns(new IndexConstituentsResponse(
-            Enumerable.Range(0, 101).Select(FakeSymbol).ToList(), "^NDX"));
+        _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>())
+            .Returns<Task<List<string>>>(_ => throw new HttpRequestException("boom"));
+        _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>())
+            .Returns(Enumerable.Range(0, 101).Select(FakeSymbol).ToList());
 
         var sut = CreateSut(new MemoryCache(new MemoryCacheOptions()));
-        var result = await sut.GetUniverseAsync(finnhub);
+        var result = await sut.GetUniverseAsync();
 
         result.Should().HaveCount(101);
         result.Should().Contain(FakeSymbol(0));
@@ -110,26 +106,26 @@ public class MarketUniverseServiceTests
     [Fact]
     public async Task GetUniverse_BothFail_ReturnsEmpty()
     {
-        var finnhub = Substitute.For<IFinnhubClient>();
-        finnhub.GetIndexConstituentsAsync("^GSPC").Returns<Task<IndexConstituentsResponse>>(_ => throw new HttpRequestException("boom"));
-        finnhub.GetIndexConstituentsAsync("^NDX").Returns<Task<IndexConstituentsResponse>>(_ => throw new HttpRequestException("boom"));
+        _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>())
+            .Returns<Task<List<string>>>(_ => throw new HttpRequestException("boom"));
+        _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>())
+            .Returns<Task<List<string>>>(_ => throw new HttpRequestException("boom"));
 
         var sut = CreateSut(new MemoryCache(new MemoryCacheOptions()));
-        var result = await sut.GetUniverseAsync(finnhub);
+        var result = await sut.GetUniverseAsync();
 
         result.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task GetUniverse_RespectsConfiguredIndexList()
+    public async Task GetUniverse_EmptyResultsFromBoth_ReturnsEmpty()
     {
-        var finnhub = Substitute.For<IFinnhubClient>();
-        finnhub.GetIndexConstituentsAsync("^GSPC").Returns(new IndexConstituentsResponse(["AAPL"], "^GSPC"));
+        _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>()).Returns([]);
+        _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>()).Returns([]);
 
-        var sut = CreateSut(new MemoryCache(new MemoryCacheOptions()), new WatchlistConfig { IndexSymbols = ["^GSPC"] });
-        var result = await sut.GetUniverseAsync(finnhub);
+        var sut = CreateSut(new MemoryCache(new MemoryCacheOptions()));
+        var result = await sut.GetUniverseAsync();
 
-        result.Should().ContainSingle().Which.Should().Be("AAPL");
-        await finnhub.DidNotReceive().GetIndexConstituentsAsync("^NDX");
+        result.Should().BeEmpty();
     }
 }

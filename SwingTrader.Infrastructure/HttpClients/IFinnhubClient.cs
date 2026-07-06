@@ -55,11 +55,6 @@ public interface IFinnhubClient
         [AliasAs("symbol")] string symbol,
         [AliasAs("freq")] string freq = "quarterly");
 
-    // ^GSPC, ^NDX, ^DJI, ^RUT etc. - used by MarketUniverseService to build
-    // the dynamic screening universe instead of a hardcoded symbol list.
-    [Get("/index/constituents")]
-    Task<IndexConstituentsResponse> GetIndexConstituentsAsync([AliasAs("symbol")] string indexSymbol);
-
     // Used to validate a symbol exists and get a display name/sector when a
     // user manually adds it to a watchlist. Returns an empty object (all
     // fields null/empty) for an unknown symbol rather than a 404.

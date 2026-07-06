@@ -15,10 +15,10 @@ public class WatchlistConfig
     public decimal MaxAbsChangePercent { get; set; } = 15.0m;
 
     // Dynamic screening universe (MarketUniverseService) — replaces the old
-    // hardcoded StockUniverse symbol list with live index constituents, so
-    // the universe stays current and captures index-rebalance momentum
+    // hardcoded StockUniverse symbol list with S&P 500/Nasdaq-100
+    // constituents (via Wikipedia - see WikipediaIndexClient), so the
+    // universe stays current and captures index-rebalance momentum
     // automatically instead of going stale.
-    public List<string> IndexSymbols { get; set; } = ["^GSPC", "^NDX"];
     public int UniverseCacheDays { get; set; } = 7;
     public decimal TopMoverOrderBoost { get; set; } = 1.2m;
 }

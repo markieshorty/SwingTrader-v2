@@ -2,21 +2,20 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SwingTrader.Infrastructure.Configuration;
-using SwingTrader.Infrastructure.HttpClients;
 
 namespace SwingTrader.Infrastructure.Market;
 
 // Universe is shared market data (which stocks exist in an index), not
-// account-specific, so the cache is global regardless of which account's
-// Finnhub client happened to populate it - same pattern as MarketRegimeService.
+// account-specific, so the cache is global - same pattern as MarketRegimeService.
 public class MarketUniverseService(
     IMemoryCache cache,
+    IWikipediaIndexClient wikipedia,
     IOptions<WatchlistConfig> config,
     ILogger<MarketUniverseService> logger) : IMarketUniverseService
 {
     private const string CacheKey = "market_universe";
 
-    public async Task<List<string>> GetUniverseAsync(IFinnhubClient finnhub, CancellationToken ct = default)
+    public async Task<List<string>> GetUniverseAsync(CancellationToken ct = default)
     {
         if (cache.TryGetValue(CacheKey, out List<string>? cached) && cached is not null)
         {
@@ -27,27 +26,12 @@ public class MarketUniverseService(
         var cfg = config.Value;
         var symbols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var index in cfg.IndexSymbols)
-        {
-            try
-            {
-                var response = await finnhub.GetIndexConstituentsAsync(index);
-
-                foreach (var s in response.Constituents.Where(IsValidSymbol))
-                    symbols.Add(s.ToUpperInvariant());
-
-                logger.LogInformation("Fetched {Count} constituents from {Index}", response.Constituents.Count, index);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to fetch constituents for {Index} — skipping", index);
-                // Continue with other indices — never fail entirely on one index.
-            }
-        }
+        await TryAddConstituentsAsync(symbols, "S&P 500", wikipedia.GetSp500ConstituentsAsync, ct);
+        await TryAddConstituentsAsync(symbols, "Nasdaq-100", wikipedia.GetNasdaq100ConstituentsAsync, ct);
 
         if (symbols.Count == 0)
         {
-            logger.LogError("Universe fetch returned zero symbols — all index calls failed");
+            logger.LogError("Universe fetch returned zero symbols — both index lookups failed");
             return [];
         }
 
@@ -55,11 +39,27 @@ public class MarketUniverseService(
 
         cache.Set(CacheKey, result, TimeSpan.FromDays(cfg.UniverseCacheDays));
 
-        logger.LogInformation(
-            "Universe built: {Count} symbols from {Indices} indices",
-            result.Count, string.Join(", ", cfg.IndexSymbols));
+        logger.LogInformation("Universe built: {Count} symbols from S&P 500/Nasdaq-100 (via Wikipedia)", result.Count);
 
         return result;
+    }
+
+    private async Task TryAddConstituentsAsync(
+        HashSet<string> symbols, string indexName, Func<CancellationToken, Task<List<string>>> fetch, CancellationToken ct)
+    {
+        try
+        {
+            var constituents = await fetch(ct);
+            foreach (var s in constituents.Where(IsValidSymbol))
+                symbols.Add(s.ToUpperInvariant());
+
+            logger.LogInformation("Fetched {Count} constituents from {Index}", constituents.Count, indexName);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to fetch constituents for {Index} — skipping", indexName);
+            // Continue with the other index — never fail entirely on one lookup.
+        }
     }
 
     // Excludes non-standard share classes (BRK.B, BF-B) and anything that

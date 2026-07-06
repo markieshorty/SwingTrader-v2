@@ -96,6 +96,13 @@ builder.Services.AddScoped<IRelativeStrengthService, RelativeStrengthService>();
 builder.Services.AddScoped<IPriceLevelService, PriceLevelService>();
 builder.Services.AddScoped<IMarketRegimeService, MarketRegimeService>();
 builder.Services.AddScoped<IMarketUniverseService, MarketUniverseService>();
+
+// Wikipedia requires a descriptive User-Agent identifying the app/contact
+// per their bot policy - requests without one can get blocked outright.
+builder.Services.AddHttpClient<IWikipediaIndexClient, WikipediaIndexClient>(client =>
+{
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("SwingTraderBot/1.0 (personal swing-trading app; contact via GitHub repo)");
+});
 builder.Services.AddScoped<IFundamentalDataService, FundamentalDataService>();
 builder.Services.AddScoped<IFundamentalScoringService, FundamentalScoringService>();
 builder.Services.AddScoped<IResearchPipeline, ResearchPipeline>();
