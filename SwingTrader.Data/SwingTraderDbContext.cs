@@ -27,6 +27,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     public DbSet<JobLogEntry> JobLogEntries => Set<JobLogEntry>();
     public DbSet<NotificationRecipient> NotificationRecipients => Set<NotificationRecipient>();
     public DbSet<AccountRiskProfile> AccountRiskProfiles => Set<AccountRiskProfile>();
+    public DbSet<AdminActionLog> AdminActionLogs => Set<AdminActionLog>();
 
     // The 'system' Account created by the AddMultiTenancy migration - all
     // pre-existing (pre-Phase-10c) data defaults to this AccountId.
@@ -75,6 +76,16 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.AcceptedByUserId).HasMaxLength(200);
             e.HasIndex(x => x.Token).IsUnique();
             e.HasIndex(x => x.AccountId);
+        });
+
+        modelBuilder.Entity<AdminActionLog>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.AdminUserId).IsRequired().HasMaxLength(200);
+            e.Property(x => x.TargetUserId).IsRequired().HasMaxLength(200);
+            e.Property(x => x.Action).IsRequired().HasMaxLength(50);
+            e.HasIndex(x => x.TargetUserId);
+            e.HasIndex(x => x.PerformedAt);
         });
 
         modelBuilder.Entity<Watchlist>(e =>

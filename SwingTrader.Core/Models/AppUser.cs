@@ -16,6 +16,7 @@ public class AppUser : UnscopedEntity
     public bool IsActive { get; set; } = true;
     public bool IsSuspended { get; set; } = false;
     public DateTime? SuspendedAt { get; set; }
+    public string? SuspendReason { get; set; }
     public bool IsOnboarded { get; set; } = false;
     public int OnboardingStep { get; set; } = 0;
 
