@@ -94,3 +94,9 @@ public record IndexConstituentsResponse(
     [property: JsonPropertyName("constituents")] List<string> Constituents,
     [property: JsonPropertyName("symbol")] string Symbol
 );
+
+public record FinnhubCompanyProfileResponse(
+    [property: JsonPropertyName("name")] string? Name,
+    [property: JsonPropertyName("ticker")] string? Ticker,
+    [property: JsonPropertyName("finnhubIndustry")] string? Industry
+);

@@ -59,4 +59,10 @@ public interface IFinnhubClient
     // the dynamic screening universe instead of a hardcoded symbol list.
     [Get("/index/constituents")]
     Task<IndexConstituentsResponse> GetIndexConstituentsAsync([AliasAs("symbol")] string indexSymbol);
+
+    // Used to validate a symbol exists and get a display name/sector when a
+    // user manually adds it to a watchlist. Returns an empty object (all
+    // fields null/empty) for an unknown symbol rather than a 404.
+    [Get("/stock/profile2")]
+    Task<FinnhubCompanyProfileResponse> GetCompanyProfileAsync([AliasAs("symbol")] string symbol);
 }

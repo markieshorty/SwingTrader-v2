@@ -34,3 +34,9 @@ public record UpdateRiskProfileRequest(
     decimal Tier1UnlockMinWinRate,
     int Tier2UnlockMinTrades,
     decimal Tier2UnlockMinWinRate);
+
+public record CreateWatchlistRequest(string Name, WatchlistType Type, string? Description);
+
+public record UpdateWatchlistRequest(string Name, string? Description);
+
+public record AddWatchlistSymbolRequest(string Symbol);
