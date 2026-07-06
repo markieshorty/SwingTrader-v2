@@ -205,7 +205,26 @@
 .trigger-buttons {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 16px;
+}
+
+.trigger-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.watchlist-label {
+  font-weight: 500;
+}
+
+.next-run {
+  font-size: 11px;
+}
+
+.small {
+  font-size: 12px;
 }
 
 .spin {

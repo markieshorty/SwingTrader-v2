@@ -16,7 +16,7 @@ import { StopTargetBarComponent } from '../../shared/components/stop-target-bar/
 import { ConvictionBarComponent } from '../../shared/components/conviction-bar/conviction-bar.component';
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
 import { defaultColDef } from '../../shared/ag-grid-defaults';
-import { SignalDto, TradeDto, TradingConfigDto } from '../../core/models/dtos';
+import { NextRunDto, SignalDto, TradeDto, TradingConfigDto } from '../../core/models/dtos';
 
 const AGENTS = ['Research', 'Report', 'Execution', 'Monitor', 'Risk', 'Refinement'] as const;
 
@@ -52,6 +52,7 @@ export class DashboardComponent {
   recentTrades = signal<TradeDto[]>([]);
   runningAgent = signal<string | null>(null);
   accountSettings = signal<(TradingConfigDto & { globalRefinementOptIn: boolean }) | null>(null);
+  nextRuns = signal<NextRunDto[]>([]);
 
   agents = AGENTS;
 
@@ -105,6 +106,18 @@ export class DashboardComponent {
   constructor() {
     this.loadRecentTrades();
     this.loadAccountSettings();
+    this.loadNextRuns();
+  }
+
+  private loadNextRuns(): void {
+    this.api.getNextRuns().subscribe({
+      next: (runs) => this.nextRuns.set(runs),
+      error: () => this.nextRuns.set([]),
+    });
+  }
+
+  nextRunLabelFor(agent: string): string | null {
+    return this.nextRuns().find((r) => r.jobType.toLowerCase() === agent.toLowerCase())?.nextRunLabel ?? null;
   }
 
   private loadAccountSettings(): void {

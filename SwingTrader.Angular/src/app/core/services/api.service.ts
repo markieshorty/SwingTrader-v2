@@ -11,6 +11,7 @@ import {
   ApplyResultDto,
   InviteResultDto,
   KeyStatusesDto,
+  NextRunDto,
   NotificationRecipientDto,
   PortfolioDto,
   PositionDto,
@@ -38,6 +39,10 @@ export class ApiService {
 
   getPortfolio(): Observable<PortfolioDto> {
     return this.http.get<PortfolioDto>(`${this.baseUrl}/api/portfolio`);
+  }
+
+  getNextRuns(): Observable<NextRunDto[]> {
+    return this.http.get<NextRunDto[]>(`${this.baseUrl}/api/jobs/next-runs`);
   }
 
   getPositions(): Observable<PositionDto[]> {

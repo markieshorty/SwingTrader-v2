@@ -217,6 +217,11 @@ var api = app.MapGroup("/api").RequireAuthorization();
 api.MapGet("/status", async (IWorkerHeartbeatRepository heartbeats) =>
     Results.Ok(new { status = "ok", timestamp = DateTime.UtcNow, workers = await heartbeats.GetAllAsync() }));
 
+// Next scheduled run per job type, for the Dashboard's per-job cards -
+// mirrors SchedulerFunction's windows (see JobScheduleInfo). Same for every
+// account since the Scheduler's windows aren't account-specific.
+api.MapGet("/jobs/next-runs", () => Results.Ok(JobScheduleInfo.GetNextRuns(DateTime.UtcNow)));
+
 api.MapGet("/watchlist", async (IWatchlistRepository watchlist, IAccountContext ctx) =>
     Results.Ok(await watchlist.GetActiveAsync(ctx.AccountId)));
 

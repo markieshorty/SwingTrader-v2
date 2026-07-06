@@ -257,6 +257,12 @@ export interface StrategyWeightsDto {
   stopLossPctDefault: number;
 }
 
+export interface NextRunDto {
+  jobType: string;
+  nextRunAtUtc: string;
+  nextRunLabel: string;
+}
+
 export interface AdminStatsDto {
   totalUsers: number;
   activeUsersLast7Days: number;
