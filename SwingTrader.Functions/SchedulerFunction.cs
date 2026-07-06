@@ -54,13 +54,18 @@ public class SchedulerFunction(
                     await TryEnqueueAsync(account.Id, "Execution", today, "execution-jobs",
                         new ExecutionJobMessage(account.Id, Guid.NewGuid().ToString("N"), today), ct);
 
-                // NOTE: JobLog idempotency is keyed per calendar day, so this
-                // enqueues Monitor exactly once per day (whichever 5-minute
-                // tick lands in the window first) rather than repeatedly
-                // through market hours. Revisit the idempotency key once the
-                // real per-cycle monitoring pipeline is ported.
+                // Monitor is a continuous poll, not a once-daily batch job like
+                // the others - it needs to fire every 5-minute tick throughout
+                // market hours. JobLogEntry has a DB-level UNIQUE index on
+                // (AccountId, JobType, JobDate), so routing it through
+                // TryEnqueueAsync's per-day dedup (like every other job type)
+                // meant only the first tick of the day ever actually enqueued
+                // Monitor - every later tick that day saw the existing row and
+                // silently skipped, so open positions only got checked once at
+                // market open instead of all day. EnqueueEveryTickAsync bypasses
+                // that dedup entirely for Monitor specifically.
                 if (isWeekday && InWindow(nowEt, 9, 30, 16, 0))
-                    await TryEnqueueAsync(account.Id, "Monitor", today, "monitor-jobs",
+                    await EnqueueEveryTickAsync("monitor-jobs",
                         new MonitorJobMessage(account.Id, Guid.NewGuid().ToString("N"), nowEt), ct);
 
                 if (nowEt.Day == 1 && InWindow(nowEt, 9, 0, 9, 5))
@@ -95,5 +100,16 @@ public class SchedulerFunction(
         await using var sender = serviceBus!.CreateSender(queueName);
         await sender.SendMessageAsync(new ServiceBusMessage(JsonSerializer.Serialize(message)), ct);
         await jobLog.CreateEnqueuedAsync(accountId, jobType, jobDate, ct);
+    }
+
+    // No JobLog dedup - intentionally fires on every matching tick. Used for
+    // jobs (currently only Monitor) that need to run repeatedly through a
+    // window rather than once per day. MonitorConsumerFunction's own JobLog
+    // Mark* calls no-op safely when no matching row exists, so per-run
+    // status is tracked via the WorkerHeartbeat row instead.
+    private async Task EnqueueEveryTickAsync<T>(string queueName, T message, CancellationToken ct)
+    {
+        await using var sender = serviceBus!.CreateSender(queueName);
+        await sender.SendMessageAsync(new ServiceBusMessage(JsonSerializer.Serialize(message)), ct);
     }
 }

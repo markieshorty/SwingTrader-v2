@@ -15,13 +15,12 @@ public static class JobScheduleInfo
     {
         var nowEt = TimeZoneInfo.ConvertTimeFromUtc(utcNow, EasternTimeZone);
 
-        return new List<(string JobType, DateTime NextEt)>
+        var runs = new List<(string JobType, DateTime NextEt)>
         {
             ("Research", NextWeekdayAt(nowEt, 6, 0)),
             ("Watchlist", NextWeeklyAt(nowEt, DayOfWeek.Sunday, 20, 0)),
             ("Report", NextWeekdayAt(nowEt, 6, 30)),
             ("Execution", NextWeekdayAt(nowEt, 9, 20)),
-            ("Monitor", NextWeekdayAt(nowEt, 9, 30)),
             ("Risk", NextMonthlyDayAt(nowEt, 1, 9, 0)),
             ("Refinement", NextMonthlyDayAt(nowEt, 15, 8, 0)),
         }
@@ -30,6 +29,35 @@ public static class JobScheduleInfo
             TimeZoneInfo.ConvertTimeToUtc(x.NextEt, EasternTimeZone),
             x.NextEt.ToString("ddd d MMM, HH:mm") + " ET"))
         .ToList();
+
+        // Monitor runs every 5 minutes throughout 09:30-16:00 ET on weekdays
+        // (not a once-daily job like the others), so its label reflects the
+        // next actual tick plus the recurring window rather than a single
+        // "next run" time.
+        var nextMonitorTick = NextMonitorTick(nowEt);
+        var monitorLabel = IsInMonitorWindow(nowEt)
+            ? $"Every 5 min (09:30-16:00 ET) - next {nextMonitorTick:HH:mm} ET"
+            : $"Every 5 min, 09:30-16:00 ET weekdays - next window: {nextMonitorTick:ddd d MMM, HH:mm} ET";
+        runs.Add(new NextRunDto("Monitor", TimeZoneInfo.ConvertTimeToUtc(nextMonitorTick, EasternTimeZone), monitorLabel));
+
+        return runs;
+    }
+
+    private static bool IsInMonitorWindow(DateTime nowEt) =>
+        IsWeekday(nowEt) && nowEt.TimeOfDay >= new TimeSpan(9, 30, 0) && nowEt.TimeOfDay < new TimeSpan(16, 0, 0);
+
+    private static DateTime NextMonitorTick(DateTime nowEt)
+    {
+        if (IsInMonitorWindow(nowEt))
+        {
+            // Next 5-minute boundary strictly after now (Scheduler runs on
+            // "0 */5 * * * *" - i.e. exactly :00, :05, :10, ...).
+            var minutesToNextTick = 5 - (nowEt.Minute % 5);
+            var candidate = nowEt.AddMinutes(minutesToNextTick);
+            return new DateTime(candidate.Year, candidate.Month, candidate.Day, candidate.Hour, candidate.Minute, 0);
+        }
+
+        return NextWeekdayAt(nowEt, 9, 30);
     }
 
     private static bool IsWeekday(DateTime d) => d.DayOfWeek is >= DayOfWeek.Monday and <= DayOfWeek.Friday;
