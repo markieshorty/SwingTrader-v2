@@ -91,6 +91,11 @@ export class SettingsComponent {
   editingProvider = signal<ApiKeyProvider | null>(null);
   keyInput = '';
 
+  // The confirmed AppUser record, not the raw auth token - the token's
+  // email claim is frequently a synthetic {objectId}@tenant fallback for
+  // identity providers that don't return a real one.
+  me = signal<{ email: string; displayName: string } | null>(null);
+
   hasDemoPair = computed(() => {
     const s = this.keyStatuses();
     return !!s && s.Trading212DemoKey !== 'NotSet' && s.Trading212DemoSecret !== 'NotSet';
@@ -166,6 +171,7 @@ export class SettingsComponent {
     this.loadMembers();
     this.loadWeights();
     this.loadRiskProfile();
+    this.api.getMe().subscribe({ next: (me) => this.me.set({ email: me.email, displayName: me.displayName }) });
   }
 
   private loadRiskProfile(): void {

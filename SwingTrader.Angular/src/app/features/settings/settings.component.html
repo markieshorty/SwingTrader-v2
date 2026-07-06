@@ -302,8 +302,8 @@
   <mat-tab label="Account">
     <mat-card class="panel">
       <h3>Your Account</h3>
-      @if (auth.currentUser(); as user) {
-        <p>{{ user.name }} ({{ user.email }})</p>
+      @if (me(); as me) {
+        <p>{{ me.displayName }} ({{ me.email }})</p>
       }
 
       <div class="toggle-row">

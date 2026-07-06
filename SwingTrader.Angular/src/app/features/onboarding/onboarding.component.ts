@@ -117,7 +117,10 @@ export class OnboardingComponent {
   constructor() {
     this.api.getKeyStatuses().subscribe({ next: (s) => this.keyStatuses.set(s) });
     this.api.getMe().subscribe({ next: (me) => this.emailConfirmed.set(me.hasConfirmedEmail) });
-    this.emailInput = this.auth.currentUser()?.email ?? '';
+    // Not pre-filled from auth.currentUser()?.email - that's frequently a
+    // synthetic {objectId}@tenant fallback for identity providers that
+    // don't return a real email claim, so it added no value and risked
+    // being submitted unnoticed.
   }
 
   confirmEmail(): void {

@@ -205,8 +205,10 @@ export class ApiService {
     return this.http.put(`${this.baseUrl}/api/account/me/email`, { email });
   }
 
-  getMe(): Observable<{ hasConfirmedEmail: boolean }> {
-    return this.http.get<{ hasConfirmedEmail: boolean }>(`${this.baseUrl}/api/account/me`);
+  getMe(): Observable<{ hasConfirmedEmail: boolean; email: string; displayName: string }> {
+    return this.http.get<{ hasConfirmedEmail: boolean; email: string; displayName: string }>(
+      `${this.baseUrl}/api/account/me`,
+    );
   }
 
   getStrategyWeights(): Observable<StrategyWeightsDto> {
