@@ -46,6 +46,7 @@ public class UserRegistrationMiddleware(RequestDelegate next)
                 ?? context.User.FindFirst("emails")?.Value
                 ?? context.User.FindFirst("preferred_username")?.Value
                 ?? string.Empty;
+            var displayName = context.User.FindFirst("name")?.Value ?? email;
             var user = await users.FindAsync(userId);
 
             if (user is null)
@@ -57,7 +58,7 @@ public class UserRegistrationMiddleware(RequestDelegate next)
                     // Re-check now that we hold the lock - a concurrent request
                     // may have already finished creating this user while we waited.
                     user = await users.FindAsync(userId);
-                    user ??= await RegisterNewUserAsync(context, userId, email, users, accounts, invites, watchlists, weights, riskProfiles);
+                    user ??= await RegisterNewUserAsync(context, userId, email, displayName, users, accounts, invites, watchlists, weights, riskProfiles);
                 }
                 finally
                 {
@@ -73,7 +74,7 @@ public class UserRegistrationMiddleware(RequestDelegate next)
                     return;
                 }
 
-                await users.UpdateLastLoginAsync(userId);
+                await users.UpdateLastLoginAsync(userId, email, displayName);
             }
 
             // Set before the suspension/approval gates below - IAccountContext
@@ -127,6 +128,7 @@ public class UserRegistrationMiddleware(RequestDelegate next)
         HttpContext context,
         string userId,
         string email,
+        string displayName,
         IUserRepository users,
         IAccountRepository accounts,
         IAccountInviteRepository invites,
@@ -164,7 +166,7 @@ public class UserRegistrationMiddleware(RequestDelegate next)
         {
             UserId = userId,
             Email = email,
-            DisplayName = context.User.FindFirst("name")?.Value ?? email,
+            DisplayName = displayName,
             AccountId = accountId,
             Role = role,
             FirstLoginAt = DateTime.UtcNow,

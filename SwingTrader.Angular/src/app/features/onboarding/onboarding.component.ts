@@ -103,11 +103,37 @@ export class OnboardingComponent {
   saving = signal(false);
   keyStatuses = signal<KeyStatusesDto | null>(null);
 
+  // First step of the wizard, ahead of the API-key steps - the email in the
+  // auth token can't be trusted for every identity provider (e.g. some
+  // Google-federated CIAM sign-ins never return one), so this is asked for
+  // directly instead of relying on it.
+  emailConfirmed = signal(false);
+  emailInput = '';
+  confirmingEmail = signal(false);
+
   currentStep = () => this.steps[this.currentIndex()];
   isLastStep = () => this.currentIndex() === this.steps.length - 1;
 
   constructor() {
     this.api.getKeyStatuses().subscribe({ next: (s) => this.keyStatuses.set(s) });
+    this.emailInput = this.auth.currentUser()?.email ?? '';
+  }
+
+  confirmEmail(): void {
+    const email = this.emailInput.trim();
+    if (!email || !email.includes('@')) return;
+
+    this.confirmingEmail.set(true);
+    this.api.updateMyEmail(email).subscribe({
+      next: () => {
+        this.confirmingEmail.set(false);
+        this.emailConfirmed.set(true);
+      },
+      error: () => {
+        this.confirmingEmail.set(false);
+        this.snackbar.open('Failed to save your email — try again.', 'Dismiss', { duration: 4000 });
+      },
+    });
   }
 
   // "Complete" only considers required fields by default - a step with a

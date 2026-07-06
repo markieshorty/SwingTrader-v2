@@ -8,6 +8,8 @@ public record AddNotificationRecipientRequest(string Email, NotificationCategory
 
 public record SetTradeApprovalRequest(bool Enabled);
 
+public record UpdateMyEmailRequest(string Email);
+
 public record CompleteChecklistRequest(string CheckName, string? Notes);
 
 public record ApplyRefinementRequest(int SuggestionId);

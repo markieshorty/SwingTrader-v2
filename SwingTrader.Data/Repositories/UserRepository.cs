@@ -16,11 +16,15 @@ public class UserRepository(SwingTraderDbContext db) : IUserRepository
         return user;
     }
 
-    public async Task UpdateLastLoginAsync(string userId, CancellationToken ct = default)
+    public async Task UpdateLastLoginAsync(string userId, string email, string displayName, CancellationToken ct = default)
     {
         var user = await db.AppUsers.FirstOrDefaultAsync(u => u.UserId == userId, ct);
         if (user is null) return;
+
         user.LastLoginAt = DateTime.UtcNow;
+        if (!string.IsNullOrWhiteSpace(email)) user.Email = email;
+        if (!string.IsNullOrWhiteSpace(displayName)) user.DisplayName = displayName;
+
         await db.SaveChangesAsync(ct);
     }
 
@@ -77,6 +81,14 @@ public class UserRepository(SwingTraderDbContext db) : IUserRepository
         var user = await db.AppUsers.FirstOrDefaultAsync(u => u.UserId == userId, ct);
         if (user is null) return;
         user.IsOnboarded = true;
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task UpdateEmailAsync(string userId, string email, CancellationToken ct = default)
+    {
+        var user = await db.AppUsers.FirstOrDefaultAsync(u => u.UserId == userId, ct);
+        if (user is null) return;
+        user.Email = email;
         await db.SaveChangesAsync(ct);
     }
 }

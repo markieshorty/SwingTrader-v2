@@ -693,6 +693,18 @@ api.MapGet("/account", async (IAccountRepository accounts, IAccountContext ctx) 
     });
 });
 
+api.MapPut("/account/me/email", async (
+    UpdateMyEmailRequest req,
+    IUserRepository users,
+    IAccountContext ctx) =>
+{
+    if (string.IsNullOrWhiteSpace(req.Email) || !req.Email.Contains('@'))
+        return Results.BadRequest(new { message = "Enter a valid email address." });
+
+    await users.UpdateEmailAsync(ctx.UserId, req.Email.Trim());
+    return Results.Ok();
+});
+
 api.MapDelete("/account/members/{userId}", async (
     string userId,
     IUserRepository users,
