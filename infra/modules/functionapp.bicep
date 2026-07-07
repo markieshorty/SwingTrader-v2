@@ -101,6 +101,12 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
           value: serviceBusNamespace
         }
         { name: 'ApiBaseUrl', value: apiFqdn == '' ? '' : 'https://${apiFqdn}' }
+        // The Angular SPA is served from the same origin as the API
+        // (wwwroot static files), so this is the same URL - used to build
+        // the /trades?tab=approvals link in the approval reminder email.
+        // Without this, ApprovalConfig.BaseUrl fell back to its
+        // localhost:5001 dev default, breaking the link in production.
+        { name: 'Approval__BaseUrl', value: apiFqdn == '' ? '' : 'https://${apiFqdn}' }
       ]
     }
   }
