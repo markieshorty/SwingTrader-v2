@@ -20,6 +20,7 @@ public class ReportConsumerFunction(
     INotificationRecipientRepository recipients,
     IApprovalRepository approvalRepo,
     IWorkerHeartbeatRepository heartbeats,
+    IActivityLogRepository activityLog,
     IEmailService email,
     IUserHttpClientFactory clientFactory,
     ILogger<ReportConsumerFunction> logger)
@@ -31,6 +32,7 @@ public class ReportConsumerFunction(
     {
         var message = JsonSerializer.Deserialize<ReportJobMessage>(messageBody)!;
         await jobLog.MarkProcessingAsync(message.AccountId, "Report", message.ReportDate, ct);
+        await activityLog.LogAsync(message.AccountId, "WorkerRun", "Report", "Started", "Generating daily report…", ct);
 
         try
         {

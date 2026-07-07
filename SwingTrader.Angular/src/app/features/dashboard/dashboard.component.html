@@ -107,6 +107,7 @@
                   [class.green]="run.result === 'Success' || run.result === 'Info'"
                   [class.amber]="run.result === 'Warning' || run.result === 'Skipped'"
                   [class.red]="run.result === 'Failed'"
+                  [class.blue]="run.result === 'Started'"
                 ></span>
                 <div class="run-meta">
                   <span class="run-worker">{{ run.title }}</span>

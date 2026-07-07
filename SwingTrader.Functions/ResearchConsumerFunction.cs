@@ -37,6 +37,7 @@ public class ResearchConsumerFunction(
     {
         var message = JsonSerializer.Deserialize<ResearchJobMessage>(messageBody)!;
         await jobLog.MarkProcessingAsync(message.AccountId, "Research", message.TradeDate, ct);
+        await activityLog.LogAsync(message.AccountId, "WorkerRun", "Research", "Started", "Scoring watchlist symbols…", ct);
 
         try
         {

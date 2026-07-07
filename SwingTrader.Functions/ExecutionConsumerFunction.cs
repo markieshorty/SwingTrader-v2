@@ -27,6 +27,7 @@ public class ExecutionConsumerFunction(
     {
         var message = JsonSerializer.Deserialize<ExecutionJobMessage>(messageBody)!;
         await jobLog.MarkProcessingAsync(message.AccountId, "Execution", message.TradeDate, ct);
+        await activityLog.LogAsync(message.AccountId, "WorkerRun", "Execution", "Started", "Placing today's approved orders…", ct);
 
         try
         {

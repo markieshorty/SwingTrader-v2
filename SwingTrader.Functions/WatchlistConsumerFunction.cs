@@ -17,6 +17,7 @@ public class WatchlistConsumerFunction(
     IWatchlistSelectionService selector,
     IWatchlistUpdateService updater,
     IWorkerHeartbeatRepository heartbeats,
+    IActivityLogRepository activityLog,
     IUserHttpClientFactory clientFactory,
     ILogger<WatchlistConsumerFunction> logger)
 {
@@ -28,6 +29,7 @@ public class WatchlistConsumerFunction(
         var message = JsonSerializer.Deserialize<WatchlistJobMessage>(messageBody)!;
         var jobDate = DateOnly.FromDateTime(message.ScheduledFor);
         await jobLog.MarkProcessingAsync(message.AccountId, "Watchlist", jobDate, ct);
+        await activityLog.LogAsync(message.AccountId, "WorkerRun", "Watchlist", "Started", "Screening universe and selecting this week's watchlist…", ct);
 
         try
         {
