@@ -36,7 +36,11 @@ public class ExecutionConsumerFunction(
 
             var result = await executionService.RunAsync(message.AccountId, finnhub, tiingo, t212, message.TradeDate, ct);
 
-            await heartbeats.UpsertAsync(message.AccountId, "Execution", "Success", result.Summary);
+            var heartbeatResult = result.OrdersPlaced > 0 ? "Success"
+                : result.OrdersFailed > 0 ? "Warning"
+                : result.Summary.Contains("unavailable") || result.Summary.Contains("invalid") ? "Warning"
+                : "Info";
+            await heartbeats.UpsertAsync(message.AccountId, "Execution", heartbeatResult, result.Summary);
             if (result.OrdersPlaced > 0)
                 await activityLog.LogAsync(message.AccountId, "SystemEvent", "Trades Placed", "Info", result.Summary);
             logger.LogInformation("Execution job {JobId} for account {AccountId} — {Summary}", message.JobId, message.AccountId, result.Summary);

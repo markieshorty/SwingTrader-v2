@@ -77,16 +77,41 @@ public class ExecutionService(
             return new ExecutionResult(0, 0, allSignals.Count, "No eligible signals", []);
         }
 
-        // Step 3 — verify account state
+        // Step 3 — verify account state.
+        // Monitor runs every 5 minutes and calls the same T212 endpoint; execution
+        // fires immediately after, so a brief initial pause lets Monitor's call clear
+        // before we hit the same rate limit bucket.
+        await Task.Delay(TimeSpan.FromSeconds(15), ct);
+
         T212AccountSummary accountSummary;
-        try
         {
-            accountSummary = await t212.GetAccountSummaryAsync();
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to retrieve T212 account summary for account {AccountId} — aborting execution", accountId);
-            return new ExecutionResult(0, 0, signals.Count, "Account summary unavailable", []);
+            Exception? lastEx = null;
+            accountSummary = null!;
+            int[] retryDelaysSeconds = [15, 30, 60];
+            for (int attempt = 0; attempt <= retryDelaysSeconds.Length; attempt++)
+            {
+                try
+                {
+                    accountSummary = await t212.GetAccountSummaryAsync();
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    lastEx = ex;
+                    if (attempt < retryDelaysSeconds.Length)
+                    {
+                        logger.LogWarning(ex,
+                            "T212 account summary failed for account {AccountId} (attempt {Attempt}/{Max}) — retrying in {Delay}s",
+                            accountId, attempt + 1, retryDelaysSeconds.Length + 1, retryDelaysSeconds[attempt]);
+                        await Task.Delay(TimeSpan.FromSeconds(retryDelaysSeconds[attempt]), ct);
+                    }
+                }
+            }
+            if (accountSummary is null)
+            {
+                logger.LogError(lastEx, "Failed to retrieve T212 account summary for account {AccountId} after all retries — aborting execution", accountId);
+                return new ExecutionResult(0, 0, signals.Count, "Account summary unavailable", []);
+            }
         }
 
         // Defensive: a real account is never actually worth £0. Sizing
