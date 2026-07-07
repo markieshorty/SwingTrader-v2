@@ -57,10 +57,11 @@ export class ConvictionBarComponent {
   signal = input.required<SignalDto>();
 
   fillClass = computed(() => {
-    const score = this.signal().convictionScore ?? 0;
-    if (score >= 7) return 'high';
-    if (score >= 5) return 'medium';
-    return 'low';
+    switch (this.signal().recommendation) {
+      case 'Buy': return 'high';
+      case 'Watch': return 'medium';
+      default: return 'low';
+    }
   });
 
   tooltipText = computed(() => {
