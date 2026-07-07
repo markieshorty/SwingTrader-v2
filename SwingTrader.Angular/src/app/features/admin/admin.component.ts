@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { Title } from '@angular/platform-browser';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -25,6 +26,7 @@ export class AdminComponent {
   private snackbar = inject(MatSnackBar);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+  private titleService = inject(Title);
 
   stats = signal<AdminStatsDto | null>(null);
   users = signal<AdminUserSummaryDto[]>([]);
@@ -46,7 +48,7 @@ export class AdminComponent {
 
   onTabChange(index: number): void {
     this.selectedTabIndex.set(index);
-    writeTabIndexToRoute(this.router, this.route, TAB_NAMES, index);
+    writeTabIndexToRoute(this.router, this.route, TAB_NAMES, index, this.titleService, 'Admin');
   }
 
   private loadStats(): void {

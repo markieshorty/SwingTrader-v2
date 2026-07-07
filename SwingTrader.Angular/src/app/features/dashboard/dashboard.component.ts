@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
+import { Title } from '@angular/platform-browser';
 import { MatCardModule } from '@angular/material/card';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatButtonModule } from '@angular/material/button';
@@ -48,6 +49,7 @@ export class DashboardComponent {
   private snackbar = inject(MatSnackBar);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+  private titleService = inject(Title);
   data = inject(DashboardDataService);
 
   portfolio = toSignal(this.data.portfolio$, { initialValue: null });
@@ -118,7 +120,7 @@ export class DashboardComponent {
 
   onSignalTabChange(index: number): void {
     this.activeTabIndex.set(index);
-    writeTabIndexToRoute(this.router, this.route, SIGNAL_TAB_NAMES, index);
+    writeTabIndexToRoute(this.router, this.route, SIGNAL_TAB_NAMES, index, this.titleService, 'Dashboard');
   }
 
   private loadNextRuns(): void {

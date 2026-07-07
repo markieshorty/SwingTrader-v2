@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
+import { Title } from '@angular/platform-browser';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -45,6 +46,7 @@ export class TradesComponent {
   private router = inject(Router);
   private dialog = inject(MatDialog);
   private snackbar = inject(MatSnackBar);
+  private titleService = inject(Title);
   data = inject(DashboardDataService);
 
   positions = toSignal(this.data.positions$, { initialValue: [] });
@@ -64,7 +66,7 @@ export class TradesComponent {
 
   onTabChange(index: number): void {
     this.selectedTabIndex.set(index);
-    writeTabIndexToRoute(this.router, this.route, TAB_NAMES, index);
+    writeTabIndexToRoute(this.router, this.route, TAB_NAMES, index, this.titleService, 'Trades');
   }
 
   private loadApprovals(): void {

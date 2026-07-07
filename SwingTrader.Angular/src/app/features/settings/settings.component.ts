@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { Title } from '@angular/platform-browser';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -88,6 +89,7 @@ export class SettingsComponent {
   private dialog = inject(MatDialog);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+  private titleService = inject(Title);
   auth = inject(AuthService);
 
   providers = Object.keys(PROVIDER_LABELS) as ApiKeyProvider[];
@@ -97,7 +99,7 @@ export class SettingsComponent {
 
   onTabChange(index: number): void {
     this.selectedTabIndex.set(index);
-    writeTabIndexToRoute(this.router, this.route, TAB_NAMES, index);
+    writeTabIndexToRoute(this.router, this.route, TAB_NAMES, index, this.titleService, 'Settings');
   }
 
   keyStatuses = signal<KeyStatusesDto | null>(null);
