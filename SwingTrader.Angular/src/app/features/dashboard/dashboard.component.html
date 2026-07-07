@@ -72,7 +72,11 @@
               {{ position.unrealisedPnl | currencyGbp }} ({{ position.unrealisedPnlPercent | percentSigned }})
             </span>
           </div>
+          <span class="phase-badge" [class]="'phase-' + position.phase.toLowerCase()">{{ phaseLabel(position) }}</span>
           <app-stop-target-bar [position]="position" />
+          @if (position.momentumHealthVerdict) {
+            <p class="momentum-line">{{ position.momentumHealthScore | number: '1.2-2' }} — {{ position.momentumHealthReasoning }}</p>
+          }
           <div class="position-footer">
             <span>{{ heldLabel(position) }}</span>
             @if (position.isNearStop) {

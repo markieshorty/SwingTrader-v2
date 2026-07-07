@@ -144,6 +144,37 @@
   color: var(--st-green);
 }
 
+.phase-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-bottom: 6px;
+}
+
+.phase-probation {
+  background: color-mix(in srgb, var(--st-amber) 20%, transparent);
+  color: var(--st-amber);
+}
+
+.phase-confirmed {
+  background: color-mix(in srgb, var(--st-green) 20%, transparent);
+  color: var(--st-green);
+}
+
+.phase-exiting {
+  background: color-mix(in srgb, var(--st-red) 20%, transparent);
+  color: var(--st-red);
+}
+
+.momentum-line {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--st-muted);
+  margin: 4px 0;
+}
+
 .worker-panel {
   display: grid;
   grid-template-columns: 1fr 1fr;

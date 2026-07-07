@@ -146,6 +146,17 @@ export class DashboardComponent {
     return `${hours} hour${hours === 1 ? '' : 's'} held`;
   }
 
+  phaseLabel(position: PositionDto): string {
+    switch (position.phase) {
+      case 'Confirmed':
+        return `Day ${position.daysHeld} · Confirmed`;
+      case 'Exiting':
+        return `Day ${position.daysHeld} · Momentum exit in progress`;
+      default:
+        return `Day ${position.daysHeld} · Probation`;
+    }
+  }
+
   onSignalTabChange(index: number): void {
     this.activeTabIndex.set(index);
     writeTabIndexToRoute(this.router, this.route, SIGNAL_TAB_NAMES, index, this.titleService, 'Dashboard');
