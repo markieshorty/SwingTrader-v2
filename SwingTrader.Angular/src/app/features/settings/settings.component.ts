@@ -362,8 +362,23 @@ export class SettingsComponent {
   }
 
   saveTradingConfig(): void {
+    const enablingApprovals = this.approvalRequired();
+    const noApprovalRecipient = !this.recipients().some(r => r.tradeApprovalEnabled);
     this.api.updateTradingConfig(this.tradingMode(), this.approvalRequired()).subscribe({
-      next: () => this.snackbar.open('Trading settings saved', 'Dismiss', { duration: 3000 }),
+      next: () => {
+        if (enablingApprovals && noApprovalRecipient) {
+          const ref = this.snackbar.open(
+            'Approval required is on, but no recipient has "Receive trade approval emails" enabled.',
+            'Set up now',
+            { duration: 8000 },
+          );
+          ref.onAction().subscribe(() =>
+            writeTabIndexToRoute(this.router, this.route, TAB_NAMES, TAB_NAMES.indexOf('notifications'), this.titleService, 'Settings'),
+          );
+        } else {
+          this.snackbar.open('Trading settings saved', 'Dismiss', { duration: 3000 });
+        }
+      },
       error: (err) => {
         const message =
           err.status === 403

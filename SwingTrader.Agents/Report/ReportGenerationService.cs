@@ -78,6 +78,11 @@ public class ReportGenerationService(
         var token = account.ApprovalRequired ? Guid.NewGuid().ToString("N") : null;
         var cfg = reportConfig.Value;
         var markdown = BuildMarkdown(reportDate, buys, watches, holds, avoids, portfolio, market, narratives, cfg, gbpUsd);
+        if (token is not null)
+        {
+            var baseUrl = approvalConfig.Value.BaseUrl.TrimEnd('/');
+            markdown += $"\n\n---\n⚠️ **Approval required** — visit [{baseUrl}/trades?tab=approvals]({baseUrl}/trades?tab=approvals) to approve today's trades before they execute.";
+        }
         var approvalMarkdown = token is null ? null : BuildApprovalMarkdown(reportDate);
 
         // Step 7
