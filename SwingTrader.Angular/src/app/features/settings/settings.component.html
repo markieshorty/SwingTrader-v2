@@ -326,7 +326,7 @@
       }
 
       <div class="toggle-row">
-        <mat-slide-toggle [checked]="globalRefinementOptIn()" (change)="toggleGlobalRefinement($event.checked)">
+        <mat-slide-toggle [checked]="globalRefinementOptIn()" [disabled]="!isOwner()" (change)="toggleGlobalRefinement($event.checked)">
           Share anonymized trade outcomes for global strategy refinement
         </mat-slide-toggle>
       </div>

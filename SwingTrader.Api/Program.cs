@@ -1283,6 +1283,7 @@ api.MapPut("/account/global-refinement-optin/{enabled:bool}", async (
     IAccountRepository accounts,
     IAccountContext ctx) =>
 {
+    if (ctx.Role != AccountRole.Owner) return Results.Forbid();
     var account = await accounts.GetAsync(ctx.AccountId)
         ?? throw new InvalidOperationException("Authenticated caller has no account.");
     account.GlobalRefinementOptIn = enabled;
