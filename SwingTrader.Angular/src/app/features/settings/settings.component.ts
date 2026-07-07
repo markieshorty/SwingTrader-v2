@@ -226,6 +226,7 @@ export class SettingsComponent {
   }
 
   resetRiskProfile(): void {
+    if (!confirm('Reset risk profile to defaults? Your current settings will be lost.')) return;
     this.api.resetRiskProfile().subscribe({
       next: () => {
         this.snackbar.open('Risk profile reset to defaults', 'Dismiss', { duration: 3000 });
