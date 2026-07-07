@@ -8,7 +8,7 @@ public class Account : UnscopedEntity
 {
     public string Name { get; set; } = "My Account";
     public string? T212AccountId { get; set; }
-    public bool GlobalRefinementOptIn { get; set; } = false;
+    public bool GlobalRefinementOptIn { get; set; } = true;
     public TradingMode TradingMode { get; set; } = TradingMode.Demo;
     public bool ApprovalRequired { get; set; } = true;
     // Soft-delete: the account's own children (WatchlistItems,
