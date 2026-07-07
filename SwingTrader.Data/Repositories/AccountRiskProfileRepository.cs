@@ -47,6 +47,10 @@ public class AccountRiskProfileRepository(SwingTraderDbContext db) : IAccountRis
         existing.Tier1UnlockMinWinRate = profile.Tier1UnlockMinWinRate;
         existing.Tier2UnlockMinTrades = profile.Tier2UnlockMinTrades;
         existing.Tier2UnlockMinWinRate = profile.Tier2UnlockMinWinRate;
+        existing.MaxHoldDays = profile.MaxHoldDays;
+        existing.TrailingActivationPct = profile.TrailingActivationPct;
+        existing.TrailingDistancePct = profile.TrailingDistancePct;
+        existing.EarningsGateDays = profile.EarningsGateDays;
         existing.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync(ct);
@@ -71,6 +75,10 @@ public class AccountRiskProfileRepository(SwingTraderDbContext db) : IAccountRis
         existing.Tier1UnlockMinWinRate = defaults.Tier1UnlockMinWinRate;
         existing.Tier2UnlockMinTrades = defaults.Tier2UnlockMinTrades;
         existing.Tier2UnlockMinWinRate = defaults.Tier2UnlockMinWinRate;
+        existing.MaxHoldDays = defaults.MaxHoldDays;
+        existing.TrailingActivationPct = defaults.TrailingActivationPct;
+        existing.TrailingDistancePct = defaults.TrailingDistancePct;
+        existing.EarningsGateDays = defaults.EarningsGateDays;
         existing.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync(ct);

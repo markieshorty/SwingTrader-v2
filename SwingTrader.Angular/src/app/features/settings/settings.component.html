@@ -209,6 +209,58 @@
             </p>
           }
 
+          <h4>Trading Behaviour</h4>
+          <div class="slider-row">
+            <label>Max Hold Days: {{ draft.maxHoldDays }} days</label>
+            <mat-slider
+              [min]="profile.allowedRanges.maxHoldDays.min"
+              [max]="profile.allowedRanges.maxHoldDays.max"
+              step="1"
+              discrete
+            >
+              <input matSliderThumb [ngModel]="draft.maxHoldDays" (ngModelChange)="updateRiskDraftField('maxHoldDays', $event)" />
+            </mat-slider>
+          </div>
+          <p class="muted small">Exit a stalled position after this many days if neither stop nor target has been hit.</p>
+
+          <div class="slider-row">
+            <label>Trailing Stop Activation: {{ draft.trailingActivationPct | percent: '1.0-0' }} gain</label>
+            <mat-slider
+              [min]="profile.allowedRanges.trailingActivationPct.min"
+              [max]="profile.allowedRanges.trailingActivationPct.max"
+              step="0.01"
+              discrete
+            >
+              <input matSliderThumb [ngModel]="draft.trailingActivationPct" (ngModelChange)="updateRiskDraftField('trailingActivationPct', $event)" />
+            </mat-slider>
+          </div>
+
+          <div class="slider-row">
+            <label>Trailing Stop Distance: {{ draft.trailingDistancePct | percent: '1.0-0' }} below peak</label>
+            <mat-slider
+              [min]="profile.allowedRanges.trailingDistancePct.min"
+              [max]="profile.allowedRanges.trailingDistancePct.max"
+              step="0.01"
+              discrete
+            >
+              <input matSliderThumb [ngModel]="draft.trailingDistancePct" (ngModelChange)="updateRiskDraftField('trailingDistancePct', $event)" />
+            </mat-slider>
+          </div>
+          <p class="muted small">Once activated, trail this far below the highest price seen.</p>
+
+          <div class="slider-row">
+            <label>Earnings Gate: {{ draft.earningsGateDays }} days</label>
+            <mat-slider
+              [min]="profile.allowedRanges.earningsGateDays.min"
+              [max]="profile.allowedRanges.earningsGateDays.max"
+              step="1"
+              discrete
+            >
+              <input matSliderThumb [ngModel]="draft.earningsGateDays" (ngModelChange)="updateRiskDraftField('earningsGateDays', $event)" />
+            </mat-slider>
+          </div>
+          <p class="muted small">Skip BUY signals when earnings are this many days away (0 = no gate).</p>
+
           <details class="advanced-section">
             <summary>Advanced: Tier Unlock Criteria</summary>
             <div class="slider-row">

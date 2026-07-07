@@ -22,6 +22,12 @@ public class AccountRiskProfile : BaseEntity
     public int Tier2UnlockMinTrades { get; set; } = CapitalRules.Tier2UnlockMinTrades;
     public decimal Tier2UnlockMinWinRate { get; set; } = CapitalRules.Tier2UnlockMinWinRate;
 
+    // Trading behaviour — previously hardcoded in appsettings (MonitorConfig / EarningsConfig)
+    public int MaxHoldDays { get; set; } = CapitalRules.DefaultMaxHoldDays;
+    public double TrailingActivationPct { get; set; } = CapitalRules.DefaultTrailingActivationPct;
+    public double TrailingDistancePct { get; set; } = CapitalRules.DefaultTrailingDistancePct;
+    public int EarningsGateDays { get; set; } = CapitalRules.DefaultEarningsGateDays;
+
     public string RiskLabel => LockedCapitalPct switch
     {
         >= 0.80m => "Very Conservative",
@@ -68,5 +74,21 @@ public class AccountRiskProfile : BaseEntity
         var activePct = 1.0m - LockedCapitalPct;
         if (MaxPositionPctOfActive > activePct)
             throw new ValidationException("Max position exceeds available active capital");
+
+        if (MaxHoldDays < CapitalRules.MinMaxHoldDays || MaxHoldDays > CapitalRules.MaxMaxHoldDays)
+            throw new ValidationException(
+                $"Max hold days must be {CapitalRules.MinMaxHoldDays}-{CapitalRules.MaxMaxHoldDays}");
+
+        if (TrailingActivationPct < CapitalRules.MinTrailingActivationPct || TrailingActivationPct > CapitalRules.MaxTrailingActivationPct)
+            throw new ValidationException(
+                $"Trailing activation must be {CapitalRules.MinTrailingActivationPct:P0}-{CapitalRules.MaxTrailingActivationPct:P0}");
+
+        if (TrailingDistancePct < CapitalRules.MinTrailingDistancePct || TrailingDistancePct > CapitalRules.MaxTrailingDistancePct)
+            throw new ValidationException(
+                $"Trailing distance must be {CapitalRules.MinTrailingDistancePct:P0}-{CapitalRules.MaxTrailingDistancePct:P0}");
+
+        if (EarningsGateDays < CapitalRules.MinEarningsGateDays || EarningsGateDays > CapitalRules.MaxEarningsGateDays)
+            throw new ValidationException(
+                $"Earnings gate days must be {CapitalRules.MinEarningsGateDays}-{CapitalRules.MaxEarningsGateDays}");
     }
 }

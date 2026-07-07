@@ -20,6 +20,7 @@ public class MonitorService(
     IPortfolioRepository portfolioRepo,
     IPortfolioCircuitBreakerService circuitBreaker,
     IPositionMonitorService positionMonitor,
+    IAccountRiskProfileRepository riskProfileRepo,
     INotificationRecipientRepository recipients,
     IEmailService emailService,
     ILogger<MonitorService> logger) : IMonitorService
@@ -63,6 +64,7 @@ public class MonitorService(
         }
 
         // Step 2 — check each position
+        var riskProfile = await riskProfileRepo.GetAsync(accountId, ct);
         var trades = (await tradeRepo.GetOpenTradesAsync(accountId)).ToList();
 
         int checked_ = 0, trailingUpdated = 0;
@@ -90,7 +92,12 @@ public class MonitorService(
                 }
                 var currentPrice = quote.CurrentPrice.Value;
 
-                var result = await positionMonitor.CheckPositionAsync(trade, currentPrice, ct);
+                var result = await positionMonitor.CheckPositionAsync(
+                    trade, currentPrice,
+                    riskProfile.MaxHoldDays,
+                    riskProfile.TrailingActivationPct,
+                    riskProfile.TrailingDistancePct,
+                    ct);
 
                 if (result.UpdatedTrailingStop.HasValue && result.Reason == ExitReason.None)
                 {

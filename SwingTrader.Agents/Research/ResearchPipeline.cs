@@ -28,6 +28,7 @@ public class ResearchPipeline(
     IIndicatorService indicators,
     IStrategyWeightsRepository weightsRepo,
     IEarningsService earningsService,
+    IAccountRiskProfileRepository riskProfileRepo,
     IRelativeStrengthService relativeStrengthService,
     IPriceLevelService priceLevelService,
     IMarketRegimeService marketRegimeService,
@@ -51,7 +52,8 @@ public class ResearchPipeline(
         symbol = symbol.ToUpperInvariant();
 
         // Step 0 — earnings gate: block BUY if earnings are within GateDays
-        var earningsCtx = await earningsService.GetEarningsContextAsync(finnhub, symbol, ct);
+        var riskProfile = await riskProfileRepo.GetAsync(accountId, ct);
+        var earningsCtx = await earningsService.GetEarningsContextAsync(finnhub, symbol, ct, riskProfile.EarningsGateDays);
 
         if (earningsCtx.SetupType == EarningsSetupType.UpcomingEarnings)
         {

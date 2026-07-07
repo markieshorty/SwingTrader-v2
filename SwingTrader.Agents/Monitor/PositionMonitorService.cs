@@ -1,16 +1,15 @@
-using Microsoft.Extensions.Options;
 using SwingTrader.Core.Models;
-using SwingTrader.Infrastructure.Configuration;
 
 namespace SwingTrader.Agents.Monitor;
 
-public class PositionMonitorService(IOptions<MonitorConfig> config) : IPositionMonitorService
+public class PositionMonitorService : IPositionMonitorService
 {
-    private readonly MonitorConfig _cfg = config.Value;
-
     public Task<PositionCheckResult> CheckPositionAsync(
         Trade trade,
         decimal currentPrice,
+        int maxHoldDays,
+        double trailingActivationPct,
+        double trailingDistancePct,
         CancellationToken ct = default)
     {
         // Step 1 — stop loss (highest priority)
@@ -24,8 +23,8 @@ public class PositionMonitorService(IOptions<MonitorConfig> config) : IPositionM
                 ExitReason.TargetHit, currentPrice, null));
 
         // Step 3 — trailing stop
-        var activationThreshold = trade.EntryPrice * (1 + (decimal)_cfg.TrailingActivationPct);
-        var trailingDistance = (decimal)_cfg.TrailingDistancePct;
+        var activationThreshold = trade.EntryPrice * (1 + (decimal)trailingActivationPct);
+        var trailingDistance = (decimal)trailingDistancePct;
 
         if (trade.TrailingStopPrice.HasValue)
         {
@@ -50,7 +49,7 @@ public class PositionMonitorService(IOptions<MonitorConfig> config) : IPositionM
 
         // Step 4 — time exit (thesis stalled, neither stop nor target hit)
         var daysHeld = (int)(DateTime.UtcNow - trade.OpenedAt).TotalDays;
-        if (daysHeld > _cfg.MaxHoldDays
+        if (daysHeld > maxHoldDays
             && currentPrice > trade.StopLossPrice
             && currentPrice < trade.TargetPrice)
         {

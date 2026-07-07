@@ -16,5 +16,5 @@ public record EarningsContext(
 
 public interface IEarningsService
 {
-    Task<EarningsContext> GetEarningsContextAsync(IFinnhubClient finnhub, string symbol, CancellationToken ct);
+    Task<EarningsContext> GetEarningsContextAsync(IFinnhubClient finnhub, string symbol, CancellationToken ct, int? gateDays = null);
 }

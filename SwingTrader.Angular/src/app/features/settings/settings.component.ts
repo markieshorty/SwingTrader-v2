@@ -62,6 +62,10 @@ function toUpdateRiskProfileDto(profile: RiskProfileDto): UpdateRiskProfileDto {
     tier1UnlockMinWinRate: profile.tier1UnlockMinWinRate,
     tier2UnlockMinTrades: profile.tier2UnlockMinTrades,
     tier2UnlockMinWinRate: profile.tier2UnlockMinWinRate,
+    maxHoldDays: profile.maxHoldDays,
+    trailingActivationPct: profile.trailingActivationPct,
+    trailingDistancePct: profile.trailingDistancePct,
+    earningsGateDays: profile.earningsGateDays,
   };
 }
 
@@ -167,7 +171,11 @@ export class SettingsComponent {
       original.tier1UnlockMinTrades !== draft.tier1UnlockMinTrades ||
       original.tier1UnlockMinWinRate !== draft.tier1UnlockMinWinRate ||
       original.tier2UnlockMinTrades !== draft.tier2UnlockMinTrades ||
-      original.tier2UnlockMinWinRate !== draft.tier2UnlockMinWinRate
+      original.tier2UnlockMinWinRate !== draft.tier2UnlockMinWinRate ||
+      original.maxHoldDays !== draft.maxHoldDays ||
+      original.trailingActivationPct !== draft.trailingActivationPct ||
+      original.trailingDistancePct !== draft.trailingDistancePct ||
+      original.earningsGateDays !== draft.earningsGateDays
     );
   });
 

@@ -351,6 +351,10 @@ export interface RiskProfileDto {
   tier1UnlockMinWinRate: number;
   tier2UnlockMinTrades: number;
   tier2UnlockMinWinRate: number;
+  maxHoldDays: number;
+  trailingActivationPct: number;
+  trailingDistancePct: number;
+  earningsGateDays: number;
   riskLabel: string;
   buyThreshold: number | null;
   watchThreshold: number | null;
@@ -369,6 +373,10 @@ export interface RiskProfileDto {
     dailyLossCircuitBreakerPct: RiskProfileRangeDto;
     tier1UnlockMinTrades: RiskProfileRangeDto;
     tier1UnlockMinWinRate: RiskProfileRangeDto;
+    maxHoldDays: RiskProfileRangeDto;
+    trailingActivationPct: RiskProfileRangeDto;
+    trailingDistancePct: RiskProfileRangeDto;
+    earningsGateDays: RiskProfileRangeDto;
   };
 }
 
@@ -381,6 +389,10 @@ export interface UpdateRiskProfileDto {
   tier1UnlockMinWinRate: number;
   tier2UnlockMinTrades: number;
   tier2UnlockMinWinRate: number;
+  maxHoldDays: number;
+  trailingActivationPct: number;
+  trailingDistancePct: number;
+  earningsGateDays: number;
 }
 
 export interface NotificationRecipientDto {

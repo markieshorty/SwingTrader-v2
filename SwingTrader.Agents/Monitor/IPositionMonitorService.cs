@@ -22,5 +22,8 @@ public interface IPositionMonitorService
     Task<PositionCheckResult> CheckPositionAsync(
         Trade trade,
         decimal currentPrice,
+        int maxHoldDays,
+        double trailingActivationPct,
+        double trailingDistancePct,
         CancellationToken ct = default);
 }

@@ -18,18 +18,19 @@ public class EarningsService(
     private static readonly EarningsContext NoneContext = new(
         EarningsSetupType.None, false, null, false, null, null, false, null);
 
-    public async Task<EarningsContext> GetEarningsContextAsync(IFinnhubClient finnhub, string symbol, CancellationToken ct)
+    public async Task<EarningsContext> GetEarningsContextAsync(IFinnhubClient finnhub, string symbol, CancellationToken ct, int? gateDays = null)
     {
-        var cacheKey = $"earnings_{symbol}";
+        var effectiveGateDays = gateDays ?? config.Value.GateDays;
+        var cacheKey = $"earnings_{symbol}_{effectiveGateDays}";
         if (cache.TryGetValue(cacheKey, out EarningsContext? cached) && cached is not null)
             return cached;
 
-        var result = await FetchContextAsync(finnhub, symbol, ct);
+        var result = await FetchContextAsync(finnhub, symbol, effectiveGateDays, ct);
         cache.Set(cacheKey, result, TimeSpan.FromHours(6));
         return result;
     }
 
-    private async Task<EarningsContext> FetchContextAsync(IFinnhubClient finnhub, string symbol, CancellationToken ct)
+    private async Task<EarningsContext> FetchContextAsync(IFinnhubClient finnhub, string symbol, int gateDays, CancellationToken ct)
     {
         var cfg = config.Value;
         var today = DateTime.UtcNow.Date;
@@ -52,7 +53,7 @@ public class EarningsService(
             if (upcoming != default)
             {
                 var daysUntil = upcoming.DayNumber - DateOnly.FromDateTime(today).DayNumber;
-                if (daysUntil <= cfg.GateDays)
+                if (daysUntil <= gateDays)
                 {
                     return new EarningsContext(
                         EarningsSetupType.UpcomingEarnings,

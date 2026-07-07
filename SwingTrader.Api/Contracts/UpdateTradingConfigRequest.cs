@@ -39,7 +39,11 @@ public record UpdateRiskProfileRequest(
     int Tier1UnlockMinTrades,
     decimal Tier1UnlockMinWinRate,
     int Tier2UnlockMinTrades,
-    decimal Tier2UnlockMinWinRate);
+    decimal Tier2UnlockMinWinRate,
+    int MaxHoldDays,
+    double TrailingActivationPct,
+    double TrailingDistancePct,
+    int EarningsGateDays);
 
 public record CreateWatchlistRequest(string Name, WatchlistType Type, string? Description);
 

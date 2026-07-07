@@ -16,6 +16,23 @@ public static class CapitalRules
     public const decimal DowngradeWinRateThreshold = 0.40m;
     public const decimal DowngradeAvgReturnThreshold = -2.0m;
 
+    // Per-account trading behaviour defaults and allowed ranges
+    public const int DefaultMaxHoldDays = 10;
+    public const int MinMaxHoldDays = 5;
+    public const int MaxMaxHoldDays = 30;
+
+    public const double DefaultTrailingActivationPct = 0.05;
+    public const double MinTrailingActivationPct = 0.02;
+    public const double MaxTrailingActivationPct = 0.15;
+
+    public const double DefaultTrailingDistancePct = 0.03;
+    public const double MinTrailingDistancePct = 0.01;
+    public const double MaxTrailingDistancePct = 0.10;
+
+    public const int DefaultEarningsGateDays = 5;
+    public const int MinEarningsGateDays = 0;
+    public const int MaxEarningsGateDays = 14;
+
     // Hard safety bounds for AccountRiskProfile.Validate() — a misconfigured
     // profile can never allow a single bad day to wipe an account, no
     // matter what the account owner tries to set it to.
