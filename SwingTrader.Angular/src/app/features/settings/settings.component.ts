@@ -439,7 +439,8 @@ export class SettingsComponent {
     });
   }
 
-  removeMember(userId: string): void {
+  removeMember(userId: string, displayName: string): void {
+    if (!confirm(`Remove ${displayName} from this account? They will lose access immediately.`)) return;
     this.api.removeMember(userId).subscribe({
       next: () => this.loadMembers(),
       error: (err) => this.snackbar.open(errorMessage(err, 'Failed to remove member.'), 'Dismiss', { duration: 4000 }),

@@ -349,7 +349,7 @@
             <button mat-stroked-button color="primary" [disabled]="!isOwner()" (click)="approveMember(member.userId)">Approve</button>
           }
           @if (member.role !== 'Owner') {
-            <button mat-icon-button [disabled]="!isOwner()" (click)="removeMember(member.userId)" title="Remove member">
+            <button mat-icon-button [disabled]="!isOwner()" (click)="removeMember(member.userId, member.displayName)" title="Remove member">
               <mat-icon>close</mat-icon>
             </button>
           }
