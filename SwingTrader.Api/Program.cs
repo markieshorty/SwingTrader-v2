@@ -1329,7 +1329,12 @@ api.MapDelete("/account/notifications/{recipientId:int}", async (
     IAccountContext ctx) =>
 {
     if (ctx.Role != AccountRole.Owner)
-        return Results.Forbid();
+    {
+        var all = await recipients.ListAsync(ctx.AccountId);
+        var target = all.FirstOrDefault(r => r.Id == recipientId);
+        if (target is null || !target.Email.Equals(ctx.Email, StringComparison.OrdinalIgnoreCase))
+            return Results.Forbid();
+    }
 
     await recipients.RemoveAsync(ctx.AccountId, recipientId);
     return Results.Ok();
@@ -1342,7 +1347,12 @@ api.MapPut("/account/notifications/{recipientId:int}/trade-approval", async (
     IAccountContext ctx) =>
 {
     if (ctx.Role != AccountRole.Owner)
-        return Results.Forbid();
+    {
+        var all = await recipients.ListAsync(ctx.AccountId);
+        var target = all.FirstOrDefault(r => r.Id == recipientId);
+        if (target is null || !target.Email.Equals(ctx.Email, StringComparison.OrdinalIgnoreCase))
+            return Results.Forbid();
+    }
 
     var updated = await recipients.SetTradeApprovalAsync(ctx.AccountId, recipientId, req.Enabled);
     return updated ? Results.Ok() : Results.NotFound();

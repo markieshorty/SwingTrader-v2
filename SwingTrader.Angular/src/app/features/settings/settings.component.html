@@ -279,11 +279,17 @@
           <span>{{ recipient.email }}</span>
           <mat-slide-toggle
             [checked]="recipient.tradeApprovalEnabled"
+            [disabled]="!isOwner() && recipient.email !== me()?.email"
             (change)="toggleTradeApproval(recipient, $event.checked)"
           >
             Receive trade approval emails
           </mat-slide-toggle>
-          <button mat-icon-button [disabled]="!isOwner()" (click)="removeRecipient(recipient.id)" title="Remove">
+          <button
+            mat-icon-button
+            [disabled]="!isOwner() && recipient.email !== me()?.email"
+            (click)="removeRecipient(recipient.id)"
+            title="Remove"
+          >
             <mat-icon>close</mat-icon>
           </button>
         </div>
