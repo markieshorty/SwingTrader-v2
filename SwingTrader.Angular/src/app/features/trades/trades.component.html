@@ -49,7 +49,7 @@
           @for (approval of approvals(); track approval.id) {
             <mat-card class="panel approval-row">
               <div class="approval-header">
-                <span class="approval-date">{{ approval.tradeDate | date: 'EEEE d MMM yyyy' }}</span>
+                <span class="approval-date">{{ approval.tradeDate | date: 'EEEE d MMM yyyy' : 'UTC' }}</span>
                 @if (approval.isApproved) {
                   <span class="badge approved">
                     Approved {{ approval.approvedAt | date: 'HH:mm' }}
