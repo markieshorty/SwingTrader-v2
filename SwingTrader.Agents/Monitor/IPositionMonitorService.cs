@@ -9,7 +9,8 @@ public enum ExitReason
     TargetHit,
     TrailingStopHit,
     TimeExit,
-    CircuitBreaker
+    CircuitBreaker,
+    MomentumHealthExit
 }
 
 public record PositionCheckResult(

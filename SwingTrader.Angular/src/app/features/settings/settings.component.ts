@@ -66,6 +66,8 @@ function toUpdateRiskProfileDto(profile: RiskProfileDto): UpdateRiskProfileDto {
     trailingActivationPct: profile.trailingActivationPct,
     trailingDistancePct: profile.trailingDistancePct,
     earningsGateDays: profile.earningsGateDays,
+    minHoldDays: profile.minHoldDays,
+    momentumHealthThreshold: profile.momentumHealthThreshold,
   };
 }
 
@@ -175,8 +177,19 @@ export class SettingsComponent {
       original.maxHoldDays !== draft.maxHoldDays ||
       original.trailingActivationPct !== draft.trailingActivationPct ||
       original.trailingDistancePct !== draft.trailingDistancePct ||
-      original.earningsGateDays !== draft.earningsGateDays
+      original.earningsGateDays !== draft.earningsGateDays ||
+      original.minHoldDays !== draft.minHoldDays ||
+      original.momentumHealthThreshold !== draft.momentumHealthThreshold
     );
+  });
+
+  // MinHoldDays and MaxHoldDays constrain each other live as the user drags
+  // either slider — auto-adjusting the other rather than blocking the drag,
+  // since the user is trying to reach a valid configuration either way.
+  shortConfirmedPhaseWarning = computed(() => {
+    const draft = this.riskProfileDraft();
+    if (!draft) return false;
+    return draft.maxHoldDays - draft.minHoldDays < 2;
   });
 
   riskLivePreview = computed(() => {
@@ -217,6 +230,21 @@ export class SettingsComponent {
   updateRiskDraftField(key: keyof UpdateRiskProfileDto, value: number): void {
     const draft = this.riskProfileDraft();
     if (!draft) return;
+
+    if (key === 'minHoldDays' && value >= draft.maxHoldDays) {
+      // Auto-adjust rather than reject — the user is dragging toward a valid
+      // configuration either way, so nudge the other bound instead of blocking.
+      this.riskProfileDraft.set({ ...draft, minHoldDays: value, maxHoldDays: value + 1 });
+      this.snackbar.open(`Maximum hold period adjusted to ${value + 1} days to stay above probation period.`, 'Dismiss', { duration: 4000 });
+      return;
+    }
+
+    if (key === 'maxHoldDays' && value <= draft.minHoldDays) {
+      this.riskProfileDraft.set({ ...draft, maxHoldDays: value, minHoldDays: Math.max(1, value - 1) });
+      this.snackbar.open(`Probation period adjusted to ${Math.max(1, value - 1)} days to stay below maximum hold period.`, 'Dismiss', { duration: 4000 });
+      return;
+    }
+
     this.riskProfileDraft.set({ ...draft, [key]: value });
   }
 

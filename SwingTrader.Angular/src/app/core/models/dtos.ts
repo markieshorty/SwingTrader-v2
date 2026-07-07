@@ -36,6 +36,12 @@ export interface PositionDto {
   marketRegimeAtEntry: string | null;
   isNearStop: boolean;
   isNearTarget: boolean;
+  phase: 'Probation' | 'Confirmed' | 'Exiting';
+  momentumHealthScore: number | null;
+  momentumHealthVerdict: string | null;
+  momentumHealthReasoning: string | null;
+  momentumHealthCheckedAt: string | null;
+  phaseConfirmedAt: string | null;
 }
 
 export interface SignalDto {
@@ -355,6 +361,8 @@ export interface RiskProfileDto {
   trailingActivationPct: number;
   trailingDistancePct: number;
   earningsGateDays: number;
+  minHoldDays: number;
+  momentumHealthThreshold: number;
   riskLabel: string;
   buyThreshold: number | null;
   watchThreshold: number | null;
@@ -377,6 +385,8 @@ export interface RiskProfileDto {
     trailingActivationPct: RiskProfileRangeDto;
     trailingDistancePct: RiskProfileRangeDto;
     earningsGateDays: RiskProfileRangeDto;
+    minHoldDays: RiskProfileRangeDto;
+    momentumHealthThreshold: RiskProfileRangeDto;
   };
 }
 
@@ -393,6 +403,8 @@ export interface UpdateRiskProfileDto {
   trailingActivationPct: number;
   trailingDistancePct: number;
   earningsGateDays: number;
+  minHoldDays: number;
+  momentumHealthThreshold: number;
 }
 
 export interface NotificationRecipientDto {

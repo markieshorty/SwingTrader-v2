@@ -27,4 +27,12 @@ public class Trade : BaseEntity
     public decimal? VixAtEntry { get; set; }
     public MarketRegime? MarketRegimeAtEntry { get; set; }
     public decimal? SpyReturnDuringTrade { get; set; }
+
+    // Probation phase lifecycle — see MomentumHealthService.
+    public TradePhase Phase { get; set; } = TradePhase.Probation;
+    public DateTime? PhaseConfirmedAt { get; set; }
+    public decimal? MomentumHealthScore { get; set; }
+    public string? MomentumHealthVerdict { get; set; }
+    public string? MomentumHealthReasoning { get; set; }
+    public DateTime? MomentumHealthCheckedAt { get; set; }
 }

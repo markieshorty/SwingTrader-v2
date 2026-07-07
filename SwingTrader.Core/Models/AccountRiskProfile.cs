@@ -28,6 +28,12 @@ public class AccountRiskProfile : BaseEntity
     public double TrailingDistancePct { get; set; } = CapitalRules.DefaultTrailingDistancePct;
     public int EarningsGateDays { get; set; } = CapitalRules.DefaultEarningsGateDays;
 
+    // Probation phase — see MomentumHealthService. A position must clear
+    // MomentumHealthThreshold on day MinHoldDays or it's flagged for exit
+    // rather than being left to run untested until MaxHoldDays.
+    public int MinHoldDays { get; set; } = CapitalRules.DefaultMinHoldDays;
+    public decimal MomentumHealthThreshold { get; set; } = CapitalRules.DefaultMomentumHealthThreshold;
+
     public string RiskLabel => LockedCapitalPct switch
     {
         >= 0.80m => "Very Conservative",
@@ -90,5 +96,20 @@ public class AccountRiskProfile : BaseEntity
         if (EarningsGateDays < CapitalRules.MinEarningsGateDays || EarningsGateDays > CapitalRules.MaxEarningsGateDays)
             throw new ValidationException(
                 $"Earnings gate days must be {CapitalRules.MinEarningsGateDays}-{CapitalRules.MaxEarningsGateDays}");
+
+        if (MinHoldDays < CapitalRules.AbsoluteMinHoldDays)
+            throw new ValidationException(
+                $"Probation period must be at least {CapitalRules.AbsoluteMinHoldDays} day");
+
+        if (MomentumHealthThreshold < CapitalRules.MinMomentumHealthThreshold || MomentumHealthThreshold > CapitalRules.MaxMomentumHealthThreshold)
+            throw new ValidationException(
+                $"Momentum health threshold must be {CapitalRules.MinMomentumHealthThreshold:P0}-{CapitalRules.MaxMomentumHealthThreshold:P0}");
+
+        // Cross-field: a position needs at least one day in the Confirmed
+        // phase to run after clearing probation.
+        if (MinHoldDays >= MaxHoldDays)
+            throw new ValidationException(
+                $"Probation period ({MinHoldDays}d) must be less than maximum hold period ({MaxHoldDays}d). " +
+                "A position needs time to run after it passes probation.");
     }
 }

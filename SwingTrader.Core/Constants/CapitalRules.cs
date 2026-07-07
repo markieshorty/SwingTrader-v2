@@ -33,6 +33,16 @@ public static class CapitalRules
     public const int MinEarningsGateDays = 0;
     public const int MaxEarningsGateDays = 14;
 
+    // Probation period (MinHoldDays) — must always be < MaxHoldDays, a
+    // cross-field constraint enforced in AccountRiskProfile.Validate() rather
+    // than as an individual range check.
+    public const int DefaultMinHoldDays = 3;
+    public const int AbsoluteMinHoldDays = 1;
+
+    public const decimal DefaultMomentumHealthThreshold = 0.35m;
+    public const decimal MinMomentumHealthThreshold = 0.20m;
+    public const decimal MaxMomentumHealthThreshold = 0.60m;
+
     // Hard safety bounds for AccountRiskProfile.Validate() — a misconfigured
     // profile can never allow a single bad day to wipe an account, no
     // matter what the account owner tries to set it to.

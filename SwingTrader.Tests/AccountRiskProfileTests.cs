@@ -177,6 +177,66 @@ public class AccountRiskProfileTests
         act.Should().Throw<ValidationException>().WithMessage("*active capital*");
     }
 
+    [Fact]
+    public void Validate_MinHoldDaysBelowAbsoluteFloor_Throws()
+    {
+        var profile = Valid();
+        profile.MinHoldDays = 0;
+
+        var act = () => profile.Validate();
+
+        act.Should().Throw<ValidationException>().WithMessage("*Probation period must be at least*");
+    }
+
+    [Theory]
+    [InlineData(0.19)]
+    [InlineData(0.61)]
+    public void Validate_MomentumHealthThresholdOutOfRange_Throws(decimal value)
+    {
+        var profile = Valid();
+        profile.MomentumHealthThreshold = value;
+
+        var act = () => profile.Validate();
+
+        act.Should().Throw<ValidationException>().WithMessage("*Momentum health threshold*");
+    }
+
+    [Fact]
+    public void Validate_MinHoldDaysEqualsMaxHoldDays_Throws()
+    {
+        var profile = Valid();
+        profile.MinHoldDays = 10;
+        profile.MaxHoldDays = 10;
+
+        var act = () => profile.Validate();
+
+        act.Should().Throw<ValidationException>().WithMessage("*Probation period (10d) must be less than maximum hold period (10d)*");
+    }
+
+    [Fact]
+    public void Validate_MinHoldDaysGreaterThanMaxHoldDays_Throws()
+    {
+        var profile = Valid();
+        profile.MinHoldDays = 12;
+        profile.MaxHoldDays = 10;
+
+        var act = () => profile.Validate();
+
+        act.Should().Throw<ValidationException>().WithMessage("*Probation period (12d) must be less than maximum hold period (10d)*");
+    }
+
+    [Fact]
+    public void Validate_MinHoldDaysOneLessThanMax_DoesNotThrow()
+    {
+        var profile = Valid();
+        profile.MinHoldDays = 9;
+        profile.MaxHoldDays = 10;
+
+        var act = () => profile.Validate();
+
+        act.Should().NotThrow();
+    }
+
     [Theory]
     [InlineData(0.90, 0.20, "Very Conservative")]
     [InlineData(0.75, 0.20, "Conservative")]

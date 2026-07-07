@@ -118,6 +118,8 @@ builder.Services.AddScoped<IReportGenerationService, ReportGenerationService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IPositionMonitorService, PositionMonitorService>();
 builder.Services.AddScoped<IPortfolioCircuitBreakerService, PortfolioCircuitBreakerService>();
+builder.Services.AddScoped<IMomentumHealthService, MomentumHealthService>();
+builder.Services.AddScoped<IPositionExitService, PositionExitService>();
 builder.Services.AddScoped<IMonitorService, MonitorService>();
 builder.Services.AddScoped<IComponentCorrelationService, ComponentCorrelationService>();
 builder.Services.AddScoped<IRefinementService, RefinementService>();

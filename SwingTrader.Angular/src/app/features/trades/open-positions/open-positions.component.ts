@@ -27,9 +27,15 @@ import { PositionDto } from '../../../core/models/dtos';
               {{ position.unrealisedPnl | currencyGbp }} ({{ position.unrealisedPnlPercent | percentSigned }})
             </span>
           </div>
+          <span class="phase-badge" [class]="'phase-' + position.phase.toLowerCase()">{{ phaseLabel(position) }}</span>
           <app-stop-target-bar [position]="position" />
           @if (position.trailingStopPrice) {
             <p class="detail-line">Trailing stop: £{{ position.trailingStopPrice | number: '1.2-2' }}</p>
+          }
+          @if (position.momentumHealthVerdict) {
+            <p class="detail-line momentum-line">
+              Momentum: {{ position.momentumHealthScore | number: '1.2-2' }} — {{ position.momentumHealthReasoning }}
+            </p>
           }
           <div class="detail-grid">
             <span>Entry {{ position.entryDate | date: 'mediumDate' }}</span>
@@ -82,6 +88,29 @@ import { PositionDto } from '../../../core/models/dtos';
       .muted {
         color: var(--st-muted);
       }
+      .phase-badge {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 10px;
+        margin-bottom: 6px;
+      }
+      .phase-probation {
+        background: color-mix(in srgb, var(--st-amber) 20%, transparent);
+        color: var(--st-amber);
+      }
+      .phase-confirmed {
+        background: color-mix(in srgb, var(--st-green) 20%, transparent);
+        color: var(--st-green);
+      }
+      .phase-exiting {
+        background: color-mix(in srgb, var(--st-red) 20%, transparent);
+        color: var(--st-red);
+      }
+      .momentum-line {
+        font-style: italic;
+      }
     `,
   ],
 })
@@ -92,5 +121,16 @@ export class OpenPositionsComponent {
     if (position.daysHeld >= 1) return `${position.daysHeld} ${position.daysHeld === 1 ? 'day' : 'days'} held`;
     const hours = Math.floor((Date.now() - new Date(position.entryDate).getTime()) / 3_600_000);
     return `${hours} hour${hours === 1 ? '' : 's'} held`;
+  }
+
+  phaseLabel(position: PositionDto): string {
+    switch (position.phase) {
+      case 'Confirmed':
+        return `Day ${position.daysHeld} · Confirmed`;
+      case 'Exiting':
+        return `Day ${position.daysHeld} · Momentum exit in progress`;
+      default:
+        return `Day ${position.daysHeld} · Probation`;
+    }
   }
 }

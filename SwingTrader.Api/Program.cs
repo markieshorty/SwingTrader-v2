@@ -20,6 +20,7 @@ using SwingTrader.Core.Constants;
 using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
+using SwingTrader.Agents.Monitor;
 using SwingTrader.Agents.Readiness;
 using SwingTrader.Agents.Refinement;
 using SwingTrader.Data;
@@ -156,6 +157,7 @@ builder.Services.Configure<RefinementConfig>(builder.Configuration.GetSection(Re
 builder.Services.Configure<RiskManagementConfig>(builder.Configuration.GetSection(RiskManagementConfig.SectionName));
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IMarketRegimeService, MarketRegimeService>();
+builder.Services.AddScoped<IMomentumHealthService, MomentumHealthService>();
 
 // Same managed-identity Service Bus client as the Functions host - the manual
 // "run now" endpoints below send onto the same queues the Scheduler enqueues
@@ -338,10 +340,33 @@ api.MapGet("/positions", async (
             trade.MarketRegimeAtEntry,
             IsNearStop = isNearStop,
             IsNearTarget = isNearTarget,
+            trade.Phase,
+            trade.MomentumHealthScore,
+            trade.MomentumHealthVerdict,
+            trade.MomentumHealthReasoning,
+            trade.MomentumHealthCheckedAt,
+            trade.PhaseConfirmedAt,
         });
     }
 
     return Results.Ok(results);
+});
+
+// Manual/admin trigger — recompute momentum health for a single open
+// position outside the normal MinHoldDays schedule. Useful for support and
+// for verifying a probation configuration change without waiting a day.
+api.MapPost("/positions/{tradeId:int}/check-momentum", async (
+    int tradeId,
+    ITradeRepository trades,
+    IMomentumHealthService momentumHealth,
+    IAccountContext ctx,
+    CancellationToken ct) =>
+{
+    var trade = await trades.GetByIdAsync(ctx.AccountId, tradeId);
+    if (trade is null) return Results.NotFound();
+
+    var result = await momentumHealth.CalculateAsync(ctx.AccountId, trade, ct);
+    return Results.Ok(result);
 });
 
 // Raw PortfolioSnapshot has no todayPnl/todayPnlPercent/winRate30d - the
@@ -1025,6 +1050,8 @@ api.MapGet("/risk-profile", async (
         profile.TrailingActivationPct,
         profile.TrailingDistancePct,
         profile.EarningsGateDays,
+        profile.MinHoldDays,
+        profile.MomentumHealthThreshold,
         profile.RiskLabel,
         BuyThreshold = weights?.BuyThreshold,
         WatchThreshold = weights?.WatchThreshold,
@@ -1049,6 +1076,8 @@ api.MapGet("/risk-profile", async (
             TrailingActivationPct = new { Min = CapitalRules.MinTrailingActivationPct, Max = CapitalRules.MaxTrailingActivationPct },
             TrailingDistancePct = new { Min = CapitalRules.MinTrailingDistancePct, Max = CapitalRules.MaxTrailingDistancePct },
             EarningsGateDays = new { Min = CapitalRules.MinEarningsGateDays, Max = CapitalRules.MaxEarningsGateDays },
+            MinHoldDays = new { Min = CapitalRules.AbsoluteMinHoldDays, Max = profile.MaxHoldDays - 1 },
+            MomentumHealthThreshold = new { Min = CapitalRules.MinMomentumHealthThreshold, Max = CapitalRules.MaxMomentumHealthThreshold },
         },
     });
 });
@@ -1078,6 +1107,8 @@ api.MapPut("/risk-profile", async (
             TrailingActivationPct = req.TrailingActivationPct,
             TrailingDistancePct = req.TrailingDistancePct,
             EarningsGateDays = req.EarningsGateDays,
+            MinHoldDays = req.MinHoldDays,
+            MomentumHealthThreshold = req.MomentumHealthThreshold,
         });
         return Results.Ok();
     }

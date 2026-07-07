@@ -156,3 +156,10 @@ public enum WatchlistType
     Manual,    // User fully controls
     Mixed,     // AI adds but never removes user-added symbols
 }
+
+public enum TradePhase
+{
+    Probation, // Days 1..MinHoldDays — momentum health not yet checked
+    Confirmed, // Passed the momentum health check — normal exit rules only
+    Exiting,   // Failed the momentum health check — flagged for manual close
+}

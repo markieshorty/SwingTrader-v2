@@ -210,6 +210,24 @@
           }
 
           <h4>Trading Behaviour</h4>
+
+          <h5>Hold Period</h5>
+          <div class="slider-row">
+            <label>Probation period: {{ draft.minHoldDays }} day(s)</label>
+            <mat-slider
+              [min]="1"
+              [max]="draft.maxHoldDays - 1"
+              step="1"
+              discrete
+            >
+              <input matSliderThumb [ngModel]="draft.minHoldDays" (ngModelChange)="updateRiskDraftField('minHoldDays', $event)" />
+            </mat-slider>
+          </div>
+          <p class="muted small">
+            Positions must show momentum within this many days or be flagged for exit. Stop loss and target remain
+            active throughout.
+          </p>
+
           <div class="slider-row">
             <label>Max Hold Days: {{ draft.maxHoldDays }} days</label>
             <mat-slider
@@ -222,6 +240,31 @@
             </mat-slider>
           </div>
           <p class="muted small">Exit a stalled position after this many days if neither stop nor target has been hit.</p>
+
+          @if (shortConfirmedPhaseWarning()) {
+            <p class="warning small">
+              ⚠️ Short confirmed phase — with a {{ draft.minHoldDays }}-day probation and {{ draft.maxHoldDays }}-day
+              maximum, confirmed positions only have {{ draft.maxHoldDays - draft.minHoldDays }} day(s) to run after
+              passing the check. Consider increasing the maximum hold period.
+            </p>
+          }
+
+          <div class="slider-row">
+            <label>Momentum Health Sensitivity: {{ draft.momentumHealthThreshold | percent: '1.0-0' }} threshold</label>
+            <mat-slider
+              [min]="profile.allowedRanges.momentumHealthThreshold.min"
+              [max]="profile.allowedRanges.momentumHealthThreshold.max"
+              step="0.01"
+              discrete
+            >
+              <input matSliderThumb [ngModel]="draft.momentumHealthThreshold" (ngModelChange)="updateRiskDraftField('momentumHealthThreshold', $event)" />
+            </mat-slider>
+          </div>
+          <p class="muted small">
+            On day {{ draft.minHoldDays }}, a position's momentum health score must clear this threshold or it's
+            flagged for exit. Lower = more permissive (keeps more positions running); higher = more aggressive
+            (exits stalling positions sooner).
+          </p>
 
           <div class="slider-row">
             <label>Trailing Stop Activation: {{ draft.trailingActivationPct | percent: '1.0-0' }} gain</label>

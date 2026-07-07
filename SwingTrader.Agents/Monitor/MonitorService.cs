@@ -21,6 +21,7 @@ public class MonitorService(
     IPortfolioCircuitBreakerService circuitBreaker,
     IPositionMonitorService positionMonitor,
     IAccountRiskProfileRepository riskProfileRepo,
+    IPositionExitService positionExit,
     INotificationRecipientRepository recipients,
     IEmailService emailService,
     ILogger<MonitorService> logger) : IMonitorService
@@ -69,6 +70,7 @@ public class MonitorService(
 
         int checked_ = 0, trailingUpdated = 0;
         var flaggedExits = new List<FlaggedExit>();
+        var executedExits = new List<ExecutedExit>();
 
         if (trades.Count == 0)
         {
@@ -91,6 +93,31 @@ public class MonitorService(
                     continue;
                 }
                 var currentPrice = quote.CurrentPrice.Value;
+
+                // Momentum health exit takes priority over the normal stop/target/
+                // trailing/time checks below — the Research Pipeline already decided
+                // this position failed probation. Attempt the close every cycle until
+                // it succeeds (network/broker errors just retry next cycle).
+                if (trade.Phase == TradePhase.Exiting)
+                {
+                    var exitResult = await positionExit.ClosePositionAsync(
+                        accountId, trade, t212, currentPrice,
+                        trade.MomentumHealthReasoning ?? "Momentum health check failed", ct);
+
+                    if (exitResult.Success)
+                    {
+                        executedExits.Add(new ExecutedExit(trade.Symbol, ExitReason.MomentumHealthExit, exitResult.ExitPrice!.Value, exitResult.RealizedPnl));
+                    }
+                    else
+                    {
+                        logger.LogWarning("{Symbol}: momentum health exit order failed — {Error}. Will retry next cycle.", trade.Symbol, exitResult.ErrorMessage);
+                    }
+
+                    checked_++;
+                    if (!ct.IsCancellationRequested)
+                        await Task.Delay(TimeSpan.FromSeconds(1), ct);
+                    continue;
+                }
 
                 var result = await positionMonitor.CheckPositionAsync(
                     trade, currentPrice,
@@ -143,7 +170,9 @@ public class MonitorService(
         // Step 3 — refresh snapshot every cycle so the portfolio API/report reads current values
         await UpdateSnapshotAsync(accountId, summary);
 
-        return new MonitorCycleResult(checked_, trailingUpdated, flaggedExits, false);
+        // Executed exits already send their own per-position email from
+        // PositionExitService — no separate summary email needed here.
+        return new MonitorCycleResult(checked_, trailingUpdated, flaggedExits, false, executedExits);
     }
 
     private async Task SendAlertAsync(int accountId, string markdown, string subject, NotificationCategory category)
