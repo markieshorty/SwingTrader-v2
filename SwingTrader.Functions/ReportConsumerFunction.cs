@@ -18,6 +18,7 @@ public class ReportConsumerFunction(
     IReportGenerationService reportService,
     IReportRepository reportRepo,
     INotificationRecipientRepository recipients,
+    IApprovalRepository approvalRepo,
     IEmailService email,
     IUserHttpClientFactory clientFactory,
     ILogger<ReportConsumerFunction> logger)
@@ -57,7 +58,10 @@ public class ReportConsumerFunction(
 
             // Sent separately, and only to recipients who've explicitly opted
             // into TradeApproval - not everyone who gets the general report.
-            if (report.ApprovalMarkdown is not null)
+            // Skip if the user has already approved today's trades (e.g. Report
+            // ran twice in a day after manual retry).
+            var existingApproval = await approvalRepo.GetByDateAsync(message.AccountId, message.ReportDate);
+            if (report.ApprovalMarkdown is not null && existingApproval?.IsApproved != true)
             {
                 var approvalAddresses = allRecipients
                     .Where(r => r.Categories.HasFlag(NotificationCategory.TradeApproval))
