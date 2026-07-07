@@ -141,7 +141,7 @@ export class DashboardComponent {
   }
 
   heldLabel(position: PositionDto): string {
-    if (position.daysHeld >= 1) return `${position.daysHeld} days held`;
+    if (position.daysHeld >= 1) return `${position.daysHeld} ${position.daysHeld === 1 ? 'day' : 'days'} held`;
     const hours = Math.floor((Date.now() - new Date(position.entryDate).getTime()) / 3_600_000);
     return `${hours} hour${hours === 1 ? '' : 's'} held`;
   }
