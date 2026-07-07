@@ -26,9 +26,12 @@ public class PositionExitService(
         Trade trade,
         ITrading212Client t212,
         decimal currentPrice,
-        string reason,
+        ExitReason exitReason,
+        string reasonDetail,
         CancellationToken ct = default)
     {
+        var label = ExitReasonLabel(exitReason);
+
         string? ticker;
         try
         {
@@ -36,13 +39,13 @@ public class PositionExitService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Could not resolve T212 ticker for {Symbol} (account {AccountId}) — momentum exit deferred to next cycle", trade.Symbol, accountId);
+            logger.LogError(ex, "Could not resolve T212 ticker for {Symbol} (account {AccountId}) — {Label} deferred to next cycle", trade.Symbol, accountId, label);
             return new PositionExitResult(false, ex.Message, null, null);
         }
 
         if (ticker is null)
         {
-            logger.LogWarning("No T212 instrument found for {Symbol} (account {AccountId}) — momentum exit deferred to next cycle", trade.Symbol, accountId);
+            logger.LogWarning("No T212 instrument found for {Symbol} (account {AccountId}) — {Label} deferred to next cycle", trade.Symbol, accountId, label);
             return new PositionExitResult(false, "No matching T212 instrument found", null, null);
         }
 
@@ -51,8 +54,8 @@ public class PositionExitService(
             // MonitorService already called t212.GetAccountSummaryAsync() at the top
             // of this cycle (circuit breaker check), and ResolveT212TickerAsync above
             // may have just called GetInstrumentsAsync() too — space this write call
-            // out from those reads so a run with multiple momentum exits doesn't stack
-            // T212 calls back-to-back into the same rate-limit bucket. Same delay
+            // out from those reads so a run with multiple exits doesn't stack T212
+            // calls back-to-back into the same rate-limit bucket. Same delay
             // ExecutionService uses between order placements.
             await Task.Delay(TimeSpan.FromSeconds(_execution.DelayBetweenOrdersSeconds), ct);
 
@@ -61,8 +64,8 @@ public class PositionExitService(
             var order = await t212.PlaceMarketOrderAsync(new MarketOrderRequest(ticker, -trade.Quantity));
 
             logger.LogInformation(
-                "Momentum health exit executed for account {AccountId}: {Symbol} ({Ticker}) qty={Qty} orderId={OrderId} reason={Reason}",
-                accountId, trade.Symbol, ticker, trade.Quantity, order.Id, reason);
+                "{Label} executed for account {AccountId}: {Symbol} ({Ticker}) qty={Qty} orderId={OrderId} reason={Reason}",
+                label, accountId, trade.Symbol, ticker, trade.Quantity, order.Id, reasonDetail);
 
             var realizedPnl = (currentPrice - trade.EntryPrice) * trade.Quantity;
 
@@ -71,21 +74,31 @@ public class PositionExitService(
             trade.ClosedAt = DateTime.UtcNow;
             trade.ExitOrderId = order.Id.ToString();
             trade.RealizedPnl = realizedPnl;
-            trade.Notes = (trade.Notes ?? string.Empty).TrimEnd() + $" | MomentumHealthExit: {reason}";
+            trade.Notes = (trade.Notes ?? string.Empty).TrimEnd() + $" | {exitReason}: {reasonDetail}";
             await tradeRepo.UpdateAsync(trade);
 
-            await SendExitNotificationAsync(accountId, trade, currentPrice, realizedPnl, reason);
+            await SendExitNotificationAsync(accountId, trade, currentPrice, realizedPnl, label, reasonDetail);
 
             return new PositionExitResult(true, null, currentPrice, realizedPnl);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Momentum health exit order failed for {Symbol} ({Ticker}), account {AccountId} — will retry next cycle", trade.Symbol, ticker, accountId);
+            logger.LogError(ex, "{Label} order failed for {Symbol} ({Ticker}), account {AccountId} — will retry next cycle", label, trade.Symbol, ticker, accountId);
             return new PositionExitResult(false, ex.Message, null, null);
         }
     }
 
-    private async Task SendExitNotificationAsync(int accountId, Trade trade, decimal exitPrice, decimal realizedPnl, string reason)
+    private static string ExitReasonLabel(ExitReason reason) => reason switch
+    {
+        ExitReason.StopLossHit => "Stop loss exit",
+        ExitReason.TargetHit => "Target hit exit",
+        ExitReason.TrailingStopHit => "Trailing stop exit",
+        ExitReason.TimeExit => "Time exit",
+        ExitReason.MomentumHealthExit => "Momentum health exit",
+        _ => "Exit",
+    };
+
+    private async Task SendExitNotificationAsync(int accountId, Trade trade, decimal exitPrice, decimal realizedPnl, string label, string reasonDetail)
     {
         try
         {
@@ -98,17 +111,17 @@ public class PositionExitService(
 
             var pnlSign = realizedPnl >= 0 ? "+" : "";
             var markdown =
-                $"# \U0001F4C9 Momentum health exit — {trade.Symbol}\n\n" +
-                $"Position closed automatically: momentum failed to confirm during the probation period.\n\n" +
+                $"# \U0001F4C9 {label} — {trade.Symbol}\n\n" +
+                $"Position closed automatically by SwingTrader — no action needed in Trading212.\n\n" +
                 $"**Exit price:** £{exitPrice:F2}\n" +
                 $"**P&L:** {pnlSign}£{realizedPnl:F2}\n" +
-                $"**Reason:** {reason}";
+                $"**Reason:** {reasonDetail}";
 
-            await emailService.SendSimpleEmailAsync(toAddresses, markdown, $"SwingTrader — {trade.Symbol} closed (momentum health exit)");
+            await emailService.SendSimpleEmailAsync(toAddresses, markdown, $"SwingTrader — {trade.Symbol} closed ({label})");
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to send momentum exit notification email for account {AccountId}", accountId);
+            logger.LogWarning(ex, "Failed to send exit notification email for account {AccountId}", accountId);
         }
     }
 

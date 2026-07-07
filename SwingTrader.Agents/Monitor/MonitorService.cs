@@ -8,13 +8,11 @@ using SwingTrader.Infrastructure.Services;
 
 namespace SwingTrader.Agents.Monitor;
 
-// Deliberately read-only with respect to the broker: this cycle updates
-// trailing-stop bookkeeping (a DB field, not an order) and *flags* stop/
-// target/time/circuit-breaker exits by email rather than calling
-// t212.PlaceMarketOrderAsync to close them. Closing a real position
-// automatically is the same category of financial risk as the (still
-// deferred) Execution agent, and is intentionally left as a manual action
-// pending a reviewed, explicitly-approved execution path.
+// Auto-closes every per-position exit (stop loss, target, trailing stop,
+// time exit, momentum health) via IPositionExitService - a real T212 market
+// sell, not just a flag. CircuitBreaker is the one exception: a portfolio-
+// wide liquidation event stays flag-only (see Step 1 below) rather than
+// auto-selling every open position across the whole account at once.
 public class MonitorService(
     ITradeRepository tradeRepo,
     IPortfolioRepository portfolioRepo,
@@ -100,17 +98,17 @@ public class MonitorService(
                 // it succeeds (network/broker errors just retry next cycle).
                 if (trade.Phase == TradePhase.Exiting)
                 {
-                    var exitResult = await positionExit.ClosePositionAsync(
+                    var momentumExitResult = await positionExit.ClosePositionAsync(
                         accountId, trade, t212, currentPrice,
-                        trade.MomentumHealthReasoning ?? "Momentum health check failed", ct);
+                        ExitReason.MomentumHealthExit, trade.MomentumHealthReasoning ?? "Momentum health check failed", ct);
 
-                    if (exitResult.Success)
+                    if (momentumExitResult.Success)
                     {
-                        executedExits.Add(new ExecutedExit(trade.Symbol, ExitReason.MomentumHealthExit, exitResult.ExitPrice!.Value, exitResult.RealizedPnl));
+                        executedExits.Add(new ExecutedExit(trade.Symbol, ExitReason.MomentumHealthExit, momentumExitResult.ExitPrice!.Value, momentumExitResult.RealizedPnl));
                     }
                     else
                     {
-                        logger.LogWarning("{Symbol}: momentum health exit order failed — {Error}. Will retry next cycle.", trade.Symbol, exitResult.ErrorMessage);
+                        logger.LogWarning("{Symbol}: momentum health exit order failed — {Error}. Will retry next cycle.", trade.Symbol, momentumExitResult.ErrorMessage);
                     }
 
                     checked_++;
@@ -137,8 +135,19 @@ public class MonitorService(
                 }
                 else if (result.Reason != ExitReason.None)
                 {
-                    logger.LogInformation("{Symbol}: exit condition flagged — {Reason} at ${Price:F2}", trade.Symbol, result.Reason, currentPrice);
-                    flaggedExits.Add(new FlaggedExit(trade.Symbol, result.Reason, currentPrice));
+                    var reasonDetail = ExitReasonDetail(result.Reason, trade, currentPrice);
+                    var exitResult = await positionExit.ClosePositionAsync(
+                        accountId, trade, t212, currentPrice, result.Reason, reasonDetail, ct);
+
+                    if (exitResult.Success)
+                    {
+                        executedExits.Add(new ExecutedExit(trade.Symbol, result.Reason, exitResult.ExitPrice!.Value, exitResult.RealizedPnl));
+                    }
+                    else
+                    {
+                        logger.LogWarning("{Symbol}: {Reason} exit order failed — {Error}. Will retry next cycle.", trade.Symbol, result.Reason, exitResult.ErrorMessage);
+                        flaggedExits.Add(new FlaggedExit(trade.Symbol, result.Reason, currentPrice));
+                    }
                 }
 
                 checked_++;
@@ -154,16 +163,20 @@ public class MonitorService(
                 await Task.Delay(TimeSpan.FromSeconds(1), ct);
         }
 
+        // flaggedExits is only populated now when an auto-close attempt genuinely
+        // failed (ticker resolution or the T212 order itself) - a routine hit no
+        // longer lands here, since ClosePositionAsync handles it automatically.
         if (flaggedExits.Count > 0)
         {
             var lines = flaggedExits.Select(f => $"- **{f.Symbol}**: {f.Reason} at ${f.CurrentPrice:F2}");
             await SendAlertAsync(
                 accountId,
-                $"# \U0001F4CD Position exit conditions met\n\n" +
+                $"# ⚠️ Automatic close failed — action needed\n\n" +
                 string.Join("\n", lines) +
-                "\n\nThese positions have hit a stop/target/time exit condition and are ready to close — " +
-                "review and close manually in Trading212.",
-                $"SwingTrader — {flaggedExits.Count} position(s) ready to close",
+                "\n\nSwingTrader tried to close these positions automatically but the order failed " +
+                "(see the activity log for details). It will retry next cycle, but you may want to " +
+                "close them manually in Trading212 if this persists.",
+                $"SwingTrader — {flaggedExits.Count} position(s) failed to auto-close",
                 NotificationCategory.Execution);
         }
 
@@ -174,6 +187,15 @@ public class MonitorService(
         // PositionExitService — no separate summary email needed here.
         return new MonitorCycleResult(checked_, trailingUpdated, flaggedExits, false, executedExits);
     }
+
+    private static string ExitReasonDetail(ExitReason reason, Trade trade, decimal currentPrice) => reason switch
+    {
+        ExitReason.StopLossHit => $"Price ${currentPrice:F2} hit the stop loss (${trade.StopLossPrice:F2}).",
+        ExitReason.TargetHit => $"Price ${currentPrice:F2} reached the target (${trade.TargetPrice:F2}).",
+        ExitReason.TrailingStopHit => $"Price ${currentPrice:F2} hit the trailing stop (${trade.TrailingStopPrice:F2}).",
+        ExitReason.TimeExit => $"Position held past the maximum hold period without hitting stop or target.",
+        _ => $"Exit condition met at ${currentPrice:F2}.",
+    };
 
     private async Task SendAlertAsync(int accountId, string markdown, string subject, NotificationCategory category)
     {

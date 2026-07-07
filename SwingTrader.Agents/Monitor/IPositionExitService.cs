@@ -7,9 +7,10 @@ public record PositionExitResult(bool Success, string? ErrorMessage, decimal? Ex
 
 // The only auto-execution path in the app that closes a position: a T212
 // market sell (negative quantity) rather than the buy-only path used by
-// IExecutionService. Scoped deliberately narrow — only MomentumHealthExit
-// calls this today. Stop loss / target / trailing stop / time exit remain
-// flag-only (see MonitorService) until each has been reviewed the same way.
+// IExecutionService. Handles every per-position exit reason (stop loss,
+// target, trailing stop, time exit, momentum health). CircuitBreaker is the
+// one exception — a mass-liquidation event across the whole portfolio stays
+// flag-only in MonitorService rather than auto-selling everything at once.
 public interface IPositionExitService
 {
     Task<PositionExitResult> ClosePositionAsync(
@@ -17,6 +18,7 @@ public interface IPositionExitService
         Trade trade,
         ITrading212Client t212,
         decimal currentPrice,
-        string reason,
+        ExitReason exitReason,
+        string reasonDetail,
         CancellationToken ct = default);
 }

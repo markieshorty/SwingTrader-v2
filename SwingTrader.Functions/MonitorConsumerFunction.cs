@@ -36,7 +36,7 @@ public class MonitorConsumerFunction(
             var summary = result.CircuitBreakerTriggered
                 ? "Circuit breaker triggered — manual review required"
                 : $"{result.PositionsChecked} checked, {result.TrailingStopsUpdated} trailing stops updated, " +
-                  $"{result.FlaggedExits.Count} exit(s) flagged, {executedExits.Count} exit(s) executed";
+                  $"{executedExits.Count} exit(s) closed automatically, {result.FlaggedExits.Count} auto-close failure(s)";
             await heartbeats.UpsertAsync(message.AccountId, "Monitor", "Success", summary);
 
             if (result.CircuitBreakerTriggered)
@@ -47,15 +47,27 @@ public class MonitorConsumerFunction(
                     $"Portfolio circuit breaker triggered{positionList} — manual review required", ct);
             }
 
+            // Only reached now when ClosePositionAsync genuinely failed (ticker
+            // resolution or the T212 order itself) - a routine hit is handled by
+            // executedExits below instead.
             foreach (var exit in result.FlaggedExits)
-                await activityLog.LogAsync(message.AccountId, "SystemEvent", "Exit Signal", "Warning",
-                    $"{exit.Symbol} — {exit.Reason} at £{exit.CurrentPrice:F2}", ct);
+                await activityLog.LogAsync(message.AccountId, "SystemEvent", "Auto-Close Failed", "Warning",
+                    $"{exit.Symbol} — {exit.Reason} at £{exit.CurrentPrice:F2} — order failed, will retry next cycle", ct);
 
             foreach (var exit in executedExits)
             {
                 var pnlText = exit.RealizedPnl.HasValue ? $" (P&L £{exit.RealizedPnl:F2})" : "";
-                await activityLog.LogAsync(message.AccountId, "SystemEvent", "Momentum Exit", "Warning",
-                    $"{exit.Symbol} did not pass probation, selling early — closed at £{exit.ExitPrice:F2}{pnlText}", ct);
+                var reasonText = exit.Reason switch
+                {
+                    ExitReason.MomentumHealthExit => "did not pass probation, selling early",
+                    ExitReason.StopLossHit => "hit its stop loss",
+                    ExitReason.TargetHit => "reached its target",
+                    ExitReason.TrailingStopHit => "hit its trailing stop",
+                    ExitReason.TimeExit => "reached its maximum hold period",
+                    _ => "hit an exit condition",
+                };
+                await activityLog.LogAsync(message.AccountId, "SystemEvent", "Position Closed", "Info",
+                    $"{exit.Symbol} {reasonText} — closed automatically at £{exit.ExitPrice:F2}{pnlText}", ct);
             }
 
             logger.LogInformation("Monitor job {JobId} for account {AccountId} — {Summary}", message.JobId, message.AccountId, summary);
