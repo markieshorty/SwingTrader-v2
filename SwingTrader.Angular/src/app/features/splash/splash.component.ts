@@ -141,7 +141,13 @@ export class SplashComponent implements OnInit {
       this.checkingAuth.set(false);
       setTimeout(() => this.router.navigateByUrl('/dashboard'), 3000);
     } else {
-      this.router.navigateByUrl('/dashboard');
+      // authGuard stashes the originally-requested URL before sending an
+      // unauthenticated visitor to login (MSAL's redirectUri always lands
+      // back on "/", losing any deep link like /trades?tab=approvals
+      // otherwise) - restore it here instead of always going to /dashboard.
+      const redirect = sessionStorage.getItem('postLoginRedirect');
+      sessionStorage.removeItem('postLoginRedirect');
+      this.router.navigateByUrl(redirect || '/dashboard');
     }
   }
 
