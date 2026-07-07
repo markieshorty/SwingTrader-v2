@@ -49,14 +49,14 @@
       }
 
       <div class="toggle-row">
-        <mat-slide-toggle [(ngModel)]="approvalRequired">Require approval before each trade</mat-slide-toggle>
+        <mat-slide-toggle [(ngModel)]="approvalRequired" [disabled]="!isOwner()">Require approval before each trade</mat-slide-toggle>
       </div>
 
       @if (t212AccountId()) {
         <p class="muted small">Account ID: {{ t212AccountId() }}</p>
       }
 
-      <button mat-raised-button color="primary" (click)="saveTradingConfig()">Save</button>
+      <button mat-raised-button color="primary" [disabled]="!isOwner()" (click)="saveTradingConfig()">Save</button>
     </mat-card>
   </mat-tab>
 
