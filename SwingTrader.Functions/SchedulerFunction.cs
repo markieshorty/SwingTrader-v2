@@ -2,6 +2,7 @@ using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
+using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
 
@@ -100,7 +101,20 @@ public class SchedulerFunction(
         int accountId, string jobType, DateOnly jobDate, string queueName, T message, CancellationToken ct)
     {
         var existing = await jobLog.FindAsync(accountId, jobType, jobDate, ct);
-        if (existing is not null) return; // Already enqueued today - avoids double-firing across overlapping ticks.
+        if (existing is null)
+        {
+            // Not yet run today — fall through to enqueue.
+        }
+        else if (existing.Status == JobStatus.Failed)
+        {
+            // Failed entries are retryable — clear so the scheduler re-enqueues
+            // automatically on the next tick without requiring admin intervention.
+            await jobLog.DeleteAsync(accountId, jobType, jobDate, ct);
+        }
+        else
+        {
+            return; // Already enqueued/processing/completed today.
+        }
 
         await using var sender = serviceBus!.CreateSender(queueName);
         await sender.SendMessageAsync(new ServiceBusMessage(JsonSerializer.Serialize(message)), ct);
