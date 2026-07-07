@@ -365,10 +365,18 @@ public class ExecutionService(
         if (cache.TryGetValue(cacheKey, out string? cached))
             return cached;
 
-        // Use pre-fetched full list if available, otherwise fetch (may 429 if called rapidly)
-        var instruments = cache.TryGetValue(instrumentsCacheKey, out List<InstrumentResponse>? all) && all is not null
-            ? all
-            : await t212.GetInstrumentsAsync();
+        // Use pre-fetched full list if available; if the pre-fetch failed, fetch now and
+        // cache it so subsequent symbols in the same run don't each trigger a separate call.
+        List<InstrumentResponse> instruments;
+        if (cache.TryGetValue(instrumentsCacheKey, out List<InstrumentResponse>? all) && all is not null)
+        {
+            instruments = all;
+        }
+        else
+        {
+            instruments = await t212.GetInstrumentsAsync();
+            cache.Set(instrumentsCacheKey, instruments, TimeSpan.FromHours(24));
+        }
 
         var match = instruments.FirstOrDefault(i =>
             i.Name.Equals(symbol, StringComparison.OrdinalIgnoreCase)
