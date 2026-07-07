@@ -48,24 +48,56 @@
         <div class="approvals-list">
           @for (approval of approvals(); track approval.id) {
             <mat-card class="panel approval-row">
-              <div class="approval-info">
+              <div class="approval-header">
                 <span class="approval-date">{{ approval.tradeDate | date: 'EEEE d MMM yyyy' }}</span>
                 @if (approval.isApproved) {
                   <span class="badge approved">
                     Approved {{ approval.approvedAt | date: 'HH:mm' }}
-                    @if (approval.approvedVia) {
-                      via {{ approval.approvedVia }}
-                    }
-                    @if (approval.approvedSymbols) {
-                      · {{ approval.approvedSymbols }}
-                    }
+                    @if (approval.approvedVia) { via {{ approval.approvedVia }} }
                   </span>
                 } @else {
-                  <span class="badge pending">Pending</span>
+                  <span class="badge pending">Pending approval</span>
                 }
               </div>
+
+              @if (approval.candidates.length > 0) {
+                <p class="candidates-intro">
+                  The following {{ approval.candidates.length === 1 ? 'stock' : 'stocks' }} will be attempted if available cash allows:
+                </p>
+                <table class="candidates-table">
+                  <thead>
+                    <tr>
+                      <th>Symbol</th>
+                      <th>Setup</th>
+                      <th>Conviction</th>
+                      <th>Price</th>
+                      <th>Stop</th>
+                      <th>Target</th>
+                      <th>R:R</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (c of approval.candidates; track c.symbol) {
+                      <tr>
+                        <td class="symbol">{{ c.symbol }}</td>
+                        <td>{{ c.setupType }}</td>
+                        <td>{{ c.conviction !== null ? (c.conviction | number: '1.2-2') : '—' }}</td>
+                        <td>£{{ c.price | number: '1.2-2' }}</td>
+                        <td>{{ c.stop !== null ? ('£' + (c.stop | number: '1.2-2')) : '—' }}</td>
+                        <td>{{ c.target !== null ? ('£' + (c.target | number: '1.2-2')) : '—' }}</td>
+                        <td>{{ c.riskReward !== null ? (c.riskReward | number: '1.1-1') + ':1' : '—' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              } @else {
+                <p class="muted small">No candidate detail available (re-run Research to populate).</p>
+              }
+
               @if (!approval.isApproved) {
-                <button mat-raised-button color="primary" (click)="approveTrade(approval)">Approve</button>
+                <div class="approval-actions">
+                  <button mat-raised-button color="primary" (click)="approveTrade(approval)">Approve trades</button>
+                </div>
               }
             </mat-card>
           }

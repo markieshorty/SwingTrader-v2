@@ -623,7 +623,22 @@ api.MapPost("/refinement/reject", async (
 // now. The email is just a reminder pointing here rather than carrying an
 // actionable link, so this is authenticated like any other endpoint.
 api.MapGet("/approvals", async (IApprovalRepository approvals, IAccountContext ctx) =>
-    Results.Ok(await approvals.ListRecentAsync(ctx.AccountId, 30)));
+{
+    var rows = await approvals.ListRecentAsync(ctx.AccountId, 30);
+    var result = rows.Select(a => new
+    {
+        a.Id,
+        a.TradeDate,
+        a.IsApproved,
+        a.ApprovedAt,
+        a.ApprovedSymbols,
+        a.ApprovedVia,
+        Candidates = a.CandidatesJson is null
+            ? []
+            : JsonSerializer.Deserialize<JsonElement[]>(a.CandidatesJson) ?? [],
+    });
+    return Results.Ok(result);
+});
 
 api.MapPost("/approvals/{id:int}/approve", async (
     int id,

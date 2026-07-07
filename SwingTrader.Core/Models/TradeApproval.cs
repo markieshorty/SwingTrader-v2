@@ -9,4 +9,5 @@ public class TradeApproval : BaseEntity
     public string? ApprovedSymbols { get; set; }
     public bool IsExpired { get; set; } = false;
     public string? ApprovedVia { get; set; }
+    public string? CandidatesJson { get; set; }
 }

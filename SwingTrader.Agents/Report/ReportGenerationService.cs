@@ -636,8 +636,18 @@ public class ReportGenerationService(
         int accountId, DateOnly reportDate, string markdown, string? approvalMarkdown, List<StockSignal> buys,
         PortfolioState portfolio, string marketContext, string? token)
     {
-        var topBuySymbols = buys.Take(reportConfig.Value.MaxBuysInReport)
-                                .Select(b => b.Symbol).ToList();
+        var topBuys = buys.Take(reportConfig.Value.MaxBuysInReport).ToList();
+        var topBuySymbols = topBuys.Select(b => b.Symbol).ToList();
+        var candidatesJson = JsonSerializer.Serialize(topBuys.Select(b => new
+        {
+            b.Symbol,
+            SetupType = b.SetupType.ToString(),
+            Conviction = b.ConvictionScore,
+            Price = b.CurrentPrice,
+            Stop = b.CalculatedStopLoss,
+            Target = b.CalculatedTarget,
+            RiskReward = b.RiskRewardRatio,
+        }));
         var nearStopSymbols = portfolio.Positions
                                        .Where(p => p.IsNearStop)
                                        .Select(p => p.Trade.Symbol).ToList();
@@ -684,6 +694,7 @@ public class ReportGenerationService(
                     ApprovalToken = token,
                     IsApproved = false,
                     IsExpired = false,
+                    CandidatesJson = candidatesJson,
                 };
                 await approvalRepo.AddAsync(approval);
                 logger.LogInformation("Approval token created for {Date}: {Token}", reportDate, token[..8] + "...");

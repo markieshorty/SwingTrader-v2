@@ -388,6 +388,16 @@ export interface NotificationRecipientDto {
   tradeApprovalEnabled: boolean;
 }
 
+export interface TradeApprovalCandidateDto {
+  symbol: string;
+  setupType: string;
+  conviction: number | null;
+  price: number;
+  stop: number | null;
+  target: number | null;
+  riskReward: number | null;
+}
+
 export interface TradeApprovalDto {
   id: number;
   tradeDate: string;
@@ -395,4 +405,5 @@ export interface TradeApprovalDto {
   approvedAt: string | null;
   approvedSymbols: string | null;
   approvedVia: string | null;
+  candidates: TradeApprovalCandidateDto[];
 }

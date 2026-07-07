@@ -15,7 +15,7 @@ import { DashboardDataService } from '../../core/services/dashboard-data.service
 import { ApiService } from '../../core/services/api.service';
 import { OpenPositionsComponent } from './open-positions/open-positions.component';
 import { TradeHistoryComponent } from './trade-history/trade-history.component';
-import { TradeApprovalDto, TradeDto } from '../../core/models/dtos';
+import { TradeApprovalCandidateDto, TradeApprovalDto, TradeDto } from '../../core/models/dtos';
 import { ConfirmApproveDialogComponent } from '../../shared/components/confirm-approve-dialog/confirm-approve-dialog.component';
 import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
 
