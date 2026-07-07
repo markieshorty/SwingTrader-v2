@@ -644,6 +644,7 @@ api.MapPost("/approvals/{id:int}/approve", async (
     int id,
     ApproveTradeApprovalRequest req,
     IApprovalRepository approvals,
+    IJobLogRepository jobLog,
     IAccountContext ctx) =>
 {
     var approval = await approvals.GetByIdAsync(ctx.AccountId, id);
@@ -657,6 +658,11 @@ api.MapPost("/approvals/{id:int}/approve", async (
     approval.ApprovedVia = "app";
     await approvals.UpdateAsync(approval);
 
+    // Remove today's Execution job log entry so the Scheduler re-enqueues
+    // it on its next 5-minute tick — allowing late approvals to still trade
+    // today rather than waiting until tomorrow.
+    await jobLog.DeleteAsync(ctx.AccountId, "Execution", approval.TradeDate);
+
     return Results.Ok();
 });
 
@@ -668,6 +674,7 @@ app.MapGet("/approve", async (
     string token,
     string? symbols,
     IApprovalRepository approvals,
+    IJobLogRepository jobLog,
     CancellationToken ct) =>
 {
     var approval = await approvals.GetByTokenAsync(token);
@@ -684,6 +691,8 @@ app.MapGet("/approve", async (
     approval.ApprovedSymbols = string.IsNullOrWhiteSpace(symbols) ? null : symbols;
     approval.ApprovedVia = "email";
     await approvals.UpdateAsync(approval);
+
+    await jobLog.DeleteAsync(approval.AccountId, "Execution", approval.TradeDate, ct);
 
     var scopeText = string.IsNullOrWhiteSpace(symbols) ? "all of today's buy signals" : $"symbols: {symbols}";
     return Results.Content(

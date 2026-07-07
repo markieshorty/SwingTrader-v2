@@ -10,4 +10,5 @@ public interface IJobLogRepository
     Task MarkProcessingAsync(int accountId, string jobType, DateOnly jobDate, CancellationToken ct = default);
     Task MarkCompletedAsync(int accountId, string jobType, DateOnly jobDate, CancellationToken ct = default);
     Task MarkFailedAsync(int accountId, string jobType, DateOnly jobDate, string errorMessage, CancellationToken ct = default);
+    Task DeleteAsync(int accountId, string jobType, DateOnly jobDate, CancellationToken ct = default);
 }

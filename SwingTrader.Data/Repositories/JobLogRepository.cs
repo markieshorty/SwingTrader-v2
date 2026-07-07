@@ -52,4 +52,12 @@ public class JobLogRepository(SwingTraderDbContext db) : IJobLogRepository
         entry.ErrorMessage = errorMessage;
         await db.SaveChangesAsync(ct);
     }
+
+    public async Task DeleteAsync(int accountId, string jobType, DateOnly jobDate, CancellationToken ct = default)
+    {
+        var entry = await FindAsync(accountId, jobType, jobDate, ct);
+        if (entry is null) return;
+        db.JobLogEntries.Remove(entry);
+        await db.SaveChangesAsync(ct);
+    }
 }
