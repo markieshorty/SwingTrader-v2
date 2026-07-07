@@ -798,20 +798,20 @@ api.MapPut("/account/me/email", async (
     if (!string.IsNullOrWhiteSpace(oldEmail))
         await recipients.UpdateEmailIfMatchesAsync(ctx.AccountId, oldEmail, newEmail);
 
-    // Covers accounts created before the auto-seed existed, where the
-    // recipient rename above is a no-op (nothing matched the old synthetic
-    // email) - guarantees the confirmed email ends up somewhere in the
-    // recipients list without duplicating one the user already added
-    // manually.
-    var existingRecipients = await recipients.ListAsync(ctx.AccountId);
-    if (!existingRecipients.Any(r => r.Email.Equals(newEmail, StringComparison.OrdinalIgnoreCase)))
+    // Only Owners should be auto-seeded into the recipients list — Members
+    // joining via invite should never appear there.
+    if (ctx.Role == AccountRole.Owner)
     {
-        await recipients.AddAsync(new NotificationRecipient
+        var existingRecipients = await recipients.ListAsync(ctx.AccountId);
+        if (!existingRecipients.Any(r => r.Email.Equals(newEmail, StringComparison.OrdinalIgnoreCase)))
         {
-            AccountId = ctx.AccountId,
-            Email = newEmail,
-            Categories = NotificationCategory.All,
-        });
+            await recipients.AddAsync(new NotificationRecipient
+            {
+                AccountId = ctx.AccountId,
+                Email = newEmail,
+                Categories = NotificationCategory.All,
+            });
+        }
     }
 
     return Results.Ok();
