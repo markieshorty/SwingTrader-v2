@@ -97,7 +97,11 @@
               @if (!approval.isApproved) {
                 <div class="approval-actions">
                   @if (isToday(approval.tradeDate)) {
-                    <button mat-raised-button color="primary" (click)="approveTrade(approval)">Approve trades</button>
+                    @if (isOwner()) {
+                      <button mat-raised-button color="primary" (click)="approveTrade(approval)">Approve trades</button>
+                    } @else {
+                      <span class="muted small">Only the account owner can approve trades.</span>
+                    }
                   } @else {
                     <span class="muted small">Expired — signals are stale. New signals will be generated today.</span>
                   }

@@ -52,10 +52,15 @@ export class TradesComponent {
   positions = toSignal(this.data.positions$, { initialValue: [] });
   closedTrades = signal<TradeDto[]>([]);
   approvals = signal<TradeApprovalDto[]>([]);
+  isOwner = signal(false);
 
   selectedTabIndex = signal(0);
 
   constructor() {
+    this.api.getAccountSettings().subscribe({
+      next: (s) => this.isOwner.set(s.role === 'Owner'),
+      error: () => {},
+    });
     this.api.getRecentTrades(365).subscribe({
       next: (trades) => this.closedTrades.set(trades.filter((t) => t.status !== 'Open')),
       error: () => this.closedTrades.set([]),

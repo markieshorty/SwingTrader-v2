@@ -660,6 +660,9 @@ api.MapPost("/approvals/{id:int}/approve", async (
     IActivityLogRepository activityLog,
     IAccountContext ctx) =>
 {
+    if (ctx.Role != AccountRole.Owner)
+        return Results.Forbid();
+
     var approval = await approvals.GetByIdAsync(ctx.AccountId, id);
     if (approval is null) return Results.NotFound();
     if (approval.IsApproved)
