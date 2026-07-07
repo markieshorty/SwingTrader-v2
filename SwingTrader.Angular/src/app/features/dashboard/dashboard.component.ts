@@ -18,7 +18,7 @@ import { StopTargetBarComponent } from '../../shared/components/stop-target-bar/
 import { ConvictionBarComponent } from '../../shared/components/conviction-bar/conviction-bar.component';
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
 import { defaultColDef } from '../../shared/ag-grid-defaults';
-import { NextRunDto, SignalDto, TradeDto, TradingConfigDto } from '../../core/models/dtos';
+import { NextRunDto, PositionDto, SignalDto, TradeDto, TradingConfigDto } from '../../core/models/dtos';
 import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
 
 const SIGNAL_TAB_NAMES = ['buy', 'watch', 'hold', 'avoid'] as const;
@@ -116,6 +116,12 @@ export class DashboardComponent {
     this.loadAccountSettings();
     this.loadNextRuns();
     this.activeTabIndex.set(readTabIndexFromRoute(this.route, SIGNAL_TAB_NAMES));
+  }
+
+  heldLabel(position: PositionDto): string {
+    if (position.daysHeld >= 1) return `${position.daysHeld} days held`;
+    const hours = Math.floor((Date.now() - new Date(position.entryDate).getTime()) / 3_600_000);
+    return `${hours} hour${hours === 1 ? '' : 's'} held`;
   }
 
   onSignalTabChange(index: number): void {

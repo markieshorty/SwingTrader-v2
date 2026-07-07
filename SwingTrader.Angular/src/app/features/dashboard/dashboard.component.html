@@ -73,7 +73,7 @@
           </div>
           <app-stop-target-bar [position]="position" />
           <div class="position-footer">
-            <span>{{ position.daysHeld }} days held</span>
+            <span>{{ heldLabel(position) }}</span>
             @if (position.isNearStop) {
               <span class="warning">⚠️ Near stop</span>
             }
