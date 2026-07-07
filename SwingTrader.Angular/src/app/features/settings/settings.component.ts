@@ -344,7 +344,11 @@ export class SettingsComponent {
   }
 
   removeKey(provider: ApiKeyProvider): void {
-    this.api.deleteKey(provider).subscribe({ next: () => this.loadKeyStatuses() });
+    if (!confirm(`Remove the ${this.providerLabel(provider)} key? You will need to re-enter it to use this integration again.`)) return;
+    this.api.deleteKey(provider).subscribe({
+      next: () => this.loadKeyStatuses(),
+      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to remove key.'), 'Dismiss', { duration: 4000 }),
+    });
   }
 
   saveTradingConfig(): void {
