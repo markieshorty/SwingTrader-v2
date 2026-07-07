@@ -372,9 +372,11 @@ export class SettingsComponent {
             'Set up now',
             { duration: 8000 },
           );
-          ref.onAction().subscribe(() =>
-            writeTabIndexToRoute(this.router, this.route, TAB_NAMES, TAB_NAMES.indexOf('notifications'), this.titleService, 'Settings'),
-          );
+          ref.onAction().subscribe(() => {
+            const idx = TAB_NAMES.indexOf('notifications');
+            this.selectedTabIndex.set(idx);
+            writeTabIndexToRoute(this.router, this.route, TAB_NAMES, idx, this.titleService, 'Settings');
+          });
         } else {
           this.snackbar.open('Trading settings saved', 'Dismiss', { duration: 3000 });
         }
