@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SwingTrader.Core.Models;
 
 namespace SwingTrader.Data;
@@ -36,7 +37,14 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         base.ConfigureConventions(configurationBuilder);
-        configurationBuilder.Properties<DateTime>().HaveColumnType("datetime2");
+        // SQL Server returns DateTime with DateTimeKind.Unspecified; mark them
+        // all as UTC so System.Text.Json serializes with a Z suffix and Angular
+        // converts to local time (BST etc.) correctly.
+        configurationBuilder.Properties<DateTime>()
+            .HaveColumnType("datetime2")
+            .HaveConversion<UtcDateTimeConverter>();
+        configurationBuilder.Properties<DateTime?>()
+            .HaveConversion<NullableUtcDateTimeConverter>();
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -362,6 +370,12 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     // see the AddMultipleWatchlists migration for the equivalent backfill
     // applied to every other (non-seed-data) account's existing items.
     public const int SystemWatchlistId = 1;
+
+    private sealed class UtcDateTimeConverter()
+        : ValueConverter<DateTime, DateTime>(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+
+    private sealed class NullableUtcDateTimeConverter()
+        : ValueConverter<DateTime?, DateTime?>(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : null);
 
     private static void SeedWatchlist(ModelBuilder modelBuilder)
     {
