@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
+using SwingTrader.Infrastructure.Configuration;
 using SwingTrader.Infrastructure.HttpClients;
 using SwingTrader.Infrastructure.HttpClients.Dtos;
 using SwingTrader.Infrastructure.Services;
@@ -14,8 +16,11 @@ public class PositionExitService(
     INotificationRecipientRepository recipients,
     IEmailService emailService,
     IMemoryCache cache,
+    IOptions<ExecutionConfig> executionConfig,
     ILogger<PositionExitService> logger) : IPositionExitService
 {
+    private readonly ExecutionConfig _execution = executionConfig.Value;
+
     public async Task<PositionExitResult> ClosePositionAsync(
         int accountId,
         Trade trade,
@@ -43,6 +48,14 @@ public class PositionExitService(
 
         try
         {
+            // MonitorService already called t212.GetAccountSummaryAsync() at the top
+            // of this cycle (circuit breaker check), and ResolveT212TickerAsync above
+            // may have just called GetInstrumentsAsync() too — space this write call
+            // out from those reads so a run with multiple momentum exits doesn't stack
+            // T212 calls back-to-back into the same rate-limit bucket. Same delay
+            // ExecutionService uses between order placements.
+            await Task.Delay(TimeSpan.FromSeconds(_execution.DelayBetweenOrdersSeconds), ct);
+
             // T212's market order endpoint is direction-agnostic — a negative
             // quantity sells. This is the only place in the app that does so.
             var order = await t212.PlaceMarketOrderAsync(new MarketOrderRequest(ticker, -trade.Quantity));
