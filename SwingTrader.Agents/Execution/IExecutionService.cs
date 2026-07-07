@@ -6,7 +6,8 @@ public record ExecutionResult(
     int OrdersPlaced,
     int OrdersFailed,
     int SignalsSkipped,
-    string Summary
+    string Summary,
+    IReadOnlyList<string> PlacedSymbols
 );
 
 public interface IExecutionService

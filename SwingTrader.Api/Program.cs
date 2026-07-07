@@ -677,7 +677,7 @@ api.MapPost("/approvals/{id:int}/approve", async (
 
     await jobLog.DeleteAsync(ctx.AccountId, "Execution", approval.TradeDate);
     await activityLog.LogAsync(ctx.AccountId, "UserAction", "Trade Approved", "Info",
-        $"Trades approved for {approval.TradeDate:dd MMM yyyy} via app");
+        BuildApprovalActivityMessage(approval, "app"));
 
     return Results.Ok();
 });
@@ -711,7 +711,7 @@ app.MapGet("/approve", async (
 
     await jobLog.DeleteAsync(approval.AccountId, "Execution", approval.TradeDate, ct);
     await activityLog.LogAsync(approval.AccountId, "UserAction", "Trade Approved", "Info",
-        $"Trades approved for {approval.TradeDate:dd MMM yyyy} via email", ct);
+        BuildApprovalActivityMessage(approval, "email"), ct);
 
     var scopeText = string.IsNullOrWhiteSpace(symbols) ? "all of today's buy signals" : $"symbols: {symbols}";
     return Results.Content(
@@ -1410,6 +1410,28 @@ adminGroup.MapGet("/me", () => Results.Ok(new { isAdmin = true }));
 
 // "Onboarding complete" is computed from key statuses (see
 // onboarding.guard.ts's isOnboardingComplete) rather than trusted from the
+static string BuildApprovalActivityMessage(TradeApproval approval, string via)
+{
+    var symbols = new List<string>();
+    if (!string.IsNullOrWhiteSpace(approval.CandidatesJson))
+    {
+        try
+        {
+            var candidates = JsonSerializer.Deserialize<JsonElement[]>(approval.CandidatesJson);
+            if (candidates is not null)
+                symbols = candidates
+                    .Where(c => c.TryGetProperty("symbol", out _))
+                    .Select(c => c.GetProperty("symbol").GetString() ?? "")
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .ToList();
+        }
+        catch { /* ignore deserialization errors */ }
+    }
+
+    var symbolPart = symbols.Count > 0 ? $" — candidates: {string.Join(", ", symbols)}" : "";
+    return $"Approved for {approval.TradeDate:dd MMM yyyy} via {via}{symbolPart}";
+}
+
 // DB column alone. Claude isn't required here - it has a shared fallback
 // key (see UserKeyService.GetKeyAsync), so accounts never need their own.
 static bool IsReallyOnboarded(Dictionary<string, KeyStatus> statuses)

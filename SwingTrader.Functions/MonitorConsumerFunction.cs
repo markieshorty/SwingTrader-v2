@@ -38,8 +38,12 @@ public class MonitorConsumerFunction(
             await heartbeats.UpsertAsync(message.AccountId, "Monitor", "Success", summary);
 
             if (result.CircuitBreakerTriggered)
+            {
+                var positions = result.FlaggedExits.Select(e => e.Symbol).Distinct().ToList();
+                var positionList = positions.Count > 0 ? $" — positions: {string.Join(", ", positions)}" : "";
                 await activityLog.LogAsync(message.AccountId, "SystemEvent", "Circuit Breaker", "Warning",
-                    "Portfolio circuit breaker triggered — manual review required", ct);
+                    $"Portfolio circuit breaker triggered{positionList} — manual review required", ct);
+            }
 
             foreach (var exit in result.FlaggedExits)
                 await activityLog.LogAsync(message.AccountId, "SystemEvent", "Exit Signal", "Warning",

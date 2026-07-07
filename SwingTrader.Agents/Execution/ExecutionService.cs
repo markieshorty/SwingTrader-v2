@@ -50,7 +50,7 @@ public class ExecutionService(
             if (approval is null || !approval.IsApproved)
             {
                 logger.LogWarning("Execution skipped for account {AccountId} on {Date} — no approval found", accountId, date);
-                return new ExecutionResult(0, 0, 0, "No approval for today");
+                return new ExecutionResult(0, 0, 0, "No approval for today", []);
             }
             if (!string.IsNullOrWhiteSpace(approval.ApprovedSymbols))
                 approvedSymbols = approval.ApprovedSymbols.Split(',', StringSplitOptions.RemoveEmptyEntries)
@@ -74,7 +74,7 @@ public class ExecutionService(
         if (signals.Count == 0)
         {
             logger.LogInformation("No eligible signals to execute for account {AccountId} on {Date}", accountId, date);
-            return new ExecutionResult(0, 0, allSignals.Count, "No eligible signals");
+            return new ExecutionResult(0, 0, allSignals.Count, "No eligible signals", []);
         }
 
         // Step 3 — verify account state
@@ -86,7 +86,7 @@ public class ExecutionService(
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to retrieve T212 account summary for account {AccountId} — aborting execution", accountId);
-            return new ExecutionResult(0, 0, signals.Count, "Account summary unavailable");
+            return new ExecutionResult(0, 0, signals.Count, "Account summary unavailable", []);
         }
 
         // Defensive: a real account is never actually worth £0. Sizing
@@ -97,7 +97,7 @@ public class ExecutionService(
             logger.LogError(
                 "T212 account summary returned a non-positive total ({Total:F2}) for account {AccountId} — aborting execution",
                 accountSummary.TotalValue, accountId);
-            return new ExecutionResult(0, 0, signals.Count, "Account summary looked invalid (zero total)");
+            return new ExecutionResult(0, 0, signals.Count, "Account summary looked invalid (zero total)", []);
         }
 
         var availableCash = accountSummary.Cash.AvailableToTrade;
@@ -133,6 +133,7 @@ public class ExecutionService(
 
         // Step 4 — execute signals
         int placed = 0, failed = 0, skipped = 0;
+        var placedSymbols = new List<string>();
 
         foreach (var signal in signals)
         {
@@ -210,6 +211,7 @@ public class ExecutionService(
                 await signalRepo.UpdateAsync(signal);
 
                 availableCash -= sizing.EstimatedCost;
+                placedSymbols.Add(signal.Symbol);
                 placed++;
 
                 if (placed < signals.Count)
@@ -257,7 +259,8 @@ public class ExecutionService(
         }
 
         // Step 6 — send notification email if anything happened
-        var summary = $"Execution {date:dd MMM}: {placed} placed, {failed} failed, {skipped} skipped";
+        var symbolList = placedSymbols.Count > 0 ? $" ({string.Join(", ", placedSymbols)})" : "";
+        var summary = $"{placed} placed{symbolList}, {failed} failed, {skipped} skipped";
         if (placed > 0 || failed > 0)
         {
             try
@@ -293,7 +296,7 @@ public class ExecutionService(
         }
 
         logger.LogInformation("Account {AccountId}: {Summary}", accountId, summary);
-        return new ExecutionResult(placed, failed, skipped, summary);
+        return new ExecutionResult(placed, failed, skipped, summary, placedSymbols);
     }
 
     private async Task PopulateMarketContextAsync(Trade trade, IFinnhubClient finnhub, ITiingoClient tiingo, CancellationToken ct)
