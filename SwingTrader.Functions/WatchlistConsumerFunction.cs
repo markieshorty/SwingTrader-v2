@@ -40,7 +40,7 @@ public class WatchlistConsumerFunction(
                 logger.LogWarning(
                     "Insufficient candidates ({Count}) for account {AccountId} — watchlist unchanged",
                     candidates.Count, message.AccountId);
-                await heartbeats.UpsertAsync("Watchlist", "Warning", $"Insufficient candidates ({candidates.Count}) — watchlist unchanged");
+                await heartbeats.UpsertAsync(message.AccountId, "Watchlist", "Warning", $"Insufficient candidates ({candidates.Count}) — watchlist unchanged");
                 await jobLog.MarkCompletedAsync(message.AccountId, "Watchlist", jobDate, ct);
                 return;
             }
@@ -74,19 +74,19 @@ public class WatchlistConsumerFunction(
             if (selections is null || selections.Count == 0)
             {
                 logger.LogWarning("Watchlist selection returned empty for account {AccountId} — watchlist unchanged", message.AccountId);
-                await heartbeats.UpsertAsync("Watchlist", "Warning", "Selection returned empty — watchlist unchanged");
+                await heartbeats.UpsertAsync(message.AccountId, "Watchlist", "Warning", "Selection returned empty — watchlist unchanged");
                 await jobLog.MarkCompletedAsync(message.AccountId, "Watchlist", jobDate, ct);
                 return;
             }
 
             await updater.UpdateAsync(message.AccountId, selections, ct);
 
-            await heartbeats.UpsertAsync("Watchlist", "Success", $"{selections.Count} symbols selected from {candidates.Count} candidates");
+            await heartbeats.UpsertAsync(message.AccountId, "Watchlist", "Success", $"{selections.Count} symbols selected from {candidates.Count} candidates");
             await jobLog.MarkCompletedAsync(message.AccountId, "Watchlist", jobDate, ct);
         }
         catch (Exception ex)
         {
-            await heartbeats.UpsertAsync("Watchlist", "Failed", ex.Message);
+            await heartbeats.UpsertAsync(message.AccountId, "Watchlist", "Failed", ex.Message);
             await jobLog.MarkFailedAsync(message.AccountId, "Watchlist", jobDate, ex.Message, ct);
             throw;
         }

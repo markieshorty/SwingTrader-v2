@@ -12,8 +12,8 @@ using SwingTrader.Data;
 namespace SwingTrader.Data.Migrations
 {
     [DbContext(typeof(SwingTraderDbContext))]
-    [Migration("20260707145011_AddWorkerRunLog")]
-    partial class AddWorkerRunLog
+    [Migration("20260707150213_AddActivityLog")]
+    partial class AddActivityLog
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -176,6 +176,48 @@ namespace SwingTrader.Data.Migrations
                     b.HasIndex("AccountId");
 
                     b.ToTable("AccountRiskProfiles");
+                });
+
+            modelBuilder.Entity("SwingTrader.Core.Models.ActivityLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AccountId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Message")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId");
+
+                    b.ToTable("ActivityLogs");
                 });
 
             modelBuilder.Entity("SwingTrader.Core.Models.AdminActionLog", b =>
@@ -1781,45 +1823,16 @@ namespace SwingTrader.Data.Migrations
                     b.ToTable("WorkerHeartbeats");
                 });
 
-            modelBuilder.Entity("SwingTrader.Core.Models.WorkerRunLog", b =>
+            modelBuilder.Entity("SwingTrader.Core.Models.AccountRiskProfile", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("AccountId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Message")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("RanAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Result")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("WorkerName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AccountId");
-
-                    b.ToTable("WorkerRunLogs");
+                    b.HasOne("SwingTrader.Core.Models.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
-            modelBuilder.Entity("SwingTrader.Core.Models.AccountRiskProfile", b =>
+            modelBuilder.Entity("SwingTrader.Core.Models.ActivityLog", b =>
                 {
                     b.HasOne("SwingTrader.Core.Models.Account", null)
                         .WithMany()
@@ -1990,15 +2003,6 @@ namespace SwingTrader.Data.Migrations
                 });
 
             modelBuilder.Entity("SwingTrader.Core.Models.WorkerHeartbeat", b =>
-                {
-                    b.HasOne("SwingTrader.Core.Models.Account", null)
-                        .WithMany()
-                        .HasForeignKey("AccountId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("SwingTrader.Core.Models.WorkerRunLog", b =>
                 {
                     b.HasOne("SwingTrader.Core.Models.Account", null)
                         .WithMany()

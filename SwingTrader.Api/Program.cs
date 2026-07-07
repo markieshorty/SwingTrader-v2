@@ -145,6 +145,7 @@ builder.Services.AddScoped<ISignalRepository, SignalRepository>();
 builder.Services.AddScoped<ITradeRepository, TradeRepository>();
 builder.Services.AddScoped<IPortfolioRepository, PortfolioRepository>();
 builder.Services.AddScoped<IWorkerHeartbeatRepository, WorkerHeartbeatRepository>();
+builder.Services.AddScoped<IActivityLogRepository, ActivityLogRepository>();
 builder.Services.AddScoped<IApprovalRepository, ApprovalRepository>();
 builder.Services.AddScoped<IRefinementSuggestionRepository, RefinementSuggestionRepository>();
 builder.Services.AddScoped<ISystemChecklistRepository, SystemChecklistRepository>();
@@ -214,15 +215,16 @@ if (app.Environment.IsDevelopment())
 // Protected API surface. Refinement/readiness/run endpoints still land once
 // those agents are ported.
 var api = app.MapGroup("/api").RequireAuthorization();
-api.MapGet("/status", async (IWorkerHeartbeatRepository heartbeats) =>
+api.MapGet("/status", async (IActivityLogRepository activityLog, IAccountContext ctx) =>
 {
-    var logs = await heartbeats.GetRunLogsAsync(200);
-    var runs = logs.Select(l => new
+    var entries = await activityLog.GetRecentAsync(ctx.AccountId);
+    var runs = entries.Select(e => new
     {
-        workerName = l.WorkerName,
-        ranAt = l.RanAt,
-        result = l.Result,
-        message = l.Message,
+        e.Category,
+        e.Title,
+        e.Result,
+        e.Message,
+        e.OccurredAt,
     });
     return Results.Ok(new { status = "ok", timestamp = DateTime.UtcNow, runs });
 });
@@ -655,6 +657,7 @@ api.MapPost("/approvals/{id:int}/approve", async (
     ApproveTradeApprovalRequest req,
     IApprovalRepository approvals,
     IJobLogRepository jobLog,
+    IActivityLogRepository activityLog,
     IAccountContext ctx) =>
 {
     var approval = await approvals.GetByIdAsync(ctx.AccountId, id);
@@ -672,10 +675,9 @@ api.MapPost("/approvals/{id:int}/approve", async (
     approval.ApprovedVia = "app";
     await approvals.UpdateAsync(approval);
 
-    // Remove today's Execution job log entry so the Scheduler re-enqueues
-    // it on its next 5-minute tick — allowing late approvals to still trade
-    // today rather than waiting until tomorrow.
     await jobLog.DeleteAsync(ctx.AccountId, "Execution", approval.TradeDate);
+    await activityLog.LogAsync(ctx.AccountId, "UserAction", "Trade Approved", "Info",
+        $"Trades approved for {approval.TradeDate:dd MMM yyyy} via app");
 
     return Results.Ok();
 });
@@ -689,6 +691,7 @@ app.MapGet("/approve", async (
     string? symbols,
     IApprovalRepository approvals,
     IJobLogRepository jobLog,
+    IActivityLogRepository activityLog,
     CancellationToken ct) =>
 {
     var approval = await approvals.GetByTokenAsync(token);
@@ -707,6 +710,8 @@ app.MapGet("/approve", async (
     await approvals.UpdateAsync(approval);
 
     await jobLog.DeleteAsync(approval.AccountId, "Execution", approval.TradeDate, ct);
+    await activityLog.LogAsync(approval.AccountId, "UserAction", "Trade Approved", "Info",
+        $"Trades approved for {approval.TradeDate:dd MMM yyyy} via email", ct);
 
     var scopeText = string.IsNullOrWhiteSpace(symbols) ? "all of today's buy signals" : $"symbols: {symbols}";
     return Results.Content(

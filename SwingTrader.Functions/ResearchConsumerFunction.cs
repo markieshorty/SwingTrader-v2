@@ -15,6 +15,7 @@ public class ResearchConsumerFunction(
     IJobLogRepository jobLog,
     IWatchlistRepository watchlist,
     IResearchPipeline pipeline,
+    IWorkerHeartbeatRepository heartbeats,
     IUserHttpClientFactory clientFactory,
     ILogger<ResearchConsumerFunction> logger)
 {
@@ -68,10 +69,12 @@ public class ResearchConsumerFunction(
 
             await Task.WhenAll(tasks);
 
+            await heartbeats.UpsertAsync(message.AccountId, "Research", "Success", $"{symbols.Count} symbol(s) scored");
             await jobLog.MarkCompletedAsync(message.AccountId, "Research", message.TradeDate, ct);
         }
         catch (Exception ex)
         {
+            await heartbeats.UpsertAsync(message.AccountId, "Research", "Failed", ex.Message);
             await jobLog.MarkFailedAsync(message.AccountId, "Research", message.TradeDate, ex.Message, ct);
             throw; // Re-throw so Service Bus retries, then dead-letters after maxDeliveryCount.
         }

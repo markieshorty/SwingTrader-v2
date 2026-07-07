@@ -19,6 +19,7 @@ public class ReportConsumerFunction(
     IReportRepository reportRepo,
     INotificationRecipientRepository recipients,
     IApprovalRepository approvalRepo,
+    IWorkerHeartbeatRepository heartbeats,
     IEmailService email,
     IUserHttpClientFactory clientFactory,
     ILogger<ReportConsumerFunction> logger)
@@ -82,10 +83,13 @@ public class ReportConsumerFunction(
                 }
             }
 
+            await heartbeats.UpsertAsync(message.AccountId, "Report", "Success",
+                toAddresses.Count > 0 ? $"Sent to {toAddresses.Count} recipient(s)" : "Generated — no recipients configured");
             await jobLog.MarkCompletedAsync(message.AccountId, "Report", message.ReportDate, ct);
         }
         catch (Exception ex)
         {
+            await heartbeats.UpsertAsync(message.AccountId, "Report", "Failed", ex.Message);
             await jobLog.MarkFailedAsync(message.AccountId, "Report", message.ReportDate, ex.Message, ct);
             throw;
         }

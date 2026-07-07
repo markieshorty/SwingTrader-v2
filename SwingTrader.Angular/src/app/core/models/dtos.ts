@@ -89,17 +89,18 @@ export interface TradeDto {
   closedAt: string | null;
 }
 
-export interface WorkerRunDto {
-  workerName: string;
-  ranAt: string;
-  result: 'Success' | 'Warning' | 'Failed' | 'Skipped';
+export interface ActivityLogDto {
+  category: string;
+  title: string;
+  result: 'Success' | 'Warning' | 'Failed' | 'Info' | 'Skipped';
   message: string | null;
+  occurredAt: string;
 }
 
 export interface StatusDto {
   status: string;
   timestamp: string;
-  runs: WorkerRunDto[];
+  runs: ActivityLogDto[];
   requiresApproval: boolean;
   approvedToday: boolean;
 }

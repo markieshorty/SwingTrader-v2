@@ -62,6 +62,7 @@ builder.Services.AddScoped<IReportRepository, ReportRepository>();
 builder.Services.AddScoped<IApprovalRepository, ApprovalRepository>();
 builder.Services.AddScoped<IWatchlistHistoryRepository, WatchlistHistoryRepository>();
 builder.Services.AddScoped<IWorkerHeartbeatRepository, WorkerHeartbeatRepository>();
+builder.Services.AddScoped<IActivityLogRepository, ActivityLogRepository>();
 builder.Services.AddScoped<IRefinementSuggestionRepository, RefinementSuggestionRepository>();
 builder.Services.AddScoped<ITierEvaluationRepository, TierEvaluationRepository>();
 builder.Services.AddScoped<IReadinessSnapshotRepository, ReadinessSnapshotRepository>();

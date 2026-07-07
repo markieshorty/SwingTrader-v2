@@ -89,26 +89,26 @@
       <h3>Worker Status</h3>
       <div class="worker-panel">
         <div class="worker-col">
-          <h4>Jobs</h4>
+          <h4>Activity</h4>
           <div class="run-log">
-            @if (workerRuns().length === 0) {
-              <p class="muted">No runs yet.</p>
+            @if (jobActivity().length === 0) {
+              <p class="muted">No activity yet.</p>
             }
-            @for (run of workerRuns(); track run.ranAt + run.workerName) {
+            @for (run of jobActivity(); track run.occurredAt + run.title) {
               <div class="run-row">
                 <span
                   class="status-dot"
-                  [class.green]="run.result === 'Success'"
+                  [class.green]="run.result === 'Success' || run.result === 'Info'"
                   [class.amber]="run.result === 'Warning' || run.result === 'Skipped'"
                   [class.red]="run.result === 'Failed'"
                 ></span>
                 <div class="run-meta">
-                  <span class="run-worker">{{ run.workerName }}</span>
+                  <span class="run-worker">{{ run.title }}</span>
                   @if (run.message) {
                     <span class="run-message" [title]="run.message">{{ run.message }}</span>
                   }
                 </div>
-                <span class="run-time">{{ run.ranAt | date: 'dd MMM HH:mm' }}</span>
+                <span class="run-time">{{ run.occurredAt | date: 'dd MMM HH:mm' }}</span>
               </div>
             }
           </div>
@@ -119,7 +119,7 @@
             @if (monitorRuns().length === 0) {
               <p class="muted">No runs yet.</p>
             }
-            @for (run of monitorRuns(); track run.ranAt) {
+            @for (run of monitorRuns(); track run.occurredAt) {
               <div class="run-row">
                 <span
                   class="status-dot"
@@ -132,7 +132,7 @@
                     <span class="run-message" [title]="run.message">{{ run.message }}</span>
                   }
                 </div>
-                <span class="run-time">{{ run.ranAt | date: 'HH:mm' }}</span>
+                <span class="run-time">{{ run.occurredAt | date: 'HH:mm' }}</span>
               </div>
             }
           </div>

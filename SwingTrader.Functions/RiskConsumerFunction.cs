@@ -15,6 +15,7 @@ namespace SwingTrader.Functions;
 public class RiskConsumerFunction(
     IJobLogRepository jobLog,
     ITierEvaluationService tierEvaluation,
+    IWorkerHeartbeatRepository heartbeats,
     IUserHttpClientFactory clientFactory,
     ILogger<RiskConsumerFunction> logger)
 {
@@ -35,10 +36,13 @@ public class RiskConsumerFunction(
                 "Risk job {JobId} for account {AccountId} — tier {Current} -> {Suggested} (applied: {Applied})",
                 message.JobId, message.AccountId, record.CurrentTier, record.SuggestedTier, record.WasApplied);
 
+            await heartbeats.UpsertAsync(message.AccountId, "Risk", "Success",
+                record.WasApplied ? $"Tier updated: {record.CurrentTier} → {record.SuggestedTier}" : $"Tier unchanged: {record.CurrentTier}");
             await jobLog.MarkCompletedAsync(message.AccountId, "Risk", message.EvaluationDate, ct);
         }
         catch (Exception ex)
         {
+            await heartbeats.UpsertAsync(message.AccountId, "Risk", "Failed", ex.Message);
             await jobLog.MarkFailedAsync(message.AccountId, "Risk", message.EvaluationDate, ex.Message, ct);
             throw;
         }

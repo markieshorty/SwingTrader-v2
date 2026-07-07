@@ -18,7 +18,7 @@ import { StopTargetBarComponent } from '../../shared/components/stop-target-bar/
 import { ConvictionBarComponent } from '../../shared/components/conviction-bar/conviction-bar.component';
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
 import { defaultColDef } from '../../shared/ag-grid-defaults';
-import { NextRunDto, PositionDto, SignalDto, TradeDto, TradingConfigDto, WorkerRunDto } from '../../core/models/dtos';
+import { ActivityLogDto, NextRunDto, PositionDto, SignalDto, TradeDto, TradingConfigDto } from '../../core/models/dtos';
 import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
 
 const SIGNAL_TAB_NAMES = ['buy', 'watch', 'hold', 'avoid'] as const;
@@ -67,25 +67,28 @@ export class DashboardComponent {
   // Any worker that failed on its most recent run flips the overall
   // system-health capsule red - a quick "is anything broken" signal
   // without having to scan the full Worker Status panel.
-  // Latest result per non-Monitor worker — if any failed, the health capsule goes red.
+  // Latest result per worker job — if any failed, the health capsule goes red.
+  // Monitor and non-WorkerRun entries are excluded (user actions don't affect system health).
   systemHealthy = computed(() => {
     const runs = this.status()?.runs ?? [];
     const seen = new Set<string>();
     for (const r of runs) {
-      if (r.workerName === 'Monitor') continue;
-      if (seen.has(r.workerName)) continue;
-      seen.add(r.workerName);
+      if (r.category !== 'WorkerRun' || r.title === 'Monitor') continue;
+      if (seen.has(r.title)) continue;
+      seen.add(r.title);
       if (r.result === 'Failed') return false;
     }
     return true;
   });
 
-  workerRuns = computed(() =>
-    (this.status()?.runs ?? []).filter(r => r.workerName !== 'Monitor'),
+  // Jobs column: all non-Monitor activity (worker runs + user actions + system events)
+  jobActivity = computed(() =>
+    (this.status()?.runs ?? []).filter(r => !(r.category === 'WorkerRun' && r.title === 'Monitor')),
   );
 
+  // Monitor column: monitor worker runs only
   monitorRuns = computed(() =>
-    (this.status()?.runs ?? []).filter(r => r.workerName === 'Monitor'),
+    (this.status()?.runs ?? []).filter(r => r.category === 'WorkerRun' && r.title === 'Monitor'),
   );
 
   activeSignals = computed<SignalDto[]>(() => {

@@ -4,13 +4,9 @@ using SwingTrader.Core.Models;
 
 namespace SwingTrader.Data.Repositories;
 
-// Worker heartbeats are process-wide, not per-account, but WorkerHeartbeat
-// still carries AccountId via BaseEntity - always the 'system' account since
-// there's no meaningful account to attribute a Functions-host-level
-// heartbeat to.
-public class WorkerHeartbeatRepository(SwingTraderDbContext context) : IWorkerHeartbeatRepository
+public class WorkerHeartbeatRepository(SwingTraderDbContext context, IActivityLogRepository activityLog) : IWorkerHeartbeatRepository
 {
-    public async Task UpsertAsync(string workerName, string result, string? message)
+    public async Task UpsertAsync(int accountId, string workerName, string result, string? message)
     {
         var existing = await context.WorkerHeartbeats
             .FirstOrDefaultAsync(x => x.WorkerName == workerName);
@@ -36,17 +32,9 @@ public class WorkerHeartbeatRepository(SwingTraderDbContext context) : IWorkerHe
             existing.UpdatedAt = now;
         }
 
-        context.WorkerRunLogs.Add(new WorkerRunLog
-        {
-            AccountId = SwingTraderDbContext.SystemAccountId,
-            WorkerName = workerName,
-            RanAt = now,
-            Result = result,
-            Message = message,
-            CreatedAt = now,
-        });
-
         await context.SaveChangesAsync();
+
+        await activityLog.LogAsync(accountId, "WorkerRun", workerName, result, message);
     }
 
     public Task<WorkerHeartbeat?> GetAsync(string workerName) =>
@@ -54,10 +42,4 @@ public class WorkerHeartbeatRepository(SwingTraderDbContext context) : IWorkerHe
 
     public async Task<IEnumerable<WorkerHeartbeat>> GetAllAsync() =>
         await context.WorkerHeartbeats.OrderBy(x => x.WorkerName).ToListAsync();
-
-    public async Task<IEnumerable<WorkerRunLog>> GetRunLogsAsync(int limit = 100) =>
-        await context.WorkerRunLogs
-            .OrderByDescending(x => x.RanAt)
-            .Take(limit)
-            .ToListAsync();
 }

@@ -16,6 +16,7 @@ namespace SwingTrader.Functions;
 public class RefinementConsumerFunction(
     IJobLogRepository jobLog,
     IRefinementService refinementService,
+    IWorkerHeartbeatRepository heartbeats,
     IUserHttpClientFactory clientFactory,
     ILogger<RefinementConsumerFunction> logger)
 {
@@ -37,10 +38,13 @@ public class RefinementConsumerFunction(
                 message.JobId, message.AccountId,
                 suggestion is null ? "skipped (insufficient trade history)" : $"suggestion #{suggestion.Id} generated");
 
+            await heartbeats.UpsertAsync(message.AccountId, "Refinement", "Success",
+                suggestion is null ? "Skipped — insufficient trade history" : $"Suggestion #{suggestion.Id} generated");
             await jobLog.MarkCompletedAsync(message.AccountId, "Refinement", message.EvaluationDate, ct);
         }
         catch (Exception ex)
         {
+            await heartbeats.UpsertAsync(message.AccountId, "Refinement", "Failed", ex.Message);
             await jobLog.MarkFailedAsync(message.AccountId, "Refinement", message.EvaluationDate, ex.Message, ct);
             throw;
         }

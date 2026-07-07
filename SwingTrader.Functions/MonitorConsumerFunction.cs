@@ -8,14 +8,11 @@ using SwingTrader.Infrastructure.HttpClients;
 
 namespace SwingTrader.Functions;
 
-// Consumer half of the Scheduler/Consumer pair (monitor-jobs queue): checks
-// open positions against stop/target/trailing-stop/time-exit rules and the
-// portfolio circuit breaker. Never places orders itself - see MonitorService
-// for why closing positions automatically is left as a manual, alerted action.
 public class MonitorConsumerFunction(
     IJobLogRepository jobLog,
     IMonitorService monitor,
     IWorkerHeartbeatRepository heartbeats,
+    IActivityLogRepository activityLog,
     IUserHttpClientFactory clientFactory,
     ILogger<MonitorConsumerFunction> logger)
 {
@@ -38,7 +35,15 @@ public class MonitorConsumerFunction(
             var summary = result.CircuitBreakerTriggered
                 ? "Circuit breaker triggered — manual review required"
                 : $"{result.PositionsChecked} checked, {result.TrailingStopsUpdated} trailing stops updated, {result.FlaggedExits.Count} exit(s) flagged";
-            await heartbeats.UpsertAsync("Monitor", "Success", summary);
+            await heartbeats.UpsertAsync(message.AccountId, "Monitor", "Success", summary);
+
+            if (result.CircuitBreakerTriggered)
+                await activityLog.LogAsync(message.AccountId, "SystemEvent", "Circuit Breaker", "Warning",
+                    "Portfolio circuit breaker triggered — manual review required", ct);
+
+            foreach (var exit in result.FlaggedExits)
+                await activityLog.LogAsync(message.AccountId, "SystemEvent", "Exit Signal", "Warning",
+                    $"{exit.Symbol} — {exit.Reason} at £{exit.CurrentPrice:F2}", ct);
 
             logger.LogInformation("Monitor job {JobId} for account {AccountId} — {Summary}", message.JobId, message.AccountId, summary);
 
@@ -46,7 +51,7 @@ public class MonitorConsumerFunction(
         }
         catch (Exception ex)
         {
-            await heartbeats.UpsertAsync("Monitor", "Failed", ex.Message);
+            await heartbeats.UpsertAsync(message.AccountId, "Monitor", "Failed", ex.Message);
             await jobLog.MarkFailedAsync(message.AccountId, "Monitor", jobDate, ex.Message, ct);
             throw;
         }

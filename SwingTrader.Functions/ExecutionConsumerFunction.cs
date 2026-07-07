@@ -16,6 +16,7 @@ public class ExecutionConsumerFunction(
     IJobLogRepository jobLog,
     IExecutionService executionService,
     IWorkerHeartbeatRepository heartbeats,
+    IActivityLogRepository activityLog,
     IUserHttpClientFactory clientFactory,
     ILogger<ExecutionConsumerFunction> logger)
 {
@@ -35,14 +36,16 @@ public class ExecutionConsumerFunction(
 
             var result = await executionService.RunAsync(message.AccountId, finnhub, tiingo, t212, message.TradeDate, ct);
 
-            await heartbeats.UpsertAsync("Execution", "Success", result.Summary);
+            await heartbeats.UpsertAsync(message.AccountId, "Execution", "Success", result.Summary);
+            if (result.OrdersPlaced > 0)
+                await activityLog.LogAsync(message.AccountId, "SystemEvent", "Trades Placed", "Info", result.Summary);
             logger.LogInformation("Execution job {JobId} for account {AccountId} — {Summary}", message.JobId, message.AccountId, result.Summary);
 
             await jobLog.MarkCompletedAsync(message.AccountId, "Execution", message.TradeDate, ct);
         }
         catch (Exception ex)
         {
-            await heartbeats.UpsertAsync("Execution", "Failed", ex.Message);
+            await heartbeats.UpsertAsync(message.AccountId, "Execution", "Failed", ex.Message);
             await jobLog.MarkFailedAsync(message.AccountId, "Execution", message.TradeDate, ex.Message, ct);
             throw;
         }
