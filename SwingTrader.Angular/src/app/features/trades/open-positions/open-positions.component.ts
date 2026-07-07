@@ -33,7 +33,7 @@ import { PositionDto } from '../../../core/models/dtos';
           }
           <div class="detail-grid">
             <span>Entry {{ position.entryDate | date: 'mediumDate' }}</span>
-            <span>{{ position.daysHeld }} days held</span>
+            <span>{{ heldLabel(position) }}</span>
             <span>Setup: {{ position.setupType }}</span>
             <span>Conviction: {{ position.convictionScoreAtEntry ?? 'n/a' }}</span>
             <span>Regime: {{ position.marketRegimeAtEntry ?? 'n/a' }}</span>
@@ -87,4 +87,10 @@ import { PositionDto } from '../../../core/models/dtos';
 })
 export class OpenPositionsComponent {
   positions = input.required<PositionDto[]>();
+
+  heldLabel(position: PositionDto): string {
+    if (position.daysHeld >= 1) return `${position.daysHeld} days held`;
+    const hours = Math.floor((Date.now() - new Date(position.entryDate).getTime()) / 3_600_000);
+    return `${hours} hour${hours === 1 ? '' : 's'} held`;
+  }
 }
