@@ -36,6 +36,16 @@ public class WorkerHeartbeatRepository(SwingTraderDbContext context) : IWorkerHe
             existing.UpdatedAt = now;
         }
 
+        context.WorkerRunLogs.Add(new WorkerRunLog
+        {
+            AccountId = SwingTraderDbContext.SystemAccountId,
+            WorkerName = workerName,
+            RanAt = now,
+            Result = result,
+            Message = message,
+            CreatedAt = now,
+        });
+
         await context.SaveChangesAsync();
     }
 
@@ -44,4 +54,10 @@ public class WorkerHeartbeatRepository(SwingTraderDbContext context) : IWorkerHe
 
     public async Task<IEnumerable<WorkerHeartbeat>> GetAllAsync() =>
         await context.WorkerHeartbeats.OrderBy(x => x.WorkerName).ToListAsync();
+
+    public async Task<IEnumerable<WorkerRunLog>> GetRunLogsAsync(int limit = 100) =>
+        await context.WorkerRunLogs
+            .OrderByDescending(x => x.RanAt)
+            .Take(limit)
+            .ToListAsync();
 }

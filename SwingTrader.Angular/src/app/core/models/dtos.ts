@@ -89,18 +89,17 @@ export interface TradeDto {
   closedAt: string | null;
 }
 
-export interface WorkerStatusDto {
+export interface WorkerRunDto {
   workerName: string;
-  lastHeartbeatAt: string;
-  lastRunResult: 'Success' | 'Warning' | 'Failed' | 'Skipped';
-  lastRunMessage: string | null;
-  nextScheduledRun: string | null;
+  ranAt: string;
+  result: 'Success' | 'Warning' | 'Failed' | 'Skipped';
+  message: string | null;
 }
 
 export interface StatusDto {
   status: string;
   timestamp: string;
-  workers: WorkerStatusDto[];
+  runs: WorkerRunDto[];
   requiresApproval: boolean;
   approvedToday: boolean;
 }

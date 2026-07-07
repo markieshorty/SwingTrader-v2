@@ -215,7 +215,17 @@ if (app.Environment.IsDevelopment())
 // those agents are ported.
 var api = app.MapGroup("/api").RequireAuthorization();
 api.MapGet("/status", async (IWorkerHeartbeatRepository heartbeats) =>
-    Results.Ok(new { status = "ok", timestamp = DateTime.UtcNow, workers = await heartbeats.GetAllAsync() }));
+{
+    var logs = await heartbeats.GetRunLogsAsync(200);
+    var runs = logs.Select(l => new
+    {
+        workerName = l.WorkerName,
+        ranAt = l.RanAt,
+        result = l.Result,
+        message = l.Message,
+    });
+    return Results.Ok(new { status = "ok", timestamp = DateTime.UtcNow, runs });
+});
 
 // Next scheduled run per job type, for the Dashboard's per-job cards -
 // mirrors SchedulerFunction's windows (see JobScheduleInfo). Same for every

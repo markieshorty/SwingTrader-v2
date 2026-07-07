@@ -87,21 +87,57 @@
 
     <mat-card class="panel">
       <h3>Worker Status</h3>
-      @if (!status()?.workers?.length) {
-        <p class="muted">No worker heartbeats yet.</p>
-      }
-      @for (worker of status()?.workers; track worker.workerName) {
-        <div class="worker-row">
-          <span
-            class="status-dot"
-            [class.green]="worker.lastRunResult === 'Success'"
-            [class.amber]="worker.lastRunResult === 'Warning' || worker.lastRunResult === 'Skipped'"
-            [class.red]="worker.lastRunResult === 'Failed'"
-          ></span>
-          <span class="worker-name">{{ worker.workerName }}</span>
-          <span class="worker-result">{{ worker.lastRunResult }}</span>
+      <div class="worker-panel">
+        <div class="worker-col">
+          <h4>Jobs</h4>
+          <div class="run-log">
+            @if (workerRuns().length === 0) {
+              <p class="muted">No runs yet.</p>
+            }
+            @for (run of workerRuns(); track run.ranAt + run.workerName) {
+              <div class="run-row">
+                <span
+                  class="status-dot"
+                  [class.green]="run.result === 'Success'"
+                  [class.amber]="run.result === 'Warning' || run.result === 'Skipped'"
+                  [class.red]="run.result === 'Failed'"
+                ></span>
+                <div class="run-meta">
+                  <span class="run-worker">{{ run.workerName }}</span>
+                  @if (run.message) {
+                    <span class="run-message" [title]="run.message">{{ run.message }}</span>
+                  }
+                </div>
+                <span class="run-time">{{ run.ranAt | date: 'dd MMM HH:mm' }}</span>
+              </div>
+            }
+          </div>
         </div>
-      }
+        <div class="worker-col">
+          <h4>Monitor</h4>
+          <div class="run-log">
+            @if (monitorRuns().length === 0) {
+              <p class="muted">No runs yet.</p>
+            }
+            @for (run of monitorRuns(); track run.ranAt) {
+              <div class="run-row">
+                <span
+                  class="status-dot"
+                  [class.green]="run.result === 'Success'"
+                  [class.amber]="run.result === 'Warning' || run.result === 'Skipped'"
+                  [class.red]="run.result === 'Failed'"
+                ></span>
+                <div class="run-meta">
+                  @if (run.message) {
+                    <span class="run-message" [title]="run.message">{{ run.message }}</span>
+                  }
+                </div>
+                <span class="run-time">{{ run.ranAt | date: 'HH:mm' }}</span>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
     </mat-card>
   </div>
 

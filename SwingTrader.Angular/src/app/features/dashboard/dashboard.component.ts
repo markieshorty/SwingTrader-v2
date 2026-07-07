@@ -18,7 +18,7 @@ import { StopTargetBarComponent } from '../../shared/components/stop-target-bar/
 import { ConvictionBarComponent } from '../../shared/components/conviction-bar/conviction-bar.component';
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
 import { defaultColDef } from '../../shared/ag-grid-defaults';
-import { NextRunDto, PositionDto, SignalDto, TradeDto, TradingConfigDto } from '../../core/models/dtos';
+import { NextRunDto, PositionDto, SignalDto, TradeDto, TradingConfigDto, WorkerRunDto } from '../../core/models/dtos';
 import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
 
 const SIGNAL_TAB_NAMES = ['buy', 'watch', 'hold', 'avoid'] as const;
@@ -67,10 +67,26 @@ export class DashboardComponent {
   // Any worker that failed on its most recent run flips the overall
   // system-health capsule red - a quick "is anything broken" signal
   // without having to scan the full Worker Status panel.
+  // Latest result per non-Monitor worker — if any failed, the health capsule goes red.
   systemHealthy = computed(() => {
-    const workers = this.status()?.workers ?? [];
-    return !workers.some((w) => w.lastRunResult === 'Failed');
+    const runs = this.status()?.runs ?? [];
+    const seen = new Set<string>();
+    for (const r of runs) {
+      if (r.workerName === 'Monitor') continue;
+      if (seen.has(r.workerName)) continue;
+      seen.add(r.workerName);
+      if (r.result === 'Failed') return false;
+    }
+    return true;
   });
+
+  workerRuns = computed(() =>
+    (this.status()?.runs ?? []).filter(r => r.workerName !== 'Monitor'),
+  );
+
+  monitorRuns = computed(() =>
+    (this.status()?.runs ?? []).filter(r => r.workerName === 'Monitor'),
+  );
 
   activeSignals = computed<SignalDto[]>(() => {
     const g = this.signals();
