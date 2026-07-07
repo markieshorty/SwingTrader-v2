@@ -36,18 +36,21 @@ public class ExecutionConsumerFunction(
 
             var result = await executionService.RunAsync(message.AccountId, finnhub, tiingo, t212, message.TradeDate, ct);
 
+            var t212Blocked = result.Summary.Contains("unavailable") || result.Summary.Contains("invalid");
             var heartbeatResult = result.OrdersPlaced > 0 ? "Success"
-                : result.OrdersFailed > 0 ? "Warning"
-                : result.Summary.Contains("unavailable") || result.Summary.Contains("invalid") ? "Warning"
+                : result.OrdersFailed > 0 || t212Blocked ? "Warning"
                 : "Info";
             await heartbeats.UpsertAsync(message.AccountId, "Execution", heartbeatResult, result.Summary);
             if (result.OrdersPlaced > 0)
                 await activityLog.LogAsync(message.AccountId, "SystemEvent", "Trades Placed", "Info", result.Summary);
-            else if (result.Summary.Contains("unavailable") || result.Summary.Contains("invalid"))
+            else if (t212Blocked)
                 await activityLog.LogAsync(message.AccountId, "SystemEvent", "Execution Failed", "Warning", result.Summary);
             logger.LogInformation("Execution job {JobId} for account {AccountId} — {Summary}", message.JobId, message.AccountId, result.Summary);
 
-            await jobLog.MarkCompletedAsync(message.AccountId, "Execution", message.TradeDate, ct);
+            if (t212Blocked)
+                await jobLog.MarkFailedAsync(message.AccountId, "Execution", message.TradeDate, result.Summary, ct);
+            else
+                await jobLog.MarkCompletedAsync(message.AccountId, "Execution", message.TradeDate, ct);
         }
         catch (Exception ex)
         {
