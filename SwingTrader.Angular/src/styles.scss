@@ -55,6 +55,29 @@ body {
   color: var(--st-text);
 }
 
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--st-border) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--st-border);
+  border-radius: 3px;
+
+  &:hover {
+    background: var(--st-muted);
+  }
+}
+
 .error-snackbar {
   --mdc-snackbar-container-color: var(--st-red);
   --mdc-snackbar-supporting-text-color: white;
