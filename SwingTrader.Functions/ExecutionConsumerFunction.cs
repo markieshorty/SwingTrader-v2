@@ -43,6 +43,8 @@ public class ExecutionConsumerFunction(
             await heartbeats.UpsertAsync(message.AccountId, "Execution", heartbeatResult, result.Summary);
             if (result.OrdersPlaced > 0)
                 await activityLog.LogAsync(message.AccountId, "SystemEvent", "Trades Placed", "Info", result.Summary);
+            else if (result.Summary.Contains("unavailable") || result.Summary.Contains("invalid"))
+                await activityLog.LogAsync(message.AccountId, "SystemEvent", "Execution Failed", "Warning", result.Summary);
             logger.LogInformation("Execution job {JobId} for account {AccountId} — {Summary}", message.JobId, message.AccountId, result.Summary);
 
             await jobLog.MarkCompletedAsync(message.AccountId, "Execution", message.TradeDate, ct);

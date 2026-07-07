@@ -194,6 +194,21 @@
   text-overflow: ellipsis;
 }
 
+.retry-btn {
+  margin-top: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  border: 1px solid var(--st-amber);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--st-amber);
+  cursor: pointer;
+  align-self: flex-start;
+
+  &:hover:not(:disabled) { background: var(--st-amber); color: #000; }
+  &:disabled { opacity: 0.5; cursor: default; }
+}
+
 .run-time {
   color: var(--st-muted);
   font-size: 11px;

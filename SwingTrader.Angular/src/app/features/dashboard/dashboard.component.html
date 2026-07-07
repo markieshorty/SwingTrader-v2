@@ -107,6 +107,13 @@
                   @if (run.message) {
                     <span class="run-message" [title]="run.message">{{ run.message }}</span>
                   }
+                  @if (run.title === 'Execution Failed' && (run.result === 'Warning' || run.result === 'Failed')) {
+                    <button
+                      class="retry-btn"
+                      [disabled]="runningAgent() === 'Execution'"
+                      (click)="runAgent('Execution')"
+                    >{{ runningAgent() === 'Execution' ? 'Running…' : 'Retry' }}</button>
+                  }
                 </div>
                 <span class="run-time">{{ run.occurredAt | date: 'dd MMM HH:mm' }}</span>
               </div>
