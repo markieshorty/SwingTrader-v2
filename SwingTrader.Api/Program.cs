@@ -619,9 +619,36 @@ api.MapPost("/refinement/reject", async (
     return result.Success ? Results.Ok() : Results.BadRequest(new { message = result.Error });
 });
 
+// In-app Approvals tab (Trades page) - the primary way to approve trades
+// now. The email is just a reminder pointing here rather than carrying an
+// actionable link, so this is authenticated like any other endpoint.
+api.MapGet("/approvals", async (IApprovalRepository approvals, IAccountContext ctx) =>
+    Results.Ok(await approvals.ListRecentAsync(ctx.AccountId, 30)));
+
+api.MapPost("/approvals/{id:int}/approve", async (
+    int id,
+    ApproveTradeApprovalRequest req,
+    IApprovalRepository approvals,
+    IAccountContext ctx) =>
+{
+    var approval = await approvals.GetByIdAsync(ctx.AccountId, id);
+    if (approval is null) return Results.NotFound();
+    if (approval.IsApproved)
+        return Results.BadRequest(new { message = "Already approved." });
+
+    approval.IsApproved = true;
+    approval.ApprovedAt = DateTime.UtcNow;
+    approval.ApprovedSymbols = string.IsNullOrWhiteSpace(req.Symbols) ? null : req.Symbols.Trim();
+    approval.ApprovedVia = "app";
+    await approvals.UpdateAsync(approval);
+
+    return Results.Ok();
+});
+
 // Approve endpoint stays public - the token in the query string IS the auth.
 // Not behind app.MapGroup("/api")/RequireAuthorization() since it's clicked
-// directly from an email link, not called by the Angular app.
+// directly from an email link, not called by the Angular app. Kept as a
+// legacy/optional path - the in-app Approvals tab above is now primary.
 app.MapGet("/approve", async (
     string token,
     string? symbols,

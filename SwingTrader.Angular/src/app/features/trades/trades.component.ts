@@ -1,15 +1,27 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router } from '@angular/router';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatCardModule } from '@angular/material/card';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartConfiguration } from 'chart.js';
 import { DashboardDataService } from '../../core/services/dashboard-data.service';
 import { ApiService } from '../../core/services/api.service';
 import { OpenPositionsComponent } from './open-positions/open-positions.component';
 import { TradeHistoryComponent } from './trade-history/trade-history.component';
-import { TradeDto } from '../../core/models/dtos';
+import { TradeApprovalDto, TradeDto } from '../../core/models/dtos';
+import { ConfirmApproveDialogComponent } from '../../shared/components/confirm-approve-dialog/confirm-approve-dialog.component';
+import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
+
+// Query-param-driven tab selection (?tab=approvals) so links/emails can
+// deep-link straight to a specific tab instead of always landing on the
+// first one.
+const TAB_NAMES = ['positions', 'history', 'approvals'] as const;
 
 @Component({
   selector: 'app-trades',
@@ -18,6 +30,8 @@ import { TradeDto } from '../../core/models/dtos';
     CommonModule,
     MatTabsModule,
     MatCardModule,
+    MatButtonModule,
+    MatIconModule,
     BaseChartDirective,
     OpenPositionsComponent,
     TradeHistoryComponent,
@@ -27,15 +41,55 @@ import { TradeDto } from '../../core/models/dtos';
 })
 export class TradesComponent {
   private api = inject(ApiService);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
+  private dialog = inject(MatDialog);
+  private snackbar = inject(MatSnackBar);
   data = inject(DashboardDataService);
 
   positions = toSignal(this.data.positions$, { initialValue: [] });
   closedTrades = signal<TradeDto[]>([]);
+  approvals = signal<TradeApprovalDto[]>([]);
+
+  selectedTabIndex = signal(0);
 
   constructor() {
     this.api.getRecentTrades(365).subscribe({
       next: (trades) => this.closedTrades.set(trades.filter((t) => t.status !== 'Open')),
       error: () => this.closedTrades.set([]),
+    });
+    this.loadApprovals();
+    this.selectedTabIndex.set(readTabIndexFromRoute(this.route, TAB_NAMES));
+  }
+
+  onTabChange(index: number): void {
+    this.selectedTabIndex.set(index);
+    writeTabIndexToRoute(this.router, this.route, TAB_NAMES, index);
+  }
+
+  private loadApprovals(): void {
+    this.api.getApprovals().subscribe({
+      next: (approvals) => this.approvals.set(approvals),
+      error: () => this.approvals.set([]),
+    });
+  }
+
+  approveTrade(approval: TradeApprovalDto): void {
+    const dialogRef = this.dialog.open(ConfirmApproveDialogComponent, {
+      data: { tradeDate: approval.tradeDate },
+      width: '420px',
+    });
+
+    dialogRef.afterClosed().subscribe((confirmed) => {
+      if (!confirmed) return;
+
+      this.api.approveTradeApproval(approval.id).subscribe({
+        next: () => {
+          this.snackbar.open('Trades approved', 'Dismiss', { duration: 3000 });
+          this.loadApprovals();
+        },
+        error: () => this.snackbar.open('Failed to approve — try again.', 'Dismiss', { duration: 4000 }),
+      });
     });
   }
 

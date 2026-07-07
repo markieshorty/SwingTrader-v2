@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -8,6 +9,9 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { ApiService } from '../../core/services/api.service';
 import { AdminActionLogDto, AdminJobFailureDto, AdminStatsDto, AdminUserSummaryDto } from '../../core/models/dtos';
+import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
+
+const TAB_NAMES = ['overview', 'users', 'jobs', 'logs'] as const;
 
 @Component({
   selector: 'app-admin',
@@ -19,6 +23,8 @@ import { AdminActionLogDto, AdminJobFailureDto, AdminStatsDto, AdminUserSummaryD
 export class AdminComponent {
   private api = inject(ApiService);
   private snackbar = inject(MatSnackBar);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
 
   stats = signal<AdminStatsDto | null>(null);
   users = signal<AdminUserSummaryDto[]>([]);
@@ -28,11 +34,19 @@ export class AdminComponent {
   suspendReasonInput: Record<string, string> = {};
   expandedUserId = signal<string | null>(null);
 
+  selectedTabIndex = signal(0);
+
   constructor() {
     this.loadStats();
     this.loadUsers();
     this.loadJobFailures();
     this.loadLogs();
+    this.selectedTabIndex.set(readTabIndexFromRoute(this.route, TAB_NAMES));
+  }
+
+  onTabChange(index: number): void {
+    this.selectedTabIndex.set(index);
+    writeTabIndexToRoute(this.router, this.route, TAB_NAMES, index);
   }
 
   private loadStats(): void {

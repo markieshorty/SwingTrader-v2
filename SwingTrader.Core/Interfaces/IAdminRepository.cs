@@ -41,7 +41,8 @@ public record AdminStats(
     int UsersInDemoMode,
     int UsersInLiveMode,
     int UsersNotOnboarded,
-    int TotalJobFailuresLast24h);
+    int TotalJobFailuresLast24h,
+    int TotalAccounts);
 
 public record AdminJobFailure(
     int JobLogId,

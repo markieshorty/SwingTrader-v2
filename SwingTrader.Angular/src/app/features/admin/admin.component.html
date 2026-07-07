@@ -1,8 +1,12 @@
 <div class="admin-page">
-  <mat-tab-group>
+  <mat-tab-group [selectedIndex]="selectedTabIndex()" (selectedIndexChange)="onTabChange($event)">
     <mat-tab label="Overview">
       @if (stats(); as s) {
         <div class="stat-grid">
+          <mat-card class="stat-card">
+            <span class="stat-value">{{ s.totalAccounts }}</span>
+            <span class="stat-label">Total Accounts</span>
+          </mat-card>
           <mat-card class="stat-card">
             <span class="stat-value">{{ s.totalUsers }}</span>
             <span class="stat-label">Total Users</span>

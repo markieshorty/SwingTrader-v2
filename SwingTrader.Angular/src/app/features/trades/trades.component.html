@@ -1,4 +1,4 @@
-<mat-tab-group>
+<mat-tab-group [selectedIndex]="selectedTabIndex()" (selectedIndexChange)="onTabChange($event)">
   <mat-tab label="Open Positions">
     <div class="tab-content">
       <app-open-positions [positions]="positions()" />
@@ -37,6 +37,40 @@
           }
         </mat-card>
       </div>
+    </div>
+  </mat-tab>
+
+  <mat-tab label="Approvals">
+    <div class="tab-content">
+      @if (approvals().length === 0) {
+        <p class="muted">No trade approvals yet — these appear once "Require approval" is turned on in Settings.</p>
+      } @else {
+        <div class="approvals-list">
+          @for (approval of approvals(); track approval.id) {
+            <mat-card class="panel approval-row">
+              <div class="approval-info">
+                <span class="approval-date">{{ approval.tradeDate | date: 'EEEE d MMM yyyy' }}</span>
+                @if (approval.isApproved) {
+                  <span class="badge approved">
+                    Approved {{ approval.approvedAt | date: 'HH:mm' }}
+                    @if (approval.approvedVia) {
+                      via {{ approval.approvedVia }}
+                    }
+                    @if (approval.approvedSymbols) {
+                      · {{ approval.approvedSymbols }}
+                    }
+                  </span>
+                } @else {
+                  <span class="badge pending">Pending</span>
+                }
+              </div>
+              @if (!approval.isApproved) {
+                <button mat-raised-button color="primary" (click)="approveTrade(approval)">Approve</button>
+              }
+            </mat-card>
+          }
+        </div>
+      }
     </div>
   </mat-tab>
 </mat-tab-group>

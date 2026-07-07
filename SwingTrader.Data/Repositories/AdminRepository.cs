@@ -45,7 +45,7 @@ public class AdminRepository(SwingTraderDbContext db) : IAdminRepository
 
         return new AdminStats(
             totalUsers, activeLast7Days, totalTrades, avgWinRate,
-            demoCount, liveCount, notOnboarded, jobFailures24h);
+            demoCount, liveCount, notOnboarded, jobFailures24h, accounts.Count);
     }
 
     public async Task<List<AdminUserSummary>> GetUsersAsync(CancellationToken ct = default)

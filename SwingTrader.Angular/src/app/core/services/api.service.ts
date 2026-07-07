@@ -23,6 +23,7 @@ import {
   SignalGroupDto,
   StatusDto,
   StrategyWeightsDto,
+  TradeApprovalDto,
   TradeDto,
   TradingConfigDto,
   UpdateRiskProfileDto,
@@ -209,6 +210,14 @@ export class ApiService {
     return this.http.get<{ hasConfirmedEmail: boolean; email: string; displayName: string }>(
       `${this.baseUrl}/api/account/me`,
     );
+  }
+
+  getApprovals(): Observable<TradeApprovalDto[]> {
+    return this.http.get<TradeApprovalDto[]>(`${this.baseUrl}/api/approvals`);
+  }
+
+  approveTradeApproval(id: number, symbols?: string): Observable<unknown> {
+    return this.http.post(`${this.baseUrl}/api/approvals/${id}/approve`, { symbols: symbols ?? null });
   }
 
   getStrategyWeights(): Observable<StrategyWeightsDto> {

@@ -78,7 +78,7 @@ public class ReportGenerationService(
         var token = account.ApprovalRequired ? Guid.NewGuid().ToString("N") : null;
         var cfg = reportConfig.Value;
         var markdown = BuildMarkdown(reportDate, buys, watches, holds, avoids, portfolio, market, narratives, cfg, gbpUsd);
-        var approvalMarkdown = token is null ? null : BuildApprovalMarkdown(reportDate, buys, token);
+        var approvalMarkdown = token is null ? null : BuildApprovalMarkdown(reportDate);
 
         // Step 7
         return await PersistAsync(accountId, reportDate, markdown, approvalMarkdown, buys, portfolio, narratives.MarketContext, token);
@@ -607,10 +607,12 @@ public class ReportGenerationService(
         return sb.ToString();
     }
 
-    // Kept separate from BuildMarkdown so the approve/reject links can be
-    // emailed only to recipients with TradeApproval ticked, rather than to
-    // everyone who gets the general daily report.
-    private string BuildApprovalMarkdown(DateOnly reportDate, List<StockSignal> buys, string token)
+    // Kept separate from BuildMarkdown so this reminder can be emailed only
+    // to recipients with TradeApproval ticked, rather than to everyone who
+    // gets the general daily report. Just a reminder - approving actually
+    // happens in the app's Trades > Approvals tab, not via a link in the
+    // email, so there's no token/symbols to construct here.
+    private string BuildApprovalMarkdown(DateOnly reportDate)
     {
         var baseUrl = approvalConfig.Value.BaseUrl.TrimEnd('/');
         var closeH = approvalConfig.Value.ApprovalWindowCloseHourEt;
@@ -619,21 +621,9 @@ public class ReportGenerationService(
         var sb = new StringBuilder();
         sb.AppendLine($"# \U0001F6A6 Action Required: Approve Today's Trades — {reportDate:dd MMM yyyy}");
         sb.AppendLine();
-        sb.AppendLine("**Approve today's trades:**");
-        sb.AppendLine($"{baseUrl}/approve?token={token}");
+        sb.AppendLine("Today's trades are ready for review.");
         sb.AppendLine();
-        sb.AppendLine("To approve specific symbols only:");
-        if (buys.Count > 0)
-        {
-            var firstSym = buys[0].Symbol;
-            var twoSyms = buys.Count > 1 ? $"{buys[0].Symbol},{buys[1].Symbol}" : firstSym;
-            sb.AppendLine($"{baseUrl}/approve?token={token}&symbols={firstSym}");
-            sb.AppendLine($"{baseUrl}/approve?token={token}&symbols={twoSyms}");
-        }
-        else
-        {
-            sb.AppendLine($"{baseUrl}/approve?token={token}&symbols=SYMBOL");
-        }
+        sb.AppendLine($"**Go to {baseUrl}/trades?tab=approvals to approve or reject them.**");
         sb.AppendLine();
         sb.AppendLine($"_Approval window closes {closeH}:{closeM:D2} AM ET. No action = no trades today._");
 
@@ -678,16 +668,26 @@ public class ReportGenerationService(
 
         if (token is not null)
         {
-            var approval = new TradeApproval
+            // Regenerating a report for a date that already has a TradeApproval
+            // (e.g. the manual "Run Report" button clicked twice) must not
+            // insert a duplicate row - GetByDateAsync/the Approvals list both
+            // assume one row per (AccountId, TradeDate). If one already
+            // exists, leave its IsApproved/ApprovedAt alone rather than
+            // silently un-approving something the user already confirmed.
+            var existingApproval = await approvalRepo.GetByDateAsync(accountId, reportDate);
+            if (existingApproval is null)
             {
-                AccountId = accountId,
-                TradeDate = reportDate,
-                ApprovalToken = token,
-                IsApproved = false,
-                IsExpired = false,
-            };
-            await approvalRepo.AddAsync(approval);
-            logger.LogInformation("Approval token created for {Date}: {Token}", reportDate, token[..8] + "...");
+                var approval = new TradeApproval
+                {
+                    AccountId = accountId,
+                    TradeDate = reportDate,
+                    ApprovalToken = token,
+                    IsApproved = false,
+                    IsExpired = false,
+                };
+                await approvalRepo.AddAsync(approval);
+                logger.LogInformation("Approval token created for {Date}: {Token}", reportDate, token[..8] + "...");
+            }
         }
 
         return report;

@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatButtonModule } from '@angular/material/button';
@@ -17,6 +18,9 @@ import { ConvictionBarComponent } from '../../shared/components/conviction-bar/c
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
 import { defaultColDef } from '../../shared/ag-grid-defaults';
 import { NextRunDto, SignalDto, TradeDto, TradingConfigDto } from '../../core/models/dtos';
+import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
+
+const SIGNAL_TAB_NAMES = ['buy', 'watch', 'hold', 'avoid'] as const;
 
 const AGENTS = ['Research', 'Watchlist', 'Report', 'Execution', 'Monitor', 'Risk', 'Refinement'] as const;
 
@@ -42,6 +46,8 @@ const AGENTS = ['Research', 'Watchlist', 'Report', 'Execution', 'Monitor', 'Risk
 export class DashboardComponent {
   private api = inject(ApiService);
   private snackbar = inject(MatSnackBar);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
   data = inject(DashboardDataService);
 
   portfolio = toSignal(this.data.portfolio$, { initialValue: null });
@@ -107,6 +113,12 @@ export class DashboardComponent {
     this.loadRecentTrades();
     this.loadAccountSettings();
     this.loadNextRuns();
+    this.activeTabIndex.set(readTabIndexFromRoute(this.route, SIGNAL_TAB_NAMES));
+  }
+
+  onSignalTabChange(index: number): void {
+    this.activeTabIndex.set(index);
+    writeTabIndexToRoute(this.router, this.route, SIGNAL_TAB_NAMES, index);
   }
 
   private loadNextRuns(): void {

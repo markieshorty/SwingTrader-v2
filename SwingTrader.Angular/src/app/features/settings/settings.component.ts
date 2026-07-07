@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -25,6 +26,9 @@ import {
   TradingMode,
   UpdateRiskProfileDto,
 } from '../../core/models/dtos';
+import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
+
+const TAB_NAMES = ['api-keys', 'trading', 'strategy', 'risk', 'notifications', 'account'] as const;
 
 const COMPONENT_WEIGHT_FIELDS: { key: keyof StrategyWeightsDto; label: string }[] = [
   { key: 'rsiWeight', label: 'RSI' },
@@ -82,10 +86,19 @@ export class SettingsComponent {
   private api = inject(ApiService);
   private snackbar = inject(MatSnackBar);
   private dialog = inject(MatDialog);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
   auth = inject(AuthService);
 
   providers = Object.keys(PROVIDER_LABELS) as ApiKeyProvider[];
   providerLabel = (p: ApiKeyProvider) => PROVIDER_LABELS[p];
+
+  selectedTabIndex = signal(0);
+
+  onTabChange(index: number): void {
+    this.selectedTabIndex.set(index);
+    writeTabIndexToRoute(this.router, this.route, TAB_NAMES, index);
+  }
 
   keyStatuses = signal<KeyStatusesDto | null>(null);
   editingProvider = signal<ApiKeyProvider | null>(null);
@@ -174,6 +187,7 @@ export class SettingsComponent {
     this.loadWeights();
     this.loadRiskProfile();
     this.api.getMe().subscribe({ next: (me) => this.me.set({ email: me.email, displayName: me.displayName }) });
+    this.selectedTabIndex.set(readTabIndexFromRoute(this.route, TAB_NAMES));
   }
 
   private loadRiskProfile(): void {

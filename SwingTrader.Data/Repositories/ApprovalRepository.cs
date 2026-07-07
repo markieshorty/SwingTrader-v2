@@ -12,6 +12,17 @@ public class ApprovalRepository(SwingTraderDbContext context) : IApprovalReposit
     public Task<TradeApproval?> GetByTokenAsync(string token) =>
         context.TradeApprovals.FirstOrDefaultAsync(x => x.ApprovalToken == token);
 
+    public Task<TradeApproval?> GetByIdAsync(int accountId, int id) =>
+        context.TradeApprovals.FirstOrDefaultAsync(x => x.AccountId == accountId && x.Id == id);
+
+    public Task<List<TradeApproval>> ListRecentAsync(int accountId, int count) =>
+        context.TradeApprovals
+            .Where(x => x.AccountId == accountId)
+            .OrderByDescending(x => x.TradeDate)
+            .ThenByDescending(x => x.CreatedAt)
+            .Take(count)
+            .ToListAsync();
+
     public async Task<TradeApproval> AddAsync(TradeApproval approval)
     {
         context.TradeApprovals.Add(approval);

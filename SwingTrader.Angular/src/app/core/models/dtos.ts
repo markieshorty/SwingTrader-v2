@@ -272,6 +272,7 @@ export interface AdminStatsDto {
   usersInLiveMode: number;
   usersNotOnboarded: number;
   totalJobFailuresLast24h: number;
+  totalAccounts: number;
 }
 
 export interface AdminUserSummaryDto {
@@ -385,4 +386,13 @@ export interface NotificationRecipientDto {
   id: number;
   email: string;
   tradeApprovalEnabled: boolean;
+}
+
+export interface TradeApprovalDto {
+  id: number;
+  tradeDate: string;
+  isApproved: boolean;
+  approvedAt: string | null;
+  approvedSymbols: string | null;
+  approvedVia: string | null;
 }

@@ -108,7 +108,7 @@
   <!-- Row 3: Today's Signals -->
   <mat-card class="panel">
     <h3>Today's Signals</h3>
-    <mat-tab-group [(selectedIndex)]="activeTabIndex">
+    <mat-tab-group [selectedIndex]="activeTabIndex()" (selectedIndexChange)="onSignalTabChange($event)">
       <mat-tab [label]="'BUY (' + (signals()?.buy?.length ?? 0) + ')'"></mat-tab>
       <mat-tab [label]="'WATCH (' + (signals()?.watch?.length ?? 0) + ')'"></mat-tab>
       <mat-tab [label]="'HOLD (' + (signals()?.hold?.length ?? 0) + ')'"></mat-tab>
