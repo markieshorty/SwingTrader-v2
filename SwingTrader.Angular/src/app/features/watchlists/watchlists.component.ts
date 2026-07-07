@@ -13,6 +13,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/services/api.service';
 import { WatchlistDto, WatchlistType } from '../../core/models/dtos';
+import { errorMessage } from '../../shared/utils/error-message.util';
 
 const MAX_ENABLED_WATCHLISTS = 3;
 const MAX_SYMBOLS_PER_WATCHLIST = 50;
@@ -82,10 +83,7 @@ export class WatchlistsComponent {
     const action = watchlist.isEnabled ? this.api.disableWatchlist(watchlist.id) : this.api.enableWatchlist(watchlist.id);
     action.subscribe({
       next: () => this.load(),
-      error: (err) => {
-        const message = err.error?.message ?? 'Failed to update watchlist.';
-        this.snackbar.open(message, 'Dismiss', { duration: 4000 });
-      },
+      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to update watchlist.'), 'Dismiss', { duration: 4000 }),
     });
   }
 
@@ -95,7 +93,7 @@ export class WatchlistsComponent {
         this.snackbar.open(`"${watchlist.name}" is now the default watchlist`, 'Dismiss', { duration: 3000 });
         this.load();
       },
-      error: () => this.snackbar.open('Failed to set default.', 'Dismiss', { duration: 4000 }),
+      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to set default.'), 'Dismiss', { duration: 4000 }),
     });
   }
 
@@ -110,7 +108,7 @@ export class WatchlistsComponent {
 
     this.api.deleteWatchlist(watchlist.id).subscribe({
       next: () => this.load(),
-      error: (err) => this.snackbar.open(err.error?.message ?? 'Failed to delete.', 'Dismiss', { duration: 4000 }),
+      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to delete.'), 'Dismiss', { duration: 4000 }),
     });
   }
 
@@ -123,14 +121,14 @@ export class WatchlistsComponent {
         this.newSymbolInput[watchlist.id] = '';
         this.load();
       },
-      error: (err) => this.snackbar.open(err.error?.message ?? 'Failed to add symbol.', 'Dismiss', { duration: 4000 }),
+      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to add symbol.'), 'Dismiss', { duration: 4000 }),
     });
   }
 
   removeSymbol(watchlist: WatchlistDto, symbol: string): void {
     this.api.removeWatchlistSymbol(watchlist.id, symbol).subscribe({
       next: () => this.load(),
-      error: () => this.snackbar.open('Failed to remove symbol.', 'Dismiss', { duration: 4000 }),
+      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to remove symbol.'), 'Dismiss', { duration: 4000 }),
     });
   }
 
@@ -145,7 +143,7 @@ export class WatchlistsComponent {
         this.showCreateForm.set(false);
         this.load();
       },
-      error: (err) => this.snackbar.open(err.error?.message ?? 'Failed to create watchlist.', 'Dismiss', { duration: 4000 }),
+      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to create watchlist.'), 'Dismiss', { duration: 4000 }),
     });
   }
 
@@ -156,7 +154,7 @@ export class WatchlistsComponent {
   toggleTopMovers(watchlist: WatchlistDto): void {
     this.api.updateWatchlist(watchlist.id, watchlist.name, watchlist.description ?? undefined, !watchlist.topMoversEnabled).subscribe({
       next: () => this.load(),
-      error: () => this.snackbar.open('Failed to update top movers setting.', 'Dismiss', { duration: 4000 }),
+      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to update top movers setting.'), 'Dismiss', { duration: 4000 }),
     });
   }
 }

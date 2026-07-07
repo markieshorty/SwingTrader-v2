@@ -20,6 +20,7 @@ import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner
 import { defaultColDef } from '../../shared/ag-grid-defaults';
 import { ActivityLogDto, NextRunDto, PositionDto, SignalDto, TradeDto, TradingConfigDto } from '../../core/models/dtos';
 import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
+import { errorMessage } from '../../shared/utils/error-message.util';
 
 const SIGNAL_TAB_NAMES = ['buy', 'watch', 'hold', 'avoid'] as const;
 
@@ -193,9 +194,9 @@ export class DashboardComponent {
         this.data.refresh();
         this.loadRecentTrades();
       },
-      error: () => {
+      error: (err) => {
         this.runningAgent.set(null);
-        this.snackbar.open(`${agent} failed to run`, 'Dismiss', { duration: 4000 });
+        this.snackbar.open(errorMessage(err, `${agent} failed to run`), 'Dismiss', { duration: 4000 });
       },
     });
   }

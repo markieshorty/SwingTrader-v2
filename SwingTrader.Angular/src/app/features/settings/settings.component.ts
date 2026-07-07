@@ -28,6 +28,7 @@ import {
   UpdateRiskProfileDto,
 } from '../../core/models/dtos';
 import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
+import { errorMessage } from '../../shared/utils/error-message.util';
 
 const TAB_NAMES = ['api-keys', 'trading', 'strategy', 'risk', 'notifications', 'account'] as const;
 
@@ -220,13 +221,7 @@ export class SettingsComponent {
         this.snackbar.open('Risk profile saved', 'Dismiss', { duration: 3000 });
         this.loadRiskProfile();
       },
-      error: (err) => {
-        const message =
-          err.status === 403
-            ? 'Only the account Owner can change the risk profile.'
-            : (err.error?.message ?? 'Failed to save.');
-        this.snackbar.open(message, 'Dismiss', { duration: 4000 });
-      },
+      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to save.'), 'Dismiss', { duration: 4000 }),
     });
   }
 
@@ -236,10 +231,7 @@ export class SettingsComponent {
         this.snackbar.open('Risk profile reset to defaults', 'Dismiss', { duration: 3000 });
         this.loadRiskProfile();
       },
-      error: (err) => {
-        const message = err.status === 403 ? 'Only the account Owner can reset the risk profile.' : 'Failed to reset.';
-        this.snackbar.open(message, 'Dismiss', { duration: 4000 });
-      },
+      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to reset.'), 'Dismiss', { duration: 4000 }),
     });
   }
 
@@ -272,13 +264,7 @@ export class SettingsComponent {
 
     this.api.updateStrategyWeights(weights).subscribe({
       next: () => this.snackbar.open('Strategy weights saved', 'Dismiss', { duration: 3000 }),
-      error: (err) => {
-        const message =
-          err.status === 403
-            ? 'Only the account Owner can change strategy weights.'
-            : (err.error?.message ?? 'Failed to save.');
-        this.snackbar.open(message, 'Dismiss', { duration: 4000 });
-      },
+      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to save.'), 'Dismiss', { duration: 4000 }),
     });
   }
 
@@ -381,13 +367,7 @@ export class SettingsComponent {
           this.snackbar.open('Trading settings saved', 'Dismiss', { duration: 3000 });
         }
       },
-      error: (err) => {
-        const message =
-          err.status === 403
-            ? 'Only the account Owner can change trading settings.'
-            : (err.error?.message ?? 'Failed to save.');
-        this.snackbar.open(message, 'Dismiss', { duration: 4000 });
-      },
+      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to save.'), 'Dismiss', { duration: 4000 }),
     });
   }
 
@@ -424,10 +404,7 @@ export class SettingsComponent {
         this.newRecipientEmail = '';
         this.loadRecipients();
       },
-      error: (err) => {
-        const message = err.status === 403 ? 'Only the account Owner can manage notifications.' : 'Failed to add recipient.';
-        this.snackbar.open(message, 'Dismiss', { duration: 4000 });
-      },
+      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to add recipient.'), 'Dismiss', { duration: 4000 }),
     });
   }
 
@@ -453,20 +430,14 @@ export class SettingsComponent {
         this.inviteLink.set(result.inviteUrl);
         this.inviteEmail = '';
       },
-      error: (err) => {
-        const message = err.status === 403 ? 'Only the account Owner can invite members.' : 'Failed to create invite.';
-        this.snackbar.open(message, 'Dismiss', { duration: 4000 });
-      },
+      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to create invite.'), 'Dismiss', { duration: 4000 }),
     });
   }
 
   removeMember(userId: string): void {
     this.api.removeMember(userId).subscribe({
       next: () => this.loadMembers(),
-      error: (err) => {
-        const message = err.status === 403 ? 'Only the account Owner can remove members.' : 'Failed to remove member.';
-        this.snackbar.open(message, 'Dismiss', { duration: 4000 });
-      },
+      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to remove member.'), 'Dismiss', { duration: 4000 }),
     });
   }
 
@@ -476,10 +447,7 @@ export class SettingsComponent {
         this.snackbar.open('Member approved', 'Dismiss', { duration: 3000 });
         this.loadMembers();
       },
-      error: (err) => {
-        const message = err.status === 403 ? 'Only the account Owner can approve members.' : 'Failed to approve member.';
-        this.snackbar.open(message, 'Dismiss', { duration: 4000 });
-      },
+      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to approve member.'), 'Dismiss', { duration: 4000 }),
     });
   }
 
@@ -506,10 +474,7 @@ export class SettingsComponent {
 
       this.api.deleteAccount().subscribe({
         next: () => this.auth.logout(),
-        error: (err) => {
-          const message = err.status === 403 ? 'Only the account Owner can delete the account.' : 'Failed to delete account.';
-          this.snackbar.open(message, 'Dismiss', { duration: 4000 });
-        },
+        error: (err) => this.snackbar.open(errorMessage(err, 'Failed to delete account.'), 'Dismiss', { duration: 4000 }),
       });
     });
   }

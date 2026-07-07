@@ -18,6 +18,7 @@ import { TradeHistoryComponent } from './trade-history/trade-history.component';
 import { TradeApprovalCandidateDto, TradeApprovalDto, TradeDto } from '../../core/models/dtos';
 import { ConfirmApproveDialogComponent } from '../../shared/components/confirm-approve-dialog/confirm-approve-dialog.component';
 import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
+import { errorMessage } from '../../shared/utils/error-message.util';
 
 // Query-param-driven tab selection (?tab=approvals) so links/emails can
 // deep-link straight to a specific tab instead of always landing on the
@@ -103,7 +104,7 @@ export class TradesComponent {
           this.snackbar.open('Trades approved', 'Dismiss', { duration: 3000 });
           this.loadApprovals();
         },
-        error: () => this.snackbar.open('Failed to approve — try again.', 'Dismiss', { duration: 4000 }),
+        error: (err) => this.snackbar.open(errorMessage(err, 'Failed to approve — try again.'), 'Dismiss', { duration: 4000 }),
       });
     });
   }
