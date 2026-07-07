@@ -1,6 +1,7 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MsalService } from '@azure/msal-angular';
 import { environment } from '../../../environments/environment';
 
@@ -24,8 +25,13 @@ import { environment } from '../../../environments/environment';
 @Component({
   selector: 'app-splash',
   standalone: true,
-  imports: [MatButtonModule],
+  imports: [MatButtonModule, MatProgressSpinnerModule],
   template: `
+    @if (checkingAuth()) {
+      <div class="splash-container">
+        <mat-spinner diameter="40"></mat-spinner>
+      </div>
+    } @else {
     <div class="splash-container">
       <div class="splash-content">
         <h1>SwingTrader</h1>
@@ -54,6 +60,7 @@ import { environment } from '../../../environments/environment';
         <p class="disclaimer">Trading involves risk. This system is not financial advice.</p>
       </div>
     </div>
+    }
   `,
   styles: [
     `
@@ -100,12 +107,20 @@ export class SplashComponent implements OnInit {
 
   inviteToken = signal<string | null>(null);
   alreadySignedIn = signal(false);
+  // Starts true so an already-authenticated visitor sees a blank spinner
+  // instead of a flash of the full marketing page (register/log in buttons)
+  // before ngOnInit's async navigateByUrl takes effect. Only flips to false
+  // for the branches that actually need to show splash content.
+  checkingAuth = signal(true);
 
   ngOnInit(): void {
     const token = this.route.snapshot.queryParamMap.get('invite');
     this.inviteToken.set(token);
 
-    if (this.msal.instance.getAllAccounts().length === 0) return;
+    if (this.msal.instance.getAllAccounts().length === 0) {
+      this.checkingAuth.set(false);
+      return;
+    }
 
     // MSAL restores the exact page (including ?invite=...) you were on
     // before loginRedirect() sent you to Google/CIAM - so a brand-new visitor
@@ -123,6 +138,7 @@ export class SplashComponent implements OnInit {
 
     if (token) {
       this.alreadySignedIn.set(true);
+      this.checkingAuth.set(false);
       setTimeout(() => this.router.navigateByUrl('/dashboard'), 3000);
     } else {
       this.router.navigateByUrl('/dashboard');
