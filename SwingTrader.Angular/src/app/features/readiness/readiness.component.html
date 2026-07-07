@@ -68,7 +68,7 @@
         <tbody>
           @for (week of report()!.trajectory; track week.weekStarting) {
             <tr>
-              <td>{{ week.weekStarting | date: 'mediumDate' }}</td>
+              <td>{{ week.weekStarting | date: 'mediumDate' : 'UTC' }}</td>
               <td>{{ week.tradeCount }}</td>
               <td>{{ week.winRate | number: '1.0-1' }}%</td>
               <td>
