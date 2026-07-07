@@ -56,6 +56,7 @@
   <div class="two-col">
     <mat-card class="panel">
       <h3>Open Positions</h3>
+      <div class="positions-scroll">
       @if (positions().length === 0) {
         <p class="muted">No open positions.</p>
       }
@@ -83,9 +84,10 @@
           </div>
         </div>
       }
+      </div>
     </mat-card>
 
-    <mat-card class="panel activity-log-panel">
+    <mat-card class="panel">
       <h3>Activity Log</h3>
       <div class="worker-panel">
         <div class="worker-col">
