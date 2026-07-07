@@ -94,6 +94,7 @@ export class AdminComponent {
   }
 
   resetOnboarding(user: AdminUserSummaryDto): void {
+    if (!confirm(`Reset onboarding for ${user.displayName}? They will be sent back through the setup wizard.`)) return;
     this.api.resetUserOnboarding(user.userId).subscribe({
       next: () => {
         this.snackbar.open(`${user.displayName}'s onboarding reset`, 'Dismiss', { duration: 3000 });
@@ -137,6 +138,7 @@ export class AdminComponent {
   }
 
   deleteJobFailure(failure: AdminJobFailureDto): void {
+    if (!confirm(`Dismiss this ${failure.jobType} failure for account ${failure.accountId}? It will no longer appear in the failures list.`)) return;
     this.api.deleteAdminJobFailure(failure.jobLogId).subscribe({
       next: () => {
         this.snackbar.open(`Dismissed ${failure.jobType} failure for account ${failure.accountId}`, 'Dismiss', { duration: 3000 });

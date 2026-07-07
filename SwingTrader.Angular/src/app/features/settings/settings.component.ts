@@ -413,7 +413,8 @@ export class SettingsComponent {
     });
   }
 
-  removeRecipient(id: number): void {
+  removeRecipient(id: number, email: string): void {
+    if (!confirm(`Remove ${email} from notification recipients?`)) return;
     this.api.removeNotificationRecipient(id).subscribe({ next: () => this.loadRecipients() });
   }
 
