@@ -32,9 +32,11 @@ public class MonitorConsumerFunction(
 
             var result = await monitor.RunCycleAsync(message.AccountId, finnhub, t212, ct);
 
+            var executedExits = result.ExecutedExits ?? [];
             var summary = result.CircuitBreakerTriggered
                 ? "Circuit breaker triggered — manual review required"
-                : $"{result.PositionsChecked} checked, {result.TrailingStopsUpdated} trailing stops updated, {result.FlaggedExits.Count} exit(s) flagged";
+                : $"{result.PositionsChecked} checked, {result.TrailingStopsUpdated} trailing stops updated, " +
+                  $"{result.FlaggedExits.Count} exit(s) flagged, {executedExits.Count} exit(s) executed";
             await heartbeats.UpsertAsync(message.AccountId, "Monitor", "Success", summary);
 
             if (result.CircuitBreakerTriggered)
@@ -48,6 +50,13 @@ public class MonitorConsumerFunction(
             foreach (var exit in result.FlaggedExits)
                 await activityLog.LogAsync(message.AccountId, "SystemEvent", "Exit Signal", "Warning",
                     $"{exit.Symbol} — {exit.Reason} at £{exit.CurrentPrice:F2}", ct);
+
+            foreach (var exit in executedExits)
+            {
+                var pnlText = exit.RealizedPnl.HasValue ? $" (P&L £{exit.RealizedPnl:F2})" : "";
+                await activityLog.LogAsync(message.AccountId, "SystemEvent", "Momentum Exit", "Warning",
+                    $"{exit.Symbol} did not pass probation, selling early — closed at £{exit.ExitPrice:F2}{pnlText}", ct);
+            }
 
             logger.LogInformation("Monitor job {JobId} for account {AccountId} — {Summary}", message.JobId, message.AccountId, summary);
 
