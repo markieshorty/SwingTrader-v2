@@ -50,12 +50,12 @@ public class SchedulerFunction(
                     await TryEnqueueAsync(account.Id, "Report", today, "report-jobs",
                         new ReportJobMessage(account.Id, Guid.NewGuid().ToString("N"), today), ct);
 
-                // Window runs until 9:45 so a late approval (after the 9:20
-                // first attempt) still re-enqueues execution within 5 minutes.
+                // Window covers the full trading day so a late approval triggers
+                // execution within 5 minutes regardless of when the user approves.
                 // TryEnqueueAsync's job-log dedup means only one execution fires
-                // per day — deleting the job log entry on approval is what allows
-                // the re-enqueue.
-                if (isWeekday && InWindow(nowEt, 9, 20, 9, 45))
+                // per day — the approve endpoint deletes the job log entry to
+                // allow re-enqueue after a late approval.
+                if (isWeekday && InWindow(nowEt, 9, 20, 16, 0))
                     await TryEnqueueAsync(account.Id, "Execution", today, "execution-jobs",
                         new ExecutionJobMessage(account.Id, Guid.NewGuid().ToString("N"), today), ct);
 

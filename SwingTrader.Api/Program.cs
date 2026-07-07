@@ -651,6 +651,10 @@ api.MapPost("/approvals/{id:int}/approve", async (
     if (approval is null) return Results.NotFound();
     if (approval.IsApproved)
         return Results.BadRequest(new { message = "Already approved." });
+    var todayEt = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow,
+        TimeZoneInfo.FindSystemTimeZoneById(OperatingSystem.IsWindows() ? "Eastern Standard Time" : "America/New_York")));
+    if (approval.TradeDate < todayEt)
+        return Results.BadRequest(new { message = "This approval has expired — signals are stale. New signals will be generated today." });
 
     approval.IsApproved = true;
     approval.ApprovedAt = DateTime.UtcNow;

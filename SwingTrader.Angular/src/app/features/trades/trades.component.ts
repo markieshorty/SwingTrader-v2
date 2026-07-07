@@ -76,6 +76,14 @@ export class TradesComponent {
     });
   }
 
+  isToday(tradeDate: string): boolean {
+    const today = new Date();
+    const d = new Date(tradeDate);
+    return d.getUTCFullYear() === today.getFullYear() &&
+           d.getUTCMonth() === today.getMonth() &&
+           d.getUTCDate() === today.getDate();
+  }
+
   approveTrade(approval: TradeApprovalDto): void {
     const dialogRef = this.dialog.open(ConfirmApproveDialogComponent, {
       data: { tradeDate: approval.tradeDate },
