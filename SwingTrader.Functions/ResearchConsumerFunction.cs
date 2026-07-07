@@ -55,6 +55,14 @@ public class ResearchConsumerFunction(
             var tiingo = await clientFactory.CreateTiingoAsync<ITiingoClient>(message.AccountId, ct);
             var claude = await clientFactory.CreateClaudeAsync<IClaudeClient>(message.AccountId, ct);
 
+            // Fetched once here rather than inside RunAsync - up to MaxConcurrentSymbols
+            // symbols run concurrently below, and a per-symbol DB read on the shared scoped
+            // DbContext (with no rate-limiter delay ahead of it) hit EF Core's
+            // "second operation started on this context instance" concurrency guard on
+            // nearly every symbol. The risk profile doesn't change mid-run, so one read
+            // up front is both correct and cheaper.
+            var riskProfile = await riskProfileRepo.GetAsync(message.AccountId, ct);
+
             using var semaphore = new SemaphoreSlim(MaxConcurrentSymbols);
             var failedSymbols = new ConcurrentBag<string>();
             var tasks = symbols.Select(async s =>
@@ -62,7 +70,7 @@ public class ResearchConsumerFunction(
                 await semaphore.WaitAsync(ct);
                 try
                 {
-                    var signal = await pipeline.RunAsync(message.AccountId, finnhub, tiingo, claude, s.Symbol, ct);
+                    var signal = await pipeline.RunAsync(message.AccountId, finnhub, tiingo, claude, s.Symbol, riskProfile, ct);
 
                     // RunAsync returns null on a silent candle-fetch failure (rate limit,
                     // no data, etc.) without persisting anything - the symbol's existing
