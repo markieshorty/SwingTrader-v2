@@ -647,7 +647,7 @@ public class ReportGenerationService(
             Stop = b.CalculatedStopLoss,
             Target = b.CalculatedTarget,
             RiskReward = b.RiskRewardRatio,
-        }));
+        }), new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
         var nearStopSymbols = portfolio.Positions
                                        .Where(p => p.IsNearStop)
                                        .Select(p => p.Trade.Symbol).ToList();
