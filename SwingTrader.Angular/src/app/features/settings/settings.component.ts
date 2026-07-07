@@ -437,7 +437,10 @@ export class SettingsComponent {
 
   toggleTradeApproval(recipient: NotificationRecipientDto, enabled: boolean): void {
     this.api.setTradeApproval(recipient.id, enabled).subscribe({
-      next: () => this.loadRecipients(),
+      next: () => {
+        this.loadRecipients();
+        this.snackbar.open(enabled ? 'Trade approval emails enabled.' : 'Trade approval emails disabled.', 'Dismiss', { duration: 3000 });
+      },
       error: () => this.snackbar.open('Failed to update trade approval setting.', 'Dismiss', { duration: 4000 }),
     });
   }
