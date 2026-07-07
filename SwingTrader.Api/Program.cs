@@ -875,6 +875,8 @@ api.MapPost("/keys/{provider}", async (
     [FromServices] ServiceBusClient? serviceBus,
     IAccountContext ctx) =>
 {
+    if (ctx.Role != AccountRole.Owner)
+        return Results.Forbid();
     if (!ApiKeyProviders.All.Contains(provider))
         return Results.BadRequest(new { message = $"Unknown provider '{provider}'." });
     if (string.IsNullOrWhiteSpace(req.Value))
@@ -919,6 +921,8 @@ api.MapDelete("/keys/{provider}", async (
     IUserKeyService keys,
     IAccountContext ctx) =>
 {
+    if (ctx.Role != AccountRole.Owner)
+        return Results.Forbid();
     await keys.DeleteKeyAsync(ctx.AccountId, provider);
     return Results.Ok();
 });
@@ -1102,6 +1106,7 @@ watchlistsGroup.MapPost("/", async (
     IWatchlistRepository watchlists,
     IAccountContext ctx) =>
 {
+    if (ctx.Role != AccountRole.Owner) return Results.Forbid();
     if (string.IsNullOrWhiteSpace(req.Name))
         return Results.BadRequest(new { message = "Name cannot be empty." });
 
@@ -1115,6 +1120,7 @@ watchlistsGroup.MapPut("/{id:int}", async (
     IWatchlistRepository watchlists,
     IAccountContext ctx) =>
 {
+    if (ctx.Role != AccountRole.Owner) return Results.Forbid();
     if (string.IsNullOrWhiteSpace(req.Name))
         return Results.BadRequest(new { message = "Name cannot be empty." });
 
@@ -1134,6 +1140,7 @@ watchlistsGroup.MapDelete("/{id:int}", async (
     IWatchlistRepository watchlists,
     IAccountContext ctx) =>
 {
+    if (ctx.Role != AccountRole.Owner) return Results.Forbid();
     try
     {
         await watchlists.DeleteWatchlistAsync(ctx.AccountId, id);
@@ -1154,6 +1161,7 @@ watchlistsGroup.MapPost("/{id:int}/enable", async (
     IWatchlistRepository watchlists,
     IAccountContext ctx) =>
 {
+    if (ctx.Role != AccountRole.Owner) return Results.Forbid();
     try
     {
         await watchlists.EnableWatchlistAsync(ctx.AccountId, id);
@@ -1174,6 +1182,7 @@ watchlistsGroup.MapPost("/{id:int}/disable", async (
     IWatchlistRepository watchlists,
     IAccountContext ctx) =>
 {
+    if (ctx.Role != AccountRole.Owner) return Results.Forbid();
     try
     {
         await watchlists.DisableWatchlistAsync(ctx.AccountId, id);
@@ -1190,6 +1199,7 @@ watchlistsGroup.MapPost("/{id:int}/set-default", async (
     IWatchlistRepository watchlists,
     IAccountContext ctx) =>
 {
+    if (ctx.Role != AccountRole.Owner) return Results.Forbid();
     try
     {
         await watchlists.SetDefaultWatchlistAsync(ctx.AccountId, id);
@@ -1215,6 +1225,7 @@ watchlistsGroup.MapPost("/{id:int}/symbols", async (
     IAccountContext ctx,
     CancellationToken ct) =>
 {
+    if (ctx.Role != AccountRole.Owner) return Results.Forbid();
     if (string.IsNullOrWhiteSpace(req.Symbol))
         return Results.BadRequest(new { message = "Symbol cannot be empty." });
 
@@ -1262,6 +1273,7 @@ watchlistsGroup.MapDelete("/{id:int}/symbols/{symbol}", async (
     IAccountContext ctx,
     CancellationToken ct) =>
 {
+    if (ctx.Role != AccountRole.Owner) return Results.Forbid();
     await watchlists.RemoveSymbolAsync(ctx.AccountId, id, symbol, ct);
     return Results.Ok();
 });
@@ -1373,6 +1385,8 @@ runGroup.MapPost("/{jobType}", async (
     [FromServices] ServiceBusClient? serviceBus,
     IAccountContext ctx) =>
 {
+    if (ctx.Role != AccountRole.Owner)
+        return Results.Forbid();
     if (serviceBus is null)
         return Results.Problem("Service Bus is not configured on this environment.", statusCode: StatusCodes.Status503ServiceUnavailable);
 

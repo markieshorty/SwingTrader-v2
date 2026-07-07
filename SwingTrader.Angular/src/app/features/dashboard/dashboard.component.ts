@@ -69,6 +69,8 @@ export class DashboardComponent {
   // without having to scan the full Worker Status panel.
   // Latest result per worker job — if any failed, the health capsule goes red.
   // Monitor and non-WorkerRun entries are excluded (user actions don't affect system health).
+  isOwner = computed(() => this.accountSettings()?.role === 'Owner');
+
   systemHealthy = computed(() => {
     const runs = this.status()?.runs ?? [];
     const seen = new Set<string>();

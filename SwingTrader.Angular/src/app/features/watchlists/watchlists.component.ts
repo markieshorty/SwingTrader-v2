@@ -50,6 +50,7 @@ export class WatchlistsComponent {
   newName = '';
   newType: WatchlistType = 'Manual';
   newDescription = '';
+  isOwner = signal(false);
 
   enabledCount = () => this.watchlists().filter((w) => w.isEnabled).length;
   maxEnabled = MAX_ENABLED_WATCHLISTS;
@@ -57,6 +58,10 @@ export class WatchlistsComponent {
 
   constructor() {
     this.load();
+    this.api.getAccountSettings().subscribe({
+      next: (s) => this.isOwner.set(s.role === 'Owner'),
+      error: () => {},
+    });
   }
 
   private load(): void {

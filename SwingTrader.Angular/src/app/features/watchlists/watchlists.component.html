@@ -4,7 +4,7 @@
       {{ enabledCount() }} of {{ maxEnabled }} watchlists enabled. The Research Agent scans the combined,
       deduplicated symbols of every enabled watchlist.
     </p>
-    <button mat-raised-button color="primary" (click)="showCreateForm.set(!showCreateForm())">
+    <button mat-raised-button color="primary" [disabled]="!isOwner()" (click)="showCreateForm.set(!showCreateForm())">
       <mat-icon>add</mat-icon>
       New Watchlist
     </button>
@@ -71,10 +71,10 @@
           <button mat-stroked-button (click)="toggleEnabled(watchlist)">
             {{ watchlist.isEnabled ? 'Disable' : 'Enable' }}
           </button>
-          @if (!watchlist.isDefault) {
+          @if (!watchlist.isDefault && isOwner()) {
             <button mat-stroked-button (click)="setDefault(watchlist)">Set as default</button>
           }
-          @if (!watchlist.isDefault) {
+          @if (!watchlist.isDefault && isOwner()) {
             <button mat-icon-button (click)="deleteWatchlist(watchlist)" title="Delete watchlist">
               <mat-icon>delete</mat-icon>
             </button>
@@ -85,11 +85,13 @@
           <div class="symbols-section">
             <mat-chip-set>
               @for (item of watchlist.items; track item.id) {
-                <mat-chip (removed)="removeSymbol(watchlist, item.symbol)" [matTooltip]="item.companyName">
+                <mat-chip [removable]="isOwner()" (removed)="removeSymbol(watchlist, item.symbol)" [matTooltip]="item.companyName">
                   {{ item.symbol }}
-                  <button matChipRemove title="Remove {{ item.symbol }}">
-                    <mat-icon>cancel</mat-icon>
-                  </button>
+                  @if (isOwner()) {
+                    <button matChipRemove title="Remove {{ item.symbol }}">
+                      <mat-icon>cancel</mat-icon>
+                    </button>
+                  }
                 </mat-chip>
               }
             </mat-chip-set>
@@ -104,7 +106,7 @@
                   (keydown.enter)="addSymbol(watchlist)"
                 />
               </mat-form-field>
-              <button mat-raised-button color="primary" (click)="addSymbol(watchlist)">Add</button>
+              <button mat-raised-button color="primary" [disabled]="!isOwner()" (click)="addSymbol(watchlist)">Add</button>
             </div>
           </div>
         }

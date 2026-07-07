@@ -203,7 +203,7 @@
     <div class="trigger-buttons">
       @for (agent of agents; track agent) {
         <div class="trigger-item">
-          <button mat-raised-button [disabled]="runningAgent() === agent" (click)="runAgent(agent)">
+          <button mat-raised-button [disabled]="runningAgent() === agent || !isOwner()" (click)="runAgent(agent)">
             @if (runningAgent() === agent) {
               <mat-icon class="spin">autorenew</mat-icon>
             } @else {

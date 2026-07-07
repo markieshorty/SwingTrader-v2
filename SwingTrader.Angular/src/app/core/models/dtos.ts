@@ -241,6 +241,7 @@ export interface TradingConfigDto {
   tradingMode: TradingMode;
   approvalRequired: boolean;
   t212AccountId: string | null;
+  role: 'Owner' | 'Member';
 }
 
 export interface StrategyWeightsDto {

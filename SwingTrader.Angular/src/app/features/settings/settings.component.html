@@ -17,9 +17,9 @@
             <button mat-raised-button color="primary" (click)="saveAndTestKey()">Save and Test</button>
             <button mat-button (click)="cancelEditing()">Cancel</button>
           } @else {
-            <button mat-stroked-button (click)="startEditing(provider)">Replace</button>
+            <button mat-stroked-button [disabled]="!isOwner()" (click)="startEditing(provider)">Replace</button>
             <button mat-stroked-button (click)="testKey(provider)">Test</button>
-            <button mat-icon-button (click)="removeKey(provider)" title="Remove key">
+            <button mat-icon-button [disabled]="!isOwner()" (click)="removeKey(provider)" title="Remove key">
               <mat-icon>delete</mat-icon>
             </button>
           }
@@ -126,7 +126,7 @@
           </mat-form-field>
         </div>
 
-        <button mat-raised-button color="primary" (click)="saveWeights()">Save</button>
+        <button mat-raised-button color="primary" [disabled]="!isOwner()" (click)="saveWeights()">Save</button>
       } @else {
         <p class="muted">No active strategy weights found for this account.</p>
       }
@@ -255,11 +255,11 @@
           </details>
 
           <div class="button-row">
-            <button mat-raised-button color="primary" (click)="saveRiskProfile()">Save</button>
+            <button mat-raised-button color="primary" [disabled]="!isOwner()" (click)="saveRiskProfile()">Save</button>
             @if (riskProfileDirty()) {
-              <button mat-button (click)="discardRiskProfileChanges()">Discard Changes</button>
+              <button mat-button [disabled]="!isOwner()" (click)="discardRiskProfileChanges()">Discard Changes</button>
             }
-            <button mat-stroked-button (click)="resetRiskProfile()">Reset to Defaults</button>
+            <button mat-stroked-button [disabled]="!isOwner()" (click)="resetRiskProfile()">Reset to Defaults</button>
           </div>
         }
       } @else {
