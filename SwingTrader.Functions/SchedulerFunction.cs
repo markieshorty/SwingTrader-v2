@@ -55,7 +55,7 @@ public class SchedulerFunction(
                 // TryEnqueueAsync's job-log dedup means only one execution fires
                 // per day — the approve endpoint deletes the job log entry to
                 // allow re-enqueue after a late approval.
-                if (isWeekday && InWindow(nowEt, 9, 20, 16, 0))
+                if (isWeekday && InWindow(nowEt, 9, 20, 15, 55))
                     await TryEnqueueAsync(account.Id, "Execution", today, "execution-jobs",
                         new ExecutionJobMessage(account.Id, Guid.NewGuid().ToString("N"), today), ct);
 
