@@ -98,7 +98,7 @@ export interface TradeDto {
 export interface ActivityLogDto {
   category: string;
   title: string;
-  result: 'Success' | 'Warning' | 'Failed' | 'Info' | 'Skipped';
+  result: 'Success' | 'Warning' | 'Failed' | 'Info' | 'Skipped' | 'Started';
   message: string | null;
   occurredAt: string;
 }

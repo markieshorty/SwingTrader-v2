@@ -153,20 +153,9 @@
   margin-bottom: 6px;
 }
 
-.phase-probation {
-  background: color-mix(in srgb, var(--st-amber) 20%, transparent);
-  color: var(--st-amber);
-}
-
-.phase-confirmed {
-  background: color-mix(in srgb, var(--st-green) 20%, transparent);
-  color: var(--st-green);
-}
-
-.phase-exiting {
-  background: color-mix(in srgb, var(--st-red) 20%, transparent);
-  color: var(--st-red);
-}
+.phase-probation { background: rgba(245, 158, 11, 0.2); color: var(--st-amber); }
+.phase-confirmed { background: rgba(34, 197, 94, 0.2); color: var(--st-green); }
+.phase-exiting   { background: rgba(239, 68, 68, 0.2); color: var(--st-red); }
 
 .momentum-line {
   font-size: 12px;
