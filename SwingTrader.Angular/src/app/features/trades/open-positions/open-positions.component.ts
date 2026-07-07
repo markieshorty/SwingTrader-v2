@@ -29,9 +29,6 @@ import { PositionDto } from '../../../core/models/dtos';
           </div>
           <span class="phase-badge" [class]="'phase-' + position.phase.toLowerCase()">{{ phaseLabel(position) }}</span>
           <app-stop-target-bar [position]="position" />
-          @if (position.trailingStopPrice) {
-            <p class="detail-line">Trailing stop: £{{ position.trailingStopPrice | number: '1.2-2' }}</p>
-          }
           @if (position.momentumHealthVerdict) {
             <p class="detail-line momentum-line">
               Momentum: {{ position.momentumHealthScore | number: '1.2-2' }} — {{ position.momentumHealthReasoning }}
