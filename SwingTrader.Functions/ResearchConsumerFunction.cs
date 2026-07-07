@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
@@ -21,6 +22,7 @@ public class ResearchConsumerFunction(
     IAccountRiskProfileRepository riskProfileRepo,
     IMomentumHealthService momentumHealth,
     IWorkerHeartbeatRepository heartbeats,
+    IActivityLogRepository activityLog,
     IUserHttpClientFactory clientFactory,
     ILogger<ResearchConsumerFunction> logger)
 {
@@ -53,18 +55,28 @@ public class ResearchConsumerFunction(
             var claude = await clientFactory.CreateClaudeAsync<IClaudeClient>(message.AccountId, ct);
 
             using var semaphore = new SemaphoreSlim(MaxConcurrentSymbols);
+            var failedSymbols = new ConcurrentBag<string>();
             var tasks = symbols.Select(async s =>
             {
                 await semaphore.WaitAsync(ct);
                 try
                 {
-                    await pipeline.RunAsync(message.AccountId, finnhub, tiingo, claude, s.Symbol, ct);
+                    var signal = await pipeline.RunAsync(message.AccountId, finnhub, tiingo, claude, s.Symbol, ct);
+
+                    // RunAsync returns null on a silent candle-fetch failure (rate limit,
+                    // no data, etc.) without persisting anything - the symbol's existing
+                    // StockSignal row (if any) is left exactly as it was from the last
+                    // successful run, which looks identical to a fresh rescore unless we
+                    // surface it here.
+                    if (signal is null)
+                        failedSymbols.Add(s.Symbol);
                 }
                 catch (Exception ex)
                 {
                     // One symbol failing shouldn't fail the whole account's research run -
                     // the job as a whole still completes with partial signal coverage.
                     logger.LogWarning(ex, "Research failed for {Symbol} (account {AccountId})", s.Symbol, message.AccountId);
+                    failedSymbols.Add(s.Symbol);
                 }
                 finally
                 {
@@ -78,7 +90,18 @@ public class ResearchConsumerFunction(
             // has a fresh signal for today. See MomentumHealthCheck_ProbationPhase.md.
             await CheckOpenPositionHealthAsync(message.AccountId, ct);
 
-            await heartbeats.UpsertAsync(message.AccountId, "Research", "Success", $"{symbols.Count} symbol(s) scored");
+            var failedList = failedSymbols.Distinct().OrderBy(s => s).ToList();
+            if (failedList.Count > 0)
+            {
+                await activityLog.LogAsync(message.AccountId, "SystemEvent", "Research Incomplete", "Warning",
+                    $"{failedList.Count} of {symbols.Count} symbol(s) could not be rescored this run and kept their " +
+                    $"prior signal — {string.Join(", ", failedList)}. Re-run Research to retry.", ct);
+            }
+
+            var summary = failedList.Count > 0
+                ? $"{symbols.Count - failedList.Count}/{symbols.Count} symbol(s) scored, {failedList.Count} kept prior signal"
+                : $"{symbols.Count} symbol(s) scored";
+            await heartbeats.UpsertAsync(message.AccountId, "Research", "Success", summary);
             await jobLog.MarkCompletedAsync(message.AccountId, "Research", message.TradeDate, ct);
         }
         catch (Exception ex)
