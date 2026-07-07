@@ -75,7 +75,8 @@ export class AppComponent {
   });
 
   private titleFromUrl(): string {
-    const segment = this.router.url.split('/')[1] ?? 'dashboard';
+    const path = this.router.url.split('?')[0];
+    const segment = path.split('/')[1] ?? 'dashboard';
     if (!segment) return 'Dashboard';
     return segment.charAt(0).toUpperCase() + segment.slice(1);
   }
