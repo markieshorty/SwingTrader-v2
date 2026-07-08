@@ -156,16 +156,12 @@ public class UserHttpClientFactory(
             var response = await base.SendAsync(request, ct);
             var path = request.RequestUri?.AbsolutePath ?? "";
 
-            // history/orders temporarily always-logged (like account/summary)
-            // to see T212's real field names/casing while diagnosing fill
-            // reconciliation - HistoricalOrderDetail/HistoricalFillDetail were
-            // built from public docs, not a confirmed live response.
-            if (!response.IsSuccessStatusCode || path.Contains("account/summary") || path.Contains("history/orders"))
+            if (!response.IsSuccessStatusCode || path.Contains("account/summary"))
             {
                 var body = await response.Content.ReadAsStringAsync(ct);
                 var level = response.IsSuccessStatusCode ? LogLevel.Information : LogLevel.Warning;
                 logger.Log(level, "T212 {Method} {Path} returned {StatusCode}: {Body}",
-                    request.Method, path, (int)response.StatusCode, Truncate(body, path.Contains("history/orders") ? 4000 : 500));
+                    request.Method, path, (int)response.StatusCode, Truncate(body));
 
                 // Content can only be read once - replace it so Refit's own
                 // deserialization downstream still sees the same body.
@@ -175,6 +171,6 @@ public class UserHttpClientFactory(
             return response;
         }
 
-        private static string Truncate(string body, int limit = 500) => body.Length > limit ? body[..limit] + "..." : body;
+        private static string Truncate(string body) => body.Length > 500 ? body[..500] + "..." : body;
     }
 }
