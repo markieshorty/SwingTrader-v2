@@ -203,7 +203,7 @@ export class DashboardComponent {
     this.api.runAgent(agent.toLowerCase()).subscribe({
       next: (result) => {
         this.runningAgent.set(null);
-        this.snackbar.open(result.message ?? `${agent} completed`, 'Dismiss', { duration: 4000 });
+        this.snackbar.open(result.message ?? `${agent} started`, 'Dismiss', { duration: 4000 });
         this.data.refresh();
         this.loadRecentTrades();
       },
