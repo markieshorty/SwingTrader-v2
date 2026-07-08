@@ -178,6 +178,22 @@ public class ResearchPipeline(
         var from = DateTime.UtcNow.AddDays(-cfg.CandleHistoryDays);
         var to = DateTime.UtcNow;
 
+        // Skip the Tiingo round-trip entirely if we already fetched today's
+        // candle for this symbol - a big win when Research is re-run more than
+        // once in the same day (manual triggers, retries), which previously
+        // re-pulled full history for every symbol every time and was a major
+        // contributor to burning through Tiingo's rate/quota limit.
+        var latestStored = await candleRepo.GetLatestCandleDateAsync(symbol, "D");
+        if (latestStored?.Date == DateTime.UtcNow.Date)
+        {
+            var stored = await candleRepo.GetCandlesAsync(symbol, "D", from, to);
+            if (stored.Count > 0)
+            {
+                logger.LogInformation("{Symbol}: already have today's candle — reusing stored history, skipping Tiingo", symbol);
+                return stored.OrderBy(c => c.Timestamp).ToList();
+            }
+        }
+
         logger.LogInformation("Fetching candles for {Symbol} from {From:yyyy-MM-dd} to {To:yyyy-MM-dd}",
             symbol, from, to);
 
