@@ -1,0 +1,89 @@
+.guide-intro {
+  margin-bottom: 12px;
+
+  h2 {
+    margin-bottom: 4px;
+  }
+}
+
+.guide-tabs {
+  margin-top: 8px;
+}
+
+.panel {
+  padding: 20px;
+  margin-top: 16px;
+
+  h3 {
+    margin-top: 24px;
+    margin-bottom: 8px;
+
+    &:first-of-type {
+      margin-top: 0;
+    }
+  }
+
+  p {
+    line-height: 1.55;
+  }
+
+  ul,
+  ol {
+    line-height: 1.6;
+  }
+}
+
+.muted {
+  color: var(--st-muted);
+}
+
+.small {
+  font-size: 12px;
+}
+
+.pipeline {
+  padding-left: 20px;
+
+  li {
+    margin-bottom: 6px;
+  }
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0 4px;
+
+  th,
+  td {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--st-border, rgba(255, 255, 255, 0.08));
+    vertical-align: top;
+  }
+
+  th {
+    font-weight: 600;
+    color: var(--st-muted);
+    font-size: 13px;
+  }
+
+  td.num {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+}
+
+.glossary {
+  dt {
+    font-weight: 600;
+    margin-top: 14px;
+  }
+
+  dd {
+    margin: 4px 0 0;
+    color: var(--st-muted);
+    line-height: 1.5;
+  }
+}

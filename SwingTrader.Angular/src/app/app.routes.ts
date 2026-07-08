@@ -86,6 +86,12 @@ export const routes: Routes = [
     title: 'Settings',
   },
   {
+    path: 'guide',
+    canActivate: [authGuard, approvalGuard],
+    loadComponent: () => import('./features/guide/guide.component').then((m) => m.GuideComponent),
+    title: 'Guide',
+  },
+  {
     path: '**',
     redirectTo: '',
   },

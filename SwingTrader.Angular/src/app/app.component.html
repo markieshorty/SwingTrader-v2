@@ -37,6 +37,10 @@
           <mat-icon>settings</mat-icon>
           Settings
         </a>
+        <a mat-list-item routerLink="/guide" routerLinkActive="active">
+          <mat-icon>menu_book</mat-icon>
+          Guide
+        </a>
         @if (auth.isAdmin()) {
           <mat-divider />
           <a mat-list-item routerLink="/admin" routerLinkActive="active">

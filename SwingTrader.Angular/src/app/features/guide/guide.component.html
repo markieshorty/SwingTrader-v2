@@ -1,0 +1,191 @@
+@if (!loaded()) {
+  <app-loading-spinner />
+} @else {
+  <div class="guide-intro">
+    <h2>How SwingTrader works</h2>
+    <p class="muted">
+      This guide explains what the system does and shows <strong>your account's current settings</strong> inline, so
+      it always reflects how your bot is actually configured. You're currently in
+      <strong>{{ currentMode() }}</strong> mode.
+    </p>
+  </div>
+
+  <mat-tab-group animationDuration="0ms" class="guide-tabs">
+    <!-- ───────────────────────── How it works ───────────────────────── -->
+    <mat-tab label="How it works">
+      <mat-card class="panel">
+        <h3>The daily pipeline</h3>
+        <p>
+          SwingTrader runs as a chain of scheduled agents. Each does one job and hands off to the next. All times are
+          US Eastern (ET), the market's timezone.
+        </p>
+        <ol class="pipeline">
+          <li><strong>Watchlist</strong> (weekly, Sun 20:00) — screens the S&amp;P 500 / Nasdaq 100 down to a focused list of candidates.</li>
+          <li><strong>Research</strong> (daily, 04:00) — scores every watchlist symbol 0–10 on the eight components in the next tab.</li>
+          <li><strong>Report</strong> (daily, 06:30) — emails you a brief of the day's buy/watch/hold/avoid signals.</li>
+          <li><strong>Approval</strong> — if enabled, nothing trades until you approve. Approvals are on the Trades page.</li>
+          <li><strong>Execution</strong> (daily, from 09:20) — places orders for approved buy signals at Trading&nbsp;212.</li>
+          <li><strong>Monitor</strong> (every 5 min, 09:30–16:00) — watches open positions and enforces stops, targets, trailing stops and exits.</li>
+          <li><strong>Risk</strong> (monthly) &amp; <strong>Refinement</strong> (monthly) — re-evaluate your capital tier and fine-tune the component weights.</li>
+          <li><strong>Readiness</strong> (daily) — records how close each feature is to being trusted with more capital.</li>
+        </ol>
+        <p class="muted small">
+          Approval is currently <strong>{{ approvalOn() ? 'ON' : 'OFF' }}</strong> for your account
+          @if (approvalOn()) { — the bot waits for you before every day's trades. }
+          @else { — approved buy signals execute automatically. }
+          You can change this on the Settings → Trading tab.
+        </p>
+      </mat-card>
+    </mat-tab>
+
+    <!-- ───────────────────────── Conviction score ───────────────────────── -->
+    <mat-tab label="Conviction score">
+      <mat-card class="panel">
+        <h3>How a signal is scored</h3>
+        <p>
+          Every candidate gets a single <strong>conviction score from 0 to 10</strong>. It's a weighted blend of eight
+          independent components — each scored 0–1, multiplied by its weight, then summed and scaled to 10. The weights
+          below are <strong>your account's current values</strong> (they sum to 100%). The Refinement agent nudges them
+          over time based on which components actually predicted your winners.
+        </p>
+        <table class="data-table">
+          <thead>
+            <tr><th>Component</th><th>Your weight</th><th>What it measures</th></tr>
+          </thead>
+          <tbody>
+            @for (c of components; track c.name) {
+              <tr>
+                <td>{{ c.name }}</td>
+                <td class="num">{{ weightPct(c.weightKey) }}</td>
+                <td class="muted">{{ c.measures }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        <h3>Thresholds</h3>
+        <ul>
+          <li>Score ≥ <strong>{{ weights()?.buyThreshold ?? '—' }}</strong> → <strong>Buy</strong> (eligible for execution).</li>
+          <li>Score ≥ <strong>{{ weights()?.watchThreshold ?? '—' }}</strong> → <strong>Watch</strong> (on the radar, not traded).</li>
+          <li>Below that → Hold / Avoid.</li>
+        </ul>
+        <p class="muted small">
+          When a component's data source is unavailable (e.g. a news fetch fails), it contributes a neutral 0.5 rather
+          than dragging the score down. A missing data point never pushes a signal toward Buy.
+        </p>
+      </mat-card>
+    </mat-tab>
+
+    <!-- ───────────────────────── Risk & your money ───────────────────────── -->
+    <mat-tab label="Risk &amp; your money">
+      <mat-card class="panel">
+        <h3>How much gets risked</h3>
+        <p>Capital is protected by several layers, all currently set to:</p>
+        <table class="data-table">
+          <tbody>
+            <tr><td>Locked (never traded)</td><td class="num">{{ pct(risk()?.lockedCapitalPct) }}</td></tr>
+            <tr><td>Max size of any one position (of active capital)</td><td class="num">{{ pct(risk()?.maxPositionPctOfActive) }}</td></tr>
+            <tr><td>Max open positions at once</td><td class="num">{{ risk()?.maxOpenPositions ?? '—' }}</td></tr>
+            <tr><td>Daily-loss circuit breaker</td><td class="num">{{ pct(risk()?.dailyLossCircuitBreakerPct) }}</td></tr>
+            @if (risk()?.capitalBreakdown; as cap) {
+              <tr><td>Current capital tier</td><td class="num">{{ cap.currentTier }}</td></tr>
+            }
+          </tbody>
+        </table>
+        <p class="muted small">
+          Capital unlocks in tiers as the strategy proves itself — early on only a small slice of the account is
+          "active" (tradeable); hitting win-rate and trade-count milestones unlocks more. The circuit breaker flags
+          (does not auto-liquidate) if the portfolio drops that far in a single day.
+        </p>
+
+        <h3>How positions are exited</h3>
+        <p>Once a trade is open, the Monitor agent enforces these automatically:</p>
+        <table class="data-table">
+          <tbody>
+            <tr><td>Default stop loss</td><td class="num">{{ pct(weights()?.stopLossPctDefault) }} below entry</td></tr>
+            <tr><td>Trailing stop activates at</td><td class="num">+{{ pct(risk()?.trailingActivationPct) }}</td></tr>
+            <tr><td>Trailing stop distance</td><td class="num">{{ pct(risk()?.trailingDistancePct) }}</td></tr>
+            <tr><td>Max hold (time exit)</td><td class="num">{{ risk()?.maxHoldDays ?? '—' }} days</td></tr>
+            <tr><td>Min hold before health check</td><td class="num">{{ risk()?.minHoldDays ?? '—' }} days</td></tr>
+            <tr><td>Earnings blackout window</td><td class="num">{{ risk()?.earningsGateDays ?? '—' }} days</td></tr>
+          </tbody>
+        </table>
+        <p class="muted small">
+          Targets are set per-trade from the setup type and conviction (roughly 8–12% above entry). A momentum-health
+          check around day {{ risk()?.minHoldDays ?? '—' }} exits early if the thesis has broken down. All of these are
+          adjustable on Settings → Risk profile.
+        </p>
+      </mat-card>
+    </mat-tab>
+
+    <!-- ───────────────────────── Demo vs Live ───────────────────────── -->
+    <mat-tab label="Demo vs Live">
+      <mat-card class="panel">
+        <h3>Two completely separate worlds</h3>
+        <p>
+          You're currently in <strong>{{ currentMode() }}</strong> mode.
+          <strong>Demo</strong> trades practice money against Trading&nbsp;212's demo environment;
+          <strong>Live</strong> trades real money. They use different API credentials and are kept entirely separate —
+          trades, reports, readiness, refinement and P&amp;L for one mode never mix into the other.
+        </p>
+        <ul>
+          <li>Each mode needs its own Trading&nbsp;212 <strong>key + secret</strong> pair (demo keys are rejected by the live endpoint and vice-versa).</li>
+          <li>Switching mode takes effect immediately and reloads the app so every figure reflects the new mode.</li>
+          <li>If you switch with positions still open in the current mode, you'll be warned first — the bot stops monitoring those positions until you switch back, so they'd sit without stop-loss protection.</li>
+        </ul>
+        <p class="muted small">
+          Tip: use the <strong>Test</strong> button on Settings → API Keys. It calls Trading&nbsp;212 and shows the
+          account balance and whether it's practice or real money — the quickest way to confirm your keys are correct
+          and not swapped.
+        </p>
+      </mat-card>
+    </mat-tab>
+
+    <!-- ───────────────────────── Approvals & setup ───────────────────────── -->
+    <mat-tab label="Approvals &amp; setup">
+      <mat-card class="panel">
+        <h3>Getting set up</h3>
+        <p>The bot needs four integrations, all entered on Settings → API Keys:</p>
+        <ul>
+          <li><strong>Finnhub</strong> — quotes, company news and profiles.</li>
+          <li><strong>Tiingo</strong> — historical price candles for indicators.</li>
+          <li><strong>Claude</strong> — news-sentiment scoring and written narratives.</li>
+          <li><strong>Trading&nbsp;212</strong> — a key + secret pair for whichever mode(s) you'll run.</li>
+        </ul>
+
+        <h3>The approval flow</h3>
+        <p>
+          Approval is currently <strong>{{ approvalOn() ? 'ON' : 'OFF' }}</strong>.
+          When on, the daily Report lists the proposed buys and <em>nothing executes until you approve</em> on the
+          Trades → Approvals tab. There's a daily window (the Report tells you the cutoff); no action means no trades
+          that day. When off, approved-by-default buy signals execute automatically at the Execution window.
+        </p>
+        <p class="muted small">
+          Approvals are per-day and per-mode. Same-day buys that get re-triggered after a position closes are handled
+          automatically without needing re-approval.
+        </p>
+      </mat-card>
+    </mat-tab>
+
+    <!-- ───────────────────────── Glossary ───────────────────────── -->
+    <mat-tab label="Glossary">
+      <mat-card class="panel">
+        <dl class="glossary">
+          <dt>Conviction score</dt>
+          <dd>The 0–10 blended score that decides Buy / Watch / Hold / Avoid. See the Conviction score tab.</dd>
+          <dt>Market regime</dt>
+          <dd>The overall market backdrop, derived from the S&amp;P 500 vs its moving averages and the VIX: <strong>Bull</strong>, <strong>Neutral</strong>, <strong>Bear</strong>, or <strong>Crisis</strong>. Used to contextualise performance.</dd>
+          <dt>Capital tier</dt>
+          <dd>How much of your account is "active" (tradeable). Rises as the strategy hits win-rate/trade-count milestones; falls if recent performance degrades.</dd>
+          <dt>Readiness</dt>
+          <dd>A per-feature scorecard of how close the system is to being trusted with a given capability (e.g. live trading, refinement), based on your accumulated trade history.</dd>
+          <dt>Refinement</dt>
+          <dd>The monthly process that correlates each component's scores against your actual trade outcomes and proposes weight adjustments — statistically gated so it doesn't chase noise.</dd>
+          <dt>Setup type</dt>
+          <dd>The chart pattern behind a signal: oversold recovery, breakout, momentum continuation, volume spike, or trend following.</dd>
+          <dt>Circuit breaker</dt>
+          <dd>A safety flag raised if the portfolio falls by the daily-loss threshold in one day. It alerts — it does not auto-sell.</dd>
+        </dl>
+      </mat-card>
+    </mat-tab>
+  </mat-tab-group>
+}
