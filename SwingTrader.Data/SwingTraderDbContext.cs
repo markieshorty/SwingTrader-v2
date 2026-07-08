@@ -182,7 +182,11 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.HasKey(x => x.Id);
             e.Property(x => x.PortfolioValue).HasPrecision(18, 8);
             e.Property(x => x.DailyPnl).HasPrecision(18, 8);
-            e.HasIndex(x => new { x.AccountId, x.ReportDate }).IsUnique();
+            // Scoped by TradingMode too: a Demo and a Live report can legitimately
+            // exist for the same account and date, and every read now filters by
+            // mode - a (AccountId, ReportDate)-only unique index would reject the
+            // second mode's report for that day (see PortfolioSnapshot.TradingMode).
+            e.HasIndex(x => new { x.AccountId, x.TradingMode, x.ReportDate }).IsUnique();
         });
 
         modelBuilder.Entity<PortfolioSnapshot>(e =>
@@ -228,7 +232,11 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.HasKey(x => x.Id);
             e.Property(x => x.ApprovedVia).HasMaxLength(20);
             e.Property(x => x.ApprovedSymbols).HasMaxLength(500);
-            e.HasIndex(x => new { x.AccountId, x.TradeDate }).IsUnique();
+            // Scoped by TradingMode too: a Demo and a Live approval can legitimately
+            // exist for the same account and date, and every read now filters by
+            // mode - a (AccountId, TradeDate)-only unique index would reject the
+            // second mode's approval for that day (see PortfolioSnapshot.TradingMode).
+            e.HasIndex(x => new { x.AccountId, x.TradingMode, x.TradeDate }).IsUnique();
         });
 
         modelBuilder.Entity<StrategyWeights>(e =>
