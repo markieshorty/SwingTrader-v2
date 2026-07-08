@@ -30,6 +30,13 @@ public class TradeRepository(SwingTraderDbContext context) : ITradeRepository
             .OrderByDescending(x => x.OpenedAt)
             .ToListAsync();
 
+    public async Task<IEnumerable<Trade>> GetUnreconciledOrdersAsync(int accountId) =>
+        await context.Trades
+            .Where(x => x.AccountId == accountId &&
+                ((x.EntryOrderId != null && x.EntryFillConfirmedAt == null) ||
+                 (x.ExitOrderId != null && x.ExitFillConfirmedAt == null)))
+            .ToListAsync();
+
     public async Task<Trade> AddAsync(Trade trade)
     {
         trade.Symbol = trade.Symbol.ToUpperInvariant();

@@ -11,6 +11,15 @@ public class Trade : BaseEntity
     public decimal Quantity { get; set; }
     public string? EntryOrderId { get; set; }
     public string? ExitOrderId { get; set; }
+
+    // Null while EntryOrderId/ExitOrderId is set but T212 hasn't confirmed a
+    // fill yet - EntryPrice/ExitPrice are set optimistically to the quoted
+    // price at order-placement time, which for a market order can differ
+    // from the actual fill (slippage). MonitorService polls T212 each cycle
+    // for any order still missing its confirmation and overwrites the price
+    // with the real fill once available. See MonitorService.ReconcileOrderFillsAsync.
+    public DateTime? EntryFillConfirmedAt { get; set; }
+    public DateTime? ExitFillConfirmedAt { get; set; }
     public decimal StopLossPrice { get; set; }
     public decimal TargetPrice { get; set; }
     public TradeStatus Status { get; set; }

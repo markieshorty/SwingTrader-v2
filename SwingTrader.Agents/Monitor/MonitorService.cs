@@ -44,6 +44,12 @@ public class MonitorService(
             logger.LogWarning(ex, "Could not fetch T212 account summary for account {AccountId} this cycle", accountId);
         }
 
+        // Step 0 — reconcile any order placed last cycle (or earlier) whose
+        // real fill price T212 hadn't confirmed yet. Runs before the circuit
+        // breaker check so RealizedPnl/EntryPrice/ExitPrice are corrected as
+        // early as possible once T212 confirms.
+        await ReconcileOrderFillsAsync(accountId, t212, ct);
+
         // Step 1 — circuit breaker check
         if (await circuitBreaker.ShouldTriggerAsync(accountId, summary, ct))
         {
@@ -186,6 +192,97 @@ public class MonitorService(
         // Executed exits already send their own per-position email from
         // PositionExitService — no separate summary email needed here.
         return new MonitorCycleResult(checked_, trailingUpdated, flaggedExits, false, executedExits);
+    }
+
+    // A market order's requested price is only ever an estimate - the real
+    // fill (and any slippage) is known solely by T212. EntryPrice/ExitPrice
+    // are written optimistically at order-placement time (ExecutionService /
+    // PositionExitService) and corrected here once T212 confirms the fill.
+    private async Task ReconcileOrderFillsAsync(int accountId, ITrading212Client t212, CancellationToken ct)
+    {
+        List<Trade> pending;
+        try
+        {
+            pending = (await tradeRepo.GetUnreconciledOrdersAsync(accountId)).ToList();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to load unreconciled orders for account {AccountId} — will retry next cycle", accountId);
+            return;
+        }
+
+        if (pending.Count == 0) return;
+
+        foreach (var trade in pending)
+        {
+            if (ct.IsCancellationRequested) break;
+
+            var changed = false;
+
+            if (trade.EntryOrderId is not null && trade.EntryFillConfirmedAt is null)
+                changed |= await TryReconcileOrderAsync(
+                    t212, trade.EntryOrderId, trade.Symbol, accountId, "entry", ct,
+                    onFilled: fillPrice => trade.EntryPrice = fillPrice,
+                    markConfirmed: () => trade.EntryFillConfirmedAt = DateTime.UtcNow);
+
+            if (trade.ExitOrderId is not null && trade.ExitFillConfirmedAt is null)
+                changed |= await TryReconcileOrderAsync(
+                    t212, trade.ExitOrderId, trade.Symbol, accountId, "exit", ct,
+                    onFilled: fillPrice =>
+                    {
+                        trade.ExitPrice = fillPrice;
+                        trade.RealizedPnl = (fillPrice - trade.EntryPrice) * trade.Quantity;
+                    },
+                    markConfirmed: () => trade.ExitFillConfirmedAt = DateTime.UtcNow);
+
+            if (changed)
+                await tradeRepo.UpdateAsync(trade);
+        }
+    }
+
+    // Returns true if the trade was mutated (fill confirmed, or the order
+    // reached a terminal non-fill state and confirmation is being given up on
+    // to stop polling it forever). Transient/lookup failures return false so
+    // the same order is retried next cycle.
+    private async Task<bool> TryReconcileOrderAsync(
+        ITrading212Client t212, string orderId, string symbol, int accountId, string side, CancellationToken ct,
+        Action<decimal> onFilled, Action markConfirmed)
+    {
+        OrderResponse order;
+        try
+        {
+            order = await t212.GetOrderAsync(orderId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Could not fetch T212 order {OrderId} ({Side}, {Symbol}, account {AccountId}) — will retry next cycle", orderId, side, symbol, accountId);
+            return false;
+        }
+
+        if (order.FillPrice.HasValue && order.FilledQuantity is > 0)
+        {
+            onFilled(order.FillPrice.Value);
+            markConfirmed();
+            logger.LogInformation(
+                "{Side} fill confirmed for {Symbol} (account {AccountId}): order {OrderId} filled at £{FillPrice:F2}",
+                side, symbol, accountId, orderId, order.FillPrice.Value);
+            return true;
+        }
+
+        // NEW/WORKING orders haven't filled yet - keep polling. CANCELLED/REJECTED
+        // never will, so stop polling and keep the estimated price rather than
+        // retrying forever.
+        var status = order.Status?.ToUpperInvariant() ?? "";
+        if (status.Contains("CANCEL") || status.Contains("REJECT"))
+        {
+            markConfirmed();
+            logger.LogWarning(
+                "{Side} order {OrderId} for {Symbol} (account {AccountId}) ended as {Status} without a fill — keeping estimated price",
+                side, orderId, symbol, accountId, order.Status);
+            return true;
+        }
+
+        return false;
     }
 
     private static string ExitReasonDetail(ExitReason reason, Trade trade, decimal currentPrice) => reason switch
