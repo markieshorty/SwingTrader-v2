@@ -81,18 +81,18 @@ public class ReportGenerationService(
         // Step 6 - ApprovalRequired is a per-account setting (Settings page),
         // not a global one - ApprovalConfig now only carries the base URL and
         // approval-window timing, both genuinely environment-level.
-        var token = account.ApprovalRequired ? Guid.NewGuid().ToString("N") : null;
+        var approvalRequired = account.ApprovalRequired;
         var cfg = reportConfig.Value;
         var markdown = BuildMarkdown(reportDate, buys, watches, holds, avoids, portfolio, market, narratives, cfg, gbpUsd);
-        if (token is not null)
+        if (approvalRequired)
         {
             var baseUrl = approvalConfig.Value.BaseUrl.TrimEnd('/');
             markdown += $"\n\n---\n⚠️ **Approval required** — visit [{baseUrl}/trades?tab=approvals]({baseUrl}/trades?tab=approvals) to approve today's trades before they execute.";
         }
-        var approvalMarkdown = token is null ? null : BuildApprovalMarkdown(reportDate);
+        var approvalMarkdown = approvalRequired ? BuildApprovalMarkdown(reportDate) : null;
 
         // Step 7
-        return await PersistAsync(accountId, account.TradingMode, reportDate, markdown, approvalMarkdown, buys, portfolio, narratives.MarketContext, token);
+        return await PersistAsync(accountId, account.TradingMode, reportDate, markdown, approvalMarkdown, buys, portfolio, narratives.MarketContext, approvalRequired);
     }
 
     // ── Step 1 ───────────────────────────────────────────────────────────────
@@ -633,7 +633,7 @@ public class ReportGenerationService(
 
     private async Task<DailyReport> PersistAsync(
         int accountId, TradingMode tradingMode, DateOnly reportDate, string markdown, string? approvalMarkdown, List<StockSignal> buys,
-        PortfolioState portfolio, string marketContext, string? token)
+        PortfolioState portfolio, string marketContext, bool approvalRequired)
     {
         var topBuys = buys.Take(reportConfig.Value.MaxBuysInReport).ToList();
         var topBuySymbols = topBuys.Select(b => b.Symbol).ToList();
@@ -675,7 +675,7 @@ public class ReportGenerationService(
         else
             await reportRepo.UpdateAsync(report);
 
-        if (token is not null)
+        if (approvalRequired)
         {
             // Regenerating a report for a date that already has a TradeApproval
             // (e.g. the manual "Run Report" button clicked twice) must not
@@ -691,13 +691,12 @@ public class ReportGenerationService(
                     AccountId = accountId,
                     TradingMode = tradingMode,
                     TradeDate = reportDate,
-                    ApprovalToken = token,
                     IsApproved = false,
                     IsExpired = false,
                     CandidatesJson = candidatesJson,
                 };
                 await approvalRepo.AddAsync(approval);
-                logger.LogInformation("Approval token created for {Date}: {Token}", reportDate, token[..8] + "...");
+                logger.LogInformation("Approval row created for {Date} (account {AccountId})", reportDate, accountId);
             }
         }
 

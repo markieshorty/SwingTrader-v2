@@ -226,10 +226,8 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
         modelBuilder.Entity<TradeApproval>(e =>
         {
             e.HasKey(x => x.Id);
-            e.Property(x => x.ApprovalToken).IsRequired().HasMaxLength(64);
             e.Property(x => x.ApprovedVia).HasMaxLength(20);
             e.Property(x => x.ApprovedSymbols).HasMaxLength(500);
-            e.HasIndex(x => x.ApprovalToken).IsUnique();
             e.HasIndex(x => new { x.AccountId, x.TradeDate }).IsUnique();
         });
 

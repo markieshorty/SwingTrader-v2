@@ -9,7 +9,6 @@ public class TradeApproval : BaseEntity
     // run after switching mode (see PortfolioSnapshot.TradingMode).
     public TradingMode TradingMode { get; set; }
     public DateOnly TradeDate { get; set; }
-    public string ApprovalToken { get; set; } = string.Empty;
     public bool IsApproved { get; set; } = false;
     public DateTime? ApprovedAt { get; set; }
     public string? ApprovedSymbols { get; set; }

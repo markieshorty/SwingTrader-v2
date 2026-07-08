@@ -6,7 +6,6 @@ namespace SwingTrader.Core.Interfaces;
 public interface IApprovalRepository
 {
     Task<TradeApproval?> GetByDateAsync(int accountId, TradingMode tradingMode, DateOnly date);
-    Task<TradeApproval?> GetByTokenAsync(string token);
     Task<TradeApproval?> GetByIdAsync(int accountId, int id);
     Task<List<TradeApproval>> ListRecentAsync(int accountId, TradingMode tradingMode, int count);
     Task<TradeApproval> AddAsync(TradeApproval approval);

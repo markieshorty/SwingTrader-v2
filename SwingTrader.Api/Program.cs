@@ -784,41 +784,12 @@ api.MapPost("/approvals/{id:int}/approve", async (
     return Results.Ok();
 });
 
-// Approve endpoint stays public - the token in the query string IS the auth.
-// Not behind app.MapGroup("/api")/RequireAuthorization() since it's clicked
-// directly from an email link, not called by the Angular app. Kept as a
-// legacy/optional path - the in-app Approvals tab above is now primary.
-app.MapGet("/approve", async (
-    string token,
-    string? symbols,
-    IApprovalRepository approvals,
-    IJobLogRepository jobLog,
-    IActivityLogRepository activityLog,
-    CancellationToken ct) =>
-{
-    var approval = await approvals.GetByTokenAsync(token);
-    if (approval is null)
-        return Results.Content("<h2>This approval link is invalid or has expired.</h2>", "text/html");
-
-    if (approval.IsApproved)
-        return Results.Content(
-            $"<h2>Already approved</h2><p>Trades for {approval.TradeDate:dd MMM yyyy} were already approved " +
-            $"at {approval.ApprovedAt:HH:mm} ET.</p>", "text/html");
-
-    approval.IsApproved = true;
-    approval.ApprovedAt = DateTime.UtcNow;
-    approval.ApprovedSymbols = string.IsNullOrWhiteSpace(symbols) ? null : symbols;
-    approval.ApprovedVia = "email";
-    await approvals.UpdateAsync(approval);
-
-    await jobLog.DeleteAsync(approval.AccountId, "Execution", approval.TradeDate, ct);
-    await activityLog.LogAsync(approval.AccountId, "UserAction", "Trade Approved", "Info",
-        BuildApprovalActivityMessage(approval, "email"), ct);
-
-    var scopeText = string.IsNullOrWhiteSpace(symbols) ? "all of today's buy signals" : $"symbols: {symbols}";
-    return Results.Content(
-        $"<h2>Approved</h2><p>Trades approved for {approval.TradeDate:dd MMM yyyy} ({scopeText}).</p>", "text/html");
-});
+// The public email-link /approve endpoint was removed (security): it was an
+// unauthenticated, never-expiring, single-token action that placed real-money
+// trades, with an attacker-controllable `symbols` query parameter. Approval
+// now happens exclusively through the authenticated in-app POST
+// /api/approvals/{id}/approve above; the approval email is a plain reminder
+// pointing at that Trades > Approvals tab, carrying no actionable link.
 
 // Account/invite management (Owner-only for mutating operations)
 api.MapPost("/account/invites", async (
@@ -1804,11 +1775,11 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 // SPA fallback for client-side routes only. A plain MapFallbackToFile
-// would also catch unmatched /api, /health, /run, /approve requests and
-// serve index.html (200 OK, text/html) instead of a real 404 - which is
-// exactly what every not-yet-implemented /api/* endpoint hit until this
-// was excluded, breaking Angular's JSON parsing.
-var reservedPrefixes = new[] { "/api", "/health", "/run", "/approve", "/swagger" };
+// would also catch unmatched /api, /health, /run requests and serve
+// index.html (200 OK, text/html) instead of a real 404 - which is exactly
+// what every not-yet-implemented /api/* endpoint hit until this was
+// excluded, breaking Angular's JSON parsing.
+var reservedPrefixes = new[] { "/api", "/health", "/run", "/swagger" };
 app.MapFallback(async context =>
 {
     if (reservedPrefixes.Any(p => context.Request.Path.StartsWithSegments(p)))

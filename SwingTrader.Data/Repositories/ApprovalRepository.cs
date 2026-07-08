@@ -10,9 +10,6 @@ public class ApprovalRepository(SwingTraderDbContext context) : IApprovalReposit
     public Task<TradeApproval?> GetByDateAsync(int accountId, TradingMode tradingMode, DateOnly date) =>
         context.TradeApprovals.FirstOrDefaultAsync(x => x.AccountId == accountId && x.TradingMode == tradingMode && x.TradeDate == date);
 
-    public Task<TradeApproval?> GetByTokenAsync(string token) =>
-        context.TradeApprovals.FirstOrDefaultAsync(x => x.ApprovalToken == token);
-
     public Task<TradeApproval?> GetByIdAsync(int accountId, int id) =>
         context.TradeApprovals.FirstOrDefaultAsync(x => x.AccountId == accountId && x.Id == id);
 
