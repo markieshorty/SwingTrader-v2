@@ -61,4 +61,11 @@ public record DataMilestone(
 public interface IReadinessAssessmentService
 {
     Task<ReadinessReport> AssessAsync(int accountId, CancellationToken ct = default);
+
+    // Runs the assessment and persists a ReadinessSnapshot for today, so the
+    // trajectory chart accumulates history. Kept separate from AssessAsync
+    // (which stays read-only, called on every page load) - this is invoked
+    // once a day by the scheduled Readiness job. Idempotent per day via the
+    // repository's AccountId+TradingMode+SnapshotDate upsert.
+    Task RecordSnapshotAsync(int accountId, CancellationToken ct = default);
 }

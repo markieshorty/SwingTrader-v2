@@ -10,12 +10,12 @@ public class JobScheduleInfoTests
     private static readonly DateTime MondayMorningUtc = new(2026, 7, 6, 9, 0, 0, DateTimeKind.Utc); // ~5am ET
 
     [Fact]
-    public void GetNextRuns_ReturnsAllSevenJobTypes()
+    public void GetNextRuns_ReturnsAllJobTypes()
     {
         var runs = JobScheduleInfo.GetNextRuns(MondayMorningUtc);
 
         runs.Select(r => r.JobType).Should().BeEquivalentTo(
-            ["Research", "Watchlist", "Report", "Execution", "Monitor", "Risk", "Refinement"]);
+            ["Research", "Watchlist", "Report", "Execution", "Monitor", "Risk", "Refinement", "Readiness"]);
     }
 
     [Fact]

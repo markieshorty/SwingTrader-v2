@@ -20,6 +20,7 @@ var queues = [
   'monitor-jobs'
   'risk-jobs'
   'refinement-jobs'
+  'readiness-jobs'
 ]
 
 resource queue 'Microsoft.ServiceBus/namespaces/queues@2022-10-01-preview' = [

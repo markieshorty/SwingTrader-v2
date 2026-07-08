@@ -23,6 +23,7 @@ public static class JobScheduleInfo
             ("Execution", NextWeekdayAt(nowEt, 9, 20)),
             ("Risk", NextMonthlyDayAt(nowEt, 1, 9, 0)),
             ("Refinement", NextMonthlyDayAt(nowEt, 15, 8, 0)),
+            ("Readiness", NextDailyAt(nowEt, 7, 0)),
         }
         .Select(x => new NextRunDto(
             x.JobType,
@@ -73,6 +74,12 @@ public static class JobScheduleInfo
             } while (!IsWeekday(candidate));
         }
         return candidate;
+    }
+
+    private static DateTime NextDailyAt(DateTime nowEt, int hour, int minute)
+    {
+        var candidate = nowEt.Date.AddHours(hour).AddMinutes(minute);
+        return candidate <= nowEt ? candidate.AddDays(1) : candidate;
     }
 
     private static DateTime NextWeeklyAt(DateTime nowEt, DayOfWeek dayOfWeek, int hour, int minute)

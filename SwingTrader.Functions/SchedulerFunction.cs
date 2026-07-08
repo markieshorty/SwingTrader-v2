@@ -85,6 +85,15 @@ public class SchedulerFunction(
                 if (nowEt.Day == 15 && InWindow(nowEt, 8, 0, 8, 5))
                     await TryEnqueueAsync(account.Id, "Refinement", today, "refinement-jobs",
                         new RefinementJobMessage(account.Id, Guid.NewGuid().ToString("N"), today), ct);
+
+                // Daily (every day, not just weekdays) so the readiness
+                // trajectory chart accrues an unbroken day-over-day history -
+                // system-running-days and trade-rate progress advance on
+                // weekends too. 7:00 ET is after Report (6:30) so weekday
+                // snapshots reflect the day's fresh signals.
+                if (InWindow(nowEt, 7, 0, 7, 5))
+                    await TryEnqueueAsync(account.Id, "Readiness", today, "readiness-jobs",
+                        new ReadinessJobMessage(account.Id, Guid.NewGuid().ToString("N"), today), ct);
             }
             catch (Exception ex)
             {

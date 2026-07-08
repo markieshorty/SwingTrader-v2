@@ -123,6 +123,31 @@ public class ReadinessAssessmentService(
             winRate, tradeRate, regimeTradeCount, features, milestones, trajectory);
     }
 
+    public async Task RecordSnapshotAsync(int accountId, CancellationToken ct = default)
+    {
+        var account = await accountRepo.GetAsync(accountId, ct)
+            ?? throw new InvalidOperationException($"Account {accountId} not found.");
+
+        var report = await AssessAsync(accountId, ct);
+
+        await snapshotRepo.UpsertAsync(new ReadinessSnapshot
+        {
+            AccountId = accountId,
+            TradingMode = account.TradingMode,
+            SnapshotDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            ScoredClosedTrades = report.ScoredClosedTrades,
+            ObservedWinRate = report.WinRate.ObservedRate,
+            TradesPerWeekWeighted = report.TradeRate.WeightedTradesPerWeek,
+            // Crisis folds into the bear count - the trajectory table only
+            // breaks out bull/neutral/bear, and crisis is a severe-bear case.
+            RegimeBullCount = report.RegimeTradeCount.GetValueOrDefault(MarketRegime.Bull),
+            RegimeNeutralCount = report.RegimeTradeCount.GetValueOrDefault(MarketRegime.Neutral),
+            RegimeBearCount = report.RegimeTradeCount.GetValueOrDefault(MarketRegime.Bear)
+                + report.RegimeTradeCount.GetValueOrDefault(MarketRegime.Crisis),
+            SystemRunningDays = report.SystemRunningDays,
+        });
+    }
+
     private static WinRateAssessment BuildWinRateAssessment(int wins, int total)
     {
         var observed = total > 0 ? wins / (decimal)total : 0m;

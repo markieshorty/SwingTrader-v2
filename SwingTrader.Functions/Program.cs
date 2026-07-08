@@ -13,6 +13,7 @@ using Refit;
 using Serilog;
 using SwingTrader.Agents.Execution;
 using SwingTrader.Agents.Monitor;
+using SwingTrader.Agents.Readiness;
 using SwingTrader.Agents.Refinement;
 using SwingTrader.Agents.Report;
 using SwingTrader.Agents.Risk;
@@ -132,6 +133,7 @@ builder.Services.AddScoped<IComponentCorrelationService, ComponentCorrelationSer
 builder.Services.AddScoped<IRefinementService, RefinementService>();
 builder.Services.AddScoped<IApplyRefinementService, ApplyRefinementService>();
 builder.Services.AddScoped<ITierEvaluationService, TierEvaluationService>();
+builder.Services.AddScoped<IReadinessAssessmentService, ReadinessAssessmentService>();
 builder.Services.AddScoped<IPositionSizingService, PositionSizingService>();
 builder.Services.AddScoped<IExecutionService, ExecutionService>();
 
