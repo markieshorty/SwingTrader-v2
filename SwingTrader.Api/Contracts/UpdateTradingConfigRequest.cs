@@ -2,7 +2,10 @@ using SwingTrader.Core.Enums;
 
 namespace SwingTrader.Api.Contracts;
 
-public record UpdateTradingConfigRequest(TradingMode TradingMode, bool ApprovalRequired);
+// Force = admin-only override to switch mode despite open positions in the
+// current mode (which Monitor would otherwise stop watching). Ignored for
+// non-admins; see the /account/trading-config endpoint.
+public record UpdateTradingConfigRequest(TradingMode TradingMode, bool ApprovalRequired, bool Force = false);
 
 public record AddNotificationRecipientRequest(string Email, NotificationCategory Categories);
 

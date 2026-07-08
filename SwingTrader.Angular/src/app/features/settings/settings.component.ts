@@ -17,6 +17,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { ConfirmDeleteDialogComponent } from '../../shared/components/confirm-delete-dialog/confirm-delete-dialog.component';
+import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 import {
   AccountMemberDto,
   ApiKeyProvider,
@@ -390,10 +391,10 @@ export class SettingsComponent {
     });
   }
 
-  saveTradingConfig(): void {
+  saveTradingConfig(force = false): void {
     const enablingApprovals = this.approvalRequired();
     const noApprovalRecipient = !this.recipients().some(r => r.tradeApprovalEnabled);
-    this.api.updateTradingConfig(this.tradingMode(), this.approvalRequired()).subscribe({
+    this.api.updateTradingConfig(this.tradingMode(), this.approvalRequired(), force).subscribe({
       next: () => {
         if (enablingApprovals && noApprovalRecipient) {
           const ref = this.snackbar.open(
@@ -410,7 +411,30 @@ export class SettingsComponent {
           this.snackbar.open('Trading settings saved', 'Dismiss', { duration: 3000 });
         }
       },
-      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to save.'), 'Dismiss', { duration: 4000 }),
+      error: (err) => {
+        // The open-positions block returns canForce=true for admins, who can
+        // knowingly switch mode anyway (leaving those positions unmonitored).
+        // Offer the override rather than dead-ending them.
+        if (err?.error?.canForce) {
+          this.dialog
+            .open(ConfirmDialogComponent, {
+              data: {
+                title: 'Open positions in the current mode',
+                message: `${errorMessage(err, 'You have open positions.')}\n\nSwitching anyway leaves them unmonitored — no stop-loss, target, trailing-stop or time-exit enforcement until you switch back.`,
+                cancelLabel: 'OK, no change',
+                confirmLabel: "I don't care, change mode",
+                confirmColor: 'warn',
+              },
+              width: '460px',
+            })
+            .afterClosed()
+            .subscribe((confirmed) => {
+              if (confirmed) this.saveTradingConfig(true);
+            });
+          return;
+        }
+        this.snackbar.open(errorMessage(err, 'Failed to save.'), 'Dismiss', { duration: 4000 });
+      },
     });
   }
 

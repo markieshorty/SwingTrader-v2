@@ -198,8 +198,8 @@ export class ApiService {
     );
   }
 
-  updateTradingConfig(tradingMode: string, approvalRequired: boolean): Observable<unknown> {
-    return this.http.put(`${this.baseUrl}/api/account/trading-config`, { tradingMode, approvalRequired });
+  updateTradingConfig(tradingMode: string, approvalRequired: boolean, force = false): Observable<unknown> {
+    return this.http.put(`${this.baseUrl}/api/account/trading-config`, { tradingMode, approvalRequired, force });
   }
 
   updateMyEmail(email: string): Observable<unknown> {
