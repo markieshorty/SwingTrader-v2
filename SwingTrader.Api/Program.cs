@@ -1054,7 +1054,6 @@ api.MapPut("/account/trading-config", async (
     IAccountRepository accounts,
     ITradeRepository trades,
     IUserKeyService keys,
-    IConfiguration configuration,
     IAccountContext ctx) =>
 {
     if (ctx.Role != AccountRole.Owner)
@@ -1062,11 +1061,6 @@ api.MapPut("/account/trading-config", async (
 
     var account = await accounts.GetAsync(ctx.AccountId)
         ?? throw new InvalidOperationException("Authenticated caller has no account.");
-
-    // Same admin check the "Admin" authorization policy uses (AdminHandler):
-    // the single configured Admin:UserId matched against the "sub" claim.
-    var adminUserId = configuration["Admin:UserId"];
-    var isAdmin = !string.IsNullOrEmpty(adminUserId) && ctx.UserId == adminUserId;
 
     // Trading212 issues separate credentials per environment - switching
     // TradingMode without the matching pair saved would just break every
@@ -1090,19 +1084,18 @@ api.MapPut("/account/trading-config", async (
         // Monitor only watches trades matching the account's *current* mode,
         // so switching away with positions still open would silently orphan
         // them - no stop-loss, target, trailing-stop, or time-exit
-        // enforcement until switching back. For Live positions that means
-        // real money sitting unprotected. Normally a hard block: the
-        // positions must be closed first. An admin can force past it for
-        // testing (canForce below tells the frontend to offer the override),
-        // which knowingly leaves those positions unmonitored.
+        // enforcement until switching back. Not a hard block: the frontend
+        // surfaces a confirm dialog (canForce) so the user acknowledges the
+        // risk, then re-submits with Force=true. Especially important going
+        // Live -> Demo, where settling real positions first is unreasonable.
         var openInCurrentMode = (await trades.GetOpenTradesAsync(ctx.AccountId, account.TradingMode)).ToList();
-        if (openInCurrentMode.Count > 0 && !(isAdmin && req.Force))
+        if (openInCurrentMode.Count > 0 && !req.Force)
             return Results.BadRequest(new
             {
                 message = $"You have {openInCurrentMode.Count} open {account.TradingMode} position(s) " +
                     $"({string.Join(", ", openInCurrentMode.Select(t => t.Symbol))}). " +
-                    $"SwingTrader stops monitoring them the moment you switch modes — close them first.",
-                canForce = isAdmin,
+                    $"SwingTrader stops monitoring them the moment you switch modes.",
+                canForce = true,
             });
     }
 
