@@ -254,10 +254,47 @@ api.MapGet("/signals/today", async (ISignalRepository signals, IAccountContext c
     });
 });
 
-api.MapGet("/trades/recent", async (int? days, ITradeRepository trades, IAccountContext ctx) =>
+// Raw Trade JSON doesn't carry RealizedPnlPercent/DaysHeld/SetupType/
+// ConvictionScoreAtEntry - those aren't columns on the entity, they're
+// derived the same way /positions already derives its equivalents below.
+// Was previously returning the bare entity, silently leaving the Angular
+// TradeDto's percent/days-held/setup columns blank for every closed trade.
+api.MapGet("/trades/recent", async (int? days, ITradeRepository trades, ISignalRepository signals, IAccountContext ctx) =>
 {
     var from = DateTime.UtcNow.AddDays(-(days ?? 30));
-    return Results.Ok(await trades.GetTradeHistoryAsync(ctx.AccountId, from, DateTime.UtcNow));
+    var history = await trades.GetTradeHistoryAsync(ctx.AccountId, from, DateTime.UtcNow);
+
+    var results = new List<object>();
+    foreach (var trade in history)
+    {
+        var end = trade.ClosedAt ?? DateTime.UtcNow;
+        var daysHeld = Math.Max(0, (int)(end - trade.OpenedAt).TotalDays);
+        var realizedPnlPercent = trade.ExitPrice.HasValue && trade.EntryPrice > 0
+            ? (trade.ExitPrice.Value - trade.EntryPrice) / trade.EntryPrice * 100m
+            : (decimal?)null;
+
+        var signal = trade.SignalId.HasValue ? await signals.GetByIdAsync(ctx.AccountId, trade.SignalId.Value) : null;
+
+        results.Add(new
+        {
+            trade.Id,
+            trade.Symbol,
+            Direction = trade.Direction.ToString(),
+            trade.EntryPrice,
+            trade.ExitPrice,
+            trade.RealizedPnl,
+            RealizedPnlPercent = realizedPnlPercent,
+            DaysHeld = daysHeld,
+            Status = trade.Status.ToString(),
+            SetupType = signal?.SetupType.ToString() ?? "Unknown",
+            ConvictionScoreAtEntry = signal?.ConvictionScore,
+            trade.MarketRegimeAtEntry,
+            OpenedAt = trade.OpenedAt,
+            trade.ClosedAt,
+        });
+    }
+
+    return Results.Ok(results);
 });
 
 // Open Trade rows double as "positions", enriched here with a live quote
