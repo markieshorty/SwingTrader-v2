@@ -132,6 +132,10 @@ export class SettingsComponent {
   });
 
   tradingMode = signal<TradingMode>('Demo');
+  // The mode currently persisted server-side (vs. tradingMode(), which tracks
+  // the unsaved UI selection) - used to detect an actual Demo/Live switch on
+  // save so we can hard-reload for the new mode's money/positions data.
+  private persistedTradingMode: TradingMode = 'Demo';
   approvalRequired = signal(true);
   t212AccountId = signal<string | null>(null);
   globalRefinementOptIn = signal(false);
@@ -319,6 +323,7 @@ export class SettingsComponent {
     this.api.getAccountSettings().subscribe({
       next: (settings) => {
         this.tradingMode.set(settings.tradingMode);
+        this.persistedTradingMode = settings.tradingMode;
         this.approvalRequired.set(settings.approvalRequired);
         this.t212AccountId.set(settings.t212AccountId);
         this.globalRefinementOptIn.set(settings.globalRefinementOptIn);
@@ -394,8 +399,20 @@ export class SettingsComponent {
   saveTradingConfig(force = false): void {
     const enablingApprovals = this.approvalRequired();
     const noApprovalRecipient = !this.recipients().some(r => r.tradeApprovalEnabled);
+    const modeChanged = this.tradingMode() !== this.persistedTradingMode;
     this.api.updateTradingConfig(this.tradingMode(), this.approvalRequired(), force).subscribe({
       next: () => {
+        // A mode switch changes which account (Demo vs Live) every
+        // money/positions view reads from. Hard-reload so the dashboard,
+        // positions, portfolio cards and activity feed all re-fetch for the
+        // new mode rather than showing stale figures from the old one until
+        // the next 60s poll. Only on an actual switch - a plain
+        // approval-toggle save keeps the SPA in place.
+        if (modeChanged) {
+          this.snackbar.open(`Switched to ${this.tradingMode()} — reloading…`, undefined, { duration: 1500 });
+          setTimeout(() => window.location.reload(), 600);
+          return;
+        }
         if (enablingApprovals && noApprovalRecipient) {
           const ref = this.snackbar.open(
             'Approval required is on, but no recipient has "Receive trade approval emails" enabled.',
