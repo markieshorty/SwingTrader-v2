@@ -69,7 +69,12 @@ public class MonitorServiceFillReconciliationTests
                 EntryOrderId = "111", EntryFillConfirmedAt = DateTime.UtcNow,
             },
         });
-        _t212.GetOrderHistoryAsync(50, null, null).Returns(HistoryWithFilledOrder(555, 106.5m, 10m));
+        // T212 mirrors the signed quantity of the original order request - a
+        // sell (PositionExitService places -trade.Quantity) reports a
+        // negative filledQuantity, not positive. Confirmed live: this exact
+        // shape (negative qty, positive fill price) is what caused every
+        // real exit order to silently never confirm despite being FILLED.
+        _t212.GetOrderHistoryAsync(50, null, null).Returns(HistoryWithFilledOrder(555, 106.5m, -10m));
 
         var sut = CreateSut();
         await sut.RunCycleAsync(1, _finnhub, _t212);

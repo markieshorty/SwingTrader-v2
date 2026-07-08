@@ -282,7 +282,14 @@ public class MonitorService(
             return false;
 
         var order = item.Order;
-        if (item.Fill is not null && order.FilledQuantity is > 0)
+        // A sell order's quantity/filledQuantity is negative (T212 mirrors
+        // whatever signed quantity was sent in the original order request -
+        // PositionExitService places sells as -trade.Quantity), so this must
+        // check for "filled at all" rather than "filled positive" - the >0
+        // check here previously matched every buy fine but silently never
+        // matched a single sell, leaving every exit stuck "unconfirmed"
+        // forever despite the order genuinely being FILLED in T212's history.
+        if (item.Fill is not null && order.FilledQuantity is not null and not 0)
         {
             onFilled(item.Fill.Price);
             markConfirmed();
