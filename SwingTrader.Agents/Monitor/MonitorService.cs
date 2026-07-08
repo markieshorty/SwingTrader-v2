@@ -217,6 +217,7 @@ public class MonitorService(
             return;
         }
 
+        logger.LogInformation("Fill reconciliation check for account {AccountId}: {Count} order(s) awaiting confirmation", accountId, pending.Count);
         if (pending.Count == 0) return;
 
         // This runs right after RunCycleAsync's own GetAccountSummaryAsync call,
