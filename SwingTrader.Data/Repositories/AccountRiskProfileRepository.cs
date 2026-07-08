@@ -53,6 +53,7 @@ public class AccountRiskProfileRepository(SwingTraderDbContext db) : IAccountRis
         existing.EarningsGateDays = profile.EarningsGateDays;
         existing.MinHoldDays = profile.MinHoldDays;
         existing.MomentumHealthThreshold = profile.MomentumHealthThreshold;
+        existing.TargetWatchlistSize = profile.TargetWatchlistSize;
         existing.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync(ct);
@@ -83,6 +84,7 @@ public class AccountRiskProfileRepository(SwingTraderDbContext db) : IAccountRis
         existing.EarningsGateDays = defaults.EarningsGateDays;
         existing.MinHoldDays = defaults.MinHoldDays;
         existing.MomentumHealthThreshold = defaults.MomentumHealthThreshold;
+        existing.TargetWatchlistSize = defaults.TargetWatchlistSize;
         existing.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync(ct);

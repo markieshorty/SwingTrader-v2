@@ -363,6 +363,7 @@ export interface RiskProfileDto {
   earningsGateDays: number;
   minHoldDays: number;
   momentumHealthThreshold: number;
+  targetWatchlistSize: number;
   riskLabel: string;
   buyThreshold: number | null;
   watchThreshold: number | null;
@@ -387,6 +388,7 @@ export interface RiskProfileDto {
     earningsGateDays: RiskProfileRangeDto;
     minHoldDays: RiskProfileRangeDto;
     momentumHealthThreshold: RiskProfileRangeDto;
+    targetWatchlistSize: RiskProfileRangeDto;
   };
 }
 
@@ -405,6 +407,7 @@ export interface UpdateRiskProfileDto {
   earningsGateDays: number;
   minHoldDays: number;
   momentumHealthThreshold: number;
+  targetWatchlistSize: number;
 }
 
 export interface NotificationRecipientDto {

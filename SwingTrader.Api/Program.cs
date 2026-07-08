@@ -1052,6 +1052,7 @@ api.MapGet("/risk-profile", async (
         profile.EarningsGateDays,
         profile.MinHoldDays,
         profile.MomentumHealthThreshold,
+        profile.TargetWatchlistSize,
         profile.RiskLabel,
         BuyThreshold = weights?.BuyThreshold,
         WatchThreshold = weights?.WatchThreshold,
@@ -1078,6 +1079,7 @@ api.MapGet("/risk-profile", async (
             EarningsGateDays = new { Min = CapitalRules.MinEarningsGateDays, Max = CapitalRules.MaxEarningsGateDays },
             MinHoldDays = new { Min = CapitalRules.AbsoluteMinHoldDays, Max = profile.MaxHoldDays - 1 },
             MomentumHealthThreshold = new { Min = CapitalRules.MinMomentumHealthThreshold, Max = CapitalRules.MaxMomentumHealthThreshold },
+            TargetWatchlistSize = new { Min = CapitalRules.MinTargetWatchlistSize, Max = CapitalRules.MaxTargetWatchlistSize },
         },
     });
 });
@@ -1109,6 +1111,7 @@ api.MapPut("/risk-profile", async (
             EarningsGateDays = req.EarningsGateDays,
             MinHoldDays = req.MinHoldDays,
             MomentumHealthThreshold = req.MomentumHealthThreshold,
+            TargetWatchlistSize = req.TargetWatchlistSize,
         });
         return Results.Ok();
     }

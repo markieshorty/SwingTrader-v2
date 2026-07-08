@@ -7,7 +7,6 @@ public class WatchlistConfig
     public string RefreshDayOfWeek { get; set; } = "Sunday";
     public int RefreshHourEastern { get; set; } = 20;
     public int MaxCandidatesForClaude { get; set; } = 80;
-    public int TargetWatchlistSize { get; set; } = 25;
     public decimal MinPrice { get; set; } = 15.00m;
     public decimal MaxPrice { get; set; } = 500.00m;
     public decimal MinDailyVolume { get; set; } = 500_000m;

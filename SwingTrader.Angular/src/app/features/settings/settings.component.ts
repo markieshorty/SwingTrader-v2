@@ -68,6 +68,7 @@ function toUpdateRiskProfileDto(profile: RiskProfileDto): UpdateRiskProfileDto {
     earningsGateDays: profile.earningsGateDays,
     minHoldDays: profile.minHoldDays,
     momentumHealthThreshold: profile.momentumHealthThreshold,
+    targetWatchlistSize: profile.targetWatchlistSize,
   };
 }
 
@@ -179,7 +180,8 @@ export class SettingsComponent {
       original.trailingDistancePct !== draft.trailingDistancePct ||
       original.earningsGateDays !== draft.earningsGateDays ||
       original.minHoldDays !== draft.minHoldDays ||
-      original.momentumHealthThreshold !== draft.momentumHealthThreshold
+      original.momentumHealthThreshold !== draft.momentumHealthThreshold ||
+      original.targetWatchlistSize !== draft.targetWatchlistSize
     );
   });
 

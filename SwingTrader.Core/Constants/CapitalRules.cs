@@ -43,6 +43,17 @@ public static class CapitalRules
     public const decimal MinMomentumHealthThreshold = 0.20m;
     public const decimal MaxMomentumHealthThreshold = 0.60m;
 
+    // How many symbols Claude selects for the weekly AI-managed watchlist
+    // refresh (WatchlistSelectionService). Bounded below by having enough
+    // breadth for the screener/Research pipeline to be useful, and above by
+    // WatchlistConfig.MaxCandidatesForClaude (80) - asking Claude to pick more
+    // than the candidate pool it's shown doesn't make sense - and by Research/
+    // Monitor cycle time, since every extra symbol here is extra Tiingo/
+    // Finnhub calls each cycle against rate limits already tight at 25.
+    public const int DefaultTargetWatchlistSize = 25;
+    public const int MinTargetWatchlistSize = 10;
+    public const int MaxTargetWatchlistSize = 50;
+
     // Hard safety bounds for AccountRiskProfile.Validate() — a misconfigured
     // profile can never allow a single bad day to wipe an account, no
     // matter what the account owner tries to set it to.

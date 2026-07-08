@@ -267,6 +267,23 @@
           </p>
 
           <div class="slider-row">
+            <label>Watchlist Size: {{ draft.targetWatchlistSize }} symbols</label>
+            <mat-slider
+              [min]="profile.allowedRanges.targetWatchlistSize.min"
+              [max]="profile.allowedRanges.targetWatchlistSize.max"
+              step="1"
+              discrete
+            >
+              <input matSliderThumb [ngModel]="draft.targetWatchlistSize" (ngModelChange)="updateRiskDraftField('targetWatchlistSize', $event)" />
+            </mat-slider>
+          </div>
+          <p class="muted small">
+            How many symbols Claude picks for your AI-managed watchlist each weekly refresh. More symbols means more
+            candidates to scan but more Research/Monitor API calls every cycle — keep this lower if you're hitting
+            provider rate limits.
+          </p>
+
+          <div class="slider-row">
             <label>Trailing Stop Activation: {{ draft.trailingActivationPct | percent: '1.0-0' }} gain</label>
             <mat-slider
               [min]="profile.allowedRanges.trailingActivationPct.min"

@@ -9,5 +9,6 @@ public interface IWatchlistSelectionService
         List<ScreenedCandidate> candidates,
         decimal spyChangePercent,
         decimal vix,
+        int targetWatchlistSize,
         CancellationToken ct = default);
 }

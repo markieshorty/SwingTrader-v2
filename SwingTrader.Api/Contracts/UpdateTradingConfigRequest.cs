@@ -45,7 +45,8 @@ public record UpdateRiskProfileRequest(
     double TrailingDistancePct,
     int EarningsGateDays,
     int MinHoldDays,
-    decimal MomentumHealthThreshold);
+    decimal MomentumHealthThreshold,
+    int TargetWatchlistSize);
 
 public record CreateWatchlistRequest(string Name, WatchlistType Type, string? Description);
 

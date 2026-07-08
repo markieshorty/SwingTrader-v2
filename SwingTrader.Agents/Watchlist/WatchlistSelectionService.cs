@@ -10,7 +10,6 @@ namespace SwingTrader.Agents.Watchlist;
 
 public class WatchlistSelectionService(
     IOptions<ClaudeConfig> claudeConfig,
-    IOptions<WatchlistConfig> watchlistConfig,
     ILogger<WatchlistSelectionService> logger) : IWatchlistSelectionService
 {
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
@@ -20,9 +19,10 @@ public class WatchlistSelectionService(
         List<ScreenedCandidate> candidates,
         decimal spyChangePercent,
         decimal vix,
+        int targetWatchlistSize,
         CancellationToken ct = default)
     {
-        var target = watchlistConfig.Value.TargetWatchlistSize;
+        var target = targetWatchlistSize;
         var date = DateTime.UtcNow.ToString("yyyy-MM-dd");
         var spyDir = spyChangePercent >= 0 ? "up" : "down";
         var fearLevel = vix switch { < 15 => "Low fear", < 20 => "Moderate", < 30 => "Elevated", _ => "High fear" };

@@ -16,6 +16,7 @@ public class WatchlistConsumerFunction(
     IStockScreener screener,
     IWatchlistSelectionService selector,
     IWatchlistUpdateService updater,
+    IAccountRiskProfileRepository riskProfileRepo,
     IWorkerHeartbeatRepository heartbeats,
     IActivityLogRepository activityLog,
     IUserHttpClientFactory clientFactory,
@@ -72,7 +73,8 @@ public class WatchlistConsumerFunction(
                 logger.LogWarning(ex, "Failed to fetch VIX — using 20");
             }
 
-            var selections = await selector.SelectAsync(claude, candidates, spyChange, vix, ct);
+            var riskProfile = await riskProfileRepo.GetAsync(message.AccountId, ct);
+            var selections = await selector.SelectAsync(claude, candidates, spyChange, vix, riskProfile.TargetWatchlistSize, ct);
             if (selections is null || selections.Count == 0)
             {
                 logger.LogWarning("Watchlist selection returned empty for account {AccountId} — watchlist unchanged", message.AccountId);

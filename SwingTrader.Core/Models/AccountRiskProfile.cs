@@ -34,6 +34,12 @@ public class AccountRiskProfile : BaseEntity
     public int MinHoldDays { get; set; } = CapitalRules.DefaultMinHoldDays;
     public decimal MomentumHealthThreshold { get; set; } = CapitalRules.DefaultMomentumHealthThreshold;
 
+    // How many symbols Claude selects for the weekly AI-managed watchlist
+    // refresh - previously a fixed WatchlistConfig value shared by every
+    // account. See CapitalRules.DefaultTargetWatchlistSize for the tradeoff
+    // (more symbols = more Research/Monitor API calls per cycle).
+    public int TargetWatchlistSize { get; set; } = CapitalRules.DefaultTargetWatchlistSize;
+
     public string RiskLabel => LockedCapitalPct switch
     {
         >= 0.80m => "Very Conservative",
@@ -104,6 +110,10 @@ public class AccountRiskProfile : BaseEntity
         if (MomentumHealthThreshold < CapitalRules.MinMomentumHealthThreshold || MomentumHealthThreshold > CapitalRules.MaxMomentumHealthThreshold)
             throw new ValidationException(
                 $"Momentum health threshold must be {CapitalRules.MinMomentumHealthThreshold:P0}-{CapitalRules.MaxMomentumHealthThreshold:P0}");
+
+        if (TargetWatchlistSize < CapitalRules.MinTargetWatchlistSize || TargetWatchlistSize > CapitalRules.MaxTargetWatchlistSize)
+            throw new ValidationException(
+                $"Watchlist size must be {CapitalRules.MinTargetWatchlistSize}-{CapitalRules.MaxTargetWatchlistSize} symbols");
 
         // Cross-field: a position needs at least one day in the Confirmed
         // phase to run after clearing probation.
