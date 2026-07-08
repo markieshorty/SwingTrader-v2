@@ -50,6 +50,7 @@ public class ResearchPipeline(
         int accountId, IFinnhubClient finnhub, ITiingoClient tiingo, IClaudeClient claude,
         string symbol, AccountRiskProfile riskProfile,
         IReadOnlyDictionary<string, IReadOnlyList<StockCandle>>? freshCandlesBySymbol = null,
+        string? companyName = null,
         CancellationToken ct = default)
     {
         symbol = symbol.ToUpperInvariant();
@@ -67,6 +68,7 @@ public class ResearchPipeline(
             {
                 AccountId = accountId,
                 Symbol = symbol,
+                CompanyName = companyName,
                 SignalDate = DateOnly.FromDateTime(DateTime.UtcNow),
                 CurrentPrice = 0m,
                 Recommendation = Recommendation.Hold,
@@ -148,7 +150,7 @@ public class ResearchPipeline(
 
         var recommendation = await DetermineRecommendationAsync(accountId, account.TradingMode, symbol, ind, conviction, weights);
 
-        return await PersistSignalAsync(accountId, symbol, candles[^1], ind, sentimentScore,
+        return await PersistSignalAsync(accountId, symbol, companyName, candles[^1], ind, sentimentScore,
             newsSummary, setupType, conviction, recommendation, componentScores, regime, earningsCtx, rs, priceLevel,
             earningsReasoning, fundamentalSnapshot, fundamental);
     }
@@ -439,7 +441,7 @@ public class ResearchPipeline(
     }
 
     private async Task<StockSignal> PersistSignalAsync(
-        int accountId, string symbol, StockCandle latest, IndicatorResult ind,
+        int accountId, string symbol, string? companyName, StockCandle latest, IndicatorResult ind,
         decimal? sentimentScore, string newsSummary,
         SetupType setupType, decimal conviction, Recommendation recommendation,
         ComponentScores componentScores, MarketRegime? currentRegime, EarningsContext? earningsCtx,
@@ -452,6 +454,7 @@ public class ResearchPipeline(
             .FirstOrDefault(s => s.Symbol == symbol);
 
         var signal = existing ?? new StockSignal { AccountId = accountId, Symbol = symbol };
+        if (companyName is not null) signal.CompanyName = companyName;
 
         signal.SignalDate = today;
         signal.CurrentPrice = latest.Close;

@@ -640,6 +640,7 @@ public class ReportGenerationService(
         var candidatesJson = JsonSerializer.Serialize(topBuys.Select(b => new
         {
             b.Symbol,
+            b.CompanyName,
             SetupType = b.SetupType.ToString(),
             Conviction = b.ConvictionScore,
             Price = b.CurrentPrice,

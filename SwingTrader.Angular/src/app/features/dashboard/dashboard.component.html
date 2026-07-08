@@ -63,7 +63,7 @@
       @for (position of positions(); track position.id) {
         <div class="position-card">
           <div class="position-header">
-            <span class="symbol">{{ position.symbol }}</span>
+            <span class="symbol" [title]="position.companyName || position.symbol">{{ position.symbol }}</span>
             <span
               class="pnl"
               [class.positive]="position.unrealisedPnl >= 0"
@@ -172,7 +172,7 @@
       @for (signal of activeSignals(); track signal.id) {
         <div class="signal-card">
           <div class="signal-header">
-            <span class="symbol">{{ signal.symbol }}</span>
+            <span class="symbol" [title]="signal.companyName || signal.symbol">{{ signal.symbol }}</span>
             <span class="setup-badge">{{ signal.setupType }}</span>
           </div>
           <app-conviction-bar [signal]="signal" />

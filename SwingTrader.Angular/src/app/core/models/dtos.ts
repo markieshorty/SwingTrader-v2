@@ -47,7 +47,8 @@ export interface PositionDto {
 export interface SignalDto {
   id: number;
   symbol: string;
-  companyName: string;
+  // Null for signals scored before StockSignal.CompanyName existed.
+  companyName: string | null;
   convictionScore: number | null;
   recommendation: 'Buy' | 'Watch' | 'Hold' | 'Avoid' | 'Sell';
   setupType: string;
@@ -81,6 +82,8 @@ export interface SignalGroupDto {
 export interface TradeDto {
   id: number;
   symbol: string;
+  // Null for trades placed before Trade.CompanyName existed.
+  companyName: string | null;
   direction: string;
   entryPrice: number;
   exitPrice: number | null;
@@ -421,6 +424,8 @@ export interface NotificationRecipientDto {
 
 export interface TradeApprovalCandidateDto {
   symbol: string;
+  // Null for candidates from before StockSignal.CompanyName existed.
+  companyName: string | null;
   setupType: string;
   conviction: number | null;
   price: number;

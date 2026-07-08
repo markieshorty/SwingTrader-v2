@@ -342,6 +342,7 @@ api.MapGet("/trades/recent", async (int? days, ITradeRepository trades, ISignalR
         {
             trade.Id,
             trade.Symbol,
+            trade.CompanyName,
             Direction = trade.Direction.ToString(),
             trade.EntryPrice,
             trade.ExitPrice,
@@ -419,7 +420,6 @@ api.MapGet("/positions", async (
         var daysHeld = Math.Max(0, (int)(DateTime.UtcNow - trade.OpenedAt).TotalDays);
 
         var signal = trade.SignalId.HasValue ? await signals.GetByIdAsync(ctx.AccountId, trade.SignalId.Value) : null;
-        var watchlistItem = await watchlist.GetBySymbolAsync(ctx.AccountId, trade.Symbol);
 
         // "Near" the stop/target = within 2% of that boundary price - close
         // enough to flag on the dashboard without being a hard trigger
@@ -427,11 +427,17 @@ api.MapGet("/positions", async (
         var isNearStop = trade.StopLossPrice > 0 && Math.Abs(currentPrice - trade.StopLossPrice) / trade.StopLossPrice <= 0.02m;
         var isNearTarget = trade.TargetPrice > 0 && Math.Abs(currentPrice - trade.TargetPrice) / trade.TargetPrice <= 0.02m;
 
+        // Older trades placed before Trade.CompanyName existed fall back to a
+        // live watchlist lookup, then the bare symbol if it's since been removed.
+        var companyName = trade.CompanyName
+            ?? (await watchlist.GetBySymbolAsync(ctx.AccountId, trade.Symbol))?.CompanyName
+            ?? trade.Symbol;
+
         results.Add(new
         {
             trade.Id,
             trade.Symbol,
-            CompanyName = watchlistItem?.CompanyName ?? trade.Symbol,
+            CompanyName = companyName,
             trade.EntryPrice,
             CurrentPrice = currentPrice,
             StopLoss = trade.StopLossPrice,

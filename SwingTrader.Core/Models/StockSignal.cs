@@ -5,6 +5,10 @@ namespace SwingTrader.Core.Models;
 public class StockSignal : BaseEntity
 {
     public string Symbol { get; set; } = string.Empty;
+    // Copied from the WatchlistItem this signal was scored from (itself
+    // sourced from Finnhub's company profile when the symbol was added) -
+    // avoids a second Finnhub call just to display a hover tooltip.
+    public string? CompanyName { get; set; }
     public DateOnly SignalDate { get; set; }
     public decimal CurrentPrice { get; set; }
     public decimal? Rsi14 { get; set; }

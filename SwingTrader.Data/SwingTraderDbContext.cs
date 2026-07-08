@@ -126,6 +126,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
         {
             e.HasKey(x => x.Id);
             e.Property(x => x.Symbol).IsRequired().HasMaxLength(20);
+            e.Property(x => x.CompanyName).HasMaxLength(200);
             e.Property(x => x.CurrentPrice).HasPrecision(18, 8);
             e.Property(x => x.Rsi14).HasPrecision(18, 8);
             e.Property(x => x.Macd).HasPrecision(18, 8);
@@ -163,6 +164,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
         {
             e.HasKey(x => x.Id);
             e.Property(x => x.Symbol).IsRequired().HasMaxLength(20);
+            e.Property(x => x.CompanyName).HasMaxLength(200);
             e.Property(x => x.EntryPrice).HasPrecision(18, 8);
             e.Property(x => x.ExitPrice).HasPrecision(18, 8);
             e.Property(x => x.Quantity).HasPrecision(18, 8);

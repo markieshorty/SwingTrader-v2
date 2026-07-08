@@ -18,7 +18,7 @@ import { PositionDto } from '../../../core/models/dtos';
       @for (position of positions(); track position.id) {
         <mat-card class="position-card">
           <div class="position-header">
-            <span class="symbol">{{ position.symbol }}</span>
+            <span class="symbol" [title]="position.companyName || position.symbol">{{ position.symbol }}</span>
             <span
               class="pnl"
               [class.positive]="position.unrealisedPnl >= 0"

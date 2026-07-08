@@ -11,6 +11,10 @@ public class Trade : BaseEntity
     // PortfolioSnapshot.TradingMode for the original instance of this bug).
     public TradingMode TradingMode { get; set; }
     public string Symbol { get; set; } = string.Empty;
+    // Copied from the StockSignal this trade was placed from (see
+    // StockSignal.CompanyName) - null for trades placed before this field
+    // existed.
+    public string? CompanyName { get; set; }
     public TradeDirection Direction { get; set; }
     public decimal EntryPrice { get; set; }
     public decimal? ExitPrice { get; set; }

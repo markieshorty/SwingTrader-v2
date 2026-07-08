@@ -262,6 +262,7 @@ public class ExecutionService(
                     AccountId = accountId,
                     TradingMode = account.TradingMode,
                     Symbol = signal.Symbol,
+                    CompanyName = signal.CompanyName,
                     Direction = TradeDirection.Long,
                     EntryPrice = signal.CurrentPrice,
                     Quantity = sizing.Quantity,

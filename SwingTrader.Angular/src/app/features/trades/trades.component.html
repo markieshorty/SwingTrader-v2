@@ -79,7 +79,7 @@
                   <tbody>
                     @for (c of approval.candidates; track c.symbol) {
                       <tr>
-                        <td class="symbol">{{ c.symbol }}</td>
+                        <td class="symbol" [title]="c.companyName || c.symbol">{{ c.symbol }}</td>
                         <td>{{ c.setupType }}</td>
                         <td>{{ c.conviction !== null ? (c.conviction | number: '1.2-2') : '—' }}</td>
                         <td>£{{ c.price | number: '1.2-2' }}</td>

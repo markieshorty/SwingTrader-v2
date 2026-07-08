@@ -100,7 +100,7 @@ public class ResearchConsumerFunction(
                 await semaphore.WaitAsync(ct);
                 try
                 {
-                    var signal = await pipeline.RunAsync(message.AccountId, finnhub, tiingo, claude, s.Symbol, riskProfile, freshCandlesBySymbol, ct);
+                    var signal = await pipeline.RunAsync(message.AccountId, finnhub, tiingo, claude, s.Symbol, riskProfile, freshCandlesBySymbol, s.CompanyName, ct);
 
                     // RunAsync returns null on a silent candle-fetch failure (rate limit,
                     // no data, etc.) without persisting anything - the symbol's existing

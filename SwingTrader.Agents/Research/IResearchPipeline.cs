@@ -21,5 +21,6 @@ public interface IResearchPipeline
         string symbol,
         AccountRiskProfile riskProfile,
         IReadOnlyDictionary<string, IReadOnlyList<StockCandle>>? freshCandlesBySymbol = null,
+        string? companyName = null,
         CancellationToken ct = default);
 }

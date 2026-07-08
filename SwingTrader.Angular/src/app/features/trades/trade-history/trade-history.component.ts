@@ -42,7 +42,13 @@ export class TradeHistoryComponent {
   defaultColDef = defaultColDef;
 
   columnDefs: ColDef<TradeDto>[] = [
-    { field: 'symbol', headerName: 'Symbol', sortable: true, filter: true },
+    {
+      field: 'symbol',
+      headerName: 'Symbol',
+      sortable: true,
+      filter: true,
+      tooltipValueGetter: (p) => p.data?.companyName ?? p.data?.symbol ?? null,
+    },
     // Share price is the instrument's own per-share price (USD for US-listed
     // stocks) - Real Money is the actual £ that left/entered the account for
     // that leg, from T212's own reported fill (post FX-conversion/fees), not
