@@ -105,7 +105,17 @@ export class OnboardingComponent {
     Demo: { status: 'idle', text: '' },
     Live: { status: 'idle', text: '' },
   });
+  // Keys the user has chosen to re-enter (e.g. after realising demo/live were
+  // swapped) - forces the input back even though a value is already saved.
+  private editing = signal<Set<ApiKeyProvider>>(new Set());
   keyStatuses = signal<KeyStatusesDto | null>(null);
+
+  isEditing = (key: ApiKeyProvider) => this.editing().has(key);
+
+  startEditing(key: ApiKeyProvider): void {
+    this.values[key] = '';
+    this.editing.update((s) => new Set(s).add(key));
+  }
 
   // First step of the wizard, ahead of the API-key steps - the email in the
   // auth token can't be trusted for every identity provider (e.g. some
@@ -168,6 +178,8 @@ export class OnboardingComponent {
       : ['Trading212LiveKey', 'Trading212LiveSecret'];
   }
 
+  private isTrading212 = (key: ApiKeyProvider) => key.startsWith('Trading212');
+
   // The Connect button lights up once both halves of the pair are present -
   // either freshly typed in this session or already saved from a prior visit.
   canConnectPair(mode: 'Demo' | 'Live'): boolean {
@@ -189,12 +201,17 @@ export class OnboardingComponent {
     if (this.pairState(mode).status === 'connecting') return;
     this.setConn(mode, { status: 'connecting', text: 'Connecting…' });
     try {
+      // Save without testing (test=false) so we don't fire a per-save T212
+      // connectivity check for each half of the pair on top of the single
+      // pair test below - that back-to-back burst was tripping T212's rate
+      // limit (429).
       for (const field of this.pairFields(mode)) {
         const typed = (this.values[field] ?? '').trim();
-        if (typed.length > 0) await firstValueFrom(this.api.saveKey(field, typed));
+        if (typed.length > 0) await firstValueFrom(this.api.saveKey(field, typed, false));
       }
       const result = await firstValueFrom(this.api.testTrading212Pair(mode));
       this.keyStatuses.set(await firstValueFrom(this.api.getKeyStatuses()));
+      this.stopEditing(this.pairFields(mode));
 
       let text = result.message;
       if (result.valid && result.cashTotal !== null) {
@@ -205,6 +222,14 @@ export class OnboardingComponent {
     } catch {
       this.setConn(mode, { status: 'error', text: `Could not connect to ${mode.toLowerCase()} — check the key and secret.` });
     }
+  }
+
+  private stopEditing(keys: ApiKeyProvider[]): void {
+    this.editing.update((s) => {
+      const next = new Set(s);
+      for (const k of keys) next.delete(k);
+      return next;
+    });
   }
 
   private setConn(mode: 'Demo' | 'Live', state: ConnectionState): void {
@@ -222,10 +247,15 @@ export class OnboardingComponent {
       this.saving.set(true);
       try {
         for (const field of fieldsToSave) {
-          await firstValueFrom(this.api.saveKey(field.key, (this.values[field.key] ?? '').trim()));
+          // Trading212 keys are verified per-pair via Connect, so don't test
+          // them on save here - that would fire a broker call right after a
+          // Connect and risk a 429. Finnhub/Tiingo test on save as normal.
+          const test = !this.isTrading212(field.key);
+          await firstValueFrom(this.api.saveKey(field.key, (this.values[field.key] ?? '').trim(), test));
         }
         const updated = await firstValueFrom(this.api.getKeyStatuses());
         this.keyStatuses.set(updated);
+        this.stopEditing(fieldsToSave.map((f) => f.key));
       } catch {
         this.snackbar.open('Failed to save — check the key and try again.', 'Dismiss', { duration: 4000 });
         this.saving.set(false);

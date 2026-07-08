@@ -58,10 +58,11 @@
         </a>
 
         @for (field of currentStep().fields; track field.key) {
-          @if (keyStatuses() && keyStatuses()![field.key] !== 'NotSet') {
+          @if (keyStatuses() && keyStatuses()![field.key] !== 'NotSet' && !isEditing(field.key)) {
             <div class="already-connected">
               <mat-icon>check_circle</mat-icon>
               <span>{{ field.label }} — already saved</span>
+              <button mat-button (click)="startEditing(field.key)">Replace</button>
             </div>
           } @else {
             <mat-form-field appearance="outline" class="key-field">

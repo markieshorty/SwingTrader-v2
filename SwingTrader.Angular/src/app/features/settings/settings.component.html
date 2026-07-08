@@ -14,7 +14,7 @@
               <mat-label>New value</mat-label>
               <input matInput type="password" [(ngModel)]="keyInput" />
             </mat-form-field>
-            <button mat-raised-button color="primary" (click)="saveAndTestKey()">Save</button>
+            <button mat-raised-button color="primary" (click)="saveKey()">Save</button>
             <button mat-button (click)="cancelEditing()">Cancel</button>
           } @else {
             <button mat-stroked-button [disabled]="!isOwner()" (click)="startEditing(provider)">Replace</button>

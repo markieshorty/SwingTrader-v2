@@ -994,7 +994,12 @@ api.MapPost("/keys/{provider}", async (
     IUserKeyService keys,
     IUserRepository users,
     [FromServices] ServiceBusClient? serviceBus,
-    IAccountContext ctx) =>
+    IAccountContext ctx,
+    // test=false saves without a connectivity check - used when the caller
+    // will test separately (e.g. saving both halves of a Trading212 pair then
+    // hitting Connect once), so we don't fire redundant back-to-back T212
+    // calls and trip its rate limit.
+    bool test = true) =>
 {
     if (ctx.Role != AccountRole.Owner)
         return Results.Forbid();
@@ -1004,7 +1009,7 @@ api.MapPost("/keys/{provider}", async (
         return Results.BadRequest(new { message = "Value cannot be empty." });
 
     await keys.SaveKeyAsync(ctx.AccountId, provider, req.Value);
-    var testResult = await keys.TestKeyAsync(ctx.AccountId, provider);
+    var testResult = test ? await keys.TestKeyAsync(ctx.AccountId, provider) : new KeyTestResult(false, "Saved (not tested)");
 
     // The moment a user's keys satisfy onboarding for the first time, kick
     // off an immediate Watchlist run rather than making them wait until the

@@ -181,8 +181,11 @@ export class ApiService {
     return this.http.get<KeyStatusesDto>(`${this.baseUrl}/api/keys`);
   }
 
-  saveKey(provider: string, value: string): Observable<KeyTestResult> {
-    return this.http.post<KeyTestResult>(`${this.baseUrl}/api/keys/${provider}`, { value });
+  // test=false saves without a connectivity check - used when a follow-up
+  // call will test (e.g. saving a Trading212 pair then hitting Connect), to
+  // avoid redundant back-to-back broker calls that trip its rate limit.
+  saveKey(provider: string, value: string, test = true): Observable<KeyTestResult> {
+    return this.http.post<KeyTestResult>(`${this.baseUrl}/api/keys/${provider}?test=${test}`, { value });
   }
 
   testKey(provider: string): Observable<KeyTestResult> {

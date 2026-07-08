@@ -441,13 +441,20 @@ export class SettingsComponent {
     this.keyInput = '';
   }
 
-  saveAndTestKey(): void {
+  saveKey(): void {
     const provider = this.editingProvider();
     if (!provider || !this.keyInput.trim()) return;
 
-    this.api.saveKey(provider, this.keyInput.trim()).subscribe({
+    // Trading212 keys are verified per-pair via the Connect buttons, so a
+    // T212 save skips the connectivity test (test=false) - both to avoid a
+    // lone-key test that can't authenticate, and to keep off T212's rate
+    // limit if the user immediately hits Connect. Finnhub/Tiingo still test
+    // on save so their status chip updates right away.
+    const shouldTest = !this.isTrading212(provider);
+    this.api.saveKey(provider, this.keyInput.trim(), shouldTest).subscribe({
       next: (result) => {
-        this.snackbar.open(this.keyTestMessage(result), 'Dismiss', { duration: 8000 });
+        if (shouldTest) this.snackbar.open(this.keyTestMessage(result), 'Dismiss', { duration: 8000 });
+        else this.snackbar.open('Saved — use Connect to verify.', 'Dismiss', { duration: 4000 });
         this.cancelEditing();
         this.loadKeyStatuses();
       },
