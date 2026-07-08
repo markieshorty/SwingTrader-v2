@@ -27,6 +27,15 @@ public class UserHttpClientFactory(
     private const string Trading212DemoBaseUrl = "https://demo.trading212.com";
     private const string Trading212LiveBaseUrl = "https://live.trading212.com";
 
+    // None of these clients set an explicit Timeout, so they silently used
+    // HttpClient's default of exactly 100 seconds - indistinguishable at the
+    // call site from a genuine cancellation, since HttpClient.Timeout
+    // expiring throws the same TaskCanceledException. A slow-but-live Tiingo
+    // response (observed during the 50/hour throttle rollout) was hitting
+    // that ceiling and getting logged as "The operation was canceled",
+    // burning through the rest of the run's per-symbol tasks one by one.
+    private static readonly TimeSpan HttpClientTimeout = TimeSpan.FromMinutes(3);
+
     public async Task<TClient> CreateFinnhubAsync<TClient>(int accountId, CancellationToken ct = default)
     {
         var apiKey = await GetDecryptedKeyAsync(accountId, ApiKeyProviders.Finnhub, ct);
@@ -34,14 +43,14 @@ public class UserHttpClientFactory(
         // header, so each request is signed by this handler instead of a
         // fixed default header.
         var handler = new FinnhubTokenHandler(apiKey) { InnerHandler = new HttpClientHandler() };
-        var httpClient = new HttpClient(handler) { BaseAddress = new Uri(FinnhubBaseUrl) };
+        var httpClient = new HttpClient(handler) { BaseAddress = new Uri(FinnhubBaseUrl), Timeout = HttpClientTimeout };
         return RestService.For<TClient>(httpClient);
     }
 
     public async Task<TClient> CreateTiingoAsync<TClient>(int accountId, CancellationToken ct = default)
     {
         var apiKey = await GetDecryptedKeyAsync(accountId, ApiKeyProviders.Tiingo, ct);
-        var httpClient = new HttpClient { BaseAddress = new Uri(TiingoBaseUrl) };
+        var httpClient = new HttpClient { BaseAddress = new Uri(TiingoBaseUrl), Timeout = HttpClientTimeout };
         httpClient.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Token", apiKey);
         return RestService.For<TClient>(httpClient);
@@ -62,7 +71,7 @@ public class UserHttpClientFactory(
         var baseUrl = isLive ? Trading212LiveBaseUrl : Trading212DemoBaseUrl;
         var credentials = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{apiKey}:{apiSecret}"));
         var handler = new T212DiagnosticHandler(logger) { InnerHandler = new HttpClientHandler() };
-        var httpClient = new HttpClient(handler) { BaseAddress = new Uri(baseUrl) };
+        var httpClient = new HttpClient(handler) { BaseAddress = new Uri(baseUrl), Timeout = HttpClientTimeout };
         httpClient.DefaultRequestHeaders.Add("Authorization", $"Basic {credentials}");
         return RestService.For<TClient>(httpClient);
     }
@@ -70,7 +79,7 @@ public class UserHttpClientFactory(
     public async Task<TClient> CreateClaudeAsync<TClient>(int accountId, CancellationToken ct = default)
     {
         var apiKey = await GetDecryptedKeyAsync(accountId, ApiKeyProviders.Claude, ct);
-        var httpClient = new HttpClient { BaseAddress = new Uri(ClaudeBaseUrl) };
+        var httpClient = new HttpClient { BaseAddress = new Uri(ClaudeBaseUrl), Timeout = HttpClientTimeout };
         httpClient.DefaultRequestHeaders.TryAddWithoutValidation("x-api-key", apiKey);
         httpClient.DefaultRequestHeaders.TryAddWithoutValidation("anthropic-version", "2023-06-01");
         return RestService.For<TClient>(httpClient);
