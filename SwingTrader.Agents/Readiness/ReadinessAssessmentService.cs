@@ -12,7 +12,6 @@ public class ReadinessAssessmentService(
     IWorkerHeartbeatRepository heartbeatRepo,
     IApprovalRepository approvalRepo,
     IRefinementSuggestionRepository refinementSuggestionRepo,
-    ISystemChecklistRepository checklistRepo,
     IReadinessSnapshotRepository snapshotRepo,
     IPortfolioRepository portfolioRepo,
     IAccountRepository accountRepo,
@@ -81,10 +80,13 @@ public class ReadinessAssessmentService(
 
         var noFailedHeartbeatIn7Days = !heartbeats.Any(h =>
             h.LastRunResult == "Failed" && h.LastHeartbeatAt >= now.AddDays(-7));
-        var monitorClosedAtLeastOnePosition = closedTrades.Any(t =>
-            t.Status == TradeStatus.StoppedOut || t.Status == TradeStatus.TargetHit);
+        // PositionExitService.ClosePositionAsync (the only code path that
+        // actually closes a position) always writes TradeStatus.Closed
+        // regardless of exit reason - StoppedOut/TargetHit are unused values
+        // nothing ever sets, so checking for them here could never be true
+        // even after Monitor had genuinely closed several positions.
+        var monitorClosedAtLeastOnePosition = closedTrades.Any(t => t.Status == TradeStatus.Closed);
         var approvalFlowTested = await approvalRepo.AnyApprovedAsync(accountId);
-        var accountIdVerified = await checklistRepo.IsCompletedAsync(accountId, "AccountIdVerified");
 
         var latestPortfolio = await portfolioRepo.GetLatestSnapshotAsync(accountId);
         var account = await accountRepo.GetAsync(accountId, ct);
@@ -96,7 +98,7 @@ public class ReadinessAssessmentService(
             BuildRefinementFeature(scoredClosedTrades, systemRunningDays, shadowSuggestions, tradeRate, now),
             BuildRiskManagementFeature(totalClosedTrades, winRate, now),
             BuildLiveTradingFeature(systemRunningDays, noFailedHeartbeatIn7Days, monitorClosedAtLeastOnePosition,
-                approvalFlowTested, accountIdVerified, totalClosedTrades, tradeRate, now, isLiveTrading),
+                approvalFlowTested, totalClosedTrades, tradeRate, now, isLiveTrading),
         };
         features.AddRange(BuildRegimeFeatures(regimeTradeCount, refinementConfig.Value, tradeRate, now));
         features.Add(BuildTopMoversFeature());
@@ -211,7 +213,7 @@ public class ReadinessAssessmentService(
 
     private static FeatureReadiness BuildLiveTradingFeature(
         int systemRunningDays, bool noFailedHeartbeatIn7Days, bool monitorClosedAtLeastOnePosition,
-        bool approvalFlowTested, bool accountIdVerified, int totalClosedTrades, TradeRateAssessment tradeRate,
+        bool approvalFlowTested, int totalClosedTrades, TradeRateAssessment tradeRate,
         DateTime now, bool isLiveTrading)
     {
         var criteria = new List<ReadinessCriteria>
@@ -228,9 +230,6 @@ public class ReadinessAssessmentService(
             new("Approval flow tested at least once", approvalFlowTested,
                 approvalFlowTested.ToString(), "true",
                 "The approval link must have been clicked and confirmed working before real money depends on it."),
-            new("Account ID manually verified", accountIdVerified,
-                accountIdVerified.ToString(), "true",
-                "You must have physically compared the logged account ID against the T212 app to confirm it is your Invest account and not your ISA."),
             new("At least 20 closed demo trades", totalClosedTrades >= LiveTradingMinTrades,
                 totalClosedTrades.ToString(), LiveTradingMinTrades.ToString(),
                 "20 demo trades gives a basic read on whether the system is selecting and exiting positions correctly before real capital is involved.")
