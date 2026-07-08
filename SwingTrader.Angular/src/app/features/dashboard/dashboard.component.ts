@@ -118,11 +118,24 @@ export class DashboardComponent {
   tradeColumnDefs: ColDef<TradeDto>[] = [
     { field: 'symbol', headerName: 'Symbol' },
     { field: 'direction', headerName: 'Direction' },
-    { field: 'entryPrice', headerName: 'Entry', valueFormatter: (p) => `$${p.value?.toFixed(2)}` },
+    // Share price is the instrument's own per-share price (USD for US-listed
+    // stocks) - Real Money is the actual £ that left/entered the account for
+    // that leg, from T212's own reported fill (post FX-conversion/fees).
+    { field: 'entryPrice', headerName: 'Share Price Entry', valueFormatter: (p) => `$${p.value?.toFixed(2)}` },
     {
       field: 'exitPrice',
-      headerName: 'Exit',
+      headerName: 'Share Price Exit',
       valueFormatter: (p) => (p.value != null ? `$${p.value.toFixed(2)}` : '-'),
+    },
+    {
+      field: 'entryValueGbp',
+      headerName: 'Real Money Entry',
+      valueFormatter: (p) => (p.value != null ? `£${p.value.toFixed(2)}` : '-'),
+    },
+    {
+      field: 'exitValueGbp',
+      headerName: 'Real Money Exit',
+      valueFormatter: (p) => (p.value != null ? `£${p.value.toFixed(2)}` : '-'),
     },
     { field: 'realizedPnl', headerName: 'P&L', valueFormatter: (p) => (p.value != null ? `£${p.value.toFixed(2)}` : '-') },
     {
