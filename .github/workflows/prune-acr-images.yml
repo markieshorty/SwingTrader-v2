@@ -1,0 +1,63 @@
+# Basic-tier ACR has no retention policy (that's a Premium-only feature),
+# and every push to main tags a brand-new image (deploy-api.yml uses the
+# commit SHA), so the registry only ever grows. Runs weekly and keeps the
+# 20 most recently created images per repository, deleting everything
+# older by manifest digest (not just untagging) so old layers are actually
+# freed rather than left dangling.
+name: Prune ACR Images
+
+on:
+  schedule:
+    - cron: '0 3 * * 0' # Sunday 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  KEEP_COUNT: 20
+
+jobs:
+  prune:
+    name: Prune old images
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Delete images beyond the most recent ${{ env.KEEP_COUNT }} per repository
+        run: |
+          set -euo pipefail
+          ACR_NAME="${{ secrets.ACR_NAME }}"
+
+          repos=$(az acr repository list --name "$ACR_NAME" -o tsv)
+          if [ -z "$repos" ]; then
+            echo "No repositories found in $ACR_NAME."
+            exit 0
+          fi
+
+          for repo in $repos; do
+            echo "== $repo =="
+            digests=$(az acr repository show-manifests \
+              --name "$ACR_NAME" \
+              --repository "$repo" \
+              --orderby time_desc \
+              --query "[$KEEP_COUNT:].digest" -o tsv)
+
+            if [ -z "$digests" ]; then
+              echo "Nothing to prune (repository has $KEEP_COUNT or fewer images)."
+              continue
+            fi
+
+            for digest in $digests; do
+              echo "Deleting $repo@$digest"
+              az acr repository delete --name "$ACR_NAME" --image "$repo@$digest" --yes
+            done
+          done
