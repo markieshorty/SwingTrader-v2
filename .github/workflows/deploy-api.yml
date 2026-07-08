@@ -113,16 +113,66 @@ jobs:
 
       - name: Verify deployment
         run: |
-          sleep 30
+          # Scale-to-zero (minReplicas: 0) has a known cutover gap: az containerapp
+          # update can finish, mark the new revision active/100% traffic, and yet
+          # leave it at 0 replicas indefinitely while the previous revision keeps
+          # quietly serving stale traffic - hitting the main app URL alone doesn't
+          # reliably force the new revision to cold-start. Hitting the revision's
+          # own dedicated FQDN does force it, so that's the real health check here.
+          LATEST_REVISION=$(az containerapp revision list \
+            --name ${{ secrets.CONTAINER_APP_NAME }} \
+            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --query "sort_by([?properties.active], &properties.createdTime)[-1].name" \
+            -o tsv)
+          echo "Latest revision: $LATEST_REVISION"
+
+          REVISION_FQDN=$(az containerapp revision show \
+            --name ${{ secrets.CONTAINER_APP_NAME }} \
+            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --revision "$LATEST_REVISION" \
+            --query properties.fqdn \
+            -o tsv)
+          echo "Revision FQDN: $REVISION_FQDN"
+
+          ready=false
+          for attempt in $(seq 1 12); do
+            response=$(curl -s -o /dev/null -w "%{http_code}" "https://${REVISION_FQDN}/health/ready" || echo "000")
+            echo "Attempt $attempt: HTTP $response"
+            if [ "$response" == "200" ]; then
+              ready=true
+              break
+            fi
+            sleep 10
+          done
+
+          if [ "$ready" != "true" ]; then
+            echo "Revision $LATEST_REVISION never became healthy - failing deploy."
+            exit 1
+          fi
+
+          # Deactivate any other active revision so nothing stale keeps serving
+          # traffic alongside the new one (the cutover gap this whole step exists
+          # to catch).
+          az containerapp revision list \
+            --name ${{ secrets.CONTAINER_APP_NAME }} \
+            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --query "[?properties.active && name!='$LATEST_REVISION'].name" \
+            -o tsv | while read -r old_revision; do
+              echo "Deactivating stale revision: $old_revision"
+              az containerapp revision deactivate \
+                --name ${{ secrets.CONTAINER_APP_NAME }} \
+                --resource-group ${{ secrets.RESOURCE_GROUP }} \
+                --revision "$old_revision"
+            done
+
           APP_URL=$(az containerapp show \
             --name ${{ secrets.CONTAINER_APP_NAME }} \
             --resource-group ${{ secrets.RESOURCE_GROUP }} \
             --query properties.configuration.ingress.fqdn \
             -o tsv)
-          response=$(curl -s -o /dev/null -w "%{http_code}" \
-            "https://${APP_URL}/health/ready")
+          response=$(curl -s -o /dev/null -w "%{http_code}" "https://${APP_URL}/health/ready")
           if [ "$response" != "200" ]; then
-            echo "Health check failed: $response"
+            echo "Main app URL health check failed: $response"
             exit 1
           fi
           echo "Deployed successfully: https://$APP_URL"
