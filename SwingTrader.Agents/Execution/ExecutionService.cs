@@ -150,7 +150,7 @@ public class ExecutionService(
         // base currency (GBP), computed by T212 itself.
         var openPositionsValue = accountSummary.Investments.CurrentValue;
         var totalPortfolioValue = accountSummary.TotalValue;
-        var latestSnapshot = await portfolioRepo.GetLatestSnapshotAsync(accountId);
+        var latestSnapshot = await portfolioRepo.GetLatestSnapshotAsync(accountId, account.TradingMode);
         var currentTier = latestSnapshot?.CurrentTier ?? CapitalTier.Tier1;
 
         logger.LogInformation(

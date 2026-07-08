@@ -7,6 +7,7 @@ namespace SwingTrader.Agents.Monitor;
 public class PortfolioCircuitBreakerService(
     IPortfolioRepository portfolioRepo,
     IAccountRiskProfileRepository riskProfileRepo,
+    IAccountRepository accountRepo,
     ILogger<PortfolioCircuitBreakerService> logger) : IPortfolioCircuitBreakerService
 {
     public async Task<bool> ShouldTriggerAsync(int accountId, T212AccountSummary? summary, CancellationToken ct = default)
@@ -17,11 +18,22 @@ public class PortfolioCircuitBreakerService(
             return false;
         }
 
+        var account = await accountRepo.GetAsync(accountId, ct);
+        if (account is null)
+        {
+            logger.LogWarning("No account record found for account {AccountId} — circuit breaker skipped", accountId);
+            return false;
+        }
+
         var riskProfile = await riskProfileRepo.GetAsync(accountId, ct);
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        // Find the snapshot taken at the start of today's trading session
-        var snapshots = await portfolioRepo.GetSnapshotHistoryAsync(accountId, today, today);
+        // Find the snapshot taken at the start of today's trading session,
+        // scoped to the account's current Demo/Live mode - Demo and Live
+        // balances are unrelated numbers, so a snapshot from the other mode
+        // is not a valid baseline (confirmed live: this let a Demo -> Live
+        // switch mid-day read as a ~100% drawdown and trigger incorrectly).
+        var snapshots = await portfolioRepo.GetSnapshotHistoryAsync(accountId, account.TradingMode, today, today);
         var baseline = snapshots.OrderBy(s => s.CreatedAt).FirstOrDefault();
 
         if (baseline is null)

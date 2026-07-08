@@ -36,6 +36,12 @@ public class ReportGenerationService(
         DateOnly reportDate,
         CancellationToken ct = default)
     {
+        // Fetched up front (moved ahead of its original Step 6 spot) since
+        // Step 2's portfolio load also needs TradingMode, to keep Demo/Live
+        // snapshot baselines from mixing (see PortfolioSnapshot.TradingMode).
+        var account = await accountRepo.GetAsync(accountId, ct)
+            ?? throw new InvalidOperationException($"Account {accountId} not found.");
+
         // Step 1
         var (buys, watches, holds, avoids) = await LoadSignalsAsync(accountId, reportDate);
 
@@ -60,7 +66,7 @@ public class ReportGenerationService(
         var gbpUsd = await forex.GetGbpUsdRateAsync(ct);
 
         // Step 2
-        var portfolio = await LoadPortfolioStateAsync(accountId, finnhub, t212, ct);
+        var portfolio = await LoadPortfolioStateAsync(accountId, account.TradingMode, finnhub, t212, ct);
 
         // Step 3
         var market = await FetchMarketContextAsync(finnhub, ct);
@@ -74,8 +80,6 @@ public class ReportGenerationService(
         // Step 6 - ApprovalRequired is a per-account setting (Settings page),
         // not a global one - ApprovalConfig now only carries the base URL and
         // approval-window timing, both genuinely environment-level.
-        var account = await accountRepo.GetAsync(accountId, ct)
-            ?? throw new InvalidOperationException($"Account {accountId} not found.");
         var token = account.ApprovalRequired ? Guid.NewGuid().ToString("N") : null;
         var cfg = reportConfig.Value;
         var markdown = BuildMarkdown(reportDate, buys, watches, holds, avoids, portfolio, market, narratives, cfg, gbpUsd);
@@ -120,7 +124,7 @@ public class ReportGenerationService(
     // ── Step 2 ───────────────────────────────────────────────────────────────
 
     private async Task<PortfolioState> LoadPortfolioStateAsync(
-        int accountId, IFinnhubClient finnhub, ITrading212Client t212, CancellationToken ct)
+        int accountId, TradingMode tradingMode, IFinnhubClient finnhub, ITrading212Client t212, CancellationToken ct)
     {
         var openTrades = (await tradeRepo.GetOpenTradesAsync(accountId)).ToList();
         var positions = new List<OpenPositionState>();
@@ -153,7 +157,7 @@ public class ReportGenerationService(
                 daysHeld, pctFromStop, pctFromTarget, isNearStop, isNearTarget, isTimeAlert));
         }
 
-        var snapshot = await portfolioRepo.GetLatestSnapshotAsync(accountId);
+        var snapshot = await portfolioRepo.GetLatestSnapshotAsync(accountId, tradingMode);
         decimal cashAvailable;
         try
         {

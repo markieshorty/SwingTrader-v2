@@ -20,6 +20,7 @@ public class TierEvaluationService(
     IPortfolioRepository portfolioRepo,
     ITierEvaluationRepository evaluationRepo,
     IAccountRiskProfileRepository riskProfileRepo,
+    IAccountRepository accountRepo,
     IIndicatorService indicators,
     INotificationRecipientRepository recipients,
     IEmailService email,
@@ -45,7 +46,10 @@ public class TierEvaluationService(
             .OrderBy(t => t.ClosedAt!.Value)
             .ToList();
 
-        var snapshot = await portfolioRepo.GetLatestSnapshotAsync(accountId);
+        var account = await accountRepo.GetAsync(accountId, ct);
+        var snapshot = account is not null
+            ? await portfolioRepo.GetLatestSnapshotAsync(accountId, account.TradingMode)
+            : null;
         var currentTier = snapshot?.CurrentTier ?? CapitalTier.Tier1;
 
         var totalTrades = closed.Count;

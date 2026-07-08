@@ -88,9 +88,11 @@ public class ReadinessAssessmentService(
         var monitorClosedAtLeastOnePosition = closedTrades.Any(t => t.Status == TradeStatus.Closed);
         var approvalFlowTested = await approvalRepo.AnyApprovedAsync(accountId);
 
-        var latestPortfolio = await portfolioRepo.GetLatestSnapshotAsync(accountId);
         var account = await accountRepo.GetAsync(accountId, ct);
         var isLiveTrading = account?.TradingMode == TradingMode.Live;
+        var latestPortfolio = account is not null
+            ? await portfolioRepo.GetLatestSnapshotAsync(accountId, account.TradingMode)
+            : null;
 
         // Step 6 — assess each feature
         var features = new List<FeatureReadiness>

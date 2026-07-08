@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
 
@@ -9,16 +10,16 @@ public class PortfolioRepository(SwingTraderDbContext context) : IPortfolioRepos
     public Task<PortfolioSnapshot?> GetByIdAsync(int accountId, int id) =>
         context.PortfolioSnapshots.FirstOrDefaultAsync(x => x.AccountId == accountId && x.Id == id);
 
-    public Task<PortfolioSnapshot?> GetLatestSnapshotAsync(int accountId) =>
+    public Task<PortfolioSnapshot?> GetLatestSnapshotAsync(int accountId, TradingMode tradingMode) =>
         context.PortfolioSnapshots
-            .Where(x => x.AccountId == accountId)
+            .Where(x => x.AccountId == accountId && x.TradingMode == tradingMode)
             .OrderByDescending(x => x.SnapshotDate)
             .ThenByDescending(x => x.CreatedAt)
             .FirstOrDefaultAsync();
 
-    public async Task<IEnumerable<PortfolioSnapshot>> GetSnapshotHistoryAsync(int accountId, DateOnly from, DateOnly to) =>
+    public async Task<IEnumerable<PortfolioSnapshot>> GetSnapshotHistoryAsync(int accountId, TradingMode tradingMode, DateOnly from, DateOnly to) =>
         await context.PortfolioSnapshots
-            .Where(x => x.AccountId == accountId && x.SnapshotDate >= from && x.SnapshotDate <= to)
+            .Where(x => x.AccountId == accountId && x.TradingMode == tradingMode && x.SnapshotDate >= from && x.SnapshotDate <= to)
             .OrderByDescending(x => x.SnapshotDate)
             .ThenByDescending(x => x.CreatedAt)
             .ToListAsync();

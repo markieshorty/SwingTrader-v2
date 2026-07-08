@@ -20,6 +20,7 @@ public class TierEvaluationServiceTests
     private readonly IPortfolioRepository _portfolioRepo = Substitute.For<IPortfolioRepository>();
     private readonly ITierEvaluationRepository _evaluationRepo = Substitute.For<ITierEvaluationRepository>();
     private readonly IAccountRiskProfileRepository _riskProfileRepo = Substitute.For<IAccountRiskProfileRepository>();
+    private readonly IAccountRepository _accountRepo = Substitute.For<IAccountRepository>();
     private readonly IIndicatorService _indicators = Substitute.For<IIndicatorService>();
     private readonly INotificationRecipientRepository _recipients = Substitute.For<INotificationRecipientRepository>();
     private readonly IEmailService _email = Substitute.For<IEmailService>();
@@ -31,9 +32,11 @@ public class TierEvaluationServiceTests
         _evaluationRepo.AddAsync(Arg.Any<TierEvaluationRecord>()).Returns(ci => ci.Arg<TierEvaluationRecord>());
         _recipients.ListAsync(Arg.Any<int>()).Returns(new List<NotificationRecipient>());
         _claude.SendMessageAsync(Arg.Any<ClaudeRequest>()).Returns<Task<ClaudeResponse>>(_ => throw new Exception("no claude in tests"));
+        _accountRepo.GetAsync(1, Arg.Any<CancellationToken>())
+            .Returns(new Account { Id = 1, TradingMode = TradingMode.Demo });
 
         _sut = new TierEvaluationService(
-            _tradeRepo, _portfolioRepo, _evaluationRepo, _riskProfileRepo, _indicators,
+            _tradeRepo, _portfolioRepo, _evaluationRepo, _riskProfileRepo, _accountRepo, _indicators,
             _recipients, _email,
             Options.Create(new RiskManagementConfig { Active = true }),
             Options.Create(new ClaudeConfig()),
@@ -56,7 +59,7 @@ public class TierEvaluationServiceTests
         trades.AddRange(Enumerable.Range(0, wins).Select(_ => ClosedTrade(50m)));
         trades.AddRange(Enumerable.Range(0, losses).Select(_ => ClosedTrade(-10m)));
         _tradeRepo.GetTradeHistoryAsync(1, Arg.Any<DateTime>(), Arg.Any<DateTime>()).Returns(trades);
-        _portfolioRepo.GetLatestSnapshotAsync(1).Returns(new PortfolioSnapshot { CurrentTier = currentTier });
+        _portfolioRepo.GetLatestSnapshotAsync(1, TradingMode.Demo).Returns(new PortfolioSnapshot { CurrentTier = currentTier });
     }
 
     [Fact]

@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using SwingTrader.Agents.Monitor;
+using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
 using SwingTrader.Infrastructure.HttpClients.Dtos;
@@ -13,17 +14,20 @@ public class PortfolioCircuitBreakerServiceTests
 {
     private readonly IPortfolioRepository _portfolioRepo = Substitute.For<IPortfolioRepository>();
     private readonly IAccountRiskProfileRepository _riskProfileRepo = Substitute.For<IAccountRiskProfileRepository>();
+    private readonly IAccountRepository _accountRepo = Substitute.For<IAccountRepository>();
     private readonly PortfolioCircuitBreakerService _sut;
 
     public PortfolioCircuitBreakerServiceTests()
     {
-        _sut = new PortfolioCircuitBreakerService(_portfolioRepo, _riskProfileRepo, NullLogger<PortfolioCircuitBreakerService>.Instance);
+        _accountRepo.GetAsync(1, Arg.Any<CancellationToken>())
+            .Returns(new Account { Id = 1, TradingMode = TradingMode.Demo });
+        _sut = new PortfolioCircuitBreakerService(_portfolioRepo, _riskProfileRepo, _accountRepo, NullLogger<PortfolioCircuitBreakerService>.Instance);
     }
 
     private void SetupBaseline(decimal totalCapital)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        _portfolioRepo.GetSnapshotHistoryAsync(1, today, today)
+        _portfolioRepo.GetSnapshotHistoryAsync(1, TradingMode.Demo, today, today)
             .Returns(new List<PortfolioSnapshot> { new() { TotalCapital = totalCapital, CreatedAt = DateTime.UtcNow.AddHours(-1) } });
     }
 
@@ -85,7 +89,7 @@ public class PortfolioCircuitBreakerServiceTests
         _riskProfileRepo.GetAsync(1, Arg.Any<CancellationToken>())
             .Returns(new AccountRiskProfile());
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        _portfolioRepo.GetSnapshotHistoryAsync(1, today, today).Returns(new List<PortfolioSnapshot>());
+        _portfolioRepo.GetSnapshotHistoryAsync(1, TradingMode.Demo, today, today).Returns(new List<PortfolioSnapshot>());
 
         var triggered = await _sut.ShouldTriggerAsync(1, BuildSummary(0, 100));
 

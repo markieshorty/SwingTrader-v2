@@ -428,11 +428,15 @@ api.MapPost("/positions/{tradeId:int}/check-momentum", async (
 api.MapGet("/portfolio", async (
     IPortfolioRepository portfolio,
     ITradeRepository trades,
+    IAccountRepository accounts,
     IUserHttpClientFactory clientFactory,
     IAccountContext ctx,
     CancellationToken ct) =>
 {
-    var snapshot = await portfolio.GetLatestSnapshotAsync(ctx.AccountId);
+    var account = await accounts.GetAsync(ctx.AccountId, ct);
+    if (account is null) return Results.NotFound();
+
+    var snapshot = await portfolio.GetLatestSnapshotAsync(ctx.AccountId, account.TradingMode);
     if (snapshot is null) return Results.NotFound();
 
     var allTrades = (await trades.GetAllAsync(ctx.AccountId)).ToList();
@@ -1082,11 +1086,15 @@ api.MapGet("/risk-profile", async (
     IAccountRiskProfileRepository riskProfileRepo,
     IStrategyWeightsRepository weightsRepo,
     IPortfolioRepository portfolioRepo,
+    IAccountRepository accounts,
     IAccountContext ctx) =>
 {
     var profile = await riskProfileRepo.GetAsync(ctx.AccountId);
     var weights = await weightsRepo.GetActiveWeightsAsync(ctx.AccountId);
-    var snapshot = await portfolioRepo.GetLatestSnapshotAsync(ctx.AccountId);
+    var account = await accounts.GetAsync(ctx.AccountId);
+    var snapshot = account is not null
+        ? await portfolioRepo.GetLatestSnapshotAsync(ctx.AccountId, account.TradingMode)
+        : null;
 
     return Results.Ok(new
     {

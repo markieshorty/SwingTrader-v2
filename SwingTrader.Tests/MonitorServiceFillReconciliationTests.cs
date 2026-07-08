@@ -31,10 +31,17 @@ public class MonitorServiceFillReconciliationTests
     private readonly IEmailService _emailService = Substitute.For<IEmailService>();
     private readonly IFinnhubClient _finnhub = Substitute.For<IFinnhubClient>();
     private readonly ITrading212Client _t212 = Substitute.For<ITrading212Client>();
+    private readonly IAccountRepository _accountRepo = Substitute.For<IAccountRepository>();
+
+    public MonitorServiceFillReconciliationTests()
+    {
+        _accountRepo.GetAsync(1, Arg.Any<CancellationToken>())
+            .Returns(new Account { Id = 1, TradingMode = TradingMode.Demo });
+    }
 
     private MonitorService CreateSut() => new(
         _tradeRepo, _portfolioRepo, _circuitBreaker, _positionMonitor, _riskProfileRepo,
-        _positionExit, _recipients, _emailService,
+        _positionExit, _recipients, _emailService, _accountRepo,
         Options.Create(new ExecutionConfig { DelayBetweenOrdersSeconds = 0 }),
         NullLogger<MonitorService>.Instance);
 

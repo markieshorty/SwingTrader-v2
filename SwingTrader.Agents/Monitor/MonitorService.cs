@@ -24,6 +24,7 @@ public class MonitorService(
     IPositionExitService positionExit,
     INotificationRecipientRepository recipients,
     IEmailService emailService,
+    IAccountRepository accountRepo,
     IOptions<ExecutionConfig> executionConfig,
     ILogger<MonitorService> logger) : IMonitorService
 {
@@ -371,6 +372,13 @@ public class MonitorService(
 
         try
         {
+            var account = await accountRepo.GetAsync(accountId);
+            if (account is null)
+            {
+                logger.LogWarning("No account record found for account {AccountId} — skipping portfolio snapshot update", accountId);
+                return;
+            }
+
             // TotalValue/Investments.CurrentValue are already in the
             // account's base currency (GBP) - T212 computes these itself.
             var totalValue = summary.TotalValue;
@@ -379,6 +387,7 @@ public class MonitorService(
             await portfolioRepo.AddAsync(new PortfolioSnapshot
             {
                 AccountId = accountId,
+                TradingMode = account.TradingMode,
                 SnapshotDate = DateOnly.FromDateTime(DateTime.UtcNow),
                 TotalCapital = totalValue,
                 CashAvailable = summary.Cash.AvailableToTrade,
