@@ -36,21 +36,43 @@ public class UserHttpClientFactory(
     // burning through the rest of the run's per-symbol tasks one by one.
     private static readonly TimeSpan HttpClientTimeout = TimeSpan.FromMinutes(3);
 
+    // Every Create*Async call used to build a brand-new HttpClientHandler
+    // (and therefore a brand-new socket/connection pool) per call, per
+    // account, per job. HttpClient/HttpClientHandler are meant to be
+    // long-lived and shared - one handler per call leaks connections under
+    // load and can exhaust the OS socket table. These are shared across all
+    // accounts (per-account auth lives in per-call headers/DelegatingHandlers
+    // below, not on the handler itself) and never disposed, so the pooled
+    // connections persist for the lifetime of the process.
+    private static readonly SocketsHttpHandler FinnhubHandler = CreateSharedHandler();
+    private static readonly SocketsHttpHandler TiingoHandler = CreateSharedHandler();
+    private static readonly SocketsHttpHandler ClaudeHandler = CreateSharedHandler();
+    private static readonly SocketsHttpHandler Trading212LiveHandler = CreateSharedHandler();
+    private static readonly SocketsHttpHandler Trading212DemoHandler = CreateSharedHandler();
+
+    private static SocketsHttpHandler CreateSharedHandler() => new()
+    {
+        PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+    };
+
     public async Task<TClient> CreateFinnhubAsync<TClient>(int accountId, CancellationToken ct = default)
     {
         var apiKey = await GetDecryptedKeyAsync(accountId, ApiKeyProviders.Finnhub, ct);
         // Finnhub authenticates via a "token" query parameter rather than a
         // header, so each request is signed by this handler instead of a
-        // fixed default header.
-        var handler = new FinnhubTokenHandler(apiKey) { InnerHandler = new HttpClientHandler() };
-        var httpClient = new HttpClient(handler) { BaseAddress = new Uri(FinnhubBaseUrl), Timeout = HttpClientTimeout };
+        // fixed default header. The DelegatingHandler wrapper is cheap to
+        // recreate per call (holds only the token string); disposeHandler:
+        // false stops HttpClient from disposing it - and, in turn, the
+        // shared FinnhubHandler it wraps - if anything ever calls Dispose().
+        var handler = new FinnhubTokenHandler(apiKey) { InnerHandler = FinnhubHandler };
+        var httpClient = new HttpClient(handler, disposeHandler: false) { BaseAddress = new Uri(FinnhubBaseUrl), Timeout = HttpClientTimeout };
         return RestService.For<TClient>(httpClient);
     }
 
     public async Task<TClient> CreateTiingoAsync<TClient>(int accountId, CancellationToken ct = default)
     {
         var apiKey = await GetDecryptedKeyAsync(accountId, ApiKeyProviders.Tiingo, ct);
-        var httpClient = new HttpClient { BaseAddress = new Uri(TiingoBaseUrl), Timeout = HttpClientTimeout };
+        var httpClient = new HttpClient(TiingoHandler, disposeHandler: false) { BaseAddress = new Uri(TiingoBaseUrl), Timeout = HttpClientTimeout };
         httpClient.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Token", apiKey);
         return RestService.For<TClient>(httpClient);
@@ -69,9 +91,10 @@ public class UserHttpClientFactory(
         var apiSecret = await GetDecryptedKeyAsync(accountId, secretProvider, ct);
 
         var baseUrl = isLive ? Trading212LiveBaseUrl : Trading212DemoBaseUrl;
+        var sharedHandler = isLive ? Trading212LiveHandler : Trading212DemoHandler;
         var credentials = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{apiKey}:{apiSecret}"));
-        var handler = new T212DiagnosticHandler(logger) { InnerHandler = new HttpClientHandler() };
-        var httpClient = new HttpClient(handler) { BaseAddress = new Uri(baseUrl), Timeout = HttpClientTimeout };
+        var handler = new T212DiagnosticHandler(logger) { InnerHandler = sharedHandler };
+        var httpClient = new HttpClient(handler, disposeHandler: false) { BaseAddress = new Uri(baseUrl), Timeout = HttpClientTimeout };
         httpClient.DefaultRequestHeaders.Add("Authorization", $"Basic {credentials}");
         return RestService.For<TClient>(httpClient);
     }
@@ -79,7 +102,7 @@ public class UserHttpClientFactory(
     public async Task<TClient> CreateClaudeAsync<TClient>(int accountId, CancellationToken ct = default)
     {
         var apiKey = await GetDecryptedKeyAsync(accountId, ApiKeyProviders.Claude, ct);
-        var httpClient = new HttpClient { BaseAddress = new Uri(ClaudeBaseUrl), Timeout = HttpClientTimeout };
+        var httpClient = new HttpClient(ClaudeHandler, disposeHandler: false) { BaseAddress = new Uri(ClaudeBaseUrl), Timeout = HttpClientTimeout };
         httpClient.DefaultRequestHeaders.TryAddWithoutValidation("x-api-key", apiKey);
         httpClient.DefaultRequestHeaders.TryAddWithoutValidation("anthropic-version", "2023-06-01");
         return RestService.For<TClient>(httpClient);
