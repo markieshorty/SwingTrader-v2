@@ -1053,6 +1053,29 @@ api.MapGet("/keys/{provider}/test", async (
     });
 });
 
+// Test a whole Trading212 pair (key + secret) for one mode - the "Connect to
+// demo/live" buttons. Verifies against that mode's endpoint regardless of the
+// account's current TradingMode and returns the balance + environment.
+api.MapGet("/keys/trading212/{mode}/test", async (
+    string mode,
+    IUserKeyService keys,
+    IAccountContext ctx) =>
+{
+    if (!Enum.TryParse<TradingMode>(mode, ignoreCase: true, out var tradingMode))
+        return Results.BadRequest(new { message = $"Unknown mode '{mode}'." });
+
+    var result = await keys.TestTrading212PairAsync(ctx.AccountId, tradingMode);
+    return Results.Ok(new
+    {
+        valid = result.Valid,
+        message = result.Message,
+        isDemo = result.IsDemo,
+        cashTotal = result.CashTotal,
+        cashFree = result.CashFree,
+        currency = result.Currency,
+    });
+});
+
 api.MapDelete("/keys/{provider}", async (
     string provider,
     IUserKeyService keys,

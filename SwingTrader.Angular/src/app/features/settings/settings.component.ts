@@ -12,6 +12,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSliderModule } from '@angular/material/slider';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDialog } from '@angular/material/dialog';
 import { ApiService } from '../../core/services/api.service';
@@ -21,6 +22,7 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
 import {
   AccountMemberDto,
   ApiKeyProvider,
+  ConnectionState,
   KeyStatusesDto,
   KeyTestResult,
   NotificationRecipientDto,
@@ -89,6 +91,7 @@ function toUpdateRiskProfileDto(profile: RiskProfileDto): UpdateRiskProfileDto {
     MatSlideToggleModule,
     MatSelectModule,
     MatSliderModule,
+    MatProgressSpinnerModule,
   ],
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.scss',
@@ -115,6 +118,64 @@ export class SettingsComponent {
   keyStatuses = signal<KeyStatusesDto | null>(null);
   editingProvider = signal<ApiKeyProvider | null>(null);
   keyInput = '';
+  // Per-pair connection indicator. Null = derive from saved key status
+  // (so returning to the page shows the last known state); a set value is
+  // the result of a connect click this session.
+  private connectStates = signal<Record<'Demo' | 'Live', ConnectionState | null>>({ Demo: null, Live: null });
+
+  private readonly trading212Providers: ApiKeyProvider[] = [
+    'Trading212DemoKey', 'Trading212DemoSecret', 'Trading212LiveKey', 'Trading212LiveSecret',
+  ];
+
+  isTrading212 = (p: ApiKeyProvider) => this.trading212Providers.includes(p);
+
+  private pairProviders(mode: 'Demo' | 'Live'): [ApiKeyProvider, ApiKeyProvider] {
+    return mode === 'Demo'
+      ? ['Trading212DemoKey', 'Trading212DemoSecret']
+      : ['Trading212LiveKey', 'Trading212LiveSecret'];
+  }
+
+  // A pair can be connected only once both its key and secret are saved.
+  canConnect(mode: 'Demo' | 'Live'): boolean {
+    const s = this.keyStatuses();
+    if (!s) return false;
+    const [key, secret] = this.pairProviders(mode);
+    return s[key] !== 'NotSet' && s[secret] !== 'NotSet';
+  }
+
+  // The indicator to render next to a pair's connect button. A live click
+  // result wins; otherwise fall back to the saved key status so the icon
+  // reflects the last known connection.
+  pairState(mode: 'Demo' | 'Live'): ConnectionState {
+    const override = this.connectStates()[mode];
+    if (override) return override;
+
+    const s = this.keyStatuses();
+    const [key, secret] = this.pairProviders(mode);
+    if (!s || s[key] === 'NotSet' || s[secret] === 'NotSet') return { status: 'idle', text: 'Add key + secret, then connect' };
+    if (s[key] === 'Valid' && s[secret] === 'Valid') return { status: 'success', text: 'Connected' };
+    if (s[key] === 'Invalid' || s[secret] === 'Invalid') return { status: 'error', text: 'Last connection failed' };
+    return { status: 'idle', text: 'Not yet connected' };
+  }
+
+  connectTrading212(mode: 'Demo' | 'Live'): void {
+    this.connectStates.update((m) => ({ ...m, [mode]: { status: 'connecting', text: 'Connecting…' } }));
+    this.api.testTrading212Pair(mode).subscribe({
+      next: (result) => {
+        this.connectStates.update((m) => ({
+          ...m,
+          [mode]: { status: result.valid ? 'success' : 'error', text: this.keyTestMessage(result) },
+        }));
+        this.loadKeyStatuses();
+      },
+      error: (err) => {
+        this.connectStates.update((m) => ({
+          ...m,
+          [mode]: { status: 'error', text: errorMessage(err, `Could not connect to ${mode.toLowerCase()}.`) },
+        }));
+      },
+    });
+  }
 
   // The confirmed AppUser record, not the raw auth token - the token's
   // email claim is frequently a synthetic {objectId}@tenant fallback for

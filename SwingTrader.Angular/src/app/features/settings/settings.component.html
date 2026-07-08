@@ -14,16 +14,58 @@
               <mat-label>New value</mat-label>
               <input matInput type="password" [(ngModel)]="keyInput" />
             </mat-form-field>
-            <button mat-raised-button color="primary" (click)="saveAndTestKey()">Save and Test</button>
+            <button mat-raised-button color="primary" (click)="saveAndTestKey()">Save</button>
             <button mat-button (click)="cancelEditing()">Cancel</button>
           } @else {
             <button mat-stroked-button [disabled]="!isOwner()" (click)="startEditing(provider)">Replace</button>
-            <button mat-stroked-button (click)="testKey(provider)">Test</button>
+            <!-- Trading212 keys are tested per-pair via the Connect buttons below,
+                 not individually - a lone key/secret can't authenticate. -->
+            @if (!isTrading212(provider)) {
+              <button mat-stroked-button (click)="testKey(provider)">Test</button>
+            }
             <button mat-icon-button [disabled]="!isOwner()" (click)="removeKey(provider)" title="Remove key">
               <mat-icon>delete</mat-icon>
             </button>
           }
         </div>
+
+        <!-- One connect button per Trading212 pair, directly under its secret. -->
+        @if (provider === 'Trading212DemoSecret') {
+          <div class="pair-connect">
+            <button mat-raised-button color="primary"
+              [disabled]="!canConnect('Demo') || pairState('Demo').status === 'connecting'"
+              (click)="connectTrading212('Demo')">
+              Connect to demo
+            </button>
+            <span class="conn-indicator" [class]="pairState('Demo').status">
+              @switch (pairState('Demo').status) {
+                @case ('connecting') { <mat-spinner diameter="18"></mat-spinner> }
+                @case ('success') { <mat-icon>check_circle</mat-icon> }
+                @case ('error') { <mat-icon>cancel</mat-icon> }
+                @default { <mat-icon>pending</mat-icon> }
+              }
+              <span>{{ pairState('Demo').text }}</span>
+            </span>
+          </div>
+        }
+        @if (provider === 'Trading212LiveSecret') {
+          <div class="pair-connect">
+            <button mat-raised-button color="primary"
+              [disabled]="!canConnect('Live') || pairState('Live').status === 'connecting'"
+              (click)="connectTrading212('Live')">
+              Connect to live
+            </button>
+            <span class="conn-indicator" [class]="pairState('Live').status">
+              @switch (pairState('Live').status) {
+                @case ('connecting') { <mat-spinner diameter="18"></mat-spinner> }
+                @case ('success') { <mat-icon>check_circle</mat-icon> }
+                @case ('error') { <mat-icon>cancel</mat-icon> }
+                @default { <mat-icon>pending</mat-icon> }
+              }
+              <span>{{ pairState('Live').text }}</span>
+            </span>
+          </div>
+        }
       }
     </mat-card>
   </mat-tab>

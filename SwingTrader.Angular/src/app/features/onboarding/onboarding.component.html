@@ -69,6 +69,40 @@
               <input matInput type="password" [placeholder]="field.placeholder" [(ngModel)]="values[field.key]" />
             </mat-form-field>
           }
+
+          <!-- One connect button per Trading212 pair, under its secret field. -->
+          @if (field.key === 'Trading212DemoSecret') {
+            <div class="pair-connect">
+              <button mat-stroked-button [disabled]="!canConnectPair('Demo') || pairState('Demo').status === 'connecting'" (click)="connectPair('Demo')">
+                Connect to demo
+              </button>
+              <span class="conn-indicator" [class]="pairState('Demo').status">
+                @switch (pairState('Demo').status) {
+                  @case ('connecting') { <mat-spinner diameter="18"></mat-spinner> }
+                  @case ('success') { <mat-icon>check_circle</mat-icon> }
+                  @case ('error') { <mat-icon>cancel</mat-icon> }
+                  @default { <mat-icon>pending</mat-icon> }
+                }
+                @if (pairState('Demo').text) { <span>{{ pairState('Demo').text }}</span> }
+              </span>
+            </div>
+          }
+          @if (field.key === 'Trading212LiveSecret') {
+            <div class="pair-connect">
+              <button mat-stroked-button [disabled]="!canConnectPair('Live') || pairState('Live').status === 'connecting'" (click)="connectPair('Live')">
+                Connect to live
+              </button>
+              <span class="conn-indicator" [class]="pairState('Live').status">
+                @switch (pairState('Live').status) {
+                  @case ('connecting') { <mat-spinner diameter="18"></mat-spinner> }
+                  @case ('success') { <mat-icon>check_circle</mat-icon> }
+                  @case ('error') { <mat-icon>cancel</mat-icon> }
+                  @default { <mat-icon>pending</mat-icon> }
+                }
+                @if (pairState('Live').text) { <span>{{ pairState('Live').text }}</span> }
+              </span>
+            </div>
+          }
         }
       </div>
 

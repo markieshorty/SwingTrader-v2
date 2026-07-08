@@ -189,6 +189,12 @@ export class ApiService {
     return this.http.get<KeyTestResult>(`${this.baseUrl}/api/keys/${provider}/test`);
   }
 
+  // Tests a whole Trading212 pair for one mode (the "Connect to demo/live"
+  // buttons) - returns the account balance + environment.
+  testTrading212Pair(mode: 'Demo' | 'Live'): Observable<KeyTestResult> {
+    return this.http.get<KeyTestResult>(`${this.baseUrl}/api/keys/trading212/${mode}/test`);
+  }
+
   deleteKey(provider: string): Observable<unknown> {
     return this.http.delete(`${this.baseUrl}/api/keys/${provider}`);
   }

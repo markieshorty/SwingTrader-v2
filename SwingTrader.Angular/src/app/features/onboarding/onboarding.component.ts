@@ -12,7 +12,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
-import { ApiKeyProvider, KeyStatusesDto } from '../../core/models/dtos';
+import { ApiKeyProvider, ConnectionState, KeyStatusesDto } from '../../core/models/dtos';
 
 interface WizardField {
   key: ApiKeyProvider;
@@ -101,6 +101,10 @@ export class OnboardingComponent {
   currentIndex = signal(0);
   values: Record<string, string> = {};
   saving = signal(false);
+  connectStates = signal<Record<'Demo' | 'Live', ConnectionState>>({
+    Demo: { status: 'idle', text: '' },
+    Live: { status: 'idle', text: '' },
+  });
   keyStatuses = signal<KeyStatusesDto | null>(null);
 
   // First step of the wizard, ahead of the API-key steps - the email in the
@@ -158,6 +162,55 @@ export class OnboardingComponent {
       .every((f) => (this.values[f.key] ?? '').trim().length > 0 || statuses?.[f.key] !== 'NotSet');
   }
 
+  private pairFields(mode: 'Demo' | 'Live'): [ApiKeyProvider, ApiKeyProvider] {
+    return mode === 'Demo'
+      ? ['Trading212DemoKey', 'Trading212DemoSecret']
+      : ['Trading212LiveKey', 'Trading212LiveSecret'];
+  }
+
+  // The Connect button lights up once both halves of the pair are present -
+  // either freshly typed in this session or already saved from a prior visit.
+  canConnectPair(mode: 'Demo' | 'Live'): boolean {
+    const [key, secret] = this.pairFields(mode);
+    const statuses = this.keyStatuses();
+    const set = (f: ApiKeyProvider) => (this.values[f] ?? '').trim().length > 0 || statuses?.[f] !== 'NotSet';
+    return set(key) && set(secret);
+  }
+
+  pairState(mode: 'Demo' | 'Live'): ConnectionState {
+    return this.connectStates()[mode];
+  }
+
+  // Saves any freshly-typed values for the pair, then tests it against that
+  // mode's Trading212 endpoint. The inline indicator shows a spinner, then a
+  // tick + balance on success (so the user can confirm the account is theirs)
+  // or a cross on failure.
+  async connectPair(mode: 'Demo' | 'Live'): Promise<void> {
+    if (this.pairState(mode).status === 'connecting') return;
+    this.setConn(mode, { status: 'connecting', text: 'Connecting…' });
+    try {
+      for (const field of this.pairFields(mode)) {
+        const typed = (this.values[field] ?? '').trim();
+        if (typed.length > 0) await firstValueFrom(this.api.saveKey(field, typed));
+      }
+      const result = await firstValueFrom(this.api.testTrading212Pair(mode));
+      this.keyStatuses.set(await firstValueFrom(this.api.getKeyStatuses()));
+
+      let text = result.message;
+      if (result.valid && result.cashTotal !== null) {
+        const ccy = result.currency ?? '';
+        text = `${result.message} — ${ccy}${result.cashTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} total`;
+      }
+      this.setConn(mode, { status: result.valid ? 'success' : 'error', text });
+    } catch {
+      this.setConn(mode, { status: 'error', text: `Could not connect to ${mode.toLowerCase()} — check the key and secret.` });
+    }
+  }
+
+  private setConn(mode: 'Demo' | 'Live', state: ConnectionState): void {
+    this.connectStates.update((m) => ({ ...m, [mode]: state }));
+  }
+
   async saveAndContinue(): Promise<void> {
     const step = this.currentStep();
 
@@ -168,22 +221,11 @@ export class OnboardingComponent {
     if (fieldsToSave.length > 0) {
       this.saving.set(true);
       try {
-        // Saving a key also tests it. When a save completes a Trading212 pair,
-        // the result carries the account balance + environment - surface it so
-        // the user can confirm during signup that the keys are the right way
-        // around and pointed at the intended (demo/live) account.
-        let balanceMessage: string | null = null;
         for (const field of fieldsToSave) {
-          const result = await firstValueFrom(this.api.saveKey(field.key, (this.values[field.key] ?? '').trim()));
-          if (result.valid && result.cashTotal !== null) {
-            const ccy = result.currency ?? '';
-            const total = `${ccy}${result.cashTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            balanceMessage = `${result.message} — ${total} total`;
-          }
+          await firstValueFrom(this.api.saveKey(field.key, (this.values[field.key] ?? '').trim()));
         }
         const updated = await firstValueFrom(this.api.getKeyStatuses());
         this.keyStatuses.set(updated);
-        if (balanceMessage) this.snackbar.open(balanceMessage, 'Dismiss', { duration: 8000 });
       } catch {
         this.snackbar.open('Failed to save — check the key and try again.', 'Dismiss', { duration: 4000 });
         this.saving.set(false);

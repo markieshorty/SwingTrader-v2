@@ -247,6 +247,13 @@ export type ApiKeyProvider =
 
 export type KeyStatusesDto = Record<ApiKeyProvider, KeyStatus>;
 
+// Inline connection indicator state for a Trading212 pair's connect button.
+export type ConnectionStatus = 'idle' | 'connecting' | 'success' | 'error';
+export interface ConnectionState {
+  status: ConnectionStatus;
+  text: string;
+}
+
 // Result of testing a key. For a complete Trading212 pair the extra fields
 // come back from a real account call so the user can confirm the credentials
 // are correct and pointed at the right (demo/live) environment.

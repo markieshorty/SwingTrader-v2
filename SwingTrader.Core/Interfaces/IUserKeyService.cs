@@ -31,6 +31,12 @@ public interface IUserKeyService
     // providers return Valid + Message only.
     Task<KeyTestResult> TestKeyAsync(int accountId, string provider, CancellationToken ct = default);
 
+    // Tests a whole Trading212 pair (key + secret) for one mode against that
+    // mode's endpoint, regardless of the account's current TradingMode, and
+    // records the result on both the key and secret rows. Returns the cash
+    // balance + environment so the user can confirm the pair connects.
+    Task<KeyTestResult> TestTrading212PairAsync(int accountId, TradingMode mode, CancellationToken ct = default);
+
     Task<Dictionary<string, KeyStatus>> GetKeyStatusesAsync(int accountId, CancellationToken ct = default);
 
     Task DeleteKeyAsync(int accountId, string provider, CancellationToken ct = default);

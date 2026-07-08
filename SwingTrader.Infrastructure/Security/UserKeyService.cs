@@ -89,10 +89,10 @@ public class UserKeyService(
                 // we return the cash balance + environment so the user can
                 // confirm the credentials aren't swapped or in the wrong slot.
                 case ApiKeyProviders.Trading212DemoKey or ApiKeyProviders.Trading212DemoSecret:
-                    return await TestTrading212PairAsync(accountId, TradingMode.Demo, provider, ct);
+                    return await RunTrading212PairCheckAsync(accountId, TradingMode.Demo, provider, ct);
 
                 case ApiKeyProviders.Trading212LiveKey or ApiKeyProviders.Trading212LiveSecret:
-                    return await TestTrading212PairAsync(accountId, TradingMode.Live, provider, ct);
+                    return await RunTrading212PairCheckAsync(accountId, TradingMode.Live, provider, ct);
 
                 // Claude/email: no free connectivity check available (Claude
                 // calls cost money per request, and there's no email client
@@ -111,7 +111,43 @@ public class UserKeyService(
         }
     }
 
-    private async Task<KeyTestResult> TestTrading212PairAsync(int accountId, TradingMode mode, string provider, CancellationToken ct)
+    public async Task<KeyTestResult> TestTrading212PairAsync(int accountId, TradingMode mode, CancellationToken ct = default)
+    {
+        var (keyProvider, secretProvider) = mode == TradingMode.Live
+            ? (ApiKeyProviders.Trading212LiveKey, ApiKeyProviders.Trading212LiveSecret)
+            : (ApiKeyProviders.Trading212DemoKey, ApiKeyProviders.Trading212DemoSecret);
+
+        KeyTestResult result;
+        try
+        {
+            result = await RunTrading212PairCheckAsync(accountId, mode, keyProvider, ct);
+        }
+        catch (ApiException ex)
+        {
+            result = new KeyTestResult(false, $"Connection failed: {(int)ex.StatusCode} {ex.StatusCode}");
+        }
+        catch (Exception ex)
+        {
+            result = new KeyTestResult(false, $"Connection failed: {ex.Message}");
+        }
+
+        // Record the outcome on both halves of the pair so their status
+        // chips reflect the same connect result.
+        var now = DateTime.UtcNow;
+        foreach (var p in new[] { keyProvider, secretProvider })
+        {
+            var row = await repository.GetAsync(accountId, p, ct);
+            if (row is null) continue;
+            row.IsValid = result.Valid;
+            row.LastTestedAt = now;
+            row.LastTestResult = result.Message;
+            await repository.UpsertAsync(row, ct);
+        }
+
+        return result;
+    }
+
+    private async Task<KeyTestResult> RunTrading212PairCheckAsync(int accountId, TradingMode mode, string provider, CancellationToken ct)
     {
         var (keyProvider, secretProvider) = mode == TradingMode.Live
             ? (ApiKeyProviders.Trading212LiveKey, ApiKeyProviders.Trading212LiveSecret)

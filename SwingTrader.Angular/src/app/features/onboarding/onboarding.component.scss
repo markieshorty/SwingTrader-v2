@@ -105,6 +105,39 @@
   padding: 16px 0;
 }
 
+.pair-connect {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 4px 0 16px;
+
+  .conn-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+
+    mat-icon {
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+    }
+
+    &.idle {
+      color: var(--st-muted);
+    }
+
+    &.success {
+      color: #22c55e;
+    }
+
+    &.error {
+      color: #ef4444;
+    }
+  }
+}
+
 .actions {
   display: flex;
   align-items: center;
