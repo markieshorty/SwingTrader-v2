@@ -43,34 +43,41 @@
       <mat-card class="panel">
         <h3>How a signal is scored</h3>
         <p>
-          Every candidate gets a single <strong>conviction score from 0 to 10</strong>. It's a weighted blend of eight
-          independent components — each scored 0–1, multiplied by its weight, then summed and scaled to 10. The weights
-          below are <strong>your account's current values</strong> (they sum to 100%). The Refinement agent nudges them
-          over time based on which components actually predicted your winners.
+          Every candidate stock gets a single <strong>conviction score from 0 to 10</strong> — the higher the number,
+          the stronger the case for buying it. That score is a weighted blend of eight separate checks. Each check
+          scores the stock from 0 to 1, that score is multiplied by the check's <em>weight</em> (how much it counts),
+          and the results are added up and scaled to 10.
         </p>
-        <table class="data-table">
-          <thead>
-            <tr><th>Component</th><th>Your weight</th><th>What it measures</th></tr>
-          </thead>
-          <tbody>
-            @for (c of components; track c.name) {
-              <tr>
-                <td>{{ c.name }}</td>
-                <td class="num">{{ weightPct(c.weightKey) }}</td>
-                <td class="muted">{{ c.measures }}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
-        <h3>Thresholds</h3>
+        <p class="muted small">
+          The weights below are <strong>your account's current values</strong> and add up to 100%. They aren't fixed —
+          the Refinement agent gradually shifts weight toward whichever checks have actually predicted your winning
+          trades. Tap any check to see what it means in plain terms.
+        </p>
+
+        <mat-accordion class="components">
+          @for (c of components; track c.name) {
+            <mat-expansion-panel>
+              <mat-expansion-panel-header>
+                <mat-panel-title>{{ c.name }}</mat-panel-title>
+                <mat-panel-description>
+                  <span class="weight-chip">{{ weightPct(c.weightKey) }}</span>
+                  <span class="measures">{{ c.measures }}</span>
+                </mat-panel-description>
+              </mat-expansion-panel-header>
+              <p>{{ c.plain }}</p>
+            </mat-expansion-panel>
+          }
+        </mat-accordion>
+
+        <h3>What the score decides</h3>
         <ul>
-          <li>Score ≥ <strong>{{ weights()?.buyThreshold ?? '—' }}</strong> → <strong>Buy</strong> (eligible for execution).</li>
-          <li>Score ≥ <strong>{{ weights()?.watchThreshold ?? '—' }}</strong> → <strong>Watch</strong> (on the radar, not traded).</li>
-          <li>Below that → Hold / Avoid.</li>
+          <li>Score ≥ <strong>{{ weights()?.buyThreshold ?? '—' }}</strong> → <strong>Buy</strong> — strong enough to actually trade (subject to approval).</li>
+          <li>Score ≥ <strong>{{ weights()?.watchThreshold ?? '—' }}</strong> → <strong>Watch</strong> — interesting, kept on the radar but not traded.</li>
+          <li>Below that → <strong>Hold / Avoid</strong> — not acted on.</li>
         </ul>
         <p class="muted small">
-          When a component's data source is unavailable (e.g. a news fetch fails), it contributes a neutral 0.5 rather
-          than dragging the score down. A missing data point never pushes a signal toward Buy.
+          If a check can't get its data (say a news feed is down), it counts as a neutral 0.5 rather than dragging the
+          score down — so a missing data point can never nudge a stock toward a Buy it didn't earn.
         </p>
       </mat-card>
     </mat-tab>
@@ -98,22 +105,70 @@
         </p>
 
         <h3>How positions are exited</h3>
-        <p>Once a trade is open, the Monitor agent enforces these automatically:</p>
-        <table class="data-table">
-          <tbody>
-            <tr><td>Default stop loss</td><td class="num">{{ pct(weights()?.stopLossPctDefault) }} below entry</td></tr>
-            <tr><td>Trailing stop activates at</td><td class="num">+{{ pct(risk()?.trailingActivationPct) }}</td></tr>
-            <tr><td>Trailing stop distance</td><td class="num">{{ pct(risk()?.trailingDistancePct) }}</td></tr>
-            <tr><td>Max hold (time exit)</td><td class="num">{{ risk()?.maxHoldDays ?? '—' }} days</td></tr>
-            <tr><td>Min hold before health check</td><td class="num">{{ risk()?.minHoldDays ?? '—' }} days</td></tr>
-            <tr><td>Earnings blackout window</td><td class="num">{{ risk()?.earningsGateDays ?? '—' }} days</td></tr>
-          </tbody>
-        </table>
-        <p class="muted small">
-          Targets are set per-trade from the setup type and conviction (roughly 8–12% above entry). A momentum-health
-          check around day {{ risk()?.minHoldDays ?? '—' }} exits early if the thesis has broken down. All of these are
-          adjustable on Settings → Risk profile.
+        <p>
+          Buying is only half the job — knowing when to sell is what protects the account. Once a trade is open the
+          Monitor agent watches it continuously and closes it automatically when any of the following triggers. You
+          never have to sell manually. All the numbers below are <strong>your current settings</strong> (change them
+          on Settings → Risk profile).
         </p>
+
+        <div class="exit-rule">
+          <h4>Stop loss — caps the downside <span class="rule-val">{{ pct(weights()?.stopLossPctDefault) }} below entry</span></h4>
+          <p>
+            A price at which the trade is sold automatically to stop a small loss becoming a big one. If you buy at
+            £100 and the stop is {{ pct(weights()?.stopLossPctDefault) }}, the position sells if the price falls to
+            roughly £{{ stopExample() }}. Every trade has one — it's the single most important risk control.
+          </p>
+        </div>
+
+        <div class="exit-rule">
+          <h4>Profit target — takes the win <span class="rule-val">≈ 8–12% above entry</span></h4>
+          <p>
+            The price at which the trade is sold to bank a profit. It's set per-trade from the setup type and how
+            strong the conviction was (stronger signals aim a little higher). If price hits the target, Monitor sells
+            and locks in the gain.
+          </p>
+        </div>
+
+        <div class="exit-rule">
+          <h4>Trailing stop — protects a winner
+            <span class="rule-val">arms at +{{ pct(risk()?.trailingActivationPct) }}, trails by {{ pct(risk()?.trailingDistancePct) }}</span>
+          </h4>
+          <p>
+            Once a trade is up by {{ pct(risk()?.trailingActivationPct) }}, a second stop switches on that
+            <em>follows the price upward</em> but never moves back down. It sits {{ pct(risk()?.trailingDistancePct) }}
+            below the highest price reached. So if a winner keeps climbing the stop climbs with it, and if the price
+            then drops {{ pct(risk()?.trailingDistancePct) }} from its peak the trade sells — letting winners run while
+            still banking most of the gain if they reverse.
+          </p>
+        </div>
+
+        <div class="exit-rule">
+          <h4>Time exit — frees up stuck capital <span class="rule-val">{{ risk()?.maxHoldDays ?? '—' }} days</span></h4>
+          <p>
+            If a position hasn't hit its target or stop after {{ risk()?.maxHoldDays ?? '—' }} days, it's closed
+            anyway. Money tied up in a trade that's going nowhere can't fund a better opportunity — swing trades are
+            meant to play out over days, not months.
+          </p>
+        </div>
+
+        <div class="exit-rule">
+          <h4>Momentum health check — exits a broken thesis <span class="rule-val">from day {{ risk()?.minHoldDays ?? '—' }}</span></h4>
+          <p>
+            After a minimum hold of {{ risk()?.minHoldDays ?? '—' }} days, Monitor re-checks whether the reasons it
+            bought still hold. If the momentum that justified the trade has clearly broken down, it exits early rather
+            than waiting for the full stop loss to trigger.
+          </p>
+        </div>
+
+        <div class="exit-rule">
+          <h4>Earnings blackout — avoids a coin-flip <span class="rule-val">{{ risk()?.earningsGateDays ?? '—' }} days</span></h4>
+          <p>
+            The bot won't <em>open</em> a new position within {{ risk()?.earningsGateDays ?? '—' }} days of a company's
+            earnings announcement. Earnings are unpredictable, all-or-nothing events that can gap the price far past any
+            stop loss overnight — not the kind of risk this strategy takes.
+          </p>
+        </div>
       </mat-card>
     </mat-tab>
 
