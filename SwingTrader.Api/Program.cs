@@ -217,9 +217,12 @@ if (app.Environment.IsDevelopment())
 // Protected API surface. Refinement/readiness/run endpoints still land once
 // those agents are ported.
 var api = app.MapGroup("/api").RequireAuthorization();
-api.MapGet("/status", async (IActivityLogRepository activityLog, IAccountContext ctx) =>
+api.MapGet("/status", async (IActivityLogRepository activityLog, IAccountRepository accounts, IAccountContext ctx, CancellationToken ct) =>
 {
-    var entries = await activityLog.GetRecentAsync(ctx.AccountId);
+    var account = await accounts.GetAsync(ctx.AccountId, ct);
+    if (account is null) return Results.NotFound();
+
+    var entries = await activityLog.GetRecentAsync(ctx.AccountId, account.TradingMode);
     var runs = entries.Select(e => new
     {
         e.Category,
