@@ -1030,6 +1030,7 @@ api.MapDelete("/keys/{provider}", async (
 api.MapPut("/account/trading-config", async (
     UpdateTradingConfigRequest req,
     IAccountRepository accounts,
+    ITradeRepository trades,
     IUserKeyService keys,
     IAccountContext ctx) =>
 {
@@ -1056,6 +1057,22 @@ api.MapPut("/account/trading-config", async (
             return Results.BadRequest(new
             {
                 message = $"Add your Trading212 {req.TradingMode} API key and secret in Settings before switching to {req.TradingMode} mode.",
+            });
+
+        // Monitor only watches trades matching the account's *current* mode,
+        // so switching away with positions still open would silently orphan
+        // them - no stop-loss, target, trailing-stop, or time-exit
+        // enforcement until switching back. For Live positions that means
+        // real money sitting unprotected. Block rather than warn: the
+        // positions must be closed (by Monitor or manually in T212 +
+        // reconciled) before the mode can change.
+        var openInCurrentMode = (await trades.GetOpenTradesAsync(ctx.AccountId, account.TradingMode)).ToList();
+        if (openInCurrentMode.Count > 0)
+            return Results.BadRequest(new
+            {
+                message = $"You have {openInCurrentMode.Count} open {account.TradingMode} position(s) " +
+                    $"({string.Join(", ", openInCurrentMode.Select(t => t.Symbol))}). " +
+                    $"SwingTrader stops monitoring them the moment you switch modes — close them first.",
             });
     }
 
