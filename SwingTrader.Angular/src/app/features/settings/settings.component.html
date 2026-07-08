@@ -51,6 +51,11 @@
       <div class="toggle-row">
         <mat-slide-toggle [(ngModel)]="approvalRequired" [disabled]="!isOwner()">Require approval before each trade</mat-slide-toggle>
       </div>
+      <p class="muted small">
+        Approval covers the whole trading day, not just one execution attempt. If a position closes during the day
+        and frees up capital, Execution automatically re-runs and can place a new buy from that same day's already-approved
+        signals — without asking again.
+      </p>
 
       @if (t212AccountId()) {
         <p class="muted small">Account ID: {{ t212AccountId() }}</p>
