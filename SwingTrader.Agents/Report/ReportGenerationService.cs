@@ -9,6 +9,7 @@ using SwingTrader.Infrastructure.Configuration;
 using SwingTrader.Infrastructure.HttpClients;
 using SwingTrader.Infrastructure.HttpClients.Dtos;
 using SwingTrader.Infrastructure.Market;
+using SwingTrader.Core.Trading;
 
 namespace SwingTrader.Agents.Report;
 
@@ -382,26 +383,14 @@ public class ReportGenerationService(
             }
             catch { /* use signal.CurrentPrice */ }
 
-            var stopLoss = signal.SetupType switch
-            {
-                SetupType.Breakout => price * 0.940m,
-                SetupType.VolumeSpike => price * 0.960m,
-                _ => price * 0.950m
-            };
-
-            var target = signal.ConvictionScore switch
-            {
-                >= 9.0m => price * 1.120m,
-                >= 8.0m => price * 1.100m,
-                _ => price * 1.080m
-            };
+            var (stopLoss, target) = EntryLevelCalculator.Calculate(signal.SetupType, signal.ConvictionScore ?? 0m, price);
 
             var gain = target - price;
             var risk = price - stopLoss;
             var rrRatio = risk > 0 ? Math.Round(gain / risk, 2) : 0m;
 
-            signal.CalculatedStopLoss = Math.Round(stopLoss, 2);
-            signal.CalculatedTarget = Math.Round(target, 2);
+            signal.CalculatedStopLoss = stopLoss;
+            signal.CalculatedTarget = target;
             signal.RiskRewardRatio = rrRatio;
 
             await signalRepo.UpdateAsync(signal);

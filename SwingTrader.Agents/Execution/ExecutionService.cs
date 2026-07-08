@@ -8,7 +8,9 @@ using SwingTrader.Infrastructure.Configuration;
 using SwingTrader.Infrastructure.HttpClients;
 using SwingTrader.Infrastructure.HttpClients.Dtos;
 using SwingTrader.Infrastructure.Market;
+using SwingTrader.Infrastructure.RateLimiting;
 using SwingTrader.Infrastructure.Services;
+using SwingTrader.Core.Trading;
 
 namespace SwingTrader.Agents.Execution;
 
@@ -25,6 +27,7 @@ public class ExecutionService(
     IMemoryCache cache,
     IForexService forex,
     IMarketRegimeService marketRegimeService,
+    IFinnhubRateLimiter rateLimiter,
     IOptions<ExecutionConfig> executionConfig,
     ILogger<ExecutionService> logger) : IExecutionService
 {
@@ -207,6 +210,36 @@ public class ExecutionService(
 
             try
             {
+                // signal.CalculatedStopLoss/CalculatedTarget are absolute price
+                // levels computed from whatever price was live when Report ran
+                // (~6:30 ET) - by the time an order actually places (immediately
+                // at Execution's 9:20 ET window, or hours later via a same-day
+                // approval), the stock can have moved enough that those fixed
+                // levels no longer sit at their intended distance from the real
+                // entry price. The percentage table itself doesn't depend on any
+                // particular price snapshot, so re-deriving it from a quote taken
+                // right before order placement keeps the stop/target correctly
+                // anchored regardless of how stale the signal's own price is.
+                // Falls back to the signal's precomputed levels if this fails -
+                // not worth blocking the trade over one quote call.
+                var stopLossPrice = signal.CalculatedStopLoss ?? signal.CurrentPrice * 0.95m;
+                var targetPrice = signal.CalculatedTarget ?? signal.CurrentPrice * 1.08m;
+                try
+                {
+                    await rateLimiter.WaitAsync(ct);
+                    var freshQuote = await finnhub.GetQuoteAsync(signal.Symbol);
+                    if (freshQuote.CurrentPrice is > 0)
+                    {
+                        var (freshStop, freshTarget) = EntryLevelCalculator.Calculate(signal.SetupType, signal.ConvictionScore ?? 0m, freshQuote.CurrentPrice.Value);
+                        stopLossPrice = freshStop;
+                        targetPrice = freshTarget;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Could not refresh entry levels for {Symbol} (account {AccountId}) — using Report's precomputed levels", signal.Symbol, accountId);
+                }
+
                 var order = await t212.PlaceMarketOrderAsync(
                     new MarketOrderRequest(ticker, sizing.Quantity));
 
@@ -221,8 +254,8 @@ public class ExecutionService(
                     Direction = TradeDirection.Long,
                     EntryPrice = signal.CurrentPrice,
                     Quantity = sizing.Quantity,
-                    StopLossPrice = signal.CalculatedStopLoss ?? signal.CurrentPrice * 0.95m,
-                    TargetPrice = signal.CalculatedTarget ?? signal.CurrentPrice * 1.08m,
+                    StopLossPrice = stopLossPrice,
+                    TargetPrice = targetPrice,
                     Status = TradeStatus.Open,
                     EntryOrderId = order.Id.ToString(),
                     OpenedAt = DateTime.UtcNow,
