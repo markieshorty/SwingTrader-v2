@@ -255,6 +255,7 @@ public class MonitorService(
                     {
                         trade.EntryPrice = fill.Price;
                         trade.EntryValueGbp = fill.WalletImpact?.NetValue;
+                        trade.EntryFeesGbp = SumFeesGbp(fill);
                     },
                     markConfirmed: () => trade.EntryFillConfirmedAt = DateTime.UtcNow);
 
@@ -265,6 +266,7 @@ public class MonitorService(
                     {
                         trade.ExitPrice = fill.Price;
                         trade.ExitValueGbp = fill.WalletImpact?.NetValue;
+                        trade.ExitFeesGbp = SumFeesGbp(fill);
                         // T212's own realisedProfitLoss is the authoritative P&L
                         // once known - it accounts for FX conversion and fees
                         // that a naive (fillPrice - EntryPrice) * Quantity
@@ -280,6 +282,11 @@ public class MonitorService(
                 await tradeRepo.UpdateAsync(trade);
         }
     }
+
+    // Positive £ total of whatever fees (e.g. CURRENCY_CONVERSION_FEE) T212
+    // charged on this fill - quantity is reported negative (a deduction).
+    private static decimal? SumFeesGbp(HistoricalFillDetail fill) =>
+        fill.WalletImpact?.Taxes is { Count: > 0 } taxes ? -taxes.Sum(t => t.Quantity) : null;
 
     // Returns true if the trade was mutated (fill confirmed, or the order
     // reached a terminal non-fill state and confirmation is being given up on

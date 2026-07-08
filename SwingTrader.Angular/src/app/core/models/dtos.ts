@@ -86,6 +86,7 @@ export interface TradeDto {
   exitPrice: number | null;
   entryValueGbp: number | null;
   exitValueGbp: number | null;
+  feesGbp: number | null;
   realizedPnl: number | null;
   realizedPnlPercent: number | null;
   daysHeld: number;

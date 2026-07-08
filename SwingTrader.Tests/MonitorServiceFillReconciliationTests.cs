@@ -50,13 +50,37 @@ public class MonitorServiceFillReconciliationTests
     }
 
     private static HistoricalOrdersResponse HistoryWithFilledOrder(
-        long orderId, decimal price, decimal qty, decimal? netValueGbp = null, decimal? realisedProfitLossGbp = null) =>
+        long orderId, decimal price, decimal qty, decimal? netValueGbp = null, decimal? realisedProfitLossGbp = null,
+        List<HistoricalFillTax>? taxes = null) =>
         new(
             [new HistoricalOrderItem(
                 new HistoricalOrderDetail(orderId, "AAPL_US_EQ", "FILLED", qty, qty, price * qty),
                 new HistoricalFillDetail(DateTime.UtcNow, price, qty,
-                    netValueGbp.HasValue ? new HistoricalFillWalletImpact(netValueGbp.Value, realisedProfitLossGbp) : null))],
+                    netValueGbp.HasValue ? new HistoricalFillWalletImpact(netValueGbp.Value, realisedProfitLossGbp, taxes) : null))],
             null);
+
+    [Fact]
+    public async Task RunCycleAsync_EntryFillHasConversionFee_CapturesPositiveFeeAmount()
+    {
+        SetupNoOpenPositions();
+        _tradeRepo.GetUnreconciledOrdersAsync(1).Returns(new List<Trade>
+        {
+            new()
+            {
+                Id = 1, AccountId = 1, Symbol = "AAPL", Quantity = 10, EntryPrice = 100m,
+                Status = TradeStatus.Open, EntryOrderId = "111",
+            },
+        });
+        // Fee quantity is reported negative (a deduction) by T212.
+        _t212.GetOrderHistoryAsync(50, null, null).Returns(HistoryWithFilledOrder(
+            111, 99.5m, 10m, netValueGbp: 74.60m,
+            taxes: [new HistoricalFillTax("CURRENCY_CONVERSION_FEE", -0.15m)]));
+
+        var sut = CreateSut();
+        await sut.RunCycleAsync(1, _finnhub, _t212);
+
+        await _tradeRepo.Received(1).UpdateAsync(Arg.Is<Trade>(t => t.EntryFeesGbp == 0.15m));
+    }
 
     [Fact]
     public async Task RunCycleAsync_ExitOrderFilledInHistory_UsesT212RealisedPnlNotPriceEstimate()

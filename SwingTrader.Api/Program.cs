@@ -283,6 +283,9 @@ api.MapGet("/trades/recent", async (int? days, ITradeRepository trades, ISignalR
                 : (decimal?)null;
 
         var signal = trade.SignalId.HasValue ? await signals.GetByIdAsync(ctx.AccountId, trade.SignalId.Value) : null;
+        var totalFeesGbp = trade.EntryFeesGbp.HasValue || trade.ExitFeesGbp.HasValue
+            ? (trade.EntryFeesGbp ?? 0m) + (trade.ExitFeesGbp ?? 0m)
+            : (decimal?)null;
 
         results.Add(new
         {
@@ -293,6 +296,7 @@ api.MapGet("/trades/recent", async (int? days, ITradeRepository trades, ISignalR
             trade.ExitPrice,
             trade.EntryValueGbp,
             trade.ExitValueGbp,
+            FeesGbp = totalFeesGbp,
             trade.RealizedPnl,
             RealizedPnlPercent = realizedPnlPercent,
             DaysHeld = daysHeld,

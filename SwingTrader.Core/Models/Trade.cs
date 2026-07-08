@@ -29,6 +29,14 @@ public class Trade : BaseEntity
     // corresponding fill is confirmed.
     public decimal? EntryValueGbp { get; set; }
     public decimal? ExitValueGbp { get; set; }
+
+    // T212's actual currency-conversion fee for this leg (£, positive =
+    // cost), from fill.walletImpact.taxes - captured separately from
+    // EntryValueGbp/ExitValueGbp since inferring fees by subtracting Real
+    // Money Exit from Real Money Entry would conflate the fee with FX-rate
+    // drift between the two legs, which are two different things.
+    public decimal? EntryFeesGbp { get; set; }
+    public decimal? ExitFeesGbp { get; set; }
     public decimal StopLossPrice { get; set; }
     public decimal TargetPrice { get; set; }
     public TradeStatus Status { get; set; }

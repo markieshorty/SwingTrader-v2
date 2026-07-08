@@ -102,6 +102,16 @@ public record HistoricalOrderDetail(
     [property: JsonPropertyName("filledValue")] decimal? FilledValue
 );
 
+// quantity is negative (a deduction) - confirmed live as e.g.
+// {"name":"CURRENCY_CONVERSION_FEE","quantity":-0.15,"currency":"GBP"} on
+// both a buy and a sell fill. This is the actual fee T212 charged, distinct
+// from FX-rate drift between the two legs - subtracting Real Money Exit
+// from Real Money Entry would conflate the two.
+public record HistoricalFillTax(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("quantity")] decimal Quantity
+);
+
 // netValue is the real GBP cash flow for the fill (present on both buys and
 // sells, always positive - what actually left/entered the account after FX
 // conversion). realisedProfitLoss only appears on sells - T212's own P&L
@@ -109,7 +119,8 @@ public record HistoricalOrderDetail(
 // (+1.26 for a real PLTR sell) alongside netValue on the same fill.
 public record HistoricalFillWalletImpact(
     [property: JsonPropertyName("netValue")] decimal NetValue,
-    [property: JsonPropertyName("realisedProfitLoss")] decimal? RealisedProfitLoss
+    [property: JsonPropertyName("realisedProfitLoss")] decimal? RealisedProfitLoss,
+    [property: JsonPropertyName("taxes")] List<HistoricalFillTax>? Taxes
 );
 
 public record HistoricalFillDetail(

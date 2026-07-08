@@ -64,6 +64,11 @@ export class TradeHistoryComponent {
       valueFormatter: (p) => (p.value != null ? `£${p.value.toFixed(2)}` : '-'),
     },
     {
+      field: 'feesGbp',
+      headerName: 'Fees',
+      valueFormatter: (p) => (p.value != null ? `£${p.value.toFixed(2)}` : '-'),
+    },
+    {
       field: 'realizedPnl',
       headerName: 'P&L',
       valueFormatter: (p) => (p.value != null ? `£${p.value.toFixed(2)}` : '-'),
