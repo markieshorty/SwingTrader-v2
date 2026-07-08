@@ -117,9 +117,11 @@ export class DashboardComponent {
 
   tradeColumnDefs: ColDef<TradeDto>[] = [
     {
-      field: 'symbol',
+      colId: 'symbol',
       headerName: 'Symbol',
-      tooltipValueGetter: (p) => p.data?.companyName ?? p.data?.symbol ?? null,
+      // "Apple Inc (AAPL)" - full name then ticker; bare ticker for older
+      // trades with no stored company name.
+      valueGetter: (p) => (p.data?.companyName ? `${p.data.companyName} (${p.data.symbol})` : (p.data?.symbol ?? '')),
     },
     { field: 'direction', headerName: 'Direction' },
     // Share price is the instrument's own per-share price (USD for US-listed

@@ -43,11 +43,13 @@ export class TradeHistoryComponent {
 
   columnDefs: ColDef<TradeDto>[] = [
     {
-      field: 'symbol',
+      colId: 'symbol',
       headerName: 'Symbol',
       sortable: true,
       filter: true,
-      tooltipValueGetter: (p) => p.data?.companyName ?? p.data?.symbol ?? null,
+      // "Apple Inc (AAPL)" - full name then ticker; bare ticker for older
+      // trades with no stored company name.
+      valueGetter: (p) => (p.data?.companyName ? `${p.data.companyName} (${p.data.symbol})` : (p.data?.symbol ?? '')),
     },
     // Share price is the instrument's own per-share price (USD for US-listed
     // stocks) - Real Money is the actual £ that left/entered the account for
