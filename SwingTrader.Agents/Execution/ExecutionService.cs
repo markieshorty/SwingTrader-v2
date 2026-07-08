@@ -309,6 +309,7 @@ public class ExecutionService(
                 var snapshot = new PortfolioSnapshot
                 {
                     AccountId = accountId,
+                    TradingMode = account.TradingMode,
                     SnapshotDate = date,
                     TotalCapital = totalPortfolioValue,
                     CashAvailable = availableCash,
