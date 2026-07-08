@@ -10,14 +10,14 @@
     </mat-card>
 
     <mat-card class="panel winrate-card">
-      <div class="big-number">{{ report()!.observedWinRate | number: '1.0-1' }}%</div>
+      <div class="big-number">{{ report()!.observedWinRate | percent: '1.0-1' }}</div>
       <span class="label">Win Rate</span>
       @if (report()!.scoredClosedTrades < 10) {
         <p class="muted small">Too few trades for a reliable estimate.</p>
       } @else if (report()!.winRateConfidenceIntervalLow != null) {
         <p class="muted small">
-          95% CI: {{ report()!.winRateConfidenceIntervalLow | number: '1.0-1' }}% –
-          {{ report()!.winRateConfidenceIntervalHigh | number: '1.0-1' }}%
+          95% CI: {{ report()!.winRateConfidenceIntervalLow | percent: '1.0-1' }} –
+          {{ report()!.winRateConfidenceIntervalHigh | percent: '1.0-1' }}
         </p>
       }
     </mat-card>
@@ -70,7 +70,7 @@
             <tr>
               <td>{{ week.weekStarting | date: 'mediumDate' : 'UTC' }}</td>
               <td>{{ week.tradeCount }}</td>
-              <td>{{ week.winRate | number: '1.0-1' }}%</td>
+              <td>{{ week.winRate | percent: '1.0-1' }}</td>
               <td>
                 {{ week.speedIndicator === 'Up' ? '↑' : week.speedIndicator === 'Down' ? '↓' : '→' }}
               </td>
