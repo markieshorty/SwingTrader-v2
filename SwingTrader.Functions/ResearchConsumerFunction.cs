@@ -35,7 +35,17 @@ public class ResearchConsumerFunction(
 
     // Mirrors ResearchConfig.MaxConcurrentSymbols - kept as a literal here
     // rather than threading IOptions through the Functions host for one value.
-    private const int MaxConcurrentSymbols = 3;
+    //
+    // Set to 1 (was 3): every per-symbol DB call inside ResearchPipeline
+    // shares one scoped DbContext across all concurrently-running symbol
+    // tasks, and EF Core allows only one operation on a DbContext at a time.
+    // Patching individual call sites as they surfaced (risk profile, then
+    // candle freshness) kept finding new ones (GetWeightsAndRegimeAsync,
+    // likely SaveCandlesAsync) - running one symbol at a time removes the
+    // whole class of bug instead of chasing it call site by call site. The
+    // real throughput bottleneck is Tiingo's 50/hour rate limit either way,
+    // not this concurrency level.
+    private const int MaxConcurrentSymbols = 1;
 
     [Function("ResearchConsumer")]
     public async Task Run(
