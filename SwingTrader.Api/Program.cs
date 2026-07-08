@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
+using System.Threading.RateLimiting;
 using Azure.Identity;
 using Azure.Messaging.ServiceBus;
 using HealthChecks.UI.Client;
@@ -91,6 +92,48 @@ builder.Services.AddCors(options =>
         policy.WithOrigins("http://localhost:4200")
             .AllowAnyHeader()
             .AllowAnyMethod());
+});
+
+// Rate limiting for endpoints that fan out to paid external APIs. Partitioned
+// by authenticated user (the "sub" claim) so one account can't exhaust
+// another's budget, and so the limit is a real per-user cost ceiling rather
+// than a shared global one. Two named policies:
+//   claude-jobs   - POST /run/{jobType}: each manual research/report/
+//                   refinement run fans out many Claude calls (the user's own
+//                   Anthropic spend), so this is deliberately tight. The
+//                   automated scheduler is the intended trigger; manual runs
+//                   are for testing, where a handful per window is plenty and
+//                   an accidental double-click or a script can't rack up a bill.
+//   external-read - the GET endpoints that pull live Finnhub/Tiingo/T212
+//                   market data per request: looser, just a sanity ceiling
+//                   against a hot-looping client burning provider quota.
+// Rejections return 429 rather than silently queuing (QueueLimit = 0).
+const string ClaudeJobsPolicy = "claude-jobs";
+const string ExternalReadPolicy = "external-read";
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    static string PartitionKey(HttpContext ctx) =>
+        ctx.User.FindFirst("sub")?.Value
+        ?? ctx.Connection.RemoteIpAddress?.ToString()
+        ?? "anonymous";
+
+    options.AddPolicy(ClaudeJobsPolicy, ctx =>
+        RateLimitPartition.GetFixedWindowLimiter(PartitionKey(ctx), _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromMinutes(5),
+            QueueLimit = 0,
+        }));
+
+    options.AddPolicy(ExternalReadPolicy, ctx =>
+        RateLimitPartition.GetFixedWindowLimiter(PartitionKey(ctx), _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 30,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+        }));
 });
 
 // Microsoft Entra External ID (CIAM) authentication. Authority/Audience come
@@ -191,6 +234,8 @@ app.UseCors("Angular");
 
 app.UseAuthentication();
 app.UseAuthorization();
+// After auth so the rate-limiter can partition by the "sub" claim.
+app.UseRateLimiter();
 app.UseMiddleware<UserRegistrationMiddleware>();
 
 // Health endpoints (public — no auth required)
@@ -412,7 +457,7 @@ api.MapGet("/positions", async (
     }
 
     return Results.Ok(results);
-});
+}).RequireRateLimiting(ExternalReadPolicy);
 
 // Manual/admin trigger — recompute momentum health for a single open
 // position outside the normal MinHoldDays schedule. Useful for support and
@@ -429,7 +474,7 @@ api.MapPost("/positions/{tradeId:int}/check-momentum", async (
 
     var result = await momentumHealth.CalculateAsync(ctx.AccountId, trade, ct);
     return Results.Ok(result);
-});
+}).RequireRateLimiting(ExternalReadPolicy);
 
 // Raw PortfolioSnapshot has no todayPnl/todayPnlPercent/winRate30d - the
 // Angular PortfolioDto expected these but nothing ever computed them, so
@@ -518,7 +563,7 @@ api.MapGet("/portfolio", async (
         WinRate30d = winRate30d,
         snapshot.CurrentTier,
     });
-});
+}).RequireRateLimiting(ExternalReadPolicy);
 
 // Regime is shared market data (cached globally in MarketRegimeService), but
 // still needs one account's Finnhub/Tiingo keys to fetch it with.
@@ -532,7 +577,7 @@ api.MapGet("/refinement/current-regime", async (
     var tiingo = await clientFactory.CreateTiingoAsync<ITiingoClient>(ctx.AccountId, ct);
     var result = await regimeService.GetCurrentRegimeAsync(tiingo, finnhub, ct);
     return Results.Ok(new { regime = result.Regime, detectedAt = DateTime.UtcNow });
-});
+}).RequireRateLimiting(ExternalReadPolicy);
 
 api.MapGet("/readiness", async (
     IReadinessAssessmentService readiness,
@@ -1376,7 +1421,7 @@ watchlistsGroup.MapPost("/{id:int}/symbols", async (
     {
         return Results.BadRequest(new { message = ex.Message });
     }
-});
+}).RequireRateLimiting(ExternalReadPolicy);
 
 watchlistsGroup.MapDelete("/{id:int}/symbols/{symbol}", async (
     int id,
@@ -1502,7 +1547,7 @@ api.MapDelete("/account", async (IAccountRepository accounts, IUserRepository us
 // that already fired today, and testing can re-trigger a job repeatedly in
 // one day. The Consumer Functions no-op their JobLog Mark* calls when no
 // matching row exists, so this is safe.
-var runGroup = app.MapGroup("/run").RequireAuthorization();
+var runGroup = app.MapGroup("/run").RequireAuthorization().RequireRateLimiting(ClaudeJobsPolicy);
 runGroup.MapPost("/{jobType}", async (
     string jobType,
     [FromServices] ServiceBusClient? serviceBus,
