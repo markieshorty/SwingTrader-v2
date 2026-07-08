@@ -27,8 +27,12 @@ public class ExecutionConsumerFunction(
     {
         var message = JsonSerializer.Deserialize<ExecutionJobMessage>(messageBody)!;
         await jobLog.MarkProcessingAsync(message.AccountId, "Execution", message.TradeDate, ct);
-        await activityLog.LogAsync(message.AccountId, "WorkerRun", "Execution", "Started", "Placing today's approved orders…", ct);
 
+        // No "Started" row here, unlike the other jobs - Execution completes
+        // in seconds, so a Started row followed moments later by its own
+        // outcome row (below) just duplicated the same information twice in
+        // the Activity Log. Every branch below logs exactly one outcome row
+        // instead, covering the "nothing to do" case too (previously silent).
         try
         {
             var finnhub = await clientFactory.CreateFinnhubAsync<IFinnhubClient>(message.AccountId, ct);
@@ -46,6 +50,8 @@ public class ExecutionConsumerFunction(
                 await activityLog.LogAsync(message.AccountId, "SystemEvent", "Trades Placed", "Info", result.Summary);
             else if (t212Blocked)
                 await activityLog.LogAsync(message.AccountId, "SystemEvent", "Execution Failed", "Warning", result.Summary);
+            else
+                await activityLog.LogAsync(message.AccountId, "SystemEvent", "Execution", "Info", result.Summary);
             logger.LogInformation("Execution job {JobId} for account {AccountId} — {Summary}", message.JobId, message.AccountId, result.Summary);
 
             if (t212Blocked)
