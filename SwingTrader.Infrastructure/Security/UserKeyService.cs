@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.Extensions.Configuration;
 using Refit;
 using SwingTrader.Core.Enums;
@@ -103,6 +104,12 @@ public class UserKeyService(
         }
         catch (ApiException ex)
         {
+            // Give T212 auth failures the same friendly, actionable message
+            // the pair-connect path uses (swapped demo/live or key/secret).
+            if (provider is ApiKeyProviders.Trading212DemoKey or ApiKeyProviders.Trading212DemoSecret)
+                return new KeyTestResult(false, Trading212ConnectError(TradingMode.Demo, ex));
+            if (provider is ApiKeyProviders.Trading212LiveKey or ApiKeyProviders.Trading212LiveSecret)
+                return new KeyTestResult(false, Trading212ConnectError(TradingMode.Live, ex));
             return new KeyTestResult(false, $"Connection failed: {(int)ex.StatusCode} {ex.StatusCode}");
         }
         catch (Exception ex)
@@ -110,6 +117,14 @@ public class UserKeyService(
             return new KeyTestResult(false, $"Connection failed: {ex.Message}");
         }
     }
+
+    // A 401 from Trading212 means the credentials were rejected - overwhelmingly
+    // because the demo and live pairs got entered into each other's slots, or a
+    // key and secret were swapped. Surface that instead of a bare status code.
+    private static string Trading212ConnectError(TradingMode mode, ApiException ex) =>
+        ex.StatusCode == HttpStatusCode.Unauthorized
+            ? $"Trading 212 rejected these {mode} credentials. Looks like you've got the demo and live keys the wrong way round — or the key and secret swapped. Double-check and try again."
+            : $"Connection failed: {(int)ex.StatusCode} {ex.StatusCode}";
 
     public async Task<KeyTestResult> TestTrading212PairAsync(int accountId, TradingMode mode, CancellationToken ct = default)
     {
@@ -124,7 +139,7 @@ public class UserKeyService(
         }
         catch (ApiException ex)
         {
-            result = new KeyTestResult(false, $"Connection failed: {(int)ex.StatusCode} {ex.StatusCode}");
+            result = new KeyTestResult(false, Trading212ConnectError(mode, ex));
         }
         catch (Exception ex)
         {
