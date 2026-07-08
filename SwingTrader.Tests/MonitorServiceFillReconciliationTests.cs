@@ -49,15 +49,17 @@ public class MonitorServiceFillReconciliationTests
         _tradeRepo.GetOpenTradesAsync(1).Returns(new List<Trade>());
     }
 
-    private static HistoricalOrdersResponse HistoryWithFilledOrder(long orderId, decimal price, decimal qty) =>
+    private static HistoricalOrdersResponse HistoryWithFilledOrder(
+        long orderId, decimal price, decimal qty, decimal? netValueGbp = null, decimal? realisedProfitLossGbp = null) =>
         new(
             [new HistoricalOrderItem(
                 new HistoricalOrderDetail(orderId, "AAPL_US_EQ", "FILLED", qty, qty, price * qty),
-                new HistoricalFillDetail(DateTime.UtcNow, price, qty))],
+                new HistoricalFillDetail(DateTime.UtcNow, price, qty,
+                    netValueGbp.HasValue ? new HistoricalFillWalletImpact(netValueGbp.Value, realisedProfitLossGbp) : null))],
             null);
 
     [Fact]
-    public async Task RunCycleAsync_ExitOrderFilledInHistory_UpdatesExitPriceAndRealizedPnl()
+    public async Task RunCycleAsync_ExitOrderFilledInHistory_UsesT212RealisedPnlNotPriceEstimate()
     {
         SetupNoOpenPositions();
         _tradeRepo.GetUnreconciledOrdersAsync(1).Returns(new List<Trade>
@@ -74,13 +76,59 @@ public class MonitorServiceFillReconciliationTests
         // negative filledQuantity, not positive. Confirmed live: this exact
         // shape (negative qty, positive fill price) is what caused every
         // real exit order to silently never confirm despite being FILLED.
+        // realisedProfitLoss (£8.40) deliberately differs from what a naive
+        // (fillPrice - EntryPrice) * Quantity estimate (£65) would give -
+        // T212's own figure, which accounts for FX/fees, must win.
+        _t212.GetOrderHistoryAsync(50, null, null).Returns(HistoryWithFilledOrder(555, 106.5m, -10m, netValueGbp: 78.30m, realisedProfitLossGbp: 8.40m));
+
+        var sut = CreateSut();
+        await sut.RunCycleAsync(1, _finnhub, _t212);
+
+        await _tradeRepo.Received(1).UpdateAsync(Arg.Is<Trade>(t =>
+            t.ExitPrice == 106.5m && t.ExitValueGbp == 78.30m && t.RealizedPnl == 8.40m && t.ExitFillConfirmedAt != null));
+    }
+
+    [Fact]
+    public async Task RunCycleAsync_ExitFillMissingWalletImpact_FallsBackToPriceEstimate()
+    {
+        SetupNoOpenPositions();
+        _tradeRepo.GetUnreconciledOrdersAsync(1).Returns(new List<Trade>
+        {
+            new()
+            {
+                Id = 1, AccountId = 1, Symbol = "AAPL", Quantity = 10, EntryPrice = 100m,
+                Status = TradeStatus.Closed, ExitPrice = 105m, ExitOrderId = "555",
+                EntryOrderId = "111", EntryFillConfirmedAt = DateTime.UtcNow,
+            },
+        });
         _t212.GetOrderHistoryAsync(50, null, null).Returns(HistoryWithFilledOrder(555, 106.5m, -10m));
 
         var sut = CreateSut();
         await sut.RunCycleAsync(1, _finnhub, _t212);
 
         await _tradeRepo.Received(1).UpdateAsync(Arg.Is<Trade>(t =>
-            t.ExitPrice == 106.5m && t.RealizedPnl == (106.5m - 100m) * 10m && t.ExitFillConfirmedAt != null));
+            t.ExitPrice == 106.5m && t.RealizedPnl == (106.5m - 100m) * 10m && t.ExitValueGbp == null));
+    }
+
+    [Fact]
+    public async Task RunCycleAsync_EntryOrderFilledInHistory_CapturesEntryValueGbp()
+    {
+        SetupNoOpenPositions();
+        _tradeRepo.GetUnreconciledOrdersAsync(1).Returns(new List<Trade>
+        {
+            new()
+            {
+                Id = 1, AccountId = 1, Symbol = "AAPL", Quantity = 10, EntryPrice = 100m,
+                Status = TradeStatus.Open, EntryOrderId = "111",
+            },
+        });
+        _t212.GetOrderHistoryAsync(50, null, null).Returns(HistoryWithFilledOrder(111, 99.5m, 10m, netValueGbp: 74.60m));
+
+        var sut = CreateSut();
+        await sut.RunCycleAsync(1, _finnhub, _t212);
+
+        await _tradeRepo.Received(1).UpdateAsync(Arg.Is<Trade>(t =>
+            t.EntryPrice == 99.5m && t.EntryValueGbp == 74.60m && t.EntryFillConfirmedAt != null));
     }
 
     [Fact]

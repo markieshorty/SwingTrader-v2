@@ -84,6 +84,8 @@ export interface TradeDto {
   direction: string;
   entryPrice: number;
   exitPrice: number | null;
+  entryValueGbp: number | null;
+  exitValueGbp: number | null;
   realizedPnl: number | null;
   realizedPnlPercent: number | null;
   daysHeld: number;

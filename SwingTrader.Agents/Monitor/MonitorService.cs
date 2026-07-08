@@ -251,16 +251,28 @@ public class MonitorService(
             if (trade.EntryOrderId is not null && trade.EntryFillConfirmedAt is null)
                 changed |= TryReconcileOrder(
                     byId, trade.EntryOrderId, trade.Symbol, accountId, "entry",
-                    onFilled: fillPrice => trade.EntryPrice = fillPrice,
+                    onFilled: fill =>
+                    {
+                        trade.EntryPrice = fill.Price;
+                        trade.EntryValueGbp = fill.WalletImpact?.NetValue;
+                    },
                     markConfirmed: () => trade.EntryFillConfirmedAt = DateTime.UtcNow);
 
             if (trade.ExitOrderId is not null && trade.ExitFillConfirmedAt is null)
                 changed |= TryReconcileOrder(
                     byId, trade.ExitOrderId, trade.Symbol, accountId, "exit",
-                    onFilled: fillPrice =>
+                    onFilled: fill =>
                     {
-                        trade.ExitPrice = fillPrice;
-                        trade.RealizedPnl = (fillPrice - trade.EntryPrice) * trade.Quantity;
+                        trade.ExitPrice = fill.Price;
+                        trade.ExitValueGbp = fill.WalletImpact?.NetValue;
+                        // T212's own realisedProfitLoss is the authoritative P&L
+                        // once known - it accounts for FX conversion and fees
+                        // that a naive (fillPrice - EntryPrice) * Quantity
+                        // calculation in the instrument's own currency misses
+                        // entirely. Falls back to the estimate only if T212
+                        // didn't return it for some reason.
+                        trade.RealizedPnl = fill.WalletImpact?.RealisedProfitLoss
+                            ?? (fill.Price - trade.EntryPrice) * trade.Quantity;
                     },
                     markConfirmed: () => trade.ExitFillConfirmedAt = DateTime.UtcNow);
 
@@ -276,7 +288,7 @@ public class MonitorService(
     // appear once T212's history catches up (normally within seconds/minutes).
     private bool TryReconcileOrder(
         Dictionary<long, HistoricalOrderItem> byId, string orderId, string symbol, int accountId, string side,
-        Action<decimal> onFilled, Action markConfirmed)
+        Action<HistoricalFillDetail> onFilled, Action markConfirmed)
     {
         if (!long.TryParse(orderId, out var id) || !byId.TryGetValue(id, out var item))
             return false;
@@ -291,11 +303,11 @@ public class MonitorService(
         // forever despite the order genuinely being FILLED in T212's history.
         if (item.Fill is not null && order.FilledQuantity is not null and not 0)
         {
-            onFilled(item.Fill.Price);
+            onFilled(item.Fill);
             markConfirmed();
             logger.LogInformation(
-                "{Side} fill confirmed for {Symbol} (account {AccountId}): order {OrderId} filled at £{FillPrice:F2}",
-                side, symbol, accountId, orderId, item.Fill.Price);
+                "{Side} fill confirmed for {Symbol} (account {AccountId}): order {OrderId} filled at ${FillPrice:F2} (£{NetValue:F2})",
+                side, symbol, accountId, orderId, item.Fill.Price, item.Fill.WalletImpact?.NetValue);
             return true;
         }
 

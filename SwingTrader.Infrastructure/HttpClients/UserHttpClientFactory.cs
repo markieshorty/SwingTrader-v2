@@ -156,18 +156,12 @@ public class UserHttpClientFactory(
             var response = await base.SendAsync(request, ct);
             var path = request.RequestUri?.AbsolutePath ?? "";
 
-            // history/orders temporarily always-logged, single item only and
-            // untruncated - checking for an exact "total" field (GBP order
-            // total) on both buy and sell orders before building DTOs/
-            // migration around it, same verify-before-trusting-docs approach
-            // as the fill-reconciliation fix earlier this session.
-            if (!response.IsSuccessStatusCode || path.Contains("account/summary") || path.Contains("history/orders"))
+            if (!response.IsSuccessStatusCode || path.Contains("account/summary"))
             {
                 var body = await response.Content.ReadAsStringAsync(ct);
                 var level = response.IsSuccessStatusCode ? LogLevel.Information : LogLevel.Warning;
-                var toLog = path.Contains("history/orders") ? FirstItemOnly(body) : Truncate(body);
                 logger.Log(level, "T212 {Method} {Path} returned {StatusCode}: {Body}",
-                    request.Method, path, (int)response.StatusCode, toLog);
+                    request.Method, path, (int)response.StatusCode, Truncate(body));
 
                 // Content can only be read once - replace it so Refit's own
                 // deserialization downstream still sees the same body.
@@ -178,22 +172,5 @@ public class UserHttpClientFactory(
         }
 
         private static string Truncate(string body) => body.Length > 500 ? body[..500] + "..." : body;
-
-        private static string FirstItemOnly(string body)
-        {
-            try
-            {
-                using var doc = System.Text.Json.JsonDocument.Parse(body);
-                var items = doc.RootElement.GetProperty("items");
-                if (items.GetArrayLength() == 0) return body;
-                var buy = items.EnumerateArray().FirstOrDefault(i => i.GetProperty("order").GetProperty("side").GetString() == "BUY");
-                var sell = items.EnumerateArray().FirstOrDefault(i => i.GetProperty("order").GetProperty("side").GetString() == "SELL");
-                return $"BUY: {buy}\nSELL: {sell}";
-            }
-            catch
-            {
-                return Truncate(body);
-            }
-        }
     }
 }

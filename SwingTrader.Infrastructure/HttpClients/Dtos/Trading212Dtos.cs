@@ -102,10 +102,21 @@ public record HistoricalOrderDetail(
     [property: JsonPropertyName("filledValue")] decimal? FilledValue
 );
 
+// netValue is the real GBP cash flow for the fill (present on both buys and
+// sells, always positive - what actually left/entered the account after FX
+// conversion). realisedProfitLoss only appears on sells - T212's own P&L
+// figure for the closed leg, confirmed via live traces to be present
+// (+1.26 for a real PLTR sell) alongside netValue on the same fill.
+public record HistoricalFillWalletImpact(
+    [property: JsonPropertyName("netValue")] decimal NetValue,
+    [property: JsonPropertyName("realisedProfitLoss")] decimal? RealisedProfitLoss
+);
+
 public record HistoricalFillDetail(
     [property: JsonPropertyName("filledAt")] DateTime FilledAt,
     [property: JsonPropertyName("price")] decimal Price,
-    [property: JsonPropertyName("quantity")] decimal Quantity
+    [property: JsonPropertyName("quantity")] decimal Quantity,
+    [property: JsonPropertyName("walletImpact")] HistoricalFillWalletImpact? WalletImpact
 );
 
 public record HistoricalOrderItem(

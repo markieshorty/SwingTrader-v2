@@ -20,6 +20,15 @@ public class Trade : BaseEntity
     // with the real fill once available. See MonitorService.ReconcileOrderFillsAsync.
     public DateTime? EntryFillConfirmedAt { get; set; }
     public DateTime? ExitFillConfirmedAt { get; set; }
+
+    // The real £ cash flow for this leg (T212's fill.walletImpact.netValue),
+    // captured alongside EntryFillConfirmedAt/ExitFillConfirmedAt above -
+    // EntryPrice/ExitPrice are always the per-share price in the instrument's
+    // own currency (USD for US-listed stocks), which isn't what the account
+    // actually spent/received once FX conversion is applied. Null until the
+    // corresponding fill is confirmed.
+    public decimal? EntryValueGbp { get; set; }
+    public decimal? ExitValueGbp { get; set; }
     public decimal StopLossPrice { get; set; }
     public decimal TargetPrice { get; set; }
     public TradeStatus Status { get; set; }

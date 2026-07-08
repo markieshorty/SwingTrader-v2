@@ -118,11 +118,11 @@ export class DashboardComponent {
   tradeColumnDefs: ColDef<TradeDto>[] = [
     { field: 'symbol', headerName: 'Symbol' },
     { field: 'direction', headerName: 'Direction' },
-    { field: 'entryPrice', headerName: 'Entry', valueFormatter: (p) => `£${p.value?.toFixed(2)}` },
+    { field: 'entryPrice', headerName: 'Entry', valueFormatter: (p) => `$${p.value?.toFixed(2)}` },
     {
       field: 'exitPrice',
       headerName: 'Exit',
-      valueFormatter: (p) => (p.value != null ? `£${p.value.toFixed(2)}` : '-'),
+      valueFormatter: (p) => (p.value != null ? `$${p.value.toFixed(2)}` : '-'),
     },
     { field: 'realizedPnl', headerName: 'P&L', valueFormatter: (p) => (p.value != null ? `£${p.value.toFixed(2)}` : '-') },
     {

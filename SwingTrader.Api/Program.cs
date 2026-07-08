@@ -269,9 +269,18 @@ api.MapGet("/trades/recent", async (int? days, ITradeRepository trades, ISignalR
     {
         var end = trade.ClosedAt ?? DateTime.UtcNow;
         var daysHeld = Math.Max(0, (int)(end - trade.OpenedAt).TotalDays);
-        var realizedPnlPercent = trade.ExitPrice.HasValue && trade.EntryPrice > 0
-            ? (trade.ExitPrice.Value - trade.EntryPrice) / trade.EntryPrice * 100m
-            : (decimal?)null;
+
+        // T212's own RealizedPnl/EntryValueGbp (both real £, post-FX/fees -
+        // see MonitorService.ReconcileOrderFillsAsync) are the source of
+        // truth once the fill is confirmed. Falls back to a per-share-price
+        // estimate only for trades not yet reconciled (or from before this
+        // feature existed), which understates/overstates return% by
+        // whatever the FX/fee difference was - real but temporary.
+        var realizedPnlPercent = trade.RealizedPnl.HasValue && trade.EntryValueGbp is > 0
+            ? trade.RealizedPnl.Value / trade.EntryValueGbp.Value * 100m
+            : trade.ExitPrice.HasValue && trade.EntryPrice > 0
+                ? (trade.ExitPrice.Value - trade.EntryPrice) / trade.EntryPrice * 100m
+                : (decimal?)null;
 
         var signal = trade.SignalId.HasValue ? await signals.GetByIdAsync(ctx.AccountId, trade.SignalId.Value) : null;
 
@@ -282,6 +291,8 @@ api.MapGet("/trades/recent", async (int? days, ITradeRepository trades, ISignalR
             Direction = trade.Direction.ToString(),
             trade.EntryPrice,
             trade.ExitPrice,
+            trade.EntryValueGbp,
+            trade.ExitValueGbp,
             trade.RealizedPnl,
             RealizedPnlPercent = realizedPnlPercent,
             DaysHeld = daysHeld,
