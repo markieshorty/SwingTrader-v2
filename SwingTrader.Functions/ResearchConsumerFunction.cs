@@ -20,12 +20,19 @@ public class ResearchConsumerFunction(
     IResearchPipeline pipeline,
     ITradeRepository tradeRepo,
     IAccountRiskProfileRepository riskProfileRepo,
+    ICandleRepository candleRepo,
     IMomentumHealthService momentumHealth,
     IWorkerHeartbeatRepository heartbeats,
     IActivityLogRepository activityLog,
     IUserHttpClientFactory clientFactory,
     ILogger<ResearchConsumerFunction> logger)
 {
+    // Matches ResearchConfig.CandleHistoryDays - mirrored here rather than
+    // injecting IOptions<ResearchConfig> for one value used only to size the
+    // freshness pre-fetch window (ResearchPipeline still owns the real value
+    // used when actually calling Tiingo).
+    private const int CandleHistoryDays = 60;
+
     // Mirrors ResearchConfig.MaxConcurrentSymbols - kept as a literal here
     // rather than threading IOptions through the Functions host for one value.
     private const int MaxConcurrentSymbols = 3;
@@ -63,6 +70,18 @@ public class ResearchConsumerFunction(
             // up front is both correct and cheaper.
             var riskProfile = await riskProfileRepo.GetAsync(message.AccountId, ct);
 
+            // Same reasoning, for the "already scored today" candle-freshness check:
+            // batch-fetch which symbols already have today's candle, and their full
+            // stored history, in one query each - not per-symbol inside the
+            // concurrent loop (this hit the exact same DbContext concurrency guard
+            // as the risk profile did, the first time it shipped).
+            var allSymbols = symbols.Select(s => s.Symbol).ToList();
+            var latestDates = await candleRepo.GetLatestCandleDatesAsync(allSymbols, "D");
+            var today = DateTime.UtcNow.Date;
+            var freshSymbols = allSymbols.Where(s => latestDates.TryGetValue(s.ToUpperInvariant(), out var d) && d.Date == today).ToList();
+            var freshCandlesBySymbol = await candleRepo.GetCandlesForSymbolsAsync(
+                freshSymbols, "D", DateTime.UtcNow.AddDays(-CandleHistoryDays), DateTime.UtcNow);
+
             using var semaphore = new SemaphoreSlim(MaxConcurrentSymbols);
             var failedSymbols = new ConcurrentBag<string>();
             var tasks = symbols.Select(async s =>
@@ -70,7 +89,7 @@ public class ResearchConsumerFunction(
                 await semaphore.WaitAsync(ct);
                 try
                 {
-                    var signal = await pipeline.RunAsync(message.AccountId, finnhub, tiingo, claude, s.Symbol, riskProfile, ct);
+                    var signal = await pipeline.RunAsync(message.AccountId, finnhub, tiingo, claude, s.Symbol, riskProfile, freshCandlesBySymbol, ct);
 
                     // RunAsync returns null on a silent candle-fetch failure (rate limit,
                     // no data, etc.) without persisting anything - the symbol's existing

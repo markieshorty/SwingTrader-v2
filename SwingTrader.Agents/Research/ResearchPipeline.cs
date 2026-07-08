@@ -47,7 +47,9 @@ public class ResearchPipeline(
 
     public async Task<StockSignal?> RunAsync(
         int accountId, IFinnhubClient finnhub, ITiingoClient tiingo, IClaudeClient claude,
-        string symbol, AccountRiskProfile riskProfile, CancellationToken ct = default)
+        string symbol, AccountRiskProfile riskProfile,
+        IReadOnlyDictionary<string, IReadOnlyList<StockCandle>>? freshCandlesBySymbol = null,
+        CancellationToken ct = default)
     {
         symbol = symbol.ToUpperInvariant();
 
@@ -74,7 +76,7 @@ public class ResearchPipeline(
             return gateSignal;
         }
 
-        var candles = await FetchAndStoreCandlesAsync(accountId, tiingo, symbol, ct);
+        var candles = await FetchAndStoreCandlesAsync(accountId, tiingo, symbol, freshCandlesBySymbol, ct);
         if (candles is null || candles.Count == 0)
             return null;
 
@@ -172,7 +174,9 @@ public class ResearchPipeline(
         return (weights, regime);
     }
 
-    private async Task<List<StockCandle>?> FetchAndStoreCandlesAsync(int accountId, ITiingoClient tiingo, string symbol, CancellationToken ct)
+    private async Task<List<StockCandle>?> FetchAndStoreCandlesAsync(
+        int accountId, ITiingoClient tiingo, string symbol,
+        IReadOnlyDictionary<string, IReadOnlyList<StockCandle>>? freshCandlesBySymbol, CancellationToken ct)
     {
         var cfg = researchConfig.Value;
         var from = DateTime.UtcNow.AddDays(-cfg.CandleHistoryDays);
@@ -183,15 +187,17 @@ public class ResearchPipeline(
         // once in the same day (manual triggers, retries), which previously
         // re-pulled full history for every symbol every time and was a major
         // contributor to burning through Tiingo's rate/quota limit.
-        var latestStored = await candleRepo.GetLatestCandleDateAsync(symbol, "D");
-        if (latestStored?.Date == DateTime.UtcNow.Date)
+        //
+        // The freshness map is looked up ONCE per job (by ResearchConsumerFunction,
+        // before the concurrent per-symbol loop starts) rather than queried here -
+        // a per-symbol DbContext read at this point, with up to MaxConcurrentSymbols
+        // callers and no delay in front of it, hit EF Core's single-operation-at-a-
+        // time guard almost immediately (the same class of bug the risk profile
+        // fix addressed).
+        if (freshCandlesBySymbol is not null && freshCandlesBySymbol.TryGetValue(symbol, out var stored) && stored.Count > 0)
         {
-            var stored = await candleRepo.GetCandlesAsync(symbol, "D", from, to);
-            if (stored.Count > 0)
-            {
-                logger.LogInformation("{Symbol}: already have today's candle — reusing stored history, skipping Tiingo", symbol);
-                return stored.OrderBy(c => c.Timestamp).ToList();
-            }
+            logger.LogInformation("{Symbol}: already have today's candle — reusing stored history, skipping Tiingo", symbol);
+            return stored.OrderBy(c => c.Timestamp).ToList();
         }
 
         logger.LogInformation("Fetching candles for {Symbol} from {From:yyyy-MM-dd} to {To:yyyy-MM-dd}",
