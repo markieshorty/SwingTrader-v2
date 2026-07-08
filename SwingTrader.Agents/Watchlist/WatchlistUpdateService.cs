@@ -10,10 +10,14 @@ public class WatchlistUpdateService(
     IWatchlistRepository watchlist,
     IWatchlistHistoryRepository history,
     ITradeRepository trades,
+    IAccountRepository accountRepo,
     ILogger<WatchlistUpdateService> logger) : IWatchlistUpdateService
 {
     public async Task<WatchlistUpdateResult> UpdateAsync(int accountId, List<WatchlistSelection> selections, CancellationToken ct = default)
     {
+        var account = await accountRepo.GetAsync(accountId, ct)
+            ?? throw new InvalidOperationException($"Account {accountId} not found.");
+
         var weekStarting = NextMonday();
         var newSymbols = selections.Select(s => s.Symbol).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -22,7 +26,7 @@ public class WatchlistUpdateService(
         var currentSymbols = currentActive.Select(w => w.Symbol).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // Step 7 — protect open positions from removal
-        var openTradeSymbols = (await trades.GetOpenTradesAsync(accountId))
+        var openTradeSymbols = (await trades.GetOpenTradesAsync(accountId, account.TradingMode))
             .Select(t => t.Symbol).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // Step 3 — diff

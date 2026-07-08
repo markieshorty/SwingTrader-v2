@@ -4,6 +4,12 @@ namespace SwingTrader.Core.Models;
 
 public class Trade : BaseEntity
 {
+    // Which T212 endpoint (Demo vs Live) this trade was placed under - Demo
+    // and Live trades for the same account are financially unrelated, so
+    // mixing them in win-rate/tier/refinement/readiness stats or the
+    // same-day re-buy guard would produce wrong results (see
+    // PortfolioSnapshot.TradingMode for the original instance of this bug).
+    public TradingMode TradingMode { get; set; }
     public string Symbol { get; set; } = string.Empty;
     public TradeDirection Direction { get; set; }
     public decimal EntryPrice { get; set; }

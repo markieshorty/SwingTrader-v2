@@ -31,7 +31,7 @@ public class TradeRepositoryTests
             OpenedAt = today.ToDateTime(TimeOnly.MinValue), ClosedAt = today.ToDateTime(new TimeOnly(16, 0)),
         });
 
-        var result = await repo.GetClosedOnDateAsync(1, today);
+        var result = await repo.GetClosedOnDateAsync(1, TradingMode.Demo, today);
 
         result.Should().ContainSingle(t => t.Symbol == "WDAY");
     }
@@ -52,7 +52,7 @@ public class TradeRepositoryTests
             OpenedAt = today.ToDateTime(TimeOnly.MinValue), ClosedAt = yesterday.ToDateTime(new TimeOnly(16, 0)),
         });
 
-        var result = await repo.GetClosedOnDateAsync(1, today);
+        var result = await repo.GetClosedOnDateAsync(1, TradingMode.Demo, today);
 
         result.Should().BeEmpty();
     }
@@ -69,7 +69,7 @@ public class TradeRepositoryTests
             OpenedAt = today.ToDateTime(TimeOnly.MinValue),
         });
 
-        var result = await repo.GetClosedOnDateAsync(1, today);
+        var result = await repo.GetClosedOnDateAsync(1, TradingMode.Demo, today);
 
         result.Should().BeEmpty();
     }
@@ -86,7 +86,7 @@ public class TradeRepositoryTests
             OpenedAt = today.ToDateTime(TimeOnly.MinValue), ClosedAt = today.ToDateTime(new TimeOnly(16, 0)),
         });
 
-        var result = await repo.GetClosedOnDateAsync(1, today);
+        var result = await repo.GetClosedOnDateAsync(1, TradingMode.Demo, today);
 
         result.Should().BeEmpty();
     }

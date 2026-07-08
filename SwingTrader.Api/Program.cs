@@ -259,10 +259,13 @@ api.MapGet("/signals/today", async (ISignalRepository signals, IAccountContext c
 // derived the same way /positions already derives its equivalents below.
 // Was previously returning the bare entity, silently leaving the Angular
 // TradeDto's percent/days-held/setup columns blank for every closed trade.
-api.MapGet("/trades/recent", async (int? days, ITradeRepository trades, ISignalRepository signals, IAccountContext ctx) =>
+api.MapGet("/trades/recent", async (int? days, ITradeRepository trades, ISignalRepository signals, IAccountRepository accounts, IAccountContext ctx, CancellationToken ct) =>
 {
+    var account = await accounts.GetAsync(ctx.AccountId, ct);
+    if (account is null) return Results.NotFound();
+
     var from = DateTime.UtcNow.AddDays(-(days ?? 30));
-    var history = await trades.GetTradeHistoryAsync(ctx.AccountId, from, DateTime.UtcNow);
+    var history = await trades.GetTradeHistoryAsync(ctx.AccountId, account.TradingMode, from, DateTime.UtcNow);
 
     var results = new List<object>();
     foreach (var trade in history)
@@ -323,11 +326,15 @@ api.MapGet("/positions", async (
     ITradeRepository trades,
     ISignalRepository signals,
     IWatchlistRepository watchlist,
+    IAccountRepository accounts,
     IUserHttpClientFactory clientFactory,
     IAccountContext ctx,
     CancellationToken ct) =>
 {
-    var openTrades = (await trades.GetOpenTradesAsync(ctx.AccountId)).ToList();
+    var account = await accounts.GetAsync(ctx.AccountId, ct);
+    if (account is null) return Results.NotFound();
+
+    var openTrades = (await trades.GetOpenTradesAsync(ctx.AccountId, account.TradingMode)).ToList();
     if (openTrades.Count == 0) return Results.Ok(Array.Empty<object>());
 
     IFinnhubClient? finnhub = null;
@@ -439,7 +446,7 @@ api.MapGet("/portfolio", async (
     var snapshot = await portfolio.GetLatestSnapshotAsync(ctx.AccountId, account.TradingMode);
     if (snapshot is null) return Results.NotFound();
 
-    var allTrades = (await trades.GetAllAsync(ctx.AccountId)).ToList();
+    var allTrades = (await trades.GetAllAsync(ctx.AccountId, account.TradingMode)).ToList();
     var today = DateTime.UtcNow.Date;
 
     var realizedToday = allTrades
@@ -663,17 +670,22 @@ api.MapGet("/refinement/status", async (
     Microsoft.Extensions.Options.IOptions<RefinementConfig> refinementConfig,
     ISignalRepository signalRepo,
     ITradeRepository tradeRepo,
-    IAccountContext ctx) =>
+    IAccountRepository accounts,
+    IAccountContext ctx,
+    CancellationToken ct) =>
 {
+    var account = await accounts.GetAsync(ctx.AccountId, ct);
+    if (account is null) return Results.NotFound();
+
     var activeWeights = await weightsRepo.GetActiveWeightsAsync(ctx.AccountId);
-    var latest = await suggestionRepo.GetLatestAsync(ctx.AccountId);
-    var history = (await suggestionRepo.GetHistoryAsync(ctx.AccountId)).ToList();
+    var latest = await suggestionRepo.GetLatestAsync(ctx.AccountId, account.TradingMode);
+    var history = (await suggestionRepo.GetHistoryAsync(ctx.AccountId, account.TradingMode)).ToList();
 
     // Mirrors RefinementService's own sample-size gate (closed trades with a
     // linked, scored signal) so the "progress toward next suggestion" bar
     // reflects the same count that would actually unblock a new one.
     var from = DateTime.UtcNow.AddDays(-refinementConfig.Value.AnalysisPeriodDays);
-    var closed = (await tradeRepo.GetTradeHistoryAsync(ctx.AccountId, from, DateTime.UtcNow))
+    var closed = (await tradeRepo.GetTradeHistoryAsync(ctx.AccountId, account.TradingMode, from, DateTime.UtcNow))
         .Where(t => t.Status != TradeStatus.Open && t.SignalId.HasValue);
     var tradesScoredSoFar = 0;
     foreach (var t in closed)
@@ -715,9 +727,12 @@ api.MapPost("/refinement/reject", async (
 // In-app Approvals tab (Trades page) - the primary way to approve trades
 // now. The email is just a reminder pointing here rather than carrying an
 // actionable link, so this is authenticated like any other endpoint.
-api.MapGet("/approvals", async (IApprovalRepository approvals, IAccountContext ctx) =>
+api.MapGet("/approvals", async (IApprovalRepository approvals, IAccountRepository accounts, IAccountContext ctx, CancellationToken ct) =>
 {
-    var rows = await approvals.ListRecentAsync(ctx.AccountId, 30);
+    var account = await accounts.GetAsync(ctx.AccountId, ct);
+    if (account is null) return Results.NotFound();
+
+    var rows = await approvals.ListRecentAsync(ctx.AccountId, account.TradingMode, 30);
     var result = rows.Select(a => new
     {
         a.Id,

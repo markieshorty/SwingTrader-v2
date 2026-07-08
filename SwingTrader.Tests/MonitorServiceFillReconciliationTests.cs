@@ -53,7 +53,7 @@ public class MonitorServiceFillReconciliationTests
             new T212AccountSummaryInvestments(0m, 0m, 0m, 0m)));
         _circuitBreaker.ShouldTriggerAsync(1, Arg.Any<T212AccountSummary?>(), Arg.Any<CancellationToken>()).Returns(false);
         _riskProfileRepo.GetAsync(1, Arg.Any<CancellationToken>()).Returns(new AccountRiskProfile { AccountId = 1 });
-        _tradeRepo.GetOpenTradesAsync(1).Returns(new List<Trade>());
+        _tradeRepo.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade>());
     }
 
     private static HistoricalOrdersResponse HistoryWithFilledOrder(
@@ -70,7 +70,7 @@ public class MonitorServiceFillReconciliationTests
     public async Task RunCycleAsync_EntryFillHasConversionFee_CapturesPositiveFeeAmount()
     {
         SetupNoOpenPositions();
-        _tradeRepo.GetUnreconciledOrdersAsync(1).Returns(new List<Trade>
+        _tradeRepo.GetUnreconciledOrdersAsync(1, TradingMode.Demo).Returns(new List<Trade>
         {
             new()
             {
@@ -93,7 +93,7 @@ public class MonitorServiceFillReconciliationTests
     public async Task RunCycleAsync_ExitOrderFilledInHistory_UsesT212RealisedPnlNotPriceEstimate()
     {
         SetupNoOpenPositions();
-        _tradeRepo.GetUnreconciledOrdersAsync(1).Returns(new List<Trade>
+        _tradeRepo.GetUnreconciledOrdersAsync(1, TradingMode.Demo).Returns(new List<Trade>
         {
             new()
             {
@@ -123,7 +123,7 @@ public class MonitorServiceFillReconciliationTests
     public async Task RunCycleAsync_ExitFillMissingWalletImpact_FallsBackToPriceEstimate()
     {
         SetupNoOpenPositions();
-        _tradeRepo.GetUnreconciledOrdersAsync(1).Returns(new List<Trade>
+        _tradeRepo.GetUnreconciledOrdersAsync(1, TradingMode.Demo).Returns(new List<Trade>
         {
             new()
             {
@@ -145,7 +145,7 @@ public class MonitorServiceFillReconciliationTests
     public async Task RunCycleAsync_EntryOrderFilledInHistory_CapturesEntryValueGbp()
     {
         SetupNoOpenPositions();
-        _tradeRepo.GetUnreconciledOrdersAsync(1).Returns(new List<Trade>
+        _tradeRepo.GetUnreconciledOrdersAsync(1, TradingMode.Demo).Returns(new List<Trade>
         {
             new()
             {
@@ -166,7 +166,7 @@ public class MonitorServiceFillReconciliationTests
     public async Task RunCycleAsync_OrderNotYetInHistory_LeavesUnconfirmedForNextCycle()
     {
         SetupNoOpenPositions();
-        _tradeRepo.GetUnreconciledOrdersAsync(1).Returns(new List<Trade>
+        _tradeRepo.GetUnreconciledOrdersAsync(1, TradingMode.Demo).Returns(new List<Trade>
         {
             new()
             {
@@ -187,7 +187,7 @@ public class MonitorServiceFillReconciliationTests
     public async Task RunCycleAsync_OrderCancelledInHistory_KeepsEstimateAndStopsPolling()
     {
         SetupNoOpenPositions();
-        _tradeRepo.GetUnreconciledOrdersAsync(1).Returns(new List<Trade>
+        _tradeRepo.GetUnreconciledOrdersAsync(1, TradingMode.Demo).Returns(new List<Trade>
         {
             new()
             {

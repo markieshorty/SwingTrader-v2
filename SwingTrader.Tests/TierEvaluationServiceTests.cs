@@ -58,7 +58,7 @@ public class TierEvaluationServiceTests
         var trades = new List<Trade>();
         trades.AddRange(Enumerable.Range(0, wins).Select(_ => ClosedTrade(50m)));
         trades.AddRange(Enumerable.Range(0, losses).Select(_ => ClosedTrade(-10m)));
-        _tradeRepo.GetTradeHistoryAsync(1, Arg.Any<DateTime>(), Arg.Any<DateTime>()).Returns(trades);
+        _tradeRepo.GetTradeHistoryAsync(1, TradingMode.Demo, Arg.Any<DateTime>(), Arg.Any<DateTime>()).Returns(trades);
         _portfolioRepo.GetLatestSnapshotAsync(1, TradingMode.Demo).Returns(new PortfolioSnapshot { CurrentTier = currentTier });
     }
 

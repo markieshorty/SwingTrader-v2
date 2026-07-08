@@ -10,39 +10,39 @@ public class TradeRepository(SwingTraderDbContext context) : ITradeRepository
     public Task<Trade?> GetByIdAsync(int accountId, int id) =>
         context.Trades.FirstOrDefaultAsync(x => x.AccountId == accountId && x.Id == id);
 
-    public async Task<IEnumerable<Trade>> GetAllAsync(int accountId) =>
-        await context.Trades.Where(x => x.AccountId == accountId).ToListAsync();
+    public async Task<IEnumerable<Trade>> GetAllAsync(int accountId, TradingMode tradingMode) =>
+        await context.Trades.Where(x => x.AccountId == accountId && x.TradingMode == tradingMode).ToListAsync();
 
-    public async Task<IEnumerable<Trade>> GetOpenTradesAsync(int accountId) =>
+    public async Task<IEnumerable<Trade>> GetOpenTradesAsync(int accountId, TradingMode tradingMode) =>
         await context.Trades
-            .Where(x => x.AccountId == accountId && x.Status == TradeStatus.Open)
+            .Where(x => x.AccountId == accountId && x.TradingMode == tradingMode && x.Status == TradeStatus.Open)
             .ToListAsync();
 
-    public async Task<IEnumerable<Trade>> GetBySymbolAsync(int accountId, string symbol) =>
+    public async Task<IEnumerable<Trade>> GetBySymbolAsync(int accountId, TradingMode tradingMode, string symbol) =>
         await context.Trades
-            .Where(x => x.AccountId == accountId && x.Symbol == symbol.ToUpperInvariant())
+            .Where(x => x.AccountId == accountId && x.TradingMode == tradingMode && x.Symbol == symbol.ToUpperInvariant())
             .OrderByDescending(x => x.OpenedAt)
             .ToListAsync();
 
-    public async Task<IEnumerable<Trade>> GetTradeHistoryAsync(int accountId, DateTime from, DateTime to) =>
+    public async Task<IEnumerable<Trade>> GetTradeHistoryAsync(int accountId, TradingMode tradingMode, DateTime from, DateTime to) =>
         await context.Trades
-            .Where(x => x.AccountId == accountId && x.OpenedAt >= from && x.OpenedAt <= to)
+            .Where(x => x.AccountId == accountId && x.TradingMode == tradingMode && x.OpenedAt >= from && x.OpenedAt <= to)
             .OrderByDescending(x => x.OpenedAt)
             .ToListAsync();
 
-    public async Task<IEnumerable<Trade>> GetClosedOnDateAsync(int accountId, DateOnly date)
+    public async Task<IEnumerable<Trade>> GetClosedOnDateAsync(int accountId, TradingMode tradingMode, DateOnly date)
     {
         var start = date.ToDateTime(TimeOnly.MinValue);
         var end = start.AddDays(1);
         return await context.Trades
-            .Where(x => x.AccountId == accountId && x.Status == TradeStatus.Closed
+            .Where(x => x.AccountId == accountId && x.TradingMode == tradingMode && x.Status == TradeStatus.Closed
                 && x.ClosedAt != null && x.ClosedAt >= start && x.ClosedAt < end)
             .ToListAsync();
     }
 
-    public async Task<IEnumerable<Trade>> GetUnreconciledOrdersAsync(int accountId) =>
+    public async Task<IEnumerable<Trade>> GetUnreconciledOrdersAsync(int accountId, TradingMode tradingMode) =>
         await context.Trades
-            .Where(x => x.AccountId == accountId &&
+            .Where(x => x.AccountId == accountId && x.TradingMode == tradingMode &&
                 ((x.EntryOrderId != null && x.EntryFillConfirmedAt == null) ||
                  (x.ExitOrderId != null && x.ExitFillConfirmedAt == null)))
             .ToListAsync();

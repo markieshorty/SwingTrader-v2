@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
 
@@ -9,17 +10,17 @@ public class ReportRepository(SwingTraderDbContext context) : IReportRepository
     public Task<DailyReport?> GetByIdAsync(int accountId, int id) =>
         context.DailyReports.FirstOrDefaultAsync(x => x.AccountId == accountId && x.Id == id);
 
-    public Task<DailyReport?> GetByDateAsync(int accountId, DateOnly date) =>
-        context.DailyReports.FirstOrDefaultAsync(x => x.AccountId == accountId && x.ReportDate == date);
+    public Task<DailyReport?> GetByDateAsync(int accountId, TradingMode tradingMode, DateOnly date) =>
+        context.DailyReports.FirstOrDefaultAsync(x => x.AccountId == accountId && x.TradingMode == tradingMode && x.ReportDate == date);
 
-    public async Task<IEnumerable<DailyReport>> GetAllAsync(int accountId) =>
+    public async Task<IEnumerable<DailyReport>> GetAllAsync(int accountId, TradingMode tradingMode) =>
         await context.DailyReports
-            .Where(x => x.AccountId == accountId)
+            .Where(x => x.AccountId == accountId && x.TradingMode == tradingMode)
             .OrderByDescending(x => x.ReportDate)
             .ToListAsync();
 
-    public async Task<IEnumerable<DailyReport>> GetUnsentReportsAsync(int accountId) =>
-        await context.DailyReports.Where(x => x.AccountId == accountId && !x.WasSent).ToListAsync();
+    public async Task<IEnumerable<DailyReport>> GetUnsentReportsAsync(int accountId, TradingMode tradingMode) =>
+        await context.DailyReports.Where(x => x.AccountId == accountId && x.TradingMode == tradingMode && !x.WasSent).ToListAsync();
 
     public async Task<DailyReport> AddAsync(DailyReport report)
     {

@@ -51,16 +51,23 @@ public class MonitorService(
             logger.LogWarning(ex, "Could not fetch T212 account summary for account {AccountId} this cycle", accountId);
         }
 
+        var account = await accountRepo.GetAsync(accountId, ct);
+        if (account is null)
+        {
+            logger.LogWarning("No account record found for account {AccountId} — skipping monitor cycle", accountId);
+            return new MonitorCycleResult(0, 0, [], false);
+        }
+
         // Step 0 — reconcile any order placed last cycle (or earlier) whose
         // real fill price T212 hadn't confirmed yet. Runs before the circuit
         // breaker check so RealizedPnl/EntryPrice/ExitPrice are corrected as
         // early as possible once T212 confirms.
-        await ReconcileOrderFillsAsync(accountId, t212, ct);
+        await ReconcileOrderFillsAsync(accountId, account.TradingMode, t212, ct);
 
         // Step 1 — circuit breaker check
         if (await circuitBreaker.ShouldTriggerAsync(accountId, summary, ct))
         {
-            var openTrades = (await tradeRepo.GetOpenTradesAsync(accountId)).ToList();
+            var openTrades = (await tradeRepo.GetOpenTradesAsync(accountId, account.TradingMode)).ToList();
             var flagged = openTrades.Select(t => new FlaggedExit(t.Symbol, ExitReason.CircuitBreaker, t.EntryPrice)).ToList();
 
             await SendAlertAsync(
@@ -77,7 +84,7 @@ public class MonitorService(
 
         // Step 2 — check each position
         var riskProfile = await riskProfileRepo.GetAsync(accountId, ct);
-        var trades = (await tradeRepo.GetOpenTradesAsync(accountId)).ToList();
+        var trades = (await tradeRepo.GetOpenTradesAsync(accountId, account.TradingMode)).ToList();
 
         int checked_ = 0, trailingUpdated = 0;
         var flaggedExits = new List<FlaggedExit>();
@@ -205,12 +212,12 @@ public class MonitorService(
     // fill (and any slippage) is known solely by T212. EntryPrice/ExitPrice
     // are written optimistically at order-placement time (ExecutionService /
     // PositionExitService) and corrected here once T212 confirms the fill.
-    private async Task ReconcileOrderFillsAsync(int accountId, ITrading212Client t212, CancellationToken ct)
+    private async Task ReconcileOrderFillsAsync(int accountId, TradingMode tradingMode, ITrading212Client t212, CancellationToken ct)
     {
         List<Trade> pending;
         try
         {
-            pending = (await tradeRepo.GetUnreconciledOrdersAsync(accountId)).ToList();
+            pending = (await tradeRepo.GetUnreconciledOrdersAsync(accountId, tradingMode)).ToList();
         }
         catch (Exception ex)
         {

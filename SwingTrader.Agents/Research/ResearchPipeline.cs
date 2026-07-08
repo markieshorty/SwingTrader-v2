@@ -25,6 +25,7 @@ public class ResearchPipeline(
     ICandleRepository candleRepo,
     ISignalRepository signalRepo,
     ITradeRepository tradeRepo,
+    IAccountRepository accountRepo,
     IIndicatorService indicators,
     IStrategyWeightsRepository weightsRepo,
     IEarningsService earningsService,
@@ -52,6 +53,9 @@ public class ResearchPipeline(
         CancellationToken ct = default)
     {
         symbol = symbol.ToUpperInvariant();
+
+        var account = await accountRepo.GetAsync(accountId, ct)
+            ?? throw new InvalidOperationException($"Account {accountId} not found.");
 
         // Step 0 — earnings gate: block BUY if earnings are within GateDays
         var earningsCtx = await earningsService.GetEarningsContextAsync(finnhub, symbol, ct, riskProfile.EarningsGateDays);
@@ -142,7 +146,7 @@ public class ResearchPipeline(
 
         conviction = ApplyEarningsAdjustment(conviction, earningsCtx, out var earningsReasoning);
 
-        var recommendation = await DetermineRecommendationAsync(accountId, symbol, ind, conviction, weights);
+        var recommendation = await DetermineRecommendationAsync(accountId, account.TradingMode, symbol, ind, conviction, weights);
 
         return await PersistSignalAsync(accountId, symbol, candles[^1], ind, sentimentScore,
             newsSummary, setupType, conviction, recommendation, componentScores, regime, earningsCtx, rs, priceLevel,
@@ -404,9 +408,9 @@ public class ResearchPipeline(
     }
 
     private async Task<Recommendation> DetermineRecommendationAsync(
-        int accountId, string symbol, IndicatorResult ind, decimal conviction, StrategyWeights weights)
+        int accountId, TradingMode tradingMode, string symbol, IndicatorResult ind, decimal conviction, StrategyWeights weights)
     {
-        var openTrades = await tradeRepo.GetOpenTradesAsync(accountId);
+        var openTrades = await tradeRepo.GetOpenTradesAsync(accountId, tradingMode);
         if (openTrades.Any(t => t.Symbol == symbol))
             return Recommendation.Hold;
 

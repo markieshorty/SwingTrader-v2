@@ -4,6 +4,10 @@ namespace SwingTrader.Core.Models;
 
 public class RefinementSuggestion : BaseEntity
 {
+    // The mode whose trade history this analysis was computed from (see
+    // PortfolioSnapshot.TradingMode) - prevents Demo and Live performance
+    // from being blended into a single weight-adjustment suggestion.
+    public TradingMode TradingMode { get; set; }
     public DateTime GeneratedAt { get; set; }
     public DateOnly AnalysisPeriodStart { get; set; }
     public DateOnly AnalysisPeriodEnd { get; set; }

@@ -32,6 +32,10 @@ public class ReadinessAssessmentService(
     {
         var now = DateTime.UtcNow;
 
+        var account = await accountRepo.GetAsync(accountId, ct)
+            ?? throw new InvalidOperationException($"Account {accountId} not found.");
+        var isLiveTrading = account.TradingMode == TradingMode.Live;
+
         // Step 1 — raw data. Heartbeats are process-wide (one Functions app
         // serving every account), not per-account.
         var heartbeats = (await heartbeatRepo.GetAllAsync()).ToList();
@@ -43,7 +47,7 @@ public class ReadinessAssessmentService(
         var totalSignalsGenerated = allSignals.Count;
         var signalsById = allSignals.ToDictionary(s => s.Id);
 
-        var allTrades = (await tradeRepo.GetTradeHistoryAsync(accountId, DateTime.MinValue, now)).ToList();
+        var allTrades = (await tradeRepo.GetTradeHistoryAsync(accountId, account.TradingMode, DateTime.MinValue, now)).ToList();
         var closedTrades = allTrades.Where(t => t.Status != TradeStatus.Open).ToList();
         var totalClosedTrades = closedTrades.Count;
 
@@ -75,7 +79,7 @@ public class ReadinessAssessmentService(
                 regimeTradeCount[regime] = 0;
 
         // Step 5 — shadow suggestion count
-        var suggestionHistory = (await refinementSuggestionRepo.GetHistoryAsync(accountId, 1000)).ToList();
+        var suggestionHistory = (await refinementSuggestionRepo.GetHistoryAsync(accountId, account.TradingMode, 1000)).ToList();
         var shadowSuggestions = suggestionHistory.Count(s => s.IsShadowMode && s.Status != RefinementStatus.Superseded);
 
         var noFailedHeartbeatIn7Days = !heartbeats.Any(h =>
@@ -86,13 +90,9 @@ public class ReadinessAssessmentService(
         // nothing ever sets, so checking for them here could never be true
         // even after Monitor had genuinely closed several positions.
         var monitorClosedAtLeastOnePosition = closedTrades.Any(t => t.Status == TradeStatus.Closed);
-        var approvalFlowTested = await approvalRepo.AnyApprovedAsync(accountId);
+        var approvalFlowTested = await approvalRepo.AnyApprovedAsync(accountId, account.TradingMode);
 
-        var account = await accountRepo.GetAsync(accountId, ct);
-        var isLiveTrading = account?.TradingMode == TradingMode.Live;
-        var latestPortfolio = account is not null
-            ? await portfolioRepo.GetLatestSnapshotAsync(accountId, account.TradingMode)
-            : null;
+        var latestPortfolio = await portfolioRepo.GetLatestSnapshotAsync(accountId, account.TradingMode);
 
         // Step 6 — assess each feature
         var features = new List<FeatureReadiness>
@@ -116,7 +116,7 @@ public class ReadinessAssessmentService(
 
         // Step 7/8 — milestones + trajectory
         var milestones = BuildMilestones(features, regimeTradeCount, tradeRate, now);
-        var trajectory = await snapshotRepo.GetRecentAsync(accountId, 30);
+        var trajectory = await snapshotRepo.GetRecentAsync(accountId, account.TradingMode, 30);
 
         return new ReadinessReport(
             now, overallMaturity, systemRunningDays, totalSignalsGenerated, totalClosedTrades, scoredClosedTrades,

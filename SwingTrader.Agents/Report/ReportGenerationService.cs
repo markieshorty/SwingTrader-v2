@@ -51,6 +51,7 @@ public class ReportGenerationService(
             var empty = new DailyReport
             {
                 AccountId = accountId,
+                TradingMode = account.TradingMode,
                 ReportDate = reportDate,
                 ReportMarkdown = $"# ⚠️ No signals available for {reportDate}\n\nThe research agent may not have run yet.\nCheck logs for errors.",
                 TopBuysJson = "[]",
@@ -91,7 +92,7 @@ public class ReportGenerationService(
         var approvalMarkdown = token is null ? null : BuildApprovalMarkdown(reportDate);
 
         // Step 7
-        return await PersistAsync(accountId, reportDate, markdown, approvalMarkdown, buys, portfolio, narratives.MarketContext, token);
+        return await PersistAsync(accountId, account.TradingMode, reportDate, markdown, approvalMarkdown, buys, portfolio, narratives.MarketContext, token);
     }
 
     // ── Step 1 ───────────────────────────────────────────────────────────────
@@ -126,7 +127,7 @@ public class ReportGenerationService(
     private async Task<PortfolioState> LoadPortfolioStateAsync(
         int accountId, TradingMode tradingMode, IFinnhubClient finnhub, ITrading212Client t212, CancellationToken ct)
     {
-        var openTrades = (await tradeRepo.GetOpenTradesAsync(accountId)).ToList();
+        var openTrades = (await tradeRepo.GetOpenTradesAsync(accountId, tradingMode)).ToList();
         var positions = new List<OpenPositionState>();
 
         foreach (var trade in openTrades)
@@ -171,7 +172,7 @@ public class ReportGenerationService(
         }
 
         var history = (await tradeRepo.GetTradeHistoryAsync(
-            accountId, DateTime.UtcNow.AddDays(-30), DateTime.UtcNow)).ToList();
+            accountId, tradingMode, DateTime.UtcNow.AddDays(-30), DateTime.UtcNow)).ToList();
         var closed = history.Where(t => t.Status != TradeStatus.Open).ToList();
 
         PerformanceStats stats;
@@ -631,7 +632,7 @@ public class ReportGenerationService(
     // ── Step 7 ───────────────────────────────────────────────────────────────
 
     private async Task<DailyReport> PersistAsync(
-        int accountId, DateOnly reportDate, string markdown, string? approvalMarkdown, List<StockSignal> buys,
+        int accountId, TradingMode tradingMode, DateOnly reportDate, string markdown, string? approvalMarkdown, List<StockSignal> buys,
         PortfolioState portfolio, string marketContext, string? token)
     {
         var topBuys = buys.Take(reportConfig.Value.MaxBuysInReport).ToList();
@@ -654,10 +655,10 @@ public class ReportGenerationService(
         // Regenerating a report for a date that already has one (e.g. the manual
         // "Run Report" button clicked twice in a day) must overwrite it rather
         // than insert a duplicate — (AccountId, ReportDate) is effectively unique.
-        var report = await reportRepo.GetByDateAsync(accountId, reportDate);
+        var report = await reportRepo.GetByDateAsync(accountId, tradingMode, reportDate);
         if (report is null)
         {
-            report = new DailyReport { AccountId = accountId, ReportDate = reportDate };
+            report = new DailyReport { AccountId = accountId, TradingMode = tradingMode, ReportDate = reportDate };
         }
 
         report.ReportMarkdown = markdown;
@@ -682,12 +683,13 @@ public class ReportGenerationService(
             // assume one row per (AccountId, TradeDate). If one already
             // exists, leave its IsApproved/ApprovedAt alone rather than
             // silently un-approving something the user already confirmed.
-            var existingApproval = await approvalRepo.GetByDateAsync(accountId, reportDate);
+            var existingApproval = await approvalRepo.GetByDateAsync(accountId, tradingMode, reportDate);
             if (existingApproval is null)
             {
                 var approval = new TradeApproval
                 {
                     AccountId = accountId,
+                    TradingMode = tradingMode,
                     TradeDate = reportDate,
                     ApprovalToken = token,
                     IsApproved = false,

@@ -15,18 +15,18 @@ public class RefinementSuggestionRepository(SwingTraderDbContext context) : IRef
         return suggestion;
     }
 
-    public Task<RefinementSuggestion?> GetLatestAsync(int accountId) =>
+    public Task<RefinementSuggestion?> GetLatestAsync(int accountId, TradingMode tradingMode) =>
         context.RefinementSuggestions
-            .Where(r => r.AccountId == accountId)
+            .Where(r => r.AccountId == accountId && r.TradingMode == tradingMode)
             .OrderByDescending(r => r.GeneratedAt)
             .FirstOrDefaultAsync();
 
     public Task<RefinementSuggestion?> GetByIdAsync(int accountId, int id) =>
         context.RefinementSuggestions.FirstOrDefaultAsync(r => r.AccountId == accountId && r.Id == id);
 
-    public async Task<IEnumerable<RefinementSuggestion>> GetHistoryAsync(int accountId, int count = 12) =>
+    public async Task<IEnumerable<RefinementSuggestion>> GetHistoryAsync(int accountId, TradingMode tradingMode, int count = 12) =>
         await context.RefinementSuggestions
-            .Where(r => r.AccountId == accountId)
+            .Where(r => r.AccountId == accountId && r.TradingMode == tradingMode)
             .OrderByDescending(r => r.GeneratedAt)
             .Take(count)
             .ToListAsync();
@@ -38,10 +38,10 @@ public class RefinementSuggestionRepository(SwingTraderDbContext context) : IRef
         await context.SaveChangesAsync();
     }
 
-    public async Task SupersedeAllPendingAsync(int accountId)
+    public async Task SupersedeAllPendingAsync(int accountId, TradingMode tradingMode)
     {
         var pending = await context.RefinementSuggestions
-            .Where(r => r.AccountId == accountId && r.Status == RefinementStatus.Pending)
+            .Where(r => r.AccountId == accountId && r.TradingMode == tradingMode && r.Status == RefinementStatus.Pending)
             .ToListAsync();
         foreach (var p in pending)
         {

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using SwingTrader.Agents.Watchlist;
+using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
 using SwingTrader.Infrastructure.Configuration;
@@ -19,6 +20,7 @@ public class StockScreenerTests
     private readonly IFinnhubRateLimiter _rateLimiter = Substitute.For<IFinnhubRateLimiter>();
     private readonly IWatchlistRepository _watchlist = Substitute.For<IWatchlistRepository>();
     private readonly ITradeRepository _trades = Substitute.For<ITradeRepository>();
+    private readonly IAccountRepository _accountRepo = Substitute.For<IAccountRepository>();
     private readonly IMarketUniverseService _universe = Substitute.For<IMarketUniverseService>();
     private readonly IFinnhubClient _finnhub = Substitute.For<IFinnhubClient>();
 
@@ -26,8 +28,9 @@ public class StockScreenerTests
     {
         _watchlist.GetActiveAsync(1).Returns(new List<WatchlistItem>());
         _watchlist.IsTopMoversEnabledAsync(1, Arg.Any<CancellationToken>()).Returns(topMoversEnabled);
-        _trades.GetOpenTradesAsync(1).Returns(new List<Trade>());
-        return new StockScreener(_rateLimiter, _watchlist, _trades, _universe, Options.Create(cfg), NullLogger<StockScreener>.Instance);
+        _accountRepo.GetAsync(1, Arg.Any<CancellationToken>()).Returns(new Account { Id = 1, TradingMode = TradingMode.Demo });
+        _trades.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade>());
+        return new StockScreener(_rateLimiter, _watchlist, _trades, _accountRepo, _universe, Options.Create(cfg), NullLogger<StockScreener>.Instance);
     }
 
     private static WatchlistConfig DefaultConfig() => new()

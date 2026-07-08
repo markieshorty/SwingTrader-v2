@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
 
@@ -6,8 +7,8 @@ namespace SwingTrader.Data.Repositories;
 
 public class ApprovalRepository(SwingTraderDbContext context) : IApprovalRepository
 {
-    public Task<TradeApproval?> GetByDateAsync(int accountId, DateOnly date) =>
-        context.TradeApprovals.FirstOrDefaultAsync(x => x.AccountId == accountId && x.TradeDate == date);
+    public Task<TradeApproval?> GetByDateAsync(int accountId, TradingMode tradingMode, DateOnly date) =>
+        context.TradeApprovals.FirstOrDefaultAsync(x => x.AccountId == accountId && x.TradingMode == tradingMode && x.TradeDate == date);
 
     public Task<TradeApproval?> GetByTokenAsync(string token) =>
         context.TradeApprovals.FirstOrDefaultAsync(x => x.ApprovalToken == token);
@@ -15,9 +16,9 @@ public class ApprovalRepository(SwingTraderDbContext context) : IApprovalReposit
     public Task<TradeApproval?> GetByIdAsync(int accountId, int id) =>
         context.TradeApprovals.FirstOrDefaultAsync(x => x.AccountId == accountId && x.Id == id);
 
-    public Task<List<TradeApproval>> ListRecentAsync(int accountId, int count) =>
+    public Task<List<TradeApproval>> ListRecentAsync(int accountId, TradingMode tradingMode, int count) =>
         context.TradeApprovals
-            .Where(x => x.AccountId == accountId)
+            .Where(x => x.AccountId == accountId && x.TradingMode == tradingMode)
             .OrderByDescending(x => x.TradeDate)
             .ThenByDescending(x => x.CreatedAt)
             .Take(count)
@@ -37,6 +38,6 @@ public class ApprovalRepository(SwingTraderDbContext context) : IApprovalReposit
         await context.SaveChangesAsync();
     }
 
-    public Task<bool> AnyApprovedAsync(int accountId) =>
-        context.TradeApprovals.AnyAsync(x => x.AccountId == accountId && x.IsApproved);
+    public Task<bool> AnyApprovedAsync(int accountId, TradingMode tradingMode) =>
+        context.TradeApprovals.AnyAsync(x => x.AccountId == accountId && x.TradingMode == tradingMode && x.IsApproved);
 }

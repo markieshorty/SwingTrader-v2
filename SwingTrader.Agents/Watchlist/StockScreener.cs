@@ -13,6 +13,7 @@ public class StockScreener(
     IFinnhubRateLimiter rateLimiter,
     IWatchlistRepository watchlist,
     ITradeRepository trades,
+    IAccountRepository accountRepo,
     IMarketUniverseService universeService,
     IOptions<WatchlistConfig> config,
     ILogger<StockScreener> logger) : IStockScreener
@@ -20,6 +21,9 @@ public class StockScreener(
     public async Task<ScreenResult> ScreenAsync(int accountId, IFinnhubClient finnhub, CancellationToken ct = default)
     {
         var cfg = config.Value;
+
+        var account = await accountRepo.GetAsync(accountId, ct)
+            ?? throw new InvalidOperationException($"Account {accountId} not found.");
 
         // Dynamic universe (live S&P 500/Nasdaq 100 constituents, cached for
         // UniverseCacheDays) replaces the old hardcoded symbol list, so the
@@ -35,7 +39,7 @@ public class StockScreener(
         var activeSymbols = (await watchlist.GetActiveAsync(accountId))
             .Select(w => w.Symbol).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var openTradeSymbols = (await trades.GetOpenTradesAsync(accountId))
+        var openTradeSymbols = (await trades.GetOpenTradesAsync(accountId, account.TradingMode))
             .Select(t => t.Symbol).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var universe = fullUniverse

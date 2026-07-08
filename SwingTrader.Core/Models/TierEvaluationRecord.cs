@@ -4,6 +4,10 @@ namespace SwingTrader.Core.Models;
 
 public class TierEvaluationRecord : BaseEntity
 {
+    // The mode whose trade history this evaluation was computed from -
+    // without this, tier decisions could blend Demo and Live win rates
+    // (see PortfolioSnapshot.TradingMode).
+    public TradingMode TradingMode { get; set; }
     public DateTime EvaluatedAt { get; set; }
     public DateOnly EvaluationPeriodStart { get; set; }
     public DateOnly EvaluationPeriodEnd { get; set; }

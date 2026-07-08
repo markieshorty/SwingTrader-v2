@@ -19,6 +19,7 @@ public class ResearchConsumerFunction(
     IWatchlistRepository watchlist,
     IResearchPipeline pipeline,
     ITradeRepository tradeRepo,
+    IAccountRepository accountRepo,
     IAccountRiskProfileRepository riskProfileRepo,
     ICandleRepository candleRepo,
     IMomentumHealthService momentumHealth,
@@ -156,8 +157,11 @@ public class ResearchConsumerFunction(
     // to MaxHoldDays under the normal stop/target/trailing exit rules.
     private async Task CheckOpenPositionHealthAsync(int accountId, CancellationToken ct)
     {
+        var account = await accountRepo.GetAsync(accountId, ct);
+        if (account is null) return;
+
         var profile = await riskProfileRepo.GetAsync(accountId, ct);
-        var openTrades = (await tradeRepo.GetOpenTradesAsync(accountId)).ToList();
+        var openTrades = (await tradeRepo.GetOpenTradesAsync(accountId, account.TradingMode)).ToList();
         if (openTrades.Count == 0) return;
 
         var today = DateTime.UtcNow;

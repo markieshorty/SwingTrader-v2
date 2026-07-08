@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
 
@@ -9,7 +10,7 @@ public class ReadinessSnapshotRepository(SwingTraderDbContext context) : IReadin
     public async Task UpsertAsync(ReadinessSnapshot snapshot)
     {
         var existing = await context.ReadinessSnapshots
-            .FirstOrDefaultAsync(s => s.AccountId == snapshot.AccountId && s.SnapshotDate == snapshot.SnapshotDate);
+            .FirstOrDefaultAsync(s => s.AccountId == snapshot.AccountId && s.TradingMode == snapshot.TradingMode && s.SnapshotDate == snapshot.SnapshotDate);
 
         if (existing is null)
         {
@@ -31,19 +32,19 @@ public class ReadinessSnapshotRepository(SwingTraderDbContext context) : IReadin
         await context.SaveChangesAsync();
     }
 
-    public async Task<List<ReadinessSnapshot>> GetRecentAsync(int accountId, int days = 30)
+    public async Task<List<ReadinessSnapshot>> GetRecentAsync(int accountId, TradingMode tradingMode, int days = 30)
     {
         var recent = await context.ReadinessSnapshots
-            .Where(s => s.AccountId == accountId)
+            .Where(s => s.AccountId == accountId && s.TradingMode == tradingMode)
             .OrderByDescending(s => s.SnapshotDate)
             .Take(days)
             .ToListAsync();
         return recent.OrderBy(s => s.SnapshotDate).ToList();
     }
 
-    public Task<ReadinessSnapshot?> GetLatestAsync(int accountId) =>
+    public Task<ReadinessSnapshot?> GetLatestAsync(int accountId, TradingMode tradingMode) =>
         context.ReadinessSnapshots
-            .Where(s => s.AccountId == accountId)
+            .Where(s => s.AccountId == accountId && s.TradingMode == tradingMode)
             .OrderByDescending(s => s.SnapshotDate)
             .FirstOrDefaultAsync();
 }

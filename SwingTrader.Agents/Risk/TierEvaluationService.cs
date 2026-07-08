@@ -39,17 +39,17 @@ public class TierEvaluationService(
         logger.LogInformation("{Prefix}Tier evaluation starting for account {AccountId} (period {From:yyyy-MM-dd} to {To:yyyy-MM-dd})",
             prefix, accountId, from, now);
 
+        var account = await accountRepo.GetAsync(accountId, ct)
+            ?? throw new InvalidOperationException($"Account {accountId} not found.");
+
         // ── Step 1: gather closed trades and base statistics ──────────────────
-        var history = await tradeRepo.GetTradeHistoryAsync(accountId, from, now);
+        var history = await tradeRepo.GetTradeHistoryAsync(accountId, account.TradingMode, from, now);
         var closed = history
             .Where(t => t.Status != TradeStatus.Open && t.ClosedAt.HasValue && t.RealizedPnl.HasValue)
             .OrderBy(t => t.ClosedAt!.Value)
             .ToList();
 
-        var account = await accountRepo.GetAsync(accountId, ct);
-        var snapshot = account is not null
-            ? await portfolioRepo.GetLatestSnapshotAsync(accountId, account.TradingMode)
-            : null;
+        var snapshot = await portfolioRepo.GetLatestSnapshotAsync(accountId, account.TradingMode);
         var currentTier = snapshot?.CurrentTier ?? CapitalTier.Tier1;
 
         var totalTrades = closed.Count;
@@ -129,6 +129,7 @@ public class TierEvaluationService(
         var record = new TierEvaluationRecord
         {
             AccountId = accountId,
+            TradingMode = account.TradingMode,
             EvaluatedAt = now,
             EvaluationPeriodStart = DateOnly.FromDateTime(from),
             EvaluationPeriodEnd = DateOnly.FromDateTime(now),

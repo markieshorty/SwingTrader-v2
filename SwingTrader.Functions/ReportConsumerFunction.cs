@@ -63,7 +63,7 @@ public class ReportConsumerFunction(
             // into TradeApproval - not everyone who gets the general report.
             // Skip if the user has already approved today's trades (e.g. Report
             // ran twice in a day after manual retry).
-            var existingApproval = await approvalRepo.GetByDateAsync(message.AccountId, message.ReportDate);
+            var existingApproval = await approvalRepo.GetByDateAsync(message.AccountId, report.TradingMode, message.ReportDate);
             if (report.ApprovalMarkdown is not null && existingApproval?.IsApproved != true)
             {
                 var approvalAddresses = allRecipients

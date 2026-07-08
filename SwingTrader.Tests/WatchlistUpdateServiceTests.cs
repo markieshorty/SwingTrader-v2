@@ -16,6 +16,13 @@ public class WatchlistUpdateServiceTests
 {
     private readonly IWatchlistHistoryRepository _history = Substitute.For<IWatchlistHistoryRepository>();
     private readonly ITradeRepository _trades = Substitute.For<ITradeRepository>();
+    private readonly IAccountRepository _accountRepo = Substitute.For<IAccountRepository>();
+
+    public WatchlistUpdateServiceTests()
+    {
+        _accountRepo.GetAsync(1, Arg.Any<CancellationToken>())
+            .Returns(new Account { Id = 1, TradingMode = TradingMode.Demo });
+    }
 
     private static SwingTraderDbContext CreateDb() =>
         new(new DbContextOptionsBuilder<SwingTraderDbContext>()
@@ -31,8 +38,8 @@ public class WatchlistUpdateServiceTests
         var manual = await watchlistRepo.CreateWatchlistAsync(1, "My Manual List", WatchlistType.Manual, null);
         await watchlistRepo.AddSymbolAsync(1, manual.Id, "ZZZZ", "Zzz Corp", "Other");
 
-        _trades.GetOpenTradesAsync(1).Returns([]);
-        var sut = new WatchlistUpdateService(watchlistRepo, _history, _trades, NullLogger<WatchlistUpdateService>.Instance);
+        _trades.GetOpenTradesAsync(1, TradingMode.Demo).Returns([]);
+        var sut = new WatchlistUpdateService(watchlistRepo, _history, _trades, _accountRepo, NullLogger<WatchlistUpdateService>.Instance);
 
         // Replace the entire AI-managed selection with a single new symbol.
         await sut.UpdateAsync(1, [new WatchlistSelection("NEWSYM", "New Co", "Tech", "Selected by agent")]);
@@ -51,8 +58,8 @@ public class WatchlistUpdateServiceTests
         var watchlistRepo = new WatchlistRepository(db);
         await watchlistRepo.SeedDefaultAsync(1); // includes AAPL among starters
 
-        _trades.GetOpenTradesAsync(1).Returns([new Trade { AccountId = 1, Symbol = "AAPL" }]);
-        var sut = new WatchlistUpdateService(watchlistRepo, _history, _trades, NullLogger<WatchlistUpdateService>.Instance);
+        _trades.GetOpenTradesAsync(1, TradingMode.Demo).Returns([new Trade { AccountId = 1, Symbol = "AAPL" }]);
+        var sut = new WatchlistUpdateService(watchlistRepo, _history, _trades, _accountRepo, NullLogger<WatchlistUpdateService>.Instance);
 
         // New selection doesn't include AAPL, but an open trade holds it.
         await sut.UpdateAsync(1, [new WatchlistSelection("MSFT", "Microsoft Corporation", "Technology", "kept")]);
@@ -81,8 +88,8 @@ public class WatchlistUpdateServiceTests
             await watchlistRepo.AddSymbolAsync(1, otherB.Id, $"BB{i}", $"B {i}", "Other");
         }
 
-        _trades.GetOpenTradesAsync(1).Returns([]);
-        var sut = new WatchlistUpdateService(watchlistRepo, _history, _trades, NullLogger<WatchlistUpdateService>.Instance);
+        _trades.GetOpenTradesAsync(1, TradingMode.Demo).Returns([]);
+        var sut = new WatchlistUpdateService(watchlistRepo, _history, _trades, _accountRepo, NullLogger<WatchlistUpdateService>.Instance);
 
         // Keeps all 10 existing starters (so nothing is removed to free space)
         // and adds 10 brand-new symbols on top - only 2 spots remain in the

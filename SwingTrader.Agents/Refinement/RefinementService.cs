@@ -16,6 +16,7 @@ public class RefinementService(
     ISignalRepository signalRepo,
     IStrategyWeightsRepository weightsRepo,
     IRefinementSuggestionRepository suggestionRepo,
+    IAccountRepository accountRepo,
     IComponentCorrelationService correlationService,
     INotificationRecipientRepository recipients,
     IEmailService email,
@@ -30,10 +31,13 @@ public class RefinementService(
         var now = DateTime.UtcNow;
         var from = now.AddDays(-cfg.AnalysisPeriodDays);
 
+        var account = await accountRepo.GetAsync(accountId, ct)
+            ?? throw new InvalidOperationException($"Account {accountId} not found.");
+
         logger.LogInformation("{Prefix}Refinement analysis starting for account {AccountId} (period {From:yyyy-MM-dd} to {To:yyyy-MM-dd})",
             prefix, accountId, from, now);
 
-        var history = await tradeRepo.GetTradeHistoryAsync(accountId, from, now);
+        var history = await tradeRepo.GetTradeHistoryAsync(accountId, account.TradingMode, from, now);
         var closed = history
             .Where(t => t.Status != TradeStatus.Open && t.ClosedAt.HasValue && t.RealizedPnl.HasValue && t.RealizedPnl != 0m)
             .ToList();
@@ -91,11 +95,12 @@ public class RefinementService(
 
         var summary = await GetClaudeNarrativeAsync(claude, analysis, winRate, scoredTrades.Count, confidence, regimeResult, ct);
 
-        await suggestionRepo.SupersedeAllPendingAsync(accountId);
+        await suggestionRepo.SupersedeAllPendingAsync(accountId, account.TradingMode);
 
         var suggestion = new RefinementSuggestion
         {
             AccountId = accountId,
+            TradingMode = account.TradingMode,
             GeneratedAt = now,
             AnalysisPeriodStart = DateOnly.FromDateTime(from),
             AnalysisPeriodEnd = DateOnly.FromDateTime(now),

@@ -49,7 +49,7 @@ public class ExecutionService(
         HashSet<string>? approvedSymbols = null;
         if (account.ApprovalRequired)
         {
-            var approval = await approvalRepo.GetByDateAsync(accountId, date);
+            var approval = await approvalRepo.GetByDateAsync(accountId, account.TradingMode, date);
             if (approval is null || !approval.IsApproved)
             {
                 logger.LogWarning("Execution skipped for account {AccountId} on {Date} — no approval found", accountId, date);
@@ -70,7 +70,7 @@ public class ExecutionService(
         // immediately re-buy the exact symbol just sold if its signal is still
         // sitting there approved. Resets naturally the next day - a fresh Research
         // run is free to re-recommend the same symbol tomorrow.
-        var closedTodaySymbols = (await tradeRepo.GetClosedOnDateAsync(accountId, date))
+        var closedTodaySymbols = (await tradeRepo.GetClosedOnDateAsync(accountId, account.TradingMode, date))
             .Select(t => t.Symbol)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -139,7 +139,7 @@ public class ExecutionService(
         }
 
         var availableCash = accountSummary.Cash.AvailableToTrade;
-        var openTrades = (await tradeRepo.GetOpenTradesAsync(accountId)).ToList();
+        var openTrades = (await tradeRepo.GetOpenTradesAsync(accountId, account.TradingMode)).ToList();
 
         // GBP per USD. Available cash / portfolio value are GBP (T212 base), but the
         // signal price is USD — convert it before sizing so the budget (GBP) and the
@@ -260,6 +260,7 @@ public class ExecutionService(
                 var trade = new Trade
                 {
                     AccountId = accountId,
+                    TradingMode = account.TradingMode,
                     Symbol = signal.Symbol,
                     Direction = TradeDirection.Long,
                     EntryPrice = signal.CurrentPrice,
