@@ -6,15 +6,6 @@ namespace SwingTrader.Data.Repositories;
 
 public class SystemChecklistRepository(SwingTraderDbContext context) : ISystemChecklistRepository
 {
-    public Task<SystemChecklist?> GetAsync(int accountId, string checkName) =>
-        context.SystemChecklists.FirstOrDefaultAsync(x => x.AccountId == accountId && x.CheckName == checkName);
-
-    public async Task<IEnumerable<SystemChecklist>> GetAllAsync(int accountId) =>
-        await context.SystemChecklists
-            .Where(x => x.AccountId == accountId)
-            .OrderBy(x => x.CheckName)
-            .ToListAsync();
-
     public async Task CompleteAsync(int accountId, string checkName, string? notes = null)
     {
         var existing = await context.SystemChecklists
@@ -39,11 +30,5 @@ public class SystemChecklistRepository(SwingTraderDbContext context) : ISystemCh
             existing.UpdatedAt = now;
         }
         await context.SaveChangesAsync();
-    }
-
-    public async Task<bool> IsCompletedAsync(int accountId, string checkName)
-    {
-        var item = await GetAsync(accountId, checkName);
-        return item?.CompletedAt is not null;
     }
 }

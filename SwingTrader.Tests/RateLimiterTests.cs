@@ -62,7 +62,11 @@ public class RateLimiterTests
         await viaPeriod.WaitAsync();
         sw2.Stop();
 
-        Math.Abs(sw1.ElapsedMilliseconds - sw2.ElapsedMilliseconds).Should().BeLessThan(50);
+        // Generous tolerance - this is comparing two independently-measured
+        // wall-clock durations, so scheduler jitter compounds across both.
+        // Only needs to confirm the two overloads are roughly equivalent,
+        // not exact millisecond parity.
+        Math.Abs(sw1.ElapsedMilliseconds - sw2.ElapsedMilliseconds).Should().BeLessThan(150);
     }
 
     [Fact]

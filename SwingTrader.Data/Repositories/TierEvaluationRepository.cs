@@ -13,17 +13,4 @@ public class TierEvaluationRepository(SwingTraderDbContext context) : ITierEvalu
         await context.SaveChangesAsync();
         return record;
     }
-
-    public Task<TierEvaluationRecord?> GetLatestAsync(int accountId) =>
-        context.TierEvaluationRecords
-            .Where(r => r.AccountId == accountId)
-            .OrderByDescending(r => r.EvaluatedAt)
-            .FirstOrDefaultAsync();
-
-    public async Task<IEnumerable<TierEvaluationRecord>> GetHistoryAsync(int accountId, int count = 12) =>
-        await context.TierEvaluationRecords
-            .Where(r => r.AccountId == accountId)
-            .OrderByDescending(r => r.EvaluatedAt)
-            .Take(count)
-            .ToListAsync();
 }
