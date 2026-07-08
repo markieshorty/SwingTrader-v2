@@ -116,7 +116,11 @@ export class DashboardComponent {
   defaultColDef = defaultColDef;
 
   tradeColumnDefs: ColDef<TradeDto>[] = [
-    { field: 'symbol', headerName: 'Symbol' },
+    {
+      field: 'symbol',
+      headerName: 'Symbol',
+      tooltipValueGetter: (p) => p.data?.companyName ?? p.data?.symbol ?? null,
+    },
     { field: 'direction', headerName: 'Direction' },
     // Share price is the instrument's own per-share price (USD for US-listed
     // stocks) - Real Money is the actual £ that left/entered the account for
