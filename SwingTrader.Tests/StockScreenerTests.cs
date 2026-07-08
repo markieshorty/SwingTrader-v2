@@ -72,7 +72,7 @@ public class StockScreenerTests
 
         var results = await sut.ScreenAsync(1, _finnhub);
 
-        results.Should().Contain(c => c.Symbol == "ZZZ" && c.IsTopMover);
+        results.Candidates.Should().Contain(c => c.Symbol == "ZZZ" && c.IsTopMover);
     }
 
     [Fact]
@@ -87,8 +87,8 @@ public class StockScreenerTests
 
         var results = await sut.ScreenAsync(1, _finnhub);
 
-        results.Count(c => c.Symbol == "AAA").Should().Be(1);
-        results.Single(c => c.Symbol == "AAA").IsTopMover.Should().BeTrue();
+        results.Candidates.Count(c => c.Symbol == "AAA").Should().Be(1);
+        results.Candidates.Single(c => c.Symbol == "AAA").IsTopMover.Should().BeTrue();
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public class StockScreenerTests
 
         var results = await sut.ScreenAsync(1, _finnhub);
 
-        results.Should().NotContain(c => c.Symbol == "ZZZ");
+        results.Candidates.Should().NotContain(c => c.Symbol == "ZZZ");
     }
 
     [Fact]
@@ -120,7 +120,7 @@ public class StockScreenerTests
 
         var results = await sut.ScreenAsync(1, _finnhub);
 
-        results.Should().NotContain(c => c.Symbol == "ZZZ");
+        results.Candidates.Should().NotContain(c => c.Symbol == "ZZZ");
     }
 
     [Fact]
@@ -133,7 +133,24 @@ public class StockScreenerTests
 
         var results = await sut.ScreenAsync(1, _finnhub);
 
-        results.Should().Contain(c => c.Symbol == "AAA");
+        results.Candidates.Should().Contain(c => c.Symbol == "AAA");
+    }
+
+    [Fact]
+    public async Task ScreenAsync_QuoteFetchFailures_AreCountedInResultNotFatal()
+    {
+        var cfg = DefaultConfig();
+        SetupUniverse("AAA", "BBB", "CCC");
+        _finnhub.GetQuoteAsync("BBB").Returns<FinnhubQuoteResponse>(_ => throw new HttpRequestException("boom"));
+        var sut = CreateSut(cfg);
+
+        var result = await sut.ScreenAsync(1, _finnhub);
+
+        result.UniverseCount.Should().Be(3);
+        result.FailedQuoteCount.Should().Be(1);
+        result.Candidates.Should().Contain(c => c.Symbol == "AAA")
+            .And.Contain(c => c.Symbol == "CCC");
+        result.Candidates.Should().NotContain(c => c.Symbol == "BBB");
     }
 
     [Fact]
@@ -150,7 +167,7 @@ public class StockScreenerTests
 
         var results = await sut.ScreenAsync(1, _finnhub);
 
-        results.Should().ContainSingle();
-        results[0].Symbol.Should().Be("ZZZ");
+        results.Candidates.Should().ContainSingle();
+        results.Candidates[0].Symbol.Should().Be("ZZZ");
     }
 }

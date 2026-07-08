@@ -17,7 +17,7 @@ public class StockScreener(
     IOptions<WatchlistConfig> config,
     ILogger<StockScreener> logger) : IStockScreener
 {
-    public async Task<List<ScreenedCandidate>> ScreenAsync(int accountId, IFinnhubClient finnhub, CancellationToken ct = default)
+    public async Task<ScreenResult> ScreenAsync(int accountId, IFinnhubClient finnhub, CancellationToken ct = default)
     {
         var cfg = config.Value;
 
@@ -29,7 +29,7 @@ public class StockScreener(
         if (fullUniverse.Count == 0)
         {
             logger.LogError("Universe fetch failed — watchlist refresh aborted. Check Finnhub index endpoints.");
-            return [];
+            return new ScreenResult([], 0, 0);
         }
 
         var activeSymbols = (await watchlist.GetActiveAsync(accountId))
@@ -46,6 +46,7 @@ public class StockScreener(
 
         var candidates = new List<ScreenedCandidate>();
         var semaphore = new SemaphoreSlim(5);
+        var failedQuotes = new System.Collections.Concurrent.ConcurrentBag<string>();
 
         var tasks = universe.Select(async symbol =>
         {
@@ -72,6 +73,7 @@ public class StockScreener(
             }
             catch (Exception ex)
             {
+                failedQuotes.Add(symbol);
                 logger.LogDebug(ex, "Quote fetch failed for {Symbol} — skipping", symbol);
             }
             finally
@@ -81,6 +83,25 @@ public class StockScreener(
         });
 
         await Task.WhenAll(tasks);
+
+        var failedCount = failedQuotes.Count;
+        if (failedCount > 0)
+        {
+            // A handful of failures per run is normal noise (delisted tickers,
+            // transient network blips). A large chunk failing together is more
+            // likely a systemic Finnhub problem (rate limiting, outage) quietly
+            // shrinking the candidate pool with no other signal - same concern
+            // ResearchConsumerFunction already surfaces for its own per-symbol
+            // failures via "N of M symbol(s) could not be rescored".
+            var failedPct = (double)failedCount / universe.Count;
+            if (failedPct > 0.2)
+                logger.LogWarning(
+                    "Screener failed to fetch quotes for {Failed} of {Total} universe symbols ({Pct:P0}) — " +
+                    "candidate pool may be smaller than usual this run",
+                    failedCount, universe.Count, failedPct);
+            else
+                logger.LogDebug("Screener failed to fetch quotes for {Failed} of {Total} universe symbols", failedCount, universe.Count);
+        }
 
         // Per-account toggle (Watchlist.TopMoversEnabled on the default
         // AiManaged watchlist), settable from the /watchlists UI - not a
@@ -98,7 +119,7 @@ public class StockScreener(
 
         logger.LogInformation("Screener produced {Count} candidates from {Universe} universe symbols ({TopMovers} top movers)",
             results.Count, universe.Count, results.Count(c => c.IsTopMover));
-        return results;
+        return new ScreenResult(results, universe.Count, failedCount);
     }
 
     // Supplementary candidate source: Finnhub's top gainers/losers/most-active

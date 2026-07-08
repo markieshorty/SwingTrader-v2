@@ -37,7 +37,20 @@ public class WatchlistConsumerFunction(
             var finnhub = await clientFactory.CreateFinnhubAsync<IFinnhubClient>(message.AccountId, ct);
             var claude = await clientFactory.CreateClaudeAsync<IClaudeClient>(message.AccountId, ct);
 
-            var candidates = await screener.ScreenAsync(message.AccountId, finnhub, ct);
+            var screenResult = await screener.ScreenAsync(message.AccountId, finnhub, ct);
+            var candidates = screenResult.Candidates;
+
+            // A large chunk of the universe failing its quote fetch together
+            // (rate limiting, Finnhub outage) quietly shrinks the candidate
+            // pool with no other visible signal - same concern Research
+            // already surfaces via "N of M symbol(s) could not be rescored".
+            if (screenResult.UniverseCount > 0 && screenResult.FailedQuoteCount > screenResult.UniverseCount * 0.2)
+            {
+                await activityLog.LogAsync(message.AccountId, "SystemEvent", "Screener Incomplete", "Warning",
+                    $"{screenResult.FailedQuoteCount} of {screenResult.UniverseCount} universe symbol(s) failed their quote fetch this run " +
+                    "— the candidate pool may be smaller than usual. Check Finnhub rate limits/availability.", ct);
+            }
+
             if (candidates.Count < 10)
             {
                 logger.LogWarning(
