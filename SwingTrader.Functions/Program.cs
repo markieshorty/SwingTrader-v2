@@ -72,7 +72,11 @@ builder.Services.AddScoped<INotificationRecipientRepository, NotificationRecipie
 builder.Services.AddMemoryCache();
 // Separate limiters per provider so a heavy Finnhub run can't eat into the
 // budget Tiingo needs (or vice versa) - see ITiingoRateLimiter/IFinnhubRateLimiter.
-builder.Services.AddSingleton<ITiingoRateLimiter>(_ => new RateLimiter(maxCallsPerMinute: 50));
+// Tiingo's free-tier plan caps at 50 requests/HOUR (confirmed against the
+// account's own usage dashboard) - previously configured as 50/minute, a 60x
+// mismatch that left this limiter not actually protecting against Tiingo's
+// real quota at all.
+builder.Services.AddSingleton<ITiingoRateLimiter>(_ => new RateLimiter(50, TimeSpan.FromHours(1)));
 builder.Services.AddSingleton<IFinnhubRateLimiter>(_ => new RateLimiter(maxCallsPerMinute: 50));
 builder.Services.Configure<ClaudeConfig>(builder.Configuration.GetSection(ClaudeConfig.SectionName));
 builder.Services.Configure<ResearchConfig>(builder.Configuration.GetSection(ResearchConfig.SectionName));
