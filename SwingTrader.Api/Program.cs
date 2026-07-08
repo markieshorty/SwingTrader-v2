@@ -1004,7 +1004,7 @@ api.MapPost("/keys/{provider}", async (
         return Results.BadRequest(new { message = "Value cannot be empty." });
 
     await keys.SaveKeyAsync(ctx.AccountId, provider, req.Value);
-    var isValid = await keys.TestKeyAsync(ctx.AccountId, provider);
+    var testResult = await keys.TestKeyAsync(ctx.AccountId, provider);
 
     // The moment a user's keys satisfy onboarding for the first time, kick
     // off an immediate Watchlist run rather than making them wait until the
@@ -1025,7 +1025,15 @@ api.MapPost("/keys/{provider}", async (
         }
     }
 
-    return Results.Ok(new { valid = isValid });
+    return Results.Ok(new
+    {
+        valid = testResult.Valid,
+        message = testResult.Message,
+        isDemo = testResult.IsDemo,
+        cashTotal = testResult.CashTotal,
+        cashFree = testResult.CashFree,
+        currency = testResult.Currency,
+    });
 });
 
 api.MapGet("/keys/{provider}/test", async (
@@ -1033,8 +1041,16 @@ api.MapGet("/keys/{provider}/test", async (
     IUserKeyService keys,
     IAccountContext ctx) =>
 {
-    var isValid = await keys.TestKeyAsync(ctx.AccountId, provider);
-    return Results.Ok(new { valid = isValid });
+    var result = await keys.TestKeyAsync(ctx.AccountId, provider);
+    return Results.Ok(new
+    {
+        valid = result.Valid,
+        message = result.Message,
+        isDemo = result.IsDemo,
+        cashTotal = result.CashTotal,
+        cashFree = result.CashFree,
+        currency = result.Currency,
+    });
 });
 
 api.MapDelete("/keys/{provider}", async (

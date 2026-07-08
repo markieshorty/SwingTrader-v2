@@ -83,7 +83,12 @@ public class UserHttpClientFactory(
         var account = await accounts.GetAsync(accountId, ct)
             ?? throw new InvalidOperationException($"Account {accountId} not found.");
 
-        var isLive = account.TradingMode == TradingMode.Live;
+        return await CreateTrading212ForModeAsync<TClient>(accountId, account.TradingMode, ct);
+    }
+
+    public async Task<TClient> CreateTrading212ForModeAsync<TClient>(int accountId, TradingMode mode, CancellationToken ct = default)
+    {
+        var isLive = mode == TradingMode.Live;
         var keyProvider = isLive ? ApiKeyProviders.Trading212LiveKey : ApiKeyProviders.Trading212DemoKey;
         var secretProvider = isLive ? ApiKeyProviders.Trading212LiveSecret : ApiKeyProviders.Trading212DemoSecret;
 

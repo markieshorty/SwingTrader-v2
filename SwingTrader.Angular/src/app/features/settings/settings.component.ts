@@ -22,6 +22,7 @@ import {
   AccountMemberDto,
   ApiKeyProvider,
   KeyStatusesDto,
+  KeyTestResult,
   NotificationRecipientDto,
   RiskProfileDto,
   StrategyWeightsDto,
@@ -385,7 +386,7 @@ export class SettingsComponent {
 
     this.api.saveKey(provider, this.keyInput.trim()).subscribe({
       next: (result) => {
-        this.snackbar.open(result.valid ? 'Key saved and verified' : 'Key saved but could not be verified', 'Dismiss', { duration: 4000 });
+        this.snackbar.open(this.keyTestMessage(result), 'Dismiss', { duration: 8000 });
         this.cancelEditing();
         this.loadKeyStatuses();
       },
@@ -396,10 +397,25 @@ export class SettingsComponent {
   testKey(provider: ApiKeyProvider): void {
     this.api.testKey(provider).subscribe({
       next: (result) => {
-        this.snackbar.open(result.valid ? 'Key is valid' : 'Key test failed', 'Dismiss', { duration: 4000 });
+        this.snackbar.open(this.keyTestMessage(result), 'Dismiss', { duration: 8000 });
         this.loadKeyStatuses();
       },
     });
+  }
+
+  // For a verified Trading212 pair, echo the account balance + environment so
+  // the user can confirm the key/secret are correct and not swapped - e.g.
+  // "Connected to Live account (real money) — £5,000.00 total, £1,234.50 free".
+  private keyTestMessage(result: KeyTestResult): string {
+    if (!result.valid) return result.message || 'Key test failed';
+    if (result.cashTotal === null) return result.message || 'Key is valid';
+
+    const ccy = result.currency ?? '';
+    const total = `${ccy}${result.cashTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const free = result.cashFree !== null
+      ? `, ${ccy}${result.cashFree.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} free`
+      : '';
+    return `${result.message} — ${total} total${free}`;
   }
 
   removeKey(provider: ApiKeyProvider): void {

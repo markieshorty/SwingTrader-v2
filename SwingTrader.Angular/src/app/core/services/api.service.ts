@@ -11,6 +11,7 @@ import {
   ApplyResultDto,
   InviteResultDto,
   KeyStatusesDto,
+  KeyTestResult,
   NextRunDto,
   NotificationRecipientDto,
   PortfolioDto,
@@ -180,12 +181,12 @@ export class ApiService {
     return this.http.get<KeyStatusesDto>(`${this.baseUrl}/api/keys`);
   }
 
-  saveKey(provider: string, value: string): Observable<{ valid: boolean }> {
-    return this.http.post<{ valid: boolean }>(`${this.baseUrl}/api/keys/${provider}`, { value });
+  saveKey(provider: string, value: string): Observable<KeyTestResult> {
+    return this.http.post<KeyTestResult>(`${this.baseUrl}/api/keys/${provider}`, { value });
   }
 
-  testKey(provider: string): Observable<{ valid: boolean }> {
-    return this.http.get<{ valid: boolean }>(`${this.baseUrl}/api/keys/${provider}/test`);
+  testKey(provider: string): Observable<KeyTestResult> {
+    return this.http.get<KeyTestResult>(`${this.baseUrl}/api/keys/${provider}/test`);
   }
 
   deleteKey(provider: string): Observable<unknown> {

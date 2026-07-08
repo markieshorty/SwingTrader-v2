@@ -247,6 +247,18 @@ export type ApiKeyProvider =
 
 export type KeyStatusesDto = Record<ApiKeyProvider, KeyStatus>;
 
+// Result of testing a key. For a complete Trading212 pair the extra fields
+// come back from a real account call so the user can confirm the credentials
+// are correct and pointed at the right (demo/live) environment.
+export interface KeyTestResult {
+  valid: boolean;
+  message: string;
+  isDemo: boolean | null;
+  cashTotal: number | null;
+  cashFree: number | null;
+  currency: string | null;
+}
+
 export type TradingMode = 'Demo' | 'Live';
 
 export interface TradingConfigDto {

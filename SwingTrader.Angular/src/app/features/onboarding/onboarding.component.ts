@@ -168,11 +168,22 @@ export class OnboardingComponent {
     if (fieldsToSave.length > 0) {
       this.saving.set(true);
       try {
+        // Saving a key also tests it. When a save completes a Trading212 pair,
+        // the result carries the account balance + environment - surface it so
+        // the user can confirm during signup that the keys are the right way
+        // around and pointed at the intended (demo/live) account.
+        let balanceMessage: string | null = null;
         for (const field of fieldsToSave) {
-          await firstValueFrom(this.api.saveKey(field.key, (this.values[field.key] ?? '').trim()));
+          const result = await firstValueFrom(this.api.saveKey(field.key, (this.values[field.key] ?? '').trim()));
+          if (result.valid && result.cashTotal !== null) {
+            const ccy = result.currency ?? '';
+            const total = `${ccy}${result.cashTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            balanceMessage = `${result.message} — ${total} total`;
+          }
         }
         const updated = await firstValueFrom(this.api.getKeyStatuses());
         this.keyStatuses.set(updated);
+        if (balanceMessage) this.snackbar.open(balanceMessage, 'Dismiss', { duration: 8000 });
       } catch {
         this.snackbar.open('Failed to save — check the key and try again.', 'Dismiss', { duration: 4000 });
         this.saving.set(false);

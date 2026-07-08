@@ -16,13 +16,12 @@ public class UserKeyServiceTests
     private readonly IUserApiKeyRepository _repository = Substitute.For<IUserApiKeyRepository>();
     private readonly IKeyEncryptionService _encryption = Substitute.For<IKeyEncryptionService>();
     private readonly IUserHttpClientFactory _clientFactory = Substitute.For<IUserHttpClientFactory>();
-    private readonly IAccountRepository _accounts = Substitute.For<IAccountRepository>();
     private readonly IConfiguration _config = new ConfigurationBuilder().Build();
     private readonly UserKeyService _sut;
 
     public UserKeyServiceTests()
     {
-        _sut = new UserKeyService(_repository, _encryption, _clientFactory, _accounts, _config);
+        _sut = new UserKeyService(_repository, _encryption, _clientFactory, _config);
     }
 
     [Fact]
@@ -138,7 +137,7 @@ public class UserKeyServiceTests
 
         var result = await _sut.TestKeyAsync(1, ApiKeyProviders.Finnhub);
 
-        result.Should().BeTrue();
+        result.Valid.Should().BeTrue();
         stored.IsValid.Should().BeTrue();
     }
 
@@ -152,7 +151,7 @@ public class UserKeyServiceTests
 
         var result = await _sut.TestKeyAsync(1, ApiKeyProviders.Finnhub);
 
-        result.Should().BeFalse();
+        result.Valid.Should().BeFalse();
         stored.IsValid.Should().BeFalse();
         stored.LastTestResult.Should().Contain("Connection failed");
     }
@@ -167,7 +166,32 @@ public class UserKeyServiceTests
 
         var result = await _sut.TestKeyAsync(1, ApiKeyProviders.Trading212DemoKey);
 
-        result.Should().BeTrue();
-        await _clientFactory.DidNotReceive().CreateTrading212Async<ITrading212Client>(Arg.Any<int>(), Arg.Any<CancellationToken>());
+        result.Valid.Should().BeTrue();
+        result.CashTotal.Should().BeNull(); // decrypt-only: no live call, no balance
+        await _clientFactory.DidNotReceive().CreateTrading212ForModeAsync<ITrading212Client>(Arg.Any<int>(), Arg.Any<TradingMode>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task TestKeyAsync_Trading212CompleteLivePair_ReturnsBalanceAndLiveFlag()
+    {
+        var keyRow = new UserApiKey { AccountId = 1, Provider = ApiKeyProviders.Trading212LiveKey };
+        _repository.GetAsync(1, ApiKeyProviders.Trading212LiveKey, Arg.Any<CancellationToken>()).Returns(keyRow);
+        _repository.GetAsync(1, ApiKeyProviders.Trading212LiveSecret, Arg.Any<CancellationToken>())
+            .Returns(new UserApiKey { AccountId = 1, Provider = ApiKeyProviders.Trading212LiveSecret });
+
+        var t212 = Substitute.For<ITrading212Client>();
+        t212.GetAccountCashAsync().Returns(new AccountCashResponse(Free: 1234.50m, Total: 5000m, Blocked: 0, Invested: 3765.50m, Ppl: 0, Result: 0, PieCash: 0));
+        t212.GetAccountInfoAsync().Returns(new T212AccountInfo(42, "LIVE", "GBP"));
+        // Live pair tests against the Live host regardless of the account's mode.
+        _clientFactory.CreateTrading212ForModeAsync<ITrading212Client>(1, TradingMode.Live, Arg.Any<CancellationToken>()).Returns(t212);
+
+        var result = await _sut.TestKeyAsync(1, ApiKeyProviders.Trading212LiveKey);
+
+        result.Valid.Should().BeTrue();
+        result.IsDemo.Should().BeFalse();
+        result.CashTotal.Should().Be(5000m);
+        result.CashFree.Should().Be(1234.50m);
+        result.Currency.Should().Be("GBP");
+        keyRow.IsValid.Should().BeTrue();
     }
 }
