@@ -1,6 +1,9 @@
 namespace SwingTrader.Infrastructure.RateLimiting;
 
-public class RateLimiter : IRateLimiter
+// One concrete implementation registered separately per provider (see
+// ITiingoRateLimiter/IFinnhubRateLimiter) - each DI registration constructs
+// its own instance, so the two providers never share a semaphore/bucket.
+public class RateLimiter : ITiingoRateLimiter, IFinnhubRateLimiter
 {
     private readonly SemaphoreSlim _semaphore = new(5, 5);
     private readonly int _minDelayMs;

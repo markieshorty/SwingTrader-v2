@@ -16,7 +16,7 @@ namespace SwingTrader.Tests;
 
 public class StockScreenerTests
 {
-    private readonly IRateLimiter _rateLimiter = Substitute.For<IRateLimiter>();
+    private readonly IFinnhubRateLimiter _rateLimiter = Substitute.For<IFinnhubRateLimiter>();
     private readonly IWatchlistRepository _watchlist = Substitute.For<IWatchlistRepository>();
     private readonly ITradeRepository _trades = Substitute.For<ITradeRepository>();
     private readonly IMarketUniverseService _universe = Substitute.For<IMarketUniverseService>();

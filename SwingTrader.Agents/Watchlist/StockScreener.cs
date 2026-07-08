@@ -10,7 +10,7 @@ using SwingTrader.Infrastructure.RateLimiting;
 namespace SwingTrader.Agents.Watchlist;
 
 public class StockScreener(
-    IRateLimiter rateLimiter,
+    IFinnhubRateLimiter rateLimiter,
     IWatchlistRepository watchlist,
     ITradeRepository trades,
     IMarketUniverseService universeService,

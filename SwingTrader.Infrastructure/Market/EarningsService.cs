@@ -10,7 +10,7 @@ using SwingTrader.Infrastructure.RateLimiting;
 namespace SwingTrader.Infrastructure.Market;
 
 public class EarningsService(
-    IRateLimiter rateLimiter,
+    IFinnhubRateLimiter rateLimiter,
     IMemoryCache cache,
     IOptions<EarningsConfig> config,
     ILogger<EarningsService> logger) : IEarningsService

@@ -33,7 +33,8 @@ public class ResearchPipeline(
     IMarketRegimeService marketRegimeService,
     IFundamentalDataService fundamentalDataService,
     IFundamentalScoringService fundamentalScoringService,
-    IRateLimiter rateLimiter,
+    ITiingoRateLimiter tiingoRateLimiter,
+    IFinnhubRateLimiter finnhubRateLimiter,
     IOptions<ClaudeConfig> claudeConfig,
     IOptions<ResearchConfig> researchConfig,
     IOptions<EarningsConfig> earningsConfig,
@@ -183,7 +184,7 @@ public class ResearchPipeline(
         List<TiingoDailyPrice> prices;
         try
         {
-            await rateLimiter.WaitAsync(ct);
+            await tiingoRateLimiter.WaitAsync(ct);
             prices = await tiingo.GetDailyPricesAsync(
                 symbol,
                 from.ToString("yyyy-MM-dd"),
@@ -239,7 +240,7 @@ public class ResearchPipeline(
         List<FinnhubNewsItem> news;
         try
         {
-            await rateLimiter.WaitAsync(ct);
+            await finnhubRateLimiter.WaitAsync(ct);
             news = await finnhub.GetCompanyNewsAsync(
                 symbol, from.ToString("yyyy-MM-dd"), to.ToString("yyyy-MM-dd"));
         }

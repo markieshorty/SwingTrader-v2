@@ -70,7 +70,10 @@ builder.Services.AddScoped<ISystemChecklistRepository, SystemChecklistRepository
 builder.Services.AddScoped<INotificationRecipientRepository, NotificationRecipientRepository>();
 
 builder.Services.AddMemoryCache();
-builder.Services.AddSingleton<IRateLimiter>(_ => new RateLimiter(maxCallsPerMinute: 50));
+// Separate limiters per provider so a heavy Finnhub run can't eat into the
+// budget Tiingo needs (or vice versa) - see ITiingoRateLimiter/IFinnhubRateLimiter.
+builder.Services.AddSingleton<ITiingoRateLimiter>(_ => new RateLimiter(maxCallsPerMinute: 50));
+builder.Services.AddSingleton<IFinnhubRateLimiter>(_ => new RateLimiter(maxCallsPerMinute: 50));
 builder.Services.Configure<ClaudeConfig>(builder.Configuration.GetSection(ClaudeConfig.SectionName));
 builder.Services.Configure<ResearchConfig>(builder.Configuration.GetSection(ResearchConfig.SectionName));
 builder.Services.Configure<EarningsConfig>(builder.Configuration.GetSection(EarningsConfig.SectionName));

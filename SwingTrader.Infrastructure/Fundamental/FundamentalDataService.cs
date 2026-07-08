@@ -10,7 +10,7 @@ using SwingTrader.Infrastructure.RateLimiting;
 namespace SwingTrader.Infrastructure.Fundamental;
 
 public class FundamentalDataService(
-    IRateLimiter rateLimiter,
+    IFinnhubRateLimiter rateLimiter,
     IMemoryCache cache,
     IOptions<FundamentalConfig> config,
     ILogger<FundamentalDataService> logger) : IFundamentalDataService
