@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using SwingTrader.Core.Constants;
 using SwingTrader.Core.Enums;
 using SwingTrader.Data;
 using SwingTrader.Data.Repositories;
@@ -50,13 +51,17 @@ public class WatchlistRepositoryTests
         await using var db = CreateDb();
         var repo = new WatchlistRepository(db);
         await repo.SeedDefaultAsync(1); // 1 enabled already (default)
-        var w2 = await repo.CreateWatchlistAsync(1, "W2", WatchlistType.Manual, null);
-        var w3 = await repo.CreateWatchlistAsync(1, "W3", WatchlistType.Manual, null);
-        var w4 = await repo.CreateWatchlistAsync(1, "W4", WatchlistType.Manual, null);
-        await repo.EnableWatchlistAsync(1, w2.Id);
-        await repo.EnableWatchlistAsync(1, w3.Id); // now 3 enabled (default + w2 + w3)
 
-        var act = async () => await repo.EnableWatchlistAsync(1, w4.Id);
+        // Enable 9 more (10 total, at cap) - each on its own disabled watchlist
+        // so they never approach the total-symbol union cap.
+        for (var i = 0; i < WatchlistLimits.MaxEnabledWatchlists - 1; i++)
+        {
+            var w = await repo.CreateWatchlistAsync(1, $"W{i}", WatchlistType.Manual, null);
+            await repo.EnableWatchlistAsync(1, w.Id);
+        }
+
+        var over = await repo.CreateWatchlistAsync(1, "Over", WatchlistType.Manual, null);
+        var act = async () => await repo.EnableWatchlistAsync(1, over.Id);
 
         await act.Should().ThrowAsync<ValidationException>();
     }

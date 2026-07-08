@@ -15,7 +15,7 @@ import { ApiService } from '../../core/services/api.service';
 import { WatchlistDto, WatchlistType } from '../../core/models/dtos';
 import { errorMessage } from '../../shared/utils/error-message.util';
 
-const MAX_ENABLED_WATCHLISTS = 3;
+const MAX_ENABLED_WATCHLISTS = 10;
 const MAX_SYMBOLS_PER_WATCHLIST = 50;
 const MAX_TOTAL_ENABLED_SYMBOLS = 100;
 
