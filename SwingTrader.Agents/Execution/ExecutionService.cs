@@ -64,8 +64,18 @@ public class ExecutionService(
         var riskProfile = await riskProfileRepo.GetAsync(accountId, ct);
 
         // Step 2 — load eligible signals
+        // Excludes symbols closed earlier today (by ClosedAt, not signal.WasExecuted
+        // alone) - a same-day re-enqueue after an exit frees capital (see
+        // PositionExitService.ReenqueueExecutionIfDoneForTodayAsync) would otherwise
+        // immediately re-buy the exact symbol just sold if its signal is still
+        // sitting there approved. Resets naturally the next day - a fresh Research
+        // run is free to re-recommend the same symbol tomorrow.
+        var closedTodaySymbols = (await tradeRepo.GetClosedOnDateAsync(accountId, date))
+            .Select(t => t.Symbol)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         var allSignals = (await signalRepo.GetByDateAsync(accountId, date))
-            .Where(s => s.Recommendation == Recommendation.Buy && !s.WasExecuted)
+            .Where(s => s.Recommendation == Recommendation.Buy && !s.WasExecuted && !closedTodaySymbols.Contains(s.Symbol))
             .OrderByDescending(s => s.ConvictionScore)
             .ToList();
 

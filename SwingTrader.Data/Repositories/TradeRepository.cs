@@ -30,6 +30,16 @@ public class TradeRepository(SwingTraderDbContext context) : ITradeRepository
             .OrderByDescending(x => x.OpenedAt)
             .ToListAsync();
 
+    public async Task<IEnumerable<Trade>> GetClosedOnDateAsync(int accountId, DateOnly date)
+    {
+        var start = date.ToDateTime(TimeOnly.MinValue);
+        var end = start.AddDays(1);
+        return await context.Trades
+            .Where(x => x.AccountId == accountId && x.Status == TradeStatus.Closed
+                && x.ClosedAt != null && x.ClosedAt >= start && x.ClosedAt < end)
+            .ToListAsync();
+    }
+
     public async Task<IEnumerable<Trade>> GetUnreconciledOrdersAsync(int accountId) =>
         await context.Trades
             .Where(x => x.AccountId == accountId &&
