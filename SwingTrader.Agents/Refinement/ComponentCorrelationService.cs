@@ -14,10 +14,18 @@ public class ComponentCorrelationService : IComponentCorrelationService
         ("SetupQuality", s => s.SetupQualityScore, w => w.SetupQualityWeight),
         ("RelativeStrength", s => s.RelativeStrengthScore, w => w.RelativeStrengthWeight),
         ("PriceLevel", s => s.PriceLevelScore, w => w.PriceLevelWeight),
+        // Was missing from this list while still carrying weight in
+        // StrategyWeights - the 7 analysed weights got normalised to sum to
+        // 1.0 on their own, leaving the total at 1.10 once the untouched
+        // FundamentalMomentum default was added back, which
+        // StrategyWeights.Validate() rejects - so applying ANY suggestion
+        // threw. It also meant fundamental momentum was the one component
+        // whose predictive value was never evaluated.
+        ("FundamentalMomentum", s => s.FundamentalMomentumScore, w => w.FundamentalMomentumWeight),
     ];
 
     public CorrelationAnalysisResult Analyse(
-        IReadOnlyList<(StockSignal Signal, bool IsWinner)> scoredTrades,
+        IReadOnlyList<(StockSignal Signal, decimal ReturnPct)> scoredTrades,
         StrategyWeights currentWeights,
         decimal maxAdjustmentPerCycle)
     {
@@ -27,9 +35,9 @@ public class ComponentCorrelationService : IComponentCorrelationService
         foreach (var (name, selector, weightSelector) in Components)
         {
             var pairs = scoredTrades
-                .Select(t => (Score: selector(t.Signal), t.IsWinner))
+                .Select(t => (Score: selector(t.Signal), t.ReturnPct))
                 .Where(p => p.Score.HasValue)
-                .Select(p => (Score: p.Score!.Value, p.IsWinner))
+                .Select(p => (Score: p.Score!.Value, p.ReturnPct))
                 .ToList();
 
             var currentWeight = weightSelector(currentWeights);
@@ -42,30 +50,49 @@ public class ComponentCorrelationService : IComponentCorrelationService
                 continue;
             }
 
-            var winnerScores = pairs.Where(p => p.IsWinner).Select(p => p.Score).ToList();
-            var loserScores = pairs.Where(p => !p.IsWinner).Select(p => p.Score).ToList();
+            var winnerScores = pairs.Where(p => p.ReturnPct > 0m).Select(p => p.Score).ToList();
+            var loserScores = pairs.Where(p => p.ReturnPct <= 0m).Select(p => p.Score).ToList();
             var winnerAvg = winnerScores.Count > 0 ? winnerScores.Average() : 0m;
             var loserAvg = loserScores.Count > 0 ? loserScores.Average() : 0m;
 
-            var correlation = PointBiserialCorrelation(pairs);
+            // Pearson r between the component score and the trade's
+            // market-adjusted return - using return magnitude rather than a
+            // binary win/loss means a component that predicts frequent small
+            // wins but occasional large losses is penalised, not rewarded.
+            var correlation = PearsonCorrelation(pairs);
 
-            // Blend: raw-correlation-implied weight (normalised 0..1 from correlation strength,
-            // preserving sign via magnitude only — a component contributes proportional to
-            // |correlation|) 50/50 with the existing weight, then cap the per-cycle delta.
-            var correlationImpliedWeight = Math.Abs(correlation);
+            // Weights only ever *add* conviction, so the direction matters:
+            // positive correlation pulls the weight toward |r|, but a
+            // negatively correlated component (high score predicts losses)
+            // must shrink toward zero, not get boosted by its magnitude -
+            // Math.Abs here previously rewarded anti-predictive components in
+            // proportion to how reliably wrong they were.
+            var correlationImpliedWeight = Math.Max(0m, correlation);
             var blended = (currentWeight * 0.5m) + (correlationImpliedWeight * 0.5m);
             var delta = blended - currentWeight;
             var cappedDelta = Math.Clamp(delta, -maxAdjustmentPerCycle, maxAdjustmentPerCycle);
+
+            // Significance gate: with n samples the standard error of r is
+            // roughly 1/sqrt(n), so anything inside ~2 standard errors is
+            // statistically indistinguishable from zero. Adjusting on it
+            // anyway made the weights random-walk on noise every cycle
+            // (at the minimum sample of 20 that gated nothing below |r|=0.45,
+            // yet deltas still applied for r as low as 0.02).
+            var significanceThreshold = 2m / (decimal)Math.Sqrt(pairs.Count);
+            var isSignificant = Math.Abs(correlation) >= significanceThreshold;
+            if (!isSignificant)
+                cappedDelta = 0m;
+
             var suggested = Math.Max(0m, currentWeight + cappedDelta);
 
             rawWeights[name] = suggested;
 
-            var reasoning = BuildReasoning(name, correlation, winnerAvg, loserAvg, cappedDelta);
+            var reasoning = BuildReasoning(name, correlation, winnerAvg, loserAvg, cappedDelta, isSignificant, pairs.Count);
             findings.Add(new ComponentFinding(name, currentWeight, winnerAvg, loserAvg, correlation,
                 suggested, cappedDelta, reasoning));
         }
 
-        // Normalise so the 7 suggested weights sum to 1.0
+        // Normalise so all 8 suggested weights sum to 1.0
         var total = rawWeights.Values.Sum();
         var normalised = total > 0
             ? rawWeights.ToDictionary(kv => kv.Key, kv => kv.Value / total)
@@ -80,6 +107,7 @@ public class ComponentCorrelationService : IComponentCorrelationService
             SetupQualityWeight = Round(normalised["SetupQuality"]),
             RelativeStrengthWeight = Round(normalised["RelativeStrength"]),
             PriceLevelWeight = Round(normalised["PriceLevel"]),
+            FundamentalMomentumWeight = Round(normalised["FundamentalMomentum"]),
             BuyThreshold = currentWeights.BuyThreshold,
             WatchThreshold = currentWeights.WatchThreshold,
             StopLossPctDefault = currentWeights.StopLossPctDefault,
@@ -101,6 +129,7 @@ public class ComponentCorrelationService : IComponentCorrelationService
                 "SetupQuality" => suggestedWeights.SetupQualityWeight,
                 "RelativeStrength" => suggestedWeights.RelativeStrengthWeight,
                 "PriceLevel" => suggestedWeights.PriceLevelWeight,
+                "FundamentalMomentum" => suggestedWeights.FundamentalMomentumWeight,
                 _ => f.SuggestedWeight
             };
             return f with { SuggestedWeight = finalWeight, WeightDelta = finalWeight - f.CurrentWeight };
@@ -177,7 +206,7 @@ public class ComponentCorrelationService : IComponentCorrelationService
                 continue;
             }
 
-            var pairs = group.Select(t => (t.Signal, t.IsWinner)).ToList();
+            var pairs = group.Select(t => (t.Signal, ReturnPct: MarketAdjustedReturnPct(t))).ToList();
             var subAnalysis = Analyse(pairs, currentWeights, maxAdjustmentPerCycle);
 
             regimeBreakdown[group.Key] = new RegimeAnalysis(
@@ -194,47 +223,51 @@ public class ComponentCorrelationService : IComponentCorrelationService
     private static void FixRoundingDrift(StrategyWeights w)
     {
         var total = w.RsiWeight + w.MacdWeight + w.VolumeWeight + w.SentimentWeight +
-                    w.SetupQualityWeight + w.RelativeStrengthWeight + w.PriceLevelWeight;
+                    w.SetupQualityWeight + w.RelativeStrengthWeight + w.PriceLevelWeight +
+                    w.FundamentalMomentumWeight;
         var drift = 1.0m - total;
         if (Math.Abs(drift) < 0.0001m) return;
         w.VolumeWeight = Math.Round(w.VolumeWeight + drift, 4);
     }
 
-    private static string BuildReasoning(string name, decimal correlation, decimal winnerAvg, decimal loserAvg, decimal delta)
+    private static string BuildReasoning(string name, decimal correlation, decimal winnerAvg, decimal loserAvg, decimal delta, bool isSignificant, int sampleSize)
     {
+        if (!isSignificant)
+            return $"{name} correlation with returns (r={correlation:F2}) is not statistically " +
+                   $"distinguishable from zero at n={sampleSize} — weight held steady.";
+
         var direction = delta > 0 ? "increased" : delta < 0 ? "decreased" : "held steady";
         var strength = Math.Abs(correlation) switch
         {
             >= 0.5m => "strong",
             >= 0.3m => "moderate",
-            >= 0.1m => "weak",
-            _ => "negligible"
+            _ => "weak"
         };
-        return $"{name} shows {strength} correlation with winning trades (r={correlation:F2}; " +
+        var sign = correlation >= 0 ? "positive" : "negative";
+        return $"{name} shows {strength} {sign} correlation with market-adjusted returns (r={correlation:F2}; " +
                $"winners avg {winnerAvg:F2} vs losers avg {loserAvg:F2}) — weight {direction} by {Math.Abs(delta):F3}.";
     }
 
-    // Point-biserial correlation between a continuous score and a binary outcome (winner=1/loser=0).
-    private static decimal PointBiserialCorrelation(List<(decimal Score, bool IsWinner)> pairs)
+    // Pearson correlation between a component score and the trade's market-adjusted return %.
+    private static decimal PearsonCorrelation(List<(decimal Score, decimal ReturnPct)> pairs)
     {
         var n = pairs.Count;
-        var winners = pairs.Where(p => p.IsWinner).Select(p => p.Score).ToList();
-        var losers = pairs.Where(p => !p.IsWinner).Select(p => p.Score).ToList();
-        if (winners.Count == 0 || losers.Count == 0) return 0m;
+        var meanScore = pairs.Average(p => p.Score);
+        var meanReturn = pairs.Average(p => p.ReturnPct);
 
-        var meanWinners = winners.Average();
-        var meanLosers = losers.Average();
-        var allScores = pairs.Select(p => p.Score).ToList();
-        var mean = allScores.Average();
-        var variance = allScores.Sum(s => (s - mean) * (s - mean)) / n;
-        var stdDev = (decimal)Math.Sqrt((double)variance);
-        if (stdDev == 0m) return 0m;
+        decimal covariance = 0m, scoreVar = 0m, returnVar = 0m;
+        foreach (var (score, ret) in pairs)
+        {
+            var ds = score - meanScore;
+            var dr = ret - meanReturn;
+            covariance += ds * dr;
+            scoreVar += ds * ds;
+            returnVar += dr * dr;
+        }
 
-        var p = (decimal)winners.Count / n;
-        var q = (decimal)losers.Count / n;
-        var pq = (decimal)Math.Sqrt((double)(p * q));
+        if (scoreVar == 0m || returnVar == 0m) return 0m;
 
-        var r = (meanWinners - meanLosers) / stdDev * pq;
+        var r = covariance / ((decimal)Math.Sqrt((double)scoreVar) * (decimal)Math.Sqrt((double)returnVar));
         return Math.Clamp(r, -1m, 1m);
     }
 }

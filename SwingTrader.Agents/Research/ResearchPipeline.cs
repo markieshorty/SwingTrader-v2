@@ -256,7 +256,10 @@ public class ResearchPipeline(
         return result;
     }
 
-    private async Task<(decimal score, string summary)> FetchAndScoreSentimentAsync(
+    // Null score = "couldn't assess" (fetch/Claude failure) - distinct from a
+    // genuine 0.0 neutral so the stored component score stays honest for the
+    // Refinement agent's correlations. "No news" IS a genuine neutral.
+    private async Task<(decimal? score, string summary)> FetchAndScoreSentimentAsync(
         IFinnhubClient finnhub, IClaudeClient claude, string symbol, CancellationToken ct)
     {
         var cfg = researchConfig.Value;
@@ -273,7 +276,7 @@ public class ResearchPipeline(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to fetch news for {Symbol}", symbol);
-            return (0.0m, "News fetch failed.");
+            return (null, "News fetch failed.");
         }
 
         if (news.Count == 0)
@@ -326,8 +329,8 @@ public class ResearchPipeline(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Claude sentiment analysis failed for {Symbol} — defaulting to 0.0", symbol);
-            return (0.0m, "Sentiment analysis unavailable.");
+            logger.LogWarning(ex, "Claude sentiment analysis failed for {Symbol} — treating as unavailable", symbol);
+            return (null, "Sentiment analysis unavailable.");
         }
     }
 
@@ -374,7 +377,7 @@ public class ResearchPipeline(
     // Thin orchestration: fetch component values, score them via ConvictionScorer, return.
     // No scoring logic lives here — see ConvictionScorer.cs.
     private static ComponentScores ScoreComponents(
-        IndicatorResult ind, decimal sentimentScore, SetupType setup, decimal? previousHistogram) =>
+        IndicatorResult ind, decimal? sentimentScore, SetupType setup, decimal? previousHistogram) =>
         new(
             Rsi: ConvictionScorer.ScoreRsi(ind.Rsi14),
             Macd: ConvictionScorer.ScoreMacd(ind.MacdHistogram, previousHistogram),
@@ -437,7 +440,7 @@ public class ResearchPipeline(
 
     private async Task<StockSignal> PersistSignalAsync(
         int accountId, string symbol, StockCandle latest, IndicatorResult ind,
-        decimal sentimentScore, string newsSummary,
+        decimal? sentimentScore, string newsSummary,
         SetupType setupType, decimal conviction, Recommendation recommendation,
         ComponentScores componentScores, MarketRegime? currentRegime, EarningsContext? earningsCtx,
         RelativeStrengthResult? rs = null,
@@ -477,10 +480,14 @@ public class ResearchPipeline(
         // live (WDAY got bought twice same day this way).
         signal.MarketRegimeAtSignal = currentRegime;
 
-        signal.RsiScore = componentScores.Rsi;
-        signal.MacdScore = componentScores.Macd;
-        signal.VolumeScore = componentScores.Volume;
-        signal.SentimentComponentScore = componentScores.Sentiment;
+        // Store null (not the synthetic neutral 0.5 the scorers substitute
+        // into the conviction blend) whenever the underlying input was
+        // unavailable - a stored fake 0.5 is indistinguishable from a genuine
+        // one and pollutes the Refinement agent's score/outcome correlations.
+        signal.RsiScore = ind.Rsi14 is null ? null : componentScores.Rsi;
+        signal.MacdScore = ind.MacdHistogram is null ? null : componentScores.Macd;
+        signal.VolumeScore = ind.VolumeRatio is null ? null : componentScores.Volume;
+        signal.SentimentComponentScore = sentimentScore is null ? null : componentScores.Sentiment;
         signal.SetupQualityScore = componentScores.Setup;
 
         if (rs is not null)
@@ -504,7 +511,11 @@ public class ResearchPipeline(
 
         if (priceLevel is not null)
         {
-            signal.PriceLevelScore = priceLevel.Score;
+            // InsufficientData returns a synthetic 0.5 for the conviction
+            // blend - don't persist that as if it were a computed score.
+            signal.PriceLevelScore = priceLevel.Context == PriceLevelContext.InsufficientData
+                ? null
+                : priceLevel.Score;
             signal.PriceLevelContext = priceLevel.Context;
             signal.NearestSupport = priceLevel.NearestSupport;
             signal.NearestResistance = priceLevel.NearestResistance;

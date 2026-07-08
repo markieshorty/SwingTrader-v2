@@ -16,8 +16,13 @@ public record RegimeCorrelationResult(
 
 public interface IComponentCorrelationService
 {
+    // ReturnPct is the trade's market-adjusted return (% vs SPY over the hold,
+    // falling back to raw P&L% for trades that predate SPY-return capture) -
+    // correlating against it rather than a binary win/loss means a component
+    // that predicts frequent small wins but rare large losses scores badly,
+    // as it should.
     CorrelationAnalysisResult Analyse(
-        IReadOnlyList<(StockSignal Signal, bool IsWinner)> scoredTrades,
+        IReadOnlyList<(StockSignal Signal, decimal ReturnPct)> scoredTrades,
         StrategyWeights currentWeights,
         decimal maxAdjustmentPerCycle);
 

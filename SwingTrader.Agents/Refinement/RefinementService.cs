@@ -59,7 +59,18 @@ public class RefinementService(
             if (signal is null) continue;
             matched.Add((trade, signal, trade.RealizedPnl > 0m));
         }
-        var scoredTrades = matched.Select(m => (m.Signal, m.IsWinner)).ToList();
+
+        // Outcome = market-adjusted return % (falls back to raw P&L% for
+        // trades that predate SPY-return capture) - see IComponentCorrelationService.
+        var scoredTrades = matched.Select(m =>
+        {
+            var cost = m.Trade.EntryPrice * m.Trade.Quantity;
+            var rawPct = cost == 0m ? 0m : m.Trade.RealizedPnl!.Value / cost * 100m;
+            var returnPct = m.Trade.SpyReturnDuringTrade.HasValue
+                ? rawPct - m.Trade.SpyReturnDuringTrade.Value
+                : rawPct;
+            return (m.Signal, ReturnPct: returnPct);
+        }).ToList();
 
         if (scoredTrades.Count < cfg.MinCorrelationSampleSize)
         {

@@ -12,5 +12,10 @@ public record RelativeStrengthResult(
 
 public interface IRelativeStrengthService
 {
-    Task<RelativeStrengthResult> CalculateAsync(ITiingoClient tiingo, string symbol, CancellationToken ct);
+    // Returns null when relative strength can't be computed (insufficient
+    // candles, ETF fetch failure) rather than a synthetic neutral 0.5 - a
+    // fake score stored on the signal is indistinguishable from a genuine
+    // 0.5 and pollutes the Refinement agent's score/outcome correlations.
+    // Callers treat null as neutral for conviction purposes.
+    Task<RelativeStrengthResult?> CalculateAsync(ITiingoClient tiingo, string symbol, CancellationToken ct);
 }

@@ -10,10 +10,10 @@ public class RelativeStrengthService(
     IMemoryCache cache,
     ILogger<RelativeStrengthService> logger) : IRelativeStrengthService
 {
-    private static readonly RelativeStrengthResult Neutral =
-        new("SPY", 0m, 0m, 0m, 0.5m, "Relative strength unavailable");
-
-    public async Task<RelativeStrengthResult> CalculateAsync(ITiingoClient tiingo, string symbol, CancellationToken ct)
+    // Null = "couldn't compute" (see IRelativeStrengthService) - previously a
+    // synthetic neutral 0.5 result, which got persisted on the signal and
+    // polluted Refinement's score/outcome correlations with fake data points.
+    public async Task<RelativeStrengthResult?> CalculateAsync(ITiingoClient tiingo, string symbol, CancellationToken ct)
     {
         try
         {
@@ -25,7 +25,7 @@ public class RelativeStrengthService(
             if (stockCandles.Count < 5)
             {
                 logger.LogWarning("Insufficient candles for {Symbol} to calculate relative strength", symbol);
-                return Neutral with { SectorEtf = SectorEtfMap.GetEtf(symbol) };
+                return null;
             }
 
             var stockFrom = stockCandles[^5].Close;
@@ -33,7 +33,11 @@ public class RelativeStrengthService(
             var stockReturn5d = (stockTo - stockFrom) / stockFrom * 100m;
 
             var etf = SectorEtfMap.GetEtf(symbol);
-            var cacheKey = $"etf_candles_{etf}";
+
+            // Date in the key so the cached window can never lag a day behind
+            // the fresh stock candles it's compared against - a 24h TTL alone
+            // let the two 5-day windows be offset by one trading day.
+            var cacheKey = $"etf_candles_{etf}_{DateTime.UtcNow:yyyyMMdd}";
 
             if (!cache.TryGetValue(cacheKey, out List<decimal>? etfCloses) || etfCloses is null)
             {
@@ -47,7 +51,7 @@ public class RelativeStrengthService(
             if (etfCloses.Count < 5)
             {
                 logger.LogWarning("Insufficient ETF candles for {Etf} to calculate relative strength", etf);
-                return Neutral with { SectorEtf = etf };
+                return null;
             }
 
             var etfFrom = etfCloses[^5];
@@ -69,8 +73,8 @@ public class RelativeStrengthService(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Relative strength calculation failed for {Symbol} — using neutral fallback", symbol);
-            return Neutral with { SectorEtf = SectorEtfMap.GetEtf(symbol) };
+            logger.LogWarning(ex, "Relative strength calculation failed for {Symbol} — treating as unavailable", symbol);
+            return null;
         }
     }
 

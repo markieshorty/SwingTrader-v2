@@ -53,6 +53,10 @@ public class ApplyRefinementService(
             SetupQualityWeight = suggested.SetupQualityWeight,
             RelativeStrengthWeight = suggested.RelativeStrengthWeight,
             PriceLevelWeight = suggested.PriceLevelWeight,
+            // Omitting this left it at the class default (0.10) while the
+            // other 8 were copied from a set normalised to sum to 1.0 -
+            // Validate() then rejected every apply.
+            FundamentalMomentumWeight = suggested.FundamentalMomentumWeight,
             BuyThreshold = suggested.BuyThreshold,
             WatchThreshold = suggested.WatchThreshold,
             StopLossPctDefault = suggested.StopLossPctDefault,
