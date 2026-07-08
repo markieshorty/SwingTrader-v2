@@ -463,7 +463,14 @@ public class ResearchPipeline(
         signal.SetupType = setupType;
         signal.ConvictionScore = conviction;
         signal.Recommendation = recommendation;
-        signal.WasExecuted = false;
+        // WasExecuted is deliberately left untouched here - signal is either
+        // `existing` (already reflects whatever's in the DB - true if
+        // ExecutionService already placed a trade off it today) or a brand
+        // new StockSignal (defaults to false). Previously this unconditionally
+        // reset it to false on every rescoring, so a long-running Research
+        // pass reprocessing a symbol later the same day it was already bought
+        // would silently make Execution eligible to buy it again - confirmed
+        // live (WDAY got bought twice same day this way).
         signal.MarketRegimeAtSignal = currentRegime;
 
         signal.RsiScore = componentScores.Rsi;

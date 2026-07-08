@@ -54,7 +54,13 @@ public class SignalRepository(SwingTraderDbContext context) : ISignalRepository
         existing.EarningsSetupType = signal.EarningsSetupType;
         existing.DaysUntilEarnings = signal.DaysUntilEarnings;
         existing.Reasoning = signal.Reasoning;
-        existing.WasExecuted = signal.WasExecuted;
+        // WasExecuted is deliberately NOT copied from the incoming signal -
+        // callers (Research's earnings-gate short-circuit) always construct
+        // a brand-new StockSignal with WasExecuted defaulted to false, which
+        // would otherwise silently clear an existing "already bought today"
+        // flag the moment that symbol gets rescored later the same day.
+        // WasExecuted can only be legitimately set by ExecutionService's own
+        // direct UpdateAsync call after actually placing a trade.
         await UpdateAsync(existing);
         return existing;
     }
