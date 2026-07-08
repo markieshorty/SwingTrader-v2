@@ -13,6 +13,7 @@ namespace SwingTrader.Agents.Monitor;
 
 public class PositionExitService(
     ITradeRepository tradeRepo,
+    IJobLogRepository jobLog,
     INotificationRecipientRepository recipients,
     IEmailService emailService,
     IMemoryCache cache,
@@ -20,6 +21,8 @@ public class PositionExitService(
     ILogger<PositionExitService> logger) : IPositionExitService
 {
     private readonly ExecutionConfig _execution = executionConfig.Value;
+    private static readonly TimeZoneInfo EasternTimeZone =
+        TimeZoneInfo.FindSystemTimeZoneById(OperatingSystem.IsWindows() ? "Eastern Standard Time" : "America/New_York");
 
     public async Task<PositionExitResult> ClosePositionAsync(
         int accountId,
@@ -78,6 +81,7 @@ public class PositionExitService(
             await tradeRepo.UpdateAsync(trade);
 
             await SendExitNotificationAsync(accountId, trade, currentPrice, realizedPnl, label, reasonDetail);
+            await ReenqueueExecutionIfDoneForTodayAsync(accountId, ct);
 
             return new PositionExitResult(true, null, currentPrice, realizedPnl);
         }
@@ -85,6 +89,39 @@ public class PositionExitService(
         {
             logger.LogError(ex, "{Label} order failed for {Symbol} ({Ticker}), account {AccountId} — will retry next cycle", label, trade.Symbol, ticker, accountId);
             return new PositionExitResult(false, ex.Message, null, null);
+        }
+    }
+
+    // A sell frees up capital - if today's Execution job already ran and
+    // completed (or gave up as Failed) before this exit happened, that
+    // capital would otherwise sit unused until tomorrow's run rather than
+    // funding an approved Buy signal the same day. Deleting today's JobLog
+    // row makes SchedulerFunction.TryEnqueueAsync treat Execution as
+    // not-yet-run, so its next 5-minute tick (while still inside Execution's
+    // 9:20-15:55 ET window) re-enqueues it - the same re-enqueue mechanism
+    // already used for late trade approvals. Left alone if Execution is
+    // still Enqueued/Processing, to avoid a race where the in-flight run's
+    // own MarkCompletedAsync no-ops against a deleted row and a second run
+    // gets enqueued alongside it.
+    private async Task ReenqueueExecutionIfDoneForTodayAsync(int accountId, CancellationToken ct)
+    {
+        try
+        {
+            var todayEt = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, EasternTimeZone));
+            var existing = await jobLog.FindAsync(accountId, "Execution", todayEt, ct);
+            if (existing is { Status: JobStatus.Completed or JobStatus.Failed })
+            {
+                await jobLog.DeleteAsync(accountId, "Execution", todayEt, ct);
+                logger.LogInformation(
+                    "Freed capital for account {AccountId} after a same-day exit - Execution will re-run on the next scheduler tick",
+                    accountId);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Not worth failing the exit over - Execution will still run on
+            // its normal schedule tomorrow regardless.
+            logger.LogWarning(ex, "Failed to re-enqueue Execution for account {AccountId} after exit", accountId);
         }
     }
 
