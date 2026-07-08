@@ -220,34 +220,43 @@ public class MonitorService(
         logger.LogInformation("Fill reconciliation check for account {AccountId}: {Count} order(s) awaiting confirmation", accountId, pending.Count);
         if (pending.Count == 0) return;
 
-        // This runs right after RunCycleAsync's own GetAccountSummaryAsync call,
-        // and each GetOrderAsync below is itself a separate T212 call - same
-        // rate-limit bucket PositionExitService already has to space its own
-        // write call away from. One delay up front spaces this batch from the
-        // summary call; one between each subsequent lookup spaces the batch
-        // from itself, so N pending orders don't land back-to-back.
+        // GetOrderAsync (single-order lookup) only returns currently-working
+        // orders - a market order fills within milliseconds and 404s on that
+        // endpoint moments later (confirmed live: every pending order lookup
+        // 404'd, including ones placed under 30 minutes earlier). One history
+        // fetch per cycle replaces what used to be one GetOrderAsync call per
+        // pending order - fewer T212 calls, and it's the only endpoint that
+        // actually reports a filled order's real price. One delay spaces this
+        // from RunCycleAsync's own GetAccountSummaryAsync call this cycle.
+        await Task.Delay(TimeSpan.FromSeconds(_execution.DelayBetweenOrdersSeconds), ct);
+
+        Dictionary<long, HistoricalOrderItem> byId;
+        try
+        {
+            var history = await t212.GetOrderHistoryAsync(limit: 50);
+            byId = history.Items.ToDictionary(i => i.Order.Id);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not fetch T212 order history for account {AccountId} — will retry next cycle", accountId);
+            return;
+        }
+
         foreach (var trade in pending)
         {
             if (ct.IsCancellationRequested) break;
 
-            await Task.Delay(TimeSpan.FromSeconds(_execution.DelayBetweenOrdersSeconds), ct);
-
             var changed = false;
 
             if (trade.EntryOrderId is not null && trade.EntryFillConfirmedAt is null)
-            {
-                changed |= await TryReconcileOrderAsync(
-                    t212, trade.EntryOrderId, trade.Symbol, accountId, "entry", ct,
+                changed |= TryReconcileOrder(
+                    byId, trade.EntryOrderId, trade.Symbol, accountId, "entry",
                     onFilled: fillPrice => trade.EntryPrice = fillPrice,
                     markConfirmed: () => trade.EntryFillConfirmedAt = DateTime.UtcNow);
 
-                if (trade.ExitOrderId is not null && trade.ExitFillConfirmedAt is null)
-                    await Task.Delay(TimeSpan.FromSeconds(_execution.DelayBetweenOrdersSeconds), ct);
-            }
-
             if (trade.ExitOrderId is not null && trade.ExitFillConfirmedAt is null)
-                changed |= await TryReconcileOrderAsync(
-                    t212, trade.ExitOrderId, trade.Symbol, accountId, "exit", ct,
+                changed |= TryReconcileOrder(
+                    byId, trade.ExitOrderId, trade.Symbol, accountId, "exit",
                     onFilled: fillPrice =>
                     {
                         trade.ExitPrice = fillPrice;
@@ -262,37 +271,31 @@ public class MonitorService(
 
     // Returns true if the trade was mutated (fill confirmed, or the order
     // reached a terminal non-fill state and confirmation is being given up on
-    // to stop polling it forever). Transient/lookup failures return false so
-    // the same order is retried next cycle.
-    private async Task<bool> TryReconcileOrderAsync(
-        ITrading212Client t212, string orderId, string symbol, int accountId, string side, CancellationToken ct,
+    // to stop polling it forever). Order not yet present in the most recent
+    // 50 history items returns false so it's retried next cycle - it'll
+    // appear once T212's history catches up (normally within seconds/minutes).
+    private bool TryReconcileOrder(
+        Dictionary<long, HistoricalOrderItem> byId, string orderId, string symbol, int accountId, string side,
         Action<decimal> onFilled, Action markConfirmed)
     {
-        OrderResponse order;
-        try
-        {
-            order = await t212.GetOrderAsync(orderId);
-        }
-        catch (Exception ex)
-        {
-            logger.LogDebug(ex, "Could not fetch T212 order {OrderId} ({Side}, {Symbol}, account {AccountId}) — will retry next cycle", orderId, side, symbol, accountId);
+        if (!long.TryParse(orderId, out var id) || !byId.TryGetValue(id, out var item))
             return false;
-        }
 
-        if (order.FillPrice.HasValue && order.FilledQuantity is > 0)
+        var order = item.Order;
+        if (item.Fill is not null && order.FilledQuantity is > 0)
         {
-            onFilled(order.FillPrice.Value);
+            onFilled(item.Fill.Price);
             markConfirmed();
             logger.LogInformation(
                 "{Side} fill confirmed for {Symbol} (account {AccountId}): order {OrderId} filled at £{FillPrice:F2}",
-                side, symbol, accountId, orderId, order.FillPrice.Value);
+                side, symbol, accountId, orderId, item.Fill.Price);
             return true;
         }
 
-        // NEW/WORKING orders haven't filled yet - keep polling. CANCELLED/REJECTED
-        // never will, so stop polling and keep the estimated price rather than
-        // retrying forever.
-        var status = order.Status?.ToUpperInvariant() ?? "";
+        // NEW/CONFIRMED/etc. orders haven't filled yet - keep polling.
+        // CANCELLED/REJECTED never will, so stop polling and keep the
+        // estimated price rather than retrying forever.
+        var status = order.Status.ToUpperInvariant();
         if (status.Contains("CANCEL") || status.Contains("REJECT"))
         {
             markConfirmed();

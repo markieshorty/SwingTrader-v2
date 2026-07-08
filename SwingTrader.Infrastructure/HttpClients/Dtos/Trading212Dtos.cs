@@ -86,3 +86,34 @@ public record T212AccountInfo(
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("currencyCode")] string CurrencyCode
 );
+
+// GET /equity/orders/{id} (OrderResponse above) only returns currently-working
+// orders — a market order fills within milliseconds and then 404s on that
+// endpoint ("Order not found"), confirmed via live traces where every single
+// pending order lookup 404'd, including ones placed under half an hour
+// earlier. /equity/history/orders is T212's actual source of truth for a
+// filled order's real price - this is what fill reconciliation should poll.
+public record HistoricalOrderDetail(
+    [property: JsonPropertyName("id")] long Id,
+    [property: JsonPropertyName("ticker")] string Ticker,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("quantity")] decimal Quantity,
+    [property: JsonPropertyName("filledQuantity")] decimal? FilledQuantity,
+    [property: JsonPropertyName("filledValue")] decimal? FilledValue
+);
+
+public record HistoricalFillDetail(
+    [property: JsonPropertyName("filledAt")] DateTime FilledAt,
+    [property: JsonPropertyName("price")] decimal Price,
+    [property: JsonPropertyName("quantity")] decimal Quantity
+);
+
+public record HistoricalOrderItem(
+    [property: JsonPropertyName("order")] HistoricalOrderDetail Order,
+    [property: JsonPropertyName("fill")] HistoricalFillDetail? Fill
+);
+
+public record HistoricalOrdersResponse(
+    [property: JsonPropertyName("items")] List<HistoricalOrderItem> Items,
+    [property: JsonPropertyName("nextPagePath")] string? NextPagePath
+);
