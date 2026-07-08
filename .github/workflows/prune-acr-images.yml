@@ -58,6 +58,20 @@ jobs:
 
             for digest in $digests; do
               echo "Deleting $repo@$digest"
-              az acr repository delete --name "$ACR_NAME" --image "$repo@$digest" --yes
+              # ACR's registry endpoint occasionally drops a connection mid-run
+              # under sustained delete traffic (observed live: a large backlog
+              # failed partway through with "Could not connect to the registry
+              # login server" despite permissions being fine) - retry a few
+              # times with backoff rather than aborting the whole job and
+              # leaving the rest of the backlog untouched until next week.
+              attempt=1
+              until az acr repository delete --name "$ACR_NAME" --image "$repo@$digest" --yes; do
+                if [ "$attempt" -ge 3 ]; then
+                  echo "::warning::Giving up on $repo@$digest after $attempt attempts - will retry next run"
+                  break
+                fi
+                sleep $((attempt * 10))
+                attempt=$((attempt + 1))
+              done
             done
           done
