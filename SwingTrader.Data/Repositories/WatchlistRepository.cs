@@ -266,6 +266,33 @@ public class WatchlistRepository(SwingTraderDbContext db) : IWatchlistRepository
             ?? throw new InvalidOperationException($"Watchlist {watchlistId} not found for account {accountId}.");
 
         var symbolUpper = symbol.ToUpperInvariant();
+
+        // Only matters if this watchlist is itself enabled - adding a symbol to
+        // a disabled one doesn't touch the union Research actually scores
+        // (GetAllEnabledSymbolsAsync). A symbol already in the union from this
+        // or another enabled watchlist doesn't grow it, so only a genuinely new
+        // symbol can push the total over the cap.
+        if (watchlist.IsEnabled)
+        {
+            var enabledSymbols = await db.WatchlistItems
+                .Where(i => i.AccountId == accountId && i.IsActive && i.Watchlist!.IsEnabled)
+                .Select(i => i.Symbol)
+                .ToListAsync(ct);
+
+            if (!enabledSymbols.Contains(symbolUpper, StringComparer.OrdinalIgnoreCase))
+            {
+                var projectedCount = enabledSymbols
+                    .Concat([symbolUpper])
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count();
+
+                if (projectedCount > WatchlistLimits.MaxTotalEnabledSymbols)
+                    throw new ValidationException(
+                        $"Adding '{symbolUpper}' would bring the total across all enabled watchlists to {projectedCount} symbols, " +
+                        $"above the {WatchlistLimits.MaxTotalEnabledSymbols} limit. Remove a symbol from another enabled watchlist, or disable one, first.");
+            }
+        }
+
         var existing = await db.WatchlistItems.IgnoreQueryFilters()
             .FirstOrDefaultAsync(i => i.WatchlistId == watchlistId && i.Symbol == symbolUpper, ct);
 

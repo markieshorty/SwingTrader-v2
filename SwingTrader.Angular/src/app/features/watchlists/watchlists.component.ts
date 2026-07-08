@@ -90,7 +90,7 @@ export class WatchlistsComponent {
 
   toggleEnabled(watchlist: WatchlistDto): void {
     if (!watchlist.isEnabled) {
-      const projectedCount = this.projectedEnabledUnionCount(watchlist);
+      const projectedCount = this.projectedEnabledUnionCount({ includeWatchlistId: watchlist.id });
       if (projectedCount > MAX_TOTAL_ENABLED_SYMBOLS) {
         this.snackbar.open(
           `Enabling "${watchlist.name}" would bring the total across all enabled watchlists to ${projectedCount} symbols, ` +
@@ -110,16 +110,17 @@ export class WatchlistsComponent {
   }
 
   // Mirrors the backend's dedup-by-symbol union check (WatchlistRepository.
-  // EnableWatchlistAsync) so the user gets an immediate answer without a
-  // round-trip - the API still re-validates, since watchlist contents could
-  // have changed in another tab/session since this page loaded.
-  private projectedEnabledUnionCount(watchlistToEnable: WatchlistDto): number {
+  // EnableWatchlistAsync/AddSymbolAsync) so the user gets an immediate answer
+  // without a round-trip - the API still re-validates, since watchlist
+  // contents could have changed in another tab/session since this page loaded.
+  private projectedEnabledUnionCount(opts: { includeWatchlistId?: number; extraSymbol?: string }): number {
     const symbols = new Set<string>();
     for (const w of this.watchlists()) {
-      if (w.isEnabled || w.id === watchlistToEnable.id) {
+      if (w.isEnabled || w.id === opts.includeWatchlistId) {
         for (const item of w.items) symbols.add(item.symbol.toUpperCase());
       }
     }
+    if (opts.extraSymbol) symbols.add(opts.extraSymbol.toUpperCase());
     return symbols.size;
   }
 
@@ -151,6 +152,22 @@ export class WatchlistsComponent {
   addSymbol(watchlist: WatchlistDto): void {
     const symbol = (this.newSymbolInput[watchlist.id] ?? '').trim();
     if (!symbol) return;
+
+    if (watchlist.isEnabled) {
+      const alreadyInUnion = watchlist.items.some((i) => i.symbol.toUpperCase() === symbol.toUpperCase());
+      if (!alreadyInUnion) {
+        const projectedCount = this.projectedEnabledUnionCount({ extraSymbol: symbol });
+        if (projectedCount > MAX_TOTAL_ENABLED_SYMBOLS) {
+          this.snackbar.open(
+            `Adding "${symbol.toUpperCase()}" would bring the total across all enabled watchlists to ${projectedCount} symbols, ` +
+              `above the ${MAX_TOTAL_ENABLED_SYMBOLS} limit. Remove a symbol from another enabled watchlist, or disable one, first.`,
+            'Dismiss',
+            { duration: 6000 },
+          );
+          return;
+        }
+      }
+    }
 
     this.api.addWatchlistSymbol(watchlist.id, symbol).subscribe({
       next: () => {
