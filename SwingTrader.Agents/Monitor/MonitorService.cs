@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
+using SwingTrader.Infrastructure.Configuration;
 using SwingTrader.Infrastructure.HttpClients;
 using SwingTrader.Infrastructure.HttpClients.Dtos;
 using SwingTrader.Infrastructure.Services;
@@ -22,8 +24,12 @@ public class MonitorService(
     IPositionExitService positionExit,
     INotificationRecipientRepository recipients,
     IEmailService emailService,
+    IOptions<ExecutionConfig> executionConfig,
     ILogger<MonitorService> logger) : IMonitorService
 {
+    private readonly ExecutionConfig _execution = executionConfig.Value;
+
+
     public async Task<MonitorCycleResult> RunCycleAsync(
         int accountId,
         IFinnhubClient finnhub,
@@ -213,17 +219,30 @@ public class MonitorService(
 
         if (pending.Count == 0) return;
 
+        // This runs right after RunCycleAsync's own GetAccountSummaryAsync call,
+        // and each GetOrderAsync below is itself a separate T212 call - same
+        // rate-limit bucket PositionExitService already has to space its own
+        // write call away from. One delay up front spaces this batch from the
+        // summary call; one between each subsequent lookup spaces the batch
+        // from itself, so N pending orders don't land back-to-back.
         foreach (var trade in pending)
         {
             if (ct.IsCancellationRequested) break;
 
+            await Task.Delay(TimeSpan.FromSeconds(_execution.DelayBetweenOrdersSeconds), ct);
+
             var changed = false;
 
             if (trade.EntryOrderId is not null && trade.EntryFillConfirmedAt is null)
+            {
                 changed |= await TryReconcileOrderAsync(
                     t212, trade.EntryOrderId, trade.Symbol, accountId, "entry", ct,
                     onFilled: fillPrice => trade.EntryPrice = fillPrice,
                     markConfirmed: () => trade.EntryFillConfirmedAt = DateTime.UtcNow);
+
+                if (trade.ExitOrderId is not null && trade.ExitFillConfirmedAt is null)
+                    await Task.Delay(TimeSpan.FromSeconds(_execution.DelayBetweenOrdersSeconds), ct);
+            }
 
             if (trade.ExitOrderId is not null && trade.ExitFillConfirmedAt is null)
                 changed |= await TryReconcileOrderAsync(
