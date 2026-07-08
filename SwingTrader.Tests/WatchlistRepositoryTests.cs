@@ -75,6 +75,50 @@ public class WatchlistRepositoryTests
     }
 
     [Fact]
+    public async Task EnableWatchlistAsync_UnionOverTotalSymbolCap_Throws()
+    {
+        await using var db = CreateDb();
+        var repo = new WatchlistRepository(db);
+        await repo.SeedDefaultAsync(1); // default watchlist: 10 symbols, already enabled
+
+        var w2 = await repo.CreateWatchlistAsync(1, "W2", WatchlistType.Manual, null);
+        for (var i = 0; i < 50; i++)
+            await repo.AddSymbolAsync(1, w2.Id, $"SYM{i}", "Co", "Sector");
+        await repo.EnableWatchlistAsync(1, w2.Id); // union now 60 - fine
+
+        var w3 = await repo.CreateWatchlistAsync(1, "W3", WatchlistType.Manual, null);
+        for (var i = 50; i < 100; i++)
+            await repo.AddSymbolAsync(1, w3.Id, $"SYM{i}", "Co", "Sector");
+
+        // Union would be 10 + 50 + 50 = 110, over the 100 cap.
+        var act = async () => await repo.EnableWatchlistAsync(1, w3.Id);
+
+        await act.Should().ThrowAsync<ValidationException>().WithMessage("*100*");
+    }
+
+    [Fact]
+    public async Task EnableWatchlistAsync_OverlappingSymbolsDedupedForUnionCap_DoesNotThrow()
+    {
+        await using var db = CreateDb();
+        var repo = new WatchlistRepository(db);
+        await repo.SeedDefaultAsync(1); // 10 symbols, already enabled
+
+        var w2 = await repo.CreateWatchlistAsync(1, "W2", WatchlistType.Manual, null);
+        for (var i = 0; i < 50; i++)
+            await repo.AddSymbolAsync(1, w2.Id, $"SYM{i}", "Co", "Sector");
+        await repo.EnableWatchlistAsync(1, w2.Id); // union now 60
+
+        var w3 = await repo.CreateWatchlistAsync(1, "W3", WatchlistType.Manual, null);
+        // Fully overlapping with w2's symbols - union should stay at 60, not 110.
+        for (var i = 0; i < 40; i++)
+            await repo.AddSymbolAsync(1, w3.Id, $"SYM{i}", "Co", "Sector");
+
+        var act = async () => await repo.EnableWatchlistAsync(1, w3.Id);
+
+        await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
     public async Task DeleteWatchlistAsync_DefaultWatchlist_Throws()
     {
         await using var db = CreateDb();

@@ -1,8 +1,9 @@
 <div class="watchlists-page">
   <div class="page-header">
     <p class="muted small">
-      {{ enabledCount() }} of {{ maxEnabled }} watchlists enabled. The Research Agent scans the combined,
-      deduplicated symbols of every enabled watchlist.
+      {{ enabledCount() }} of {{ maxEnabled }} watchlists enabled — {{ totalEnabledSymbolCount() }} of
+      {{ maxTotalSymbols }} symbols. The Research Agent scans the combined, deduplicated symbols of every
+      enabled watchlist.
     </p>
     <button mat-raised-button color="primary" [disabled]="!isOwner()" (click)="showCreateForm.set(!showCreateForm())">
       <mat-icon>add</mat-icon>

@@ -17,6 +17,7 @@ import { errorMessage } from '../../shared/utils/error-message.util';
 
 const MAX_ENABLED_WATCHLISTS = 3;
 const MAX_SYMBOLS_PER_WATCHLIST = 50;
+const MAX_TOTAL_ENABLED_SYMBOLS = 100;
 
 @Component({
   selector: 'app-watchlists',
@@ -54,8 +55,16 @@ export class WatchlistsComponent {
   isOwner = signal(false);
 
   enabledCount = () => this.watchlists().filter((w) => w.isEnabled).length;
+  totalEnabledSymbolCount = () => {
+    const symbols = new Set<string>();
+    for (const w of this.watchlists()) {
+      if (w.isEnabled) for (const item of w.items) symbols.add(item.symbol.toUpperCase());
+    }
+    return symbols.size;
+  };
   maxEnabled = MAX_ENABLED_WATCHLISTS;
   maxSymbols = MAX_SYMBOLS_PER_WATCHLIST;
+  maxTotalSymbols = MAX_TOTAL_ENABLED_SYMBOLS;
 
   constructor() {
     this.load();
@@ -80,11 +89,38 @@ export class WatchlistsComponent {
   }
 
   toggleEnabled(watchlist: WatchlistDto): void {
+    if (!watchlist.isEnabled) {
+      const projectedCount = this.projectedEnabledUnionCount(watchlist);
+      if (projectedCount > MAX_TOTAL_ENABLED_SYMBOLS) {
+        this.snackbar.open(
+          `Enabling "${watchlist.name}" would bring the total across all enabled watchlists to ${projectedCount} symbols, ` +
+            `above the ${MAX_TOTAL_ENABLED_SYMBOLS} limit. Disable another watchlist first, or remove some symbols.`,
+          'Dismiss',
+          { duration: 6000 },
+        );
+        return;
+      }
+    }
+
     const action = watchlist.isEnabled ? this.api.disableWatchlist(watchlist.id) : this.api.enableWatchlist(watchlist.id);
     action.subscribe({
       next: () => this.load(),
       error: (err) => this.snackbar.open(errorMessage(err, 'Failed to update watchlist.'), 'Dismiss', { duration: 4000 }),
     });
+  }
+
+  // Mirrors the backend's dedup-by-symbol union check (WatchlistRepository.
+  // EnableWatchlistAsync) so the user gets an immediate answer without a
+  // round-trip - the API still re-validates, since watchlist contents could
+  // have changed in another tab/session since this page loaded.
+  private projectedEnabledUnionCount(watchlistToEnable: WatchlistDto): number {
+    const symbols = new Set<string>();
+    for (const w of this.watchlists()) {
+      if (w.isEnabled || w.id === watchlistToEnable.id) {
+        for (const item of w.items) symbols.add(item.symbol.toUpperCase());
+      }
+    }
+    return symbols.size;
   }
 
   setDefault(watchlist: WatchlistDto): void {

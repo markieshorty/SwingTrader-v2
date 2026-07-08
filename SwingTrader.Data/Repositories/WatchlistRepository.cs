@@ -191,7 +191,9 @@ public class WatchlistRepository(SwingTraderDbContext db) : IWatchlistRepository
 
     public async Task EnableWatchlistAsync(int accountId, int watchlistId, CancellationToken ct = default)
     {
-        var watchlist = await db.Watchlists.FirstOrDefaultAsync(w => w.AccountId == accountId && w.Id == watchlistId, ct)
+        var watchlist = await db.Watchlists
+            .Include(w => w.Items.Where(i => i.IsActive))
+            .FirstOrDefaultAsync(w => w.AccountId == accountId && w.Id == watchlistId, ct)
             ?? throw new InvalidOperationException($"Watchlist {watchlistId} not found for account {accountId}.");
 
         if (watchlist.IsEnabled) return;
@@ -199,6 +201,25 @@ public class WatchlistRepository(SwingTraderDbContext db) : IWatchlistRepository
         var enabledCount = await db.Watchlists.CountAsync(w => w.AccountId == accountId && w.IsEnabled, ct);
         if (enabledCount >= WatchlistLimits.MaxEnabledWatchlists)
             throw new ValidationException($"At most {WatchlistLimits.MaxEnabledWatchlists} watchlists can be enabled at once.");
+
+        // Research scores the deduplicated union of every enabled watchlist's
+        // symbols (see GetAllEnabledSymbolsAsync) - enabling this one must not
+        // push that union past MaxTotalEnabledSymbols, even though the two
+        // watchlists' own symbol sets may overlap.
+        var currentlyEnabledSymbols = await db.WatchlistItems
+            .Where(i => i.AccountId == accountId && i.IsActive && i.Watchlist!.IsEnabled)
+            .Select(i => i.Symbol)
+            .ToListAsync(ct);
+
+        var unionCount = currentlyEnabledSymbols
+            .Concat(watchlist.Items.Select(i => i.Symbol))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+
+        if (unionCount > WatchlistLimits.MaxTotalEnabledSymbols)
+            throw new ValidationException(
+                $"Enabling \"{watchlist.Name}\" would bring the total across all enabled watchlists to {unionCount} symbols, " +
+                $"above the {WatchlistLimits.MaxTotalEnabledSymbols} limit. Disable another watchlist first, or remove some symbols.");
 
         watchlist.IsEnabled = true;
         watchlist.UpdatedAt = DateTime.UtcNow;
