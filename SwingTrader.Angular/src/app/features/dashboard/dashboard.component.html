@@ -204,20 +204,24 @@
     />
   </mat-card>
 
-  <!-- Footer: Manual Triggers -->
+  <!-- Footer: Manual Triggers (admin only) / Next Scheduled Jobs (everyone else) -->
   <mat-card class="panel triggers">
-    <h3>Manual Triggers</h3>
+    <h3>{{ auth.isAdmin() ? 'Manual Triggers' : 'Next Scheduled Jobs' }}</h3>
     <div class="trigger-buttons">
       @for (agent of agents; track agent) {
         <div class="trigger-item">
-          <button mat-raised-button [disabled]="runningAgent() === agent || !isOwner()" (click)="runAgent(agent)">
-            @if (runningAgent() === agent) {
-              <mat-icon class="spin">autorenew</mat-icon>
-            } @else {
-              <mat-icon>play_arrow</mat-icon>
-            }
-            {{ agent }}
-          </button>
+          @if (auth.isAdmin()) {
+            <button mat-raised-button [disabled]="runningAgent() === agent || !isOwner()" (click)="runAgent(agent)">
+              @if (runningAgent() === agent) {
+                <mat-icon class="spin">autorenew</mat-icon>
+              } @else {
+                <mat-icon>play_arrow</mat-icon>
+              }
+              {{ agent }}
+            </button>
+          } @else {
+            <span class="scheduled-job-name">{{ agent }}</span>
+          }
           @if (nextRunLabelFor(agent); as nextRun) {
             <span class="next-run muted small">Next: {{ nextRun | date: 'EEE d MMM, HH:mm' }}</span>
           }

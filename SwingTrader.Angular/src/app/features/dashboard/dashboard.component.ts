@@ -12,6 +12,7 @@ import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { DashboardDataService } from '../../core/services/dashboard-data.service';
 import { ApiService } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
 import { CurrencyGbpPipe } from '../../shared/pipes/currency-gbp.pipe';
 import { PercentSignedPipe } from '../../shared/pipes/percent-signed.pipe';
 import { StopTargetBarComponent } from '../../shared/components/stop-target-bar/stop-target-bar.component';
@@ -51,6 +52,7 @@ export class DashboardComponent {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private titleService = inject(Title);
+  auth = inject(AuthService);
   data = inject(DashboardDataService);
 
   portfolio = toSignal(this.data.portfolio$, { initialValue: null });
