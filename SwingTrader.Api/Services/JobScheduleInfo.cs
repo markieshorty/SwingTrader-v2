@@ -17,7 +17,7 @@ public static class JobScheduleInfo
 
         var runs = new List<(string JobType, DateTime NextEt)>
         {
-            ("Research", NextWeekdayAt(nowEt, 6, 0)),
+            ("Research", NextWeekdayAt(nowEt, 4, 0)),
             ("Watchlist", NextWeeklyAt(nowEt, DayOfWeek.Sunday, 20, 0)),
             ("Report", NextWeekdayAt(nowEt, 6, 30)),
             ("Execution", NextWeekdayAt(nowEt, 9, 20)),

@@ -39,7 +39,11 @@ public class SchedulerFunction(
         {
             try
             {
-                if (isWeekday && InWindow(nowEt, 6, 0, 6, 5))
+                // Moved 2 hours earlier (was 6:00 ET) - at Tiingo's real 50
+                // requests/hour cap, a 75-symbol universe now takes up to ~90
+                // minutes to fully rescore, and needs to finish comfortably
+                // before Report reads today's signals at 6:30 ET.
+                if (isWeekday && InWindow(nowEt, 4, 0, 4, 5))
                     await TryEnqueueAsync(account.Id, "Research", today, "research-jobs",
                         new ResearchJobMessage(account.Id, Guid.NewGuid().ToString("N"), today, nowEt), ct);
 
