@@ -81,7 +81,15 @@ public class WatchlistConsumerFunction(
                 return;
             }
 
-            await updater.UpdateAsync(message.AccountId, selections, ct);
+            var updateResult = await updater.UpdateAsync(message.AccountId, selections, ct);
+
+            if (updateResult.SkippedForCapacity.Count > 0)
+            {
+                await activityLog.LogAsync(message.AccountId, "SystemEvent", "Watchlist Capacity", "Warning",
+                    $"{updateResult.SkippedForCapacity.Count} selection(s) skipped this refresh — adding them would have " +
+                    $"exceeded the 100-symbol enabled-watchlist limit: {string.Join(", ", updateResult.SkippedForCapacity)}. " +
+                    "Disable another watchlist or remove some symbols to make room.", ct);
+            }
 
             await heartbeats.UpsertAsync(message.AccountId, "Watchlist", "Success", $"{selections.Count} symbols selected from {candidates.Count} candidates");
             await jobLog.MarkCompletedAsync(message.AccountId, "Watchlist", jobDate, ct);

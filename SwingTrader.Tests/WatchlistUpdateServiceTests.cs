@@ -60,4 +60,45 @@ public class WatchlistUpdateServiceTests
         var active = await watchlistRepo.GetActiveAsync(1);
         active.Should().Contain(s => s.Symbol == "AAPL");
     }
+
+    [Fact]
+    public async Task UpdateAsync_SelectionsBeyondCapacity_AreSkippedNotApplied()
+    {
+        await using var db = CreateDb();
+        var watchlistRepo = new WatchlistRepository(db);
+        await watchlistRepo.SeedDefaultAsync(1); // default AiManaged watchlist w/ 10 starters
+
+        // Two other enabled watchlists near their own 50-symbol cap, leaving
+        // only 2 spots free in the 100-symbol union (10 default starters + 44
+        // + 44 = 98) before the AI-managed refresh below runs.
+        var otherA = await watchlistRepo.CreateWatchlistAsync(1, "Manual A", WatchlistType.Manual, null);
+        var otherB = await watchlistRepo.CreateWatchlistAsync(1, "Manual B", WatchlistType.Manual, null);
+        await watchlistRepo.EnableWatchlistAsync(1, otherA.Id);
+        await watchlistRepo.EnableWatchlistAsync(1, otherB.Id);
+        for (var i = 0; i < 44; i++)
+        {
+            await watchlistRepo.AddSymbolAsync(1, otherA.Id, $"AA{i}", $"A {i}", "Other");
+            await watchlistRepo.AddSymbolAsync(1, otherB.Id, $"BB{i}", $"B {i}", "Other");
+        }
+
+        _trades.GetOpenTradesAsync(1).Returns([]);
+        var sut = new WatchlistUpdateService(watchlistRepo, _history, _trades, NullLogger<WatchlistUpdateService>.Instance);
+
+        // Keeps all 10 existing starters (so nothing is removed to free space)
+        // and adds 10 brand-new symbols on top - only 2 spots remain in the
+        // union (98 already used), so 8 of the 10 new picks should be skipped
+        // rather than pushing the union past 100.
+        var starters = (await watchlistRepo.GetActiveAsync(1))
+            .Select(w => new WatchlistSelection(w.Symbol, w.CompanyName, w.Sector, "kept"));
+        var newPicks = Enumerable.Range(0, 10)
+            .Select(i => new WatchlistSelection($"NEW{i}", $"New {i}", "Tech", "Selected by agent"));
+        var selections = starters.Concat(newPicks).ToList();
+
+        var result = await sut.UpdateAsync(1, selections);
+
+        var unionCount = (await watchlistRepo.GetAllEnabledSymbolsAsync(1)).Count;
+        unionCount.Should().Be(100);
+        result.Added.Should().Be(2);
+        result.SkippedForCapacity.Should().HaveCount(8);
+    }
 }
