@@ -269,14 +269,28 @@ export class SettingsComponent {
   }
 
   resetRiskProfile(): void {
-    if (!confirm('Reset risk profile to defaults? Your current settings will be lost.')) return;
-    this.api.resetRiskProfile().subscribe({
-      next: () => {
-        this.snackbar.open('Risk profile reset to defaults', 'Dismiss', { duration: 3000 });
-        this.loadRiskProfile();
-      },
-      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to reset.'), 'Dismiss', { duration: 4000 }),
-    });
+    this.dialog
+      .open(ConfirmDialogComponent, {
+        data: {
+          title: 'Reset risk profile',
+          message: 'Reset risk profile to defaults? Your current settings will be lost.',
+          cancelLabel: 'Cancel',
+          confirmLabel: 'Reset',
+          confirmColor: 'warn',
+        },
+        width: '420px',
+      })
+      .afterClosed()
+      .subscribe((confirmed) => {
+        if (!confirmed) return;
+        this.api.resetRiskProfile().subscribe({
+          next: () => {
+            this.snackbar.open('Risk profile reset to defaults', 'Dismiss', { duration: 3000 });
+            this.loadRiskProfile();
+          },
+          error: (err) => this.snackbar.open(errorMessage(err, 'Failed to reset.'), 'Dismiss', { duration: 4000 }),
+        });
+      });
   }
 
   discardRiskProfileChanges(): void {
@@ -389,11 +403,25 @@ export class SettingsComponent {
   }
 
   removeKey(provider: ApiKeyProvider): void {
-    if (!confirm(`Remove the ${this.providerLabel(provider)} key? You will need to re-enter it to use this integration again.`)) return;
-    this.api.deleteKey(provider).subscribe({
-      next: () => this.loadKeyStatuses(),
-      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to remove key.'), 'Dismiss', { duration: 4000 }),
-    });
+    this.dialog
+      .open(ConfirmDialogComponent, {
+        data: {
+          title: 'Remove API key',
+          message: `Remove the ${this.providerLabel(provider)} key? You will need to re-enter it to use this integration again.`,
+          cancelLabel: 'Cancel',
+          confirmLabel: 'Remove',
+          confirmColor: 'warn',
+        },
+        width: '420px',
+      })
+      .afterClosed()
+      .subscribe((confirmed) => {
+        if (!confirmed) return;
+        this.api.deleteKey(provider).subscribe({
+          next: () => this.loadKeyStatuses(),
+          error: (err) => this.snackbar.open(errorMessage(err, 'Failed to remove key.'), 'Dismiss', { duration: 4000 }),
+        });
+      });
   }
 
   saveTradingConfig(force = false): void {
@@ -493,8 +521,22 @@ export class SettingsComponent {
   }
 
   removeRecipient(id: number, email: string): void {
-    if (!confirm(`Remove ${email} from notification recipients?`)) return;
-    this.api.removeNotificationRecipient(id).subscribe({ next: () => this.loadRecipients() });
+    this.dialog
+      .open(ConfirmDialogComponent, {
+        data: {
+          title: 'Remove recipient',
+          message: `Remove ${email} from notification recipients?`,
+          cancelLabel: 'Cancel',
+          confirmLabel: 'Remove',
+          confirmColor: 'warn',
+        },
+        width: '420px',
+      })
+      .afterClosed()
+      .subscribe((confirmed) => {
+        if (!confirmed) return;
+        this.api.removeNotificationRecipient(id).subscribe({ next: () => this.loadRecipients() });
+      });
   }
 
   toggleTradeApproval(recipient: NotificationRecipientDto, enabled: boolean): void {
@@ -520,11 +562,25 @@ export class SettingsComponent {
   }
 
   removeMember(userId: string, displayName: string): void {
-    if (!confirm(`Remove ${displayName} from this account? They will lose access immediately.`)) return;
-    this.api.removeMember(userId).subscribe({
-      next: () => this.loadMembers(),
-      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to remove member.'), 'Dismiss', { duration: 4000 }),
-    });
+    this.dialog
+      .open(ConfirmDialogComponent, {
+        data: {
+          title: 'Remove member',
+          message: `Remove ${displayName} from this account? They will lose access immediately.`,
+          cancelLabel: 'Cancel',
+          confirmLabel: 'Remove',
+          confirmColor: 'warn',
+        },
+        width: '420px',
+      })
+      .afterClosed()
+      .subscribe((confirmed) => {
+        if (!confirmed) return;
+        this.api.removeMember(userId).subscribe({
+          next: () => this.loadMembers(),
+          error: (err) => this.snackbar.open(errorMessage(err, 'Failed to remove member.'), 'Dismiss', { duration: 4000 }),
+        });
+      });
   }
 
   approveMember(userId: string): void {

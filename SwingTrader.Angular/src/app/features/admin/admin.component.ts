@@ -5,12 +5,14 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Title } from '@angular/platform-browser';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { ApiService } from '../../core/services/api.service';
 import { AdminActionLogDto, AdminJobFailureDto, AdminStatsDto, AdminUserSummaryDto } from '../../core/models/dtos';
 import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
+import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 
 const TAB_NAMES = ['overview', 'users', 'jobs', 'logs'] as const;
 
@@ -23,6 +25,7 @@ const TAB_NAMES = ['overview', 'users', 'jobs', 'logs'] as const;
 })
 export class AdminComponent {
   private api = inject(ApiService);
+  private dialog = inject(MatDialog);
   private snackbar = inject(MatSnackBar);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
@@ -94,14 +97,27 @@ export class AdminComponent {
   }
 
   resetOnboarding(user: AdminUserSummaryDto): void {
-    if (!confirm(`Reset onboarding for ${user.displayName}? They will be sent back through the setup wizard.`)) return;
-    this.api.resetUserOnboarding(user.userId).subscribe({
-      next: () => {
-        this.snackbar.open(`${user.displayName}'s onboarding reset`, 'Dismiss', { duration: 3000 });
-        this.loadUsers();
-        this.loadLogs();
-      },
-    });
+    this.dialog
+      .open(ConfirmDialogComponent, {
+        data: {
+          title: 'Reset onboarding',
+          message: `Reset onboarding for ${user.displayName}? They will be sent back through the setup wizard.`,
+          cancelLabel: 'Cancel',
+          confirmLabel: 'Reset',
+        },
+        width: '420px',
+      })
+      .afterClosed()
+      .subscribe((confirmed) => {
+        if (!confirmed) return;
+        this.api.resetUserOnboarding(user.userId).subscribe({
+          next: () => {
+            this.snackbar.open(`${user.displayName}'s onboarding reset`, 'Dismiss', { duration: 3000 });
+            this.loadUsers();
+            this.loadLogs();
+          },
+        });
+      });
   }
 
   forceDemo(user: AdminUserSummaryDto): void {
@@ -115,15 +131,28 @@ export class AdminComponent {
   }
 
   deleteUser(user: AdminUserSummaryDto): void {
-    if (!confirm(`Delete ${user.displayName} (${user.email})? This deactivates their account.`)) return;
-
-    this.api.deleteAdminUser(user.userId).subscribe({
-      next: () => {
-        this.snackbar.open(`${user.displayName} deleted`, 'Dismiss', { duration: 3000 });
-        this.loadUsers();
-        this.loadLogs();
-      },
-    });
+    this.dialog
+      .open(ConfirmDialogComponent, {
+        data: {
+          title: 'Delete user',
+          message: `Delete ${user.displayName} (${user.email})? This deactivates their account.`,
+          cancelLabel: 'Cancel',
+          confirmLabel: 'Delete',
+          confirmColor: 'warn',
+        },
+        width: '420px',
+      })
+      .afterClosed()
+      .subscribe((confirmed) => {
+        if (!confirmed) return;
+        this.api.deleteAdminUser(user.userId).subscribe({
+          next: () => {
+            this.snackbar.open(`${user.displayName} deleted`, 'Dismiss', { duration: 3000 });
+            this.loadUsers();
+            this.loadLogs();
+          },
+        });
+      });
   }
 
   retryJob(failure: AdminJobFailureDto): void {
@@ -138,14 +167,27 @@ export class AdminComponent {
   }
 
   deleteJobFailure(failure: AdminJobFailureDto): void {
-    if (!confirm(`Dismiss this ${failure.jobType} failure for account ${failure.accountId}? It will no longer appear in the failures list.`)) return;
-    this.api.deleteAdminJobFailure(failure.jobLogId).subscribe({
-      next: () => {
-        this.snackbar.open(`Dismissed ${failure.jobType} failure for account ${failure.accountId}`, 'Dismiss', { duration: 3000 });
-        this.loadJobFailures();
-        this.loadLogs();
-      },
-      error: () => this.snackbar.open('Failed to delete job.', 'Dismiss', { duration: 4000 }),
-    });
+    this.dialog
+      .open(ConfirmDialogComponent, {
+        data: {
+          title: 'Dismiss job failure',
+          message: `Dismiss this ${failure.jobType} failure for account ${failure.accountId}? It will no longer appear in the failures list.`,
+          cancelLabel: 'Cancel',
+          confirmLabel: 'Dismiss',
+        },
+        width: '420px',
+      })
+      .afterClosed()
+      .subscribe((confirmed) => {
+        if (!confirmed) return;
+        this.api.deleteAdminJobFailure(failure.jobLogId).subscribe({
+          next: () => {
+            this.snackbar.open(`Dismissed ${failure.jobType} failure for account ${failure.accountId}`, 'Dismiss', { duration: 3000 });
+            this.loadJobFailures();
+            this.loadLogs();
+          },
+          error: () => this.snackbar.open('Failed to delete job.', 'Dismiss', { duration: 4000 }),
+        });
+      });
   }
 }

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -14,6 +15,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/services/api.service';
 import { WatchlistDto, WatchlistType } from '../../core/models/dtos';
 import { errorMessage } from '../../shared/utils/error-message.util';
+import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 
 const MAX_ENABLED_WATCHLISTS = 10;
 const MAX_SYMBOLS_PER_WATCHLIST = 50;
@@ -34,6 +36,7 @@ const MAX_TOTAL_ENABLED_SYMBOLS = 100;
     MatChipsModule,
     MatTooltipModule,
     MatSlideToggleModule,
+    MatDialogModule,
   ],
   templateUrl: './watchlists.component.html',
   styleUrl: './watchlists.component.scss',
@@ -41,6 +44,7 @@ const MAX_TOTAL_ENABLED_SYMBOLS = 100;
 export class WatchlistsComponent {
   private api = inject(ApiService);
   private snackbar = inject(MatSnackBar);
+  private dialog = inject(MatDialog);
 
   watchlists = signal<WatchlistDto[]>([]);
   expandedId = signal<number | null>(null);
@@ -141,12 +145,25 @@ export class WatchlistsComponent {
       });
       return;
     }
-    if (!confirm(`Delete "${watchlist.name}"? This removes all its symbols.`)) return;
-
-    this.api.deleteWatchlist(watchlist.id).subscribe({
-      next: () => this.load(),
-      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to delete.'), 'Dismiss', { duration: 4000 }),
-    });
+    this.dialog
+      .open(ConfirmDialogComponent, {
+        data: {
+          title: 'Delete watchlist',
+          message: `Delete "${watchlist.name}"? This removes all its symbols.`,
+          cancelLabel: 'Cancel',
+          confirmLabel: 'Delete',
+          confirmColor: 'warn',
+        },
+        width: '420px',
+      })
+      .afterClosed()
+      .subscribe((confirmed) => {
+        if (!confirmed) return;
+        this.api.deleteWatchlist(watchlist.id).subscribe({
+          next: () => this.load(),
+          error: (err) => this.snackbar.open(errorMessage(err, 'Failed to delete.'), 'Dismiss', { duration: 4000 }),
+        });
+      });
   }
 
   addSymbol(watchlist: WatchlistDto): void {
