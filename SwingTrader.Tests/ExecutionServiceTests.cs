@@ -130,6 +130,25 @@ public class ExecutionServiceTests
     }
 
     [Fact]
+    public async Task RunAsync_SymbolWithUnresolvedPendingIntent_IsExcludedFromEligibleSignals()
+    {
+        // A Pending intent means a prior placement's broker outcome is still
+        // unknown - if it actually filled, buying again would duplicate the
+        // position. The signal claim covers same-day; this covers a stale
+        // intent surviving into a later day's fresh signals.
+        SetupAccount(approvalRequired: false);
+        _riskProfileRepo.GetAsync(1, Arg.Any<CancellationToken>()).Returns(new AccountRiskProfile());
+        _tradeRepo.GetClosedOnDateAsync(1, TradingMode.Demo, Arg.Any<DateOnly>()).Returns([]);
+        _tradeRepo.GetPendingTradesAsync(1, TradingMode.Demo)
+            .Returns([new Trade { Symbol = "AAPL", Status = TradeStatus.Pending }]);
+        _signalRepo.GetByDateAsync(1, Arg.Any<DateOnly>()).Returns([BuySignal("AAPL", 8m)]);
+
+        var result = await CreateSut().RunAsync(1, _finnhub, _tiingo, _t212, DateOnly.FromDateTime(DateTime.UtcNow));
+
+        result.Summary.Should().Be("No eligible signals");
+    }
+
+    [Fact]
     public async Task RunAsync_SymbolClosedEarlierToday_IsExcludedFromEligibleSignals()
     {
         // The same-day re-buy guard: a symbol whose position closed today

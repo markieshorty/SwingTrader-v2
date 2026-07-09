@@ -85,8 +85,19 @@ public class ExecutionService(
             .Select(t => t.Symbol)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+        // An unresolved Pending intent (broker outcome still unknown, Monitor
+        // hasn't reconciled it yet) blocks new entries for that symbol: if the
+        // original order actually filled, placing again would duplicate the
+        // position. Same-day this is already covered by the signal's
+        // WasExecuted claim - this guards the stale case (e.g. Monitor down
+        // long enough for an intent to survive into the next day's signals).
+        var pendingSymbols = (await tradeRepo.GetPendingTradesAsync(accountId, account.TradingMode))
+            .Select(t => t.Symbol)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         var allSignals = (await signalRepo.GetByDateAsync(accountId, date))
-            .Where(s => s.Recommendation == Recommendation.Buy && !s.WasExecuted && !closedTodaySymbols.Contains(s.Symbol))
+            .Where(s => s.Recommendation == Recommendation.Buy && !s.WasExecuted
+                && !closedTodaySymbols.Contains(s.Symbol) && !pendingSymbols.Contains(s.Symbol))
             .OrderByDescending(s => s.ConvictionScore)
             .ToList();
 

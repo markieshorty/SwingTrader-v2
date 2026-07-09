@@ -310,6 +310,30 @@ public class MonitorServiceFillReconciliationTests
     }
 
     [Fact]
+    public async Task RunCycleAsync_PendingOrderSellFillForSameTicker_NotAdoptedAsEntry()
+    {
+        // T212 mirrors the signed order quantity, so a sell fill reports
+        // negative. A same-ticker sell post-dating the intent must never be
+        // adopted as this intent's entry - its price/realised P&L would
+        // corrupt the trade. Within grace -> left Pending for retry.
+        SetupNoOpenPositions();
+        _tradeRepo.GetPendingTradesAsync(1, TradingMode.Demo).Returns(new List<Trade>
+        {
+            new()
+            {
+                Id = 1, AccountId = 1, Symbol = "AAPL", Quantity = 10, EntryPrice = 100m,
+                Status = TradeStatus.Pending, EntryOrderId = null,
+                OpenedAt = DateTime.UtcNow.AddMinutes(-2),
+            },
+        });
+        _t212.GetOrderHistoryAsync(50, null, null).Returns(HistoryWithFilledOrder(999, 106.5m, -10m, netValueGbp: 78.30m, realisedProfitLossGbp: 8.40m));
+
+        await CreateSut().RunCycleAsync(1, _finnhub, _t212);
+
+        await _tradeRepo.DidNotReceive().UpdateAsync(Arg.Any<Trade>());
+    }
+
+    [Fact]
     public async Task RunCycleAsync_PendingOrderStaleSameTickerFromEarlier_NotMatchedByTime()
     {
         // A filled order for the same ticker but *before* the intent time (e.g.

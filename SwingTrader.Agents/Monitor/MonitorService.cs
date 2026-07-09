@@ -376,8 +376,13 @@ public class MonitorService(
             // small clock-skew allowance). At most one order per symbol per day is
             // placed, so the most recent match is unambiguous - and the time gate
             // stops a same-ticker order from a previous day matching by accident.
+            // Fill.Quantity > 0 restricts the match to BUYS: T212 mirrors the
+            // signed order quantity, so a sell reports negative - adopting a
+            // same-ticker sell (manual sale, or an exit) as this intent's entry
+            // would corrupt the trade with the sell's price and realised P&L.
             var match = history.Items
                 .Where(i => i.Fill is not null
+                    && i.Fill.Quantity > 0
                     && TickerMatchesSymbol(i.Order.Ticker, trade.Symbol)
                     && i.Fill.FilledAt >= trade.OpenedAt.AddMinutes(-5))
                 .OrderByDescending(i => i.Fill!.FilledAt)
