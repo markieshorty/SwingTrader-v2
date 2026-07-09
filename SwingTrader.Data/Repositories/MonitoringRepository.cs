@@ -27,8 +27,15 @@ public class MonitoringRepository(SwingTraderDbContext db) : IMonitoringReposito
             .ToListAsync(ct);
         int CountFor(JobStatus s) => recentJobs.FirstOrDefault(x => x.Status == s)?.Count ?? 0;
 
+        // Monitor is excluded from the per-type breakdown: JobLogEntry is keyed
+        // per (account, type, DAY), so a continuous 5-minute poll like Monitor
+        // re-uses one day-row (flipping Processing<->Completed each cycle) and
+        // its ~288 daily runs can never be counted here - "Monitor: 2 completed"
+        // would mean "2 day-rows", not 2 runs, which reads as broken. Monitor's
+        // liveness is shown by its worker heartbeat instead. The daily batch jobs
+        // below are genuinely one row per run, so their counts are meaningful.
         var byTypeRaw = await db.JobLogEntries
-            .Where(j => j.EnqueuedAt >= sevenDaysAgo)
+            .Where(j => j.EnqueuedAt >= sevenDaysAgo && j.JobType != "Monitor")
             .GroupBy(j => new { j.JobType, j.Status })
             .Select(g => new { g.Key.JobType, g.Key.Status, Count = g.Count() })
             .ToListAsync(ct);

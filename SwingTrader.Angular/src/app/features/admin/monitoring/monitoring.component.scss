@@ -235,6 +235,12 @@
   white-space: nowrap;
 }
 
+.note {
+  margin: 10px 0 0;
+  font-style: italic;
+  opacity: 0.85;
+}
+
 .muted {
   color: var(--mat-sys-on-surface-variant, #888);
 }

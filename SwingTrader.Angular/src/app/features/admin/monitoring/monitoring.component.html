@@ -89,7 +89,7 @@
 
     <!-- Jobs -->
     <mat-card class="panel">
-      <h3>Jobs (last 24h)</h3>
+      <h3>Batch jobs (last 24h)</h3>
       <div class="chips">
         <span class="chip ok">{{ d.jobs.completed24h }} completed</span>
         <span class="chip" [class.bad]="d.jobs.failed24h > 0">{{ d.jobs.failed24h }} failed</span>
@@ -112,6 +112,7 @@
           </tbody>
         </table>
       }
+      <p class="muted small note">Once-daily batch jobs (one row per run). Monitor runs continuously every ~5 min — see its live status under Workers.</p>
     </mat-card>
 
     <!-- App Insights -->
