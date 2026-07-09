@@ -466,6 +466,21 @@ export interface MonitoringDashboardDto {
   trading: MonitoringTradingStateDto;
 }
 
+export interface InsightsEventDto {
+  timestamp: string;
+  category: string;
+  title: string;
+  detail: string | null;
+  operation: string | null;
+}
+
+export interface InsightsDetailSectionDto {
+  available: boolean;
+  error: string | null;
+  kind: string;
+  events: InsightsEventDto[];
+}
+
 export type WatchlistType = 'AiManaged' | 'Manual' | 'Mixed';
 
 export interface WatchlistItemDto {

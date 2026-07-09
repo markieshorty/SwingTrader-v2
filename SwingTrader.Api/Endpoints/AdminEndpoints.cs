@@ -260,6 +260,11 @@ public static class AdminEndpoints
         adminGroup.MapGet("/monitoring", async (MonitoringService monitoring, CancellationToken ct) =>
             Results.Ok(await monitoring.GetDashboardAsync(ct)));
 
+        // Drill-down into a single App Insights metric (exceptions / dependencies
+        // / claude429) - the individual records behind the dashboard's tile.
+        adminGroup.MapGet("/monitoring/insights/{kind}", async (string kind, MonitoringService monitoring, CancellationToken ct) =>
+            Results.Ok(await monitoring.GetInsightsDetailAsync(kind, ct)));
+
         return app;
     }
 

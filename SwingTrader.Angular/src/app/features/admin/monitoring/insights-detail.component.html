@@ -1,0 +1,44 @@
+<div class="toolbar">
+  <a mat-stroked-button routerLink="/admin" [queryParams]="{ tab: 'health' }">
+    <mat-icon>arrow_back</mat-icon> Back to Health
+  </a>
+  <h2>{{ heading() }} <span class="muted small">· last 24h</span></h2>
+  <button mat-stroked-button (click)="load()"><mat-icon>refresh</mat-icon> Refresh</button>
+</div>
+
+@if (loading()) {
+  <div class="loading"><mat-spinner diameter="32"></mat-spinner><span>Loading…</span></div>
+}
+@if (!loading() && error()) {
+  <mat-card class="panel">
+    <p class="bad">Could not load events.</p>
+    <button mat-raised-button color="primary" (click)="load()">Retry</button>
+  </mat-card>
+}
+@if (!loading() && !error() && data(); as d) {
+  @if (!d.available) {
+    <mat-card class="panel"><p class="muted">App Insights unavailable — {{ d.error }}</p></mat-card>
+  } @else if (d.events.length === 0) {
+    <mat-card class="panel"><p class="muted">No events in the last 24 hours. 🎉</p></mat-card>
+  } @else {
+    <mat-card class="panel">
+      <div class="rows">
+        @for (e of d.events; track e.timestamp + e.title) {
+          <div class="event-row">
+            <span class="muted small nowrap">{{ e.timestamp | date: 'short' }}</span>
+            <span class="badge muted mono">{{ e.category }}</span>
+            <div class="event-body">
+              <span class="title">{{ e.title }}</span>
+              @if (e.detail) {
+                <span class="muted small detail">{{ e.detail }}</span>
+              }
+              @if (e.operation) {
+                <span class="muted small">op: {{ e.operation }}</span>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </mat-card>
+  }
+}

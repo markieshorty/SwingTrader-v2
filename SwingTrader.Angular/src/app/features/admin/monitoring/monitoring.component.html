@@ -125,15 +125,18 @@
           <div class="mini" [class.attention]="d.insights.failedRequestPct > 5">
             <span class="metric-value">{{ d.insights.failedRequestPct }}%</span><span class="metric-label">Failed</span>
           </div>
-          <div class="mini" [class.attention]="d.insights.serverExceptions24h > 0">
-            <span class="metric-value">{{ d.insights.serverExceptions24h }}</span><span class="metric-label">Exceptions</span>
-          </div>
-          <div class="mini" [class.attention]="d.insights.dependencyFailures24h > 0">
-            <span class="metric-value">{{ d.insights.dependencyFailures24h }}</span><span class="metric-label">Dep. failures</span>
-          </div>
-          <div class="mini" [class.attention]="d.insights.claudeRateLimited24h > 0">
-            <span class="metric-value">{{ d.insights.claudeRateLimited24h }}</span><span class="metric-label">Claude 429s</span>
-          </div>
+          <a class="mini linkable" routerLink="/admin/monitoring/insights/exceptions" [class.attention]="d.insights.serverExceptions24h > 0">
+            <span class="metric-value">{{ d.insights.serverExceptions24h }}</span>
+            <span class="metric-label">Exceptions <mat-icon class="chevron">chevron_right</mat-icon></span>
+          </a>
+          <a class="mini linkable" routerLink="/admin/monitoring/insights/dependencies" [class.attention]="d.insights.dependencyFailures24h > 0">
+            <span class="metric-value">{{ d.insights.dependencyFailures24h }}</span>
+            <span class="metric-label">Dep. failures <mat-icon class="chevron">chevron_right</mat-icon></span>
+          </a>
+          <a class="mini linkable" routerLink="/admin/monitoring/insights/claude429" [class.attention]="d.insights.claudeRateLimited24h > 0">
+            <span class="metric-value">{{ d.insights.claudeRateLimited24h }}</span>
+            <span class="metric-label">Claude 429s <mat-icon class="chevron">chevron_right</mat-icon></span>
+          </a>
         </div>
         @if (d.insights.topExceptions.length > 0) {
           <div class="rows">

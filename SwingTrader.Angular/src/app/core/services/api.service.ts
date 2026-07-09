@@ -11,6 +11,7 @@ import {
   AdminUserSummaryDto,
   ApplyResultDto,
   InviteResultDto,
+  InsightsDetailSectionDto,
   KeyStatusesDto,
   KeyTestResult,
   MonitoringDashboardDto,
@@ -162,6 +163,10 @@ export class ApiService {
 
   getMonitoringDashboard(): Observable<MonitoringDashboardDto> {
     return this.http.get<MonitoringDashboardDto>(`${this.baseUrl}/api/admin/monitoring`);
+  }
+
+  getMonitoringInsightsDetail(kind: string): Observable<InsightsDetailSectionDto> {
+    return this.http.get<InsightsDetailSectionDto>(`${this.baseUrl}/api/admin/monitoring/insights/${kind}`);
   }
 
   createInvite(email: string, appBaseUrl: string): Observable<InviteResultDto> {

@@ -86,6 +86,13 @@ export const routes: Routes = [
     title: 'Admin · User',
   },
   {
+    path: 'admin/monitoring/insights/:kind',
+    canActivate: [authGuard, adminGuard],
+    loadComponent: () =>
+      import('./features/admin/monitoring/insights-detail.component').then((m) => m.InsightsDetailComponent),
+    title: 'Admin · Insights',
+  },
+  {
     path: 'settings',
     canActivate: [authGuard, approvalGuard],
     loadComponent: () =>

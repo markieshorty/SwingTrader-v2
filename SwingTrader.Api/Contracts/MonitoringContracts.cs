@@ -43,3 +43,19 @@ public record InsightsSection(
     IReadOnlyList<NamedCount> TopExceptions);
 
 public record NamedCount(string Name, long Count);
+
+// A single App Insights record for the drill-down list (exceptions /
+// dependency failures / Claude 429s), normalised to a common shape so the
+// detail page renders uniformly regardless of source table.
+public record InsightsEvent(
+    DateTimeOffset Timestamp,
+    string Category,
+    string Title,
+    string? Detail,
+    string? Operation);
+
+public record InsightsDetailSection(
+    bool Available,
+    string? Error,
+    string Kind,
+    IReadOnlyList<InsightsEvent> Events);

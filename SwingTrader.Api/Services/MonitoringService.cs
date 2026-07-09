@@ -99,6 +99,51 @@ public class MonitoringService(
         }
     }
 
+    // Drill-down list for a single App Insights metric tile. Kinds mirror the
+    // clickable tiles on the dashboard: "exceptions", "dependencies", "claude429".
+    public async Task<InsightsDetailSection> GetInsightsDetailAsync(string kind, CancellationToken ct)
+    {
+        var client = services.GetService<LogsQueryClient>();
+        var resourceId = config["ApplicationInsights:ResourceId"];
+        if (client is null || string.IsNullOrWhiteSpace(resourceId))
+            return new InsightsDetailSection(false, "App Insights query not configured.", kind, []);
+
+        var kql = kind switch
+        {
+            "dependencies" =>
+                "dependencies | where success == false | order by timestamp desc | take 200 " +
+                "| project timestamp, category = coalesce(type, target), title = name, detail = strcat(tostring(resultCode), ' ', tostring(data)), operation = operation_Name",
+            "claude429" =>
+                "union traces, exceptions | where message has '429' or outerMessage has '429' " +
+                "| where message has 'Claude' or outerMessage has 'Claude' or operation_Name has 'esearch' or operation_Name has 'atchlist' " +
+                "| order by timestamp desc | take 200 " +
+                "| project timestamp, category = itemType, title = coalesce(message, outerMessage), detail = '', operation = operation_Name",
+            // default = exceptions
+            _ =>
+                "exceptions | order by timestamp desc | take 200 " +
+                "| project timestamp, category = type, title = outerMessage, detail = innermostMessage, operation = operation_Name",
+        };
+
+        try
+        {
+            var rid = new ResourceIdentifier(resourceId);
+            var span = new QueryTimeRange(TimeSpan.FromHours(24));
+            var result = await client.QueryResourceAsync(rid, kql, span, cancellationToken: ct);
+            var events = result.Value.Table.Rows.Select(r => new InsightsEvent(
+                r["timestamp"] is DateTimeOffset ts ? ts : DateTimeOffset.TryParse(r["timestamp"]?.ToString(), out var p) ? p : default,
+                r["category"]?.ToString() ?? "(unknown)",
+                r["title"]?.ToString() ?? string.Empty,
+                string.IsNullOrWhiteSpace(r["detail"]?.ToString()) ? null : r["detail"]!.ToString(),
+                r["operation"]?.ToString())).ToList();
+            return new InsightsDetailSection(true, null, kind, events);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "App Insights detail query ({Kind}) unavailable", kind);
+            return new InsightsDetailSection(false, ex.Message, kind, []);
+        }
+    }
+
     private static async Task<long> RunScalarAsync(LogsQueryClient client, ResourceIdentifier rid, QueryTimeRange span, string kql, CancellationToken ct)
     {
         var result = await client.QueryResourceAsync(rid, kql, span, cancellationToken: ct);

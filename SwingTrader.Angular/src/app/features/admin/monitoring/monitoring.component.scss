@@ -179,6 +179,62 @@
   }
 }
 
+// Clickable metric tiles (dashboard) → drill-down page.
+.mini.linkable {
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 8px;
+  transition: background 0.12s ease;
+
+  &:hover {
+    background: rgba(128, 128, 128, 0.12);
+  }
+  .metric-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+}
+
+.chevron {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  opacity: 0.6;
+}
+
+// Detail page rows.
+.toolbar h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.event-row {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+}
+.event-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  .title {
+    font-weight: 500;
+    word-break: break-word;
+  }
+  .detail {
+    word-break: break-word;
+  }
+}
+.nowrap {
+  white-space: nowrap;
+}
+
 .muted {
   color: var(--mat-sys-on-surface-variant, #888);
 }
