@@ -88,13 +88,31 @@ public class RateLimiterTests
     [Fact]
     public async Task WaitAsync_FiveConcurrentCallers_AllCompleteWithoutDeadlock()
     {
-        // SemaphoreSlim(5,5) caps concurrent waiters - verifies that cap
-        // doesn't itself cause a permanent block for a batch this size.
+        // Verifies concurrent waiters don't deadlock on the serialization gate.
         var limiter = new RateLimiter(maxCallsPerMinute: 6000); // ~10ms floor, keeps the test fast
 
         var all = Task.WhenAll(Enumerable.Range(0, 5).Select(_ => limiter.WaitAsync()));
         var completed = await Task.WhenAny(all, Task.Delay(TimeSpan.FromSeconds(5)));
 
-        completed.Should().Be(all, "all 5 calls should finish well within the 5s timeout guard, not deadlock on the semaphore");
+        completed.Should().Be(all, "all 5 calls should finish well within the 5s timeout guard, not deadlock on the gate");
+    }
+
+    [Fact]
+    public async Task WaitAsync_ConcurrentCallers_ArePacedAtAggregateRateNotPerSlot()
+    {
+        // Regression: the old SemaphoreSlim(5) + per-slot Task.Delay let ~5x the
+        // configured rate through when callers were concurrent (the 489-symbol
+        // screener fired ~250/min against a 50/min Finnhub limiter and got
+        // 429-ed). Correct pacing releases one caller per floor regardless of
+        // how many are queued.
+        var limiter = new RateLimiter(maxCallsPerMinute: 600); // 100ms floor
+
+        var sw = Stopwatch.StartNew();
+        await Task.WhenAll(Enumerable.Range(0, 6).Select(_ => limiter.WaitAsync()));
+        sw.Stop();
+
+        // 6 calls = 5 gaps of ~100ms = ~500ms. The old 5-concurrent-slot impl
+        // would finish this in ~200ms, so ≥400ms proves it's genuinely paced.
+        sw.ElapsedMilliseconds.Should().BeGreaterThanOrEqualTo(400);
     }
 }
