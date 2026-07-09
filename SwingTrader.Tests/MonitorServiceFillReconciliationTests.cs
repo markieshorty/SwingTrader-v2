@@ -375,14 +375,37 @@ public class MonitorServiceFillReconciliationTests
     [Fact]
     public async Task RunCycleAsync_LocalOpenNotHeldAtBroker_FlagsPositionDrift()
     {
+        // Broker still holds OTHER positions (so the response is trusted), but
+        // not this one - a genuine per-position phantom.
         SetupNoOpenPositions();
         _tradeRepo.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade> { ConfirmedOpen("AAPL", 10m) });
-        _t212.GetPortfolioAsync().Returns(new List<PortfolioPositionResponse>()); // broker holds nothing
+        _t212.GetPortfolioAsync().Returns(new List<PortfolioPositionResponse> { BrokerPosition("MSFT_US_EQ", 5m) });
 
         await CreateSut().RunCycleAsync(1, _finnhub, _t212);
 
         await _activityLog.Received(1).LogAsync(1, "SystemEvent", "Position Drift", "Warning",
             Arg.Is<string>(m => m.Contains("AAPL") && m.Contains("not held at the broker")), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunCycleAsync_BrokerReportsNoHoldingsAtAll_RaisesOneAggregatedAlertNotPerPosition()
+    {
+        // A 200-with-empty-array while settled positions exist locally is more
+        // likely a degraded T212 response (or a full manual liquidation) than
+        // N simultaneous unrecorded exits - one aggregated alert, not one per
+        // position per cycle.
+        SetupNoOpenPositions();
+        var aapl = ConfirmedOpen("AAPL", 10m);
+        var msft = ConfirmedOpen("MSFT", 5m);
+        msft.Id = 2;
+        _tradeRepo.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade> { aapl, msft });
+        _t212.GetPortfolioAsync().Returns(new List<PortfolioPositionResponse>());
+
+        await CreateSut().RunCycleAsync(1, _finnhub, _t212);
+
+        await _activityLog.Received(1).LogAsync(1, "SystemEvent", "Position Drift", "Warning",
+            Arg.Is<string>(m => m.Contains("no holdings at all") && m.Contains("AAPL") && m.Contains("MSFT")),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

@@ -291,13 +291,28 @@ public class MonitorService(
 
         var settledCutoff = DateTime.UtcNow.AddMinutes(-PositionDriftGraceMinutes);
         var brokerHeld = brokerPositions.Where(p => Math.Abs(p.Quantity) > 0m).ToList();
+        var settled = openTrades.Where(t => t.EntryFillConfirmedAt is not null && t.OpenedAt <= settledCutoff).ToList();
+
+        // Wholesale-empty guard: a 200 response with zero holdings while
+        // multiple settled positions are open locally is far more likely a
+        // degraded T212 response (the demo API has returned bad-but-200 data
+        // before - see the implausible-fill guard) or a deliberate manual
+        // liquidation than N simultaneous unrecorded exits. Raise ONE
+        // aggregated alert instead of flagging every position phantom every
+        // cycle, and skip the per-position checks against data we don't trust.
+        if (brokerHeld.Count == 0 && settled.Count > 0)
+        {
+            await LogPositionDriftAsync(accountId,
+                $"Broker reports no holdings at all while {settled.Count} settled position(s) are open locally " +
+                $"({string.Join(", ", settled.Select(t => t.Symbol))}) — degraded T212 response or full manual liquidation. Verify the account.", ct);
+            return;
+        }
 
         // 1) Phantom / quantity-mismatch: a confirmed, settled local open
         //    position that the broker either doesn't hold or holds a different
         //    quantity of. Fresh/unconfirmed positions are skipped (grace window).
-        foreach (var trade in openTrades)
+        foreach (var trade in settled)
         {
-            if (trade.EntryFillConfirmedAt is null || trade.OpenedAt > settledCutoff) continue;
 
             var match = brokerHeld.FirstOrDefault(p => TickerMatchesSymbol(p.Ticker, trade.Symbol));
             if (match is null)
