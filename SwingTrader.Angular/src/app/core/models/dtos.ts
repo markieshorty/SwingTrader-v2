@@ -472,6 +472,7 @@ export interface InsightsEventDto {
   title: string;
   detail: string | null;
   operation: string | null;
+  location: string | null;
 }
 
 export interface InsightsDetailSectionDto {

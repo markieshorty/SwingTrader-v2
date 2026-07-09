@@ -52,7 +52,10 @@ public record InsightsEvent(
     string Category,
     string Title,
     string? Detail,
-    string? Operation);
+    string? Operation,
+    // Origin in application code (top SwingTrader stack frame, "file.cs:line").
+    // Populated for exceptions; null for dependency failures / 429s.
+    string? Location);
 
 public record InsightsDetailSection(
     bool Available,

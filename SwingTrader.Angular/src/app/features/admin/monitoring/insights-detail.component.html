@@ -29,6 +29,9 @@
             <span class="badge muted mono">{{ e.category }}</span>
             <div class="event-body">
               <span class="title">{{ e.title }}</span>
+              @if (e.location) {
+                <span class="mono small location"><mat-icon class="loc-icon">code</mat-icon>{{ e.location }}</span>
+              }
               @if (e.detail) {
                 <span class="muted small detail">{{ e.detail }}</span>
               }

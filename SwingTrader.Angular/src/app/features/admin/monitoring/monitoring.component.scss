@@ -235,6 +235,26 @@
   white-space: nowrap;
 }
 
+.location {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #9c6ade;
+  word-break: break-all;
+
+  .loc-icon {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+    opacity: 0.7;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .location {
+    color: #c9a2f5;
+  }
+}
+
 .note {
   margin: 10px 0 0;
   font-style: italic;
