@@ -17,6 +17,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SwingTrader.Tests", "SwingT
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SwingTrader.Functions", "SwingTrader.Functions\SwingTrader.Functions.csproj", "{24EE1CE2-EF4B-4ECC-9EFD-7FDDC6F73A26}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SwingTrader.Backtest", "SwingTrader.Backtest\SwingTrader.Backtest.csproj", "{354BD8CB-97EF-4A1D-8D5A-96FC28AECADA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -111,6 +113,18 @@ Global
 		{24EE1CE2-EF4B-4ECC-9EFD-7FDDC6F73A26}.Release|x64.Build.0 = Release|Any CPU
 		{24EE1CE2-EF4B-4ECC-9EFD-7FDDC6F73A26}.Release|x86.ActiveCfg = Release|Any CPU
 		{24EE1CE2-EF4B-4ECC-9EFD-7FDDC6F73A26}.Release|x86.Build.0 = Release|Any CPU
+		{354BD8CB-97EF-4A1D-8D5A-96FC28AECADA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{354BD8CB-97EF-4A1D-8D5A-96FC28AECADA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{354BD8CB-97EF-4A1D-8D5A-96FC28AECADA}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{354BD8CB-97EF-4A1D-8D5A-96FC28AECADA}.Debug|x64.Build.0 = Debug|Any CPU
+		{354BD8CB-97EF-4A1D-8D5A-96FC28AECADA}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{354BD8CB-97EF-4A1D-8D5A-96FC28AECADA}.Debug|x86.Build.0 = Debug|Any CPU
+		{354BD8CB-97EF-4A1D-8D5A-96FC28AECADA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{354BD8CB-97EF-4A1D-8D5A-96FC28AECADA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{354BD8CB-97EF-4A1D-8D5A-96FC28AECADA}.Release|x64.ActiveCfg = Release|Any CPU
+		{354BD8CB-97EF-4A1D-8D5A-96FC28AECADA}.Release|x64.Build.0 = Release|Any CPU
+		{354BD8CB-97EF-4A1D-8D5A-96FC28AECADA}.Release|x86.ActiveCfg = Release|Any CPU
+		{354BD8CB-97EF-4A1D-8D5A-96FC28AECADA}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
