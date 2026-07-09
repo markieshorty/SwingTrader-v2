@@ -3,6 +3,8 @@ using System.Text.Json;
 using System.Threading.RateLimiting;
 using Azure.Identity;
 using Azure.Messaging.ServiceBus;
+using Azure.Messaging.ServiceBus.Administration;
+using Azure.Monitor.Query;
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -181,6 +183,8 @@ builder.Services.AddScoped<IStrategyWeightsRepository, StrategyWeightsRepository
 builder.Services.AddScoped<IAccountRiskProfileRepository, AccountRiskProfileRepository>();
 builder.Services.AddScoped<IAdminLogRepository, AdminLogRepository>();
 builder.Services.AddScoped<IAdminRepository, AdminRepository>();
+builder.Services.AddScoped<IMonitoringRepository, MonitoringRepository>();
+builder.Services.AddScoped<MonitoringService>();
 builder.Services.AddScoped<IUserApiKeyRepository, UserApiKeyRepository>();
 builder.Services.AddScoped<IJobLogRepository, JobLogRepository>();
 builder.Services.AddScoped<INotificationRecipientRepository, NotificationRecipientRepository>();
@@ -212,6 +216,19 @@ var serviceBusNamespace = builder.Configuration["ServiceBusConnection:fullyQuali
 if (!string.IsNullOrEmpty(serviceBusNamespace))
 {
     builder.Services.AddSingleton(new ServiceBusClient(serviceBusNamespace, new DefaultAzureCredential()));
+    // Admin/management client for the monitoring dashboard's queue + dead-letter
+    // depths. Reading runtime properties needs the "Azure Service Bus Data Owner"
+    // role on the managed identity; MonitoringService degrades gracefully if it's
+    // not yet granted.
+    builder.Services.AddSingleton(new ServiceBusAdministrationClient(serviceBusNamespace, new DefaultAzureCredential()));
+}
+
+// App Insights logs query client for the monitoring dashboard. Needs the
+// "Monitoring Reader" role on the insights resource; MonitoringService degrades
+// gracefully when the resource id/role isn't configured.
+if (!string.IsNullOrWhiteSpace(builder.Configuration["ApplicationInsights:ResourceId"]))
+{
+    builder.Services.AddSingleton(new LogsQueryClient(new DefaultAzureCredential()));
 }
 
 var app = builder.Build();

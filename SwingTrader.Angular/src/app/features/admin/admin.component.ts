@@ -13,13 +13,14 @@ import { ApiService } from '../../core/services/api.service';
 import { AdminActionLogDto, AdminJobFailureDto, AdminStatsDto, AdminUserSummaryDto } from '../../core/models/dtos';
 import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
+import { MonitoringComponent } from './monitoring/monitoring.component';
 
-const TAB_NAMES = ['overview', 'users', 'jobs', 'logs'] as const;
+const TAB_NAMES = ['overview', 'users', 'jobs', 'logs', 'health'] as const;
 
 @Component({
   selector: 'app-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, MatCardModule, MatButtonModule, MatIconModule, MatTabsModule],
+  imports: [CommonModule, FormsModule, RouterLink, MatCardModule, MatButtonModule, MatIconModule, MatTabsModule, MonitoringComponent],
   templateUrl: './admin.component.html',
   styleUrl: './admin.component.scss',
 })

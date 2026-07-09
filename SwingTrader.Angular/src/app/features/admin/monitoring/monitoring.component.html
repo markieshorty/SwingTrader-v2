@@ -1,0 +1,187 @@
+@if (loading()) {
+  <div class="loading"><mat-spinner diameter="32"></mat-spinner><span>Loading monitoring data…</span></div>
+}
+@if (!loading() && error()) {
+  <mat-card class="panel">
+    <p class="bad">Could not load monitoring data.</p>
+    <button mat-raised-button color="primary" (click)="load()">Retry</button>
+  </mat-card>
+}
+@if (!loading() && !error() && data(); as d) {
+  <div class="toolbar">
+    <span class="muted small">Generated {{ d.generatedAt | date: 'medium' }}</span>
+    <button mat-stroked-button (click)="load()"><mat-icon>refresh</mat-icon> Refresh</button>
+  </div>
+
+  <!-- Trading state — the money-safety snapshot -->
+  <div class="metric-grid">
+    <mat-card class="metric">
+      <span class="metric-value">{{ d.trading.openPositions }}</span>
+      <span class="metric-label">Open positions</span>
+    </mat-card>
+    <mat-card class="metric" [class.attention]="d.trading.pendingIntents > 0">
+      <span class="metric-value">{{ d.trading.pendingIntents }}</span>
+      <span class="metric-label">Pending intents</span>
+    </mat-card>
+    <mat-card class="metric" [class.attention]="d.trading.cancelledToday > 0">
+      <span class="metric-value">{{ d.trading.cancelledToday }}</span>
+      <span class="metric-label">Cancelled today</span>
+    </mat-card>
+    <mat-card class="metric">
+      <span class="metric-value">{{ d.trading.ordersPlacedToday }}</span>
+      <span class="metric-label">Orders placed today</span>
+    </mat-card>
+  </div>
+
+  <div class="columns">
+    <!-- Workers -->
+    <mat-card class="panel">
+      <h3>Workers</h3>
+      @if (d.workers.length === 0) {
+        <p class="muted small">No worker heartbeats recorded.</p>
+      } @else {
+        <div class="rows">
+          @for (w of d.workers; track w.name) {
+            <div class="row">
+              <span class="dot" [class]="resultClass(w.lastResult)"></span>
+              <span class="name">{{ w.name }}</span>
+              <span class="muted small">{{ w.lastHeartbeatAt | date: 'short' }}</span>
+              @if (w.isStale) {
+                <span class="badge bad">STALE</span>
+              } @else {
+                <span class="badge" [class]="resultClass(w.lastResult)">{{ w.lastResult }}</span>
+              }
+            </div>
+          }
+        </div>
+      }
+    </mat-card>
+
+    <!-- Queues (Service Bus) -->
+    <mat-card class="panel">
+      <h3>Service Bus queues
+        @if (d.queues.available && d.queues.totalDeadLettered > 0) {
+          <span class="badge bad">{{ d.queues.totalDeadLettered }} dead-lettered</span>
+        }
+      </h3>
+      @if (!d.queues.available) {
+        <p class="muted small">Unavailable — {{ d.queues.error }}</p>
+      } @else if (d.queues.queues.length === 0) {
+        <p class="muted small">No queues found.</p>
+      } @else {
+        <table class="grid">
+          <thead>
+            <tr><th>Queue</th><th class="num">Active</th><th class="num">DLQ</th><th class="num">Scheduled</th></tr>
+          </thead>
+          <tbody>
+            @for (q of d.queues.queues; track q.name) {
+              <tr [class.attention]="q.deadLettered > 0">
+                <td>{{ q.name }}</td>
+                <td class="num">{{ q.active }}</td>
+                <td class="num" [class.bad]="q.deadLettered > 0">{{ q.deadLettered }}</td>
+                <td class="num">{{ q.scheduled }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </mat-card>
+
+    <!-- Jobs -->
+    <mat-card class="panel">
+      <h3>Jobs (last 24h)</h3>
+      <div class="chips">
+        <span class="chip ok">{{ d.jobs.completed24h }} completed</span>
+        <span class="chip" [class.bad]="d.jobs.failed24h > 0">{{ d.jobs.failed24h }} failed</span>
+        <span class="chip muted">{{ d.jobs.processing }} processing</span>
+        <span class="chip muted">{{ d.jobs.enqueued }} enqueued</span>
+      </div>
+      @if (d.jobs.byType.length > 0) {
+        <table class="grid">
+          <thead>
+            <tr><th>Type (7d)</th><th class="num">Completed</th><th class="num">Failed</th></tr>
+          </thead>
+          <tbody>
+            @for (t of d.jobs.byType; track t.jobType) {
+              <tr>
+                <td>{{ t.jobType }}</td>
+                <td class="num">{{ t.completed }}</td>
+                <td class="num" [class.bad]="t.failed > 0">{{ t.failed }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </mat-card>
+
+    <!-- App Insights -->
+    <mat-card class="panel">
+      <h3>App Insights (last 24h)</h3>
+      @if (!d.insights.available) {
+        <p class="muted small">Unavailable — {{ d.insights.error }}</p>
+      } @else {
+        <div class="metric-grid inline">
+          <div class="mini"><span class="metric-value">{{ d.insights.requests24h }}</span><span class="metric-label">Requests</span></div>
+          <div class="mini" [class.attention]="d.insights.failedRequestPct > 5">
+            <span class="metric-value">{{ d.insights.failedRequestPct }}%</span><span class="metric-label">Failed</span>
+          </div>
+          <div class="mini" [class.attention]="d.insights.serverExceptions24h > 0">
+            <span class="metric-value">{{ d.insights.serverExceptions24h }}</span><span class="metric-label">Exceptions</span>
+          </div>
+          <div class="mini" [class.attention]="d.insights.dependencyFailures24h > 0">
+            <span class="metric-value">{{ d.insights.dependencyFailures24h }}</span><span class="metric-label">Dep. failures</span>
+          </div>
+          <div class="mini" [class.attention]="d.insights.claudeRateLimited24h > 0">
+            <span class="metric-value">{{ d.insights.claudeRateLimited24h }}</span><span class="metric-label">Claude 429s</span>
+          </div>
+        </div>
+        @if (d.insights.topExceptions.length > 0) {
+          <div class="rows">
+            @for (e of d.insights.topExceptions; track e.name) {
+              <div class="row"><span class="name mono small">{{ e.name }}</span><span class="badge muted">{{ e.count }}</span></div>
+            }
+          </div>
+        }
+      }
+    </mat-card>
+  </div>
+
+  <!-- System events -->
+  <mat-card class="panel">
+    <h3>System events (Warnings &amp; failures, 7d)</h3>
+    @if (d.systemEvents.length === 0) {
+      <p class="muted small">No warnings or failures in the last 7 days.</p>
+    } @else {
+      <div class="rows">
+        @for (e of d.systemEvents; track e.occurredAt + e.accountId + e.title) {
+          <div class="row event">
+            <span class="dot" [class]="resultClass(e.result)"></span>
+            <span class="muted small">{{ e.occurredAt | date: 'short' }}</span>
+            <span class="name">{{ e.title }}</span>
+            <span class="muted small">acct {{ e.accountId }}</span>
+            @if (e.message) {
+              <span class="muted small ellipsis" [title]="e.message">{{ e.message }}</span>
+            }
+          </div>
+        }
+      </div>
+    }
+  </mat-card>
+
+  <!-- Recent job failures -->
+  @if (d.recentJobFailures.length > 0) {
+    <mat-card class="panel">
+      <h3>Recent job failures (48h)</h3>
+      <div class="rows">
+        @for (f of d.recentJobFailures; track f.jobLogId) {
+          <div class="row event">
+            <span class="dot bad"></span>
+            <span class="name">{{ f.jobType }}</span>
+            <span class="muted small">{{ f.ownerEmail ?? ('acct ' + f.accountId) }} · {{ f.jobDate }}</span>
+            <span class="muted small ellipsis" [title]="f.errorMessage">{{ f.errorMessage }}</span>
+          </div>
+        }
+      </div>
+    </mat-card>
+  }
+}

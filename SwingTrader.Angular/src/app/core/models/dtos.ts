@@ -386,6 +386,86 @@ export interface AdminActionLogDto {
   performedAt: string;
 }
 
+// ── Monitoring dashboard ──────────────────────────────────────────────────
+export interface MonitoringWorkerDto {
+  name: string;
+  lastResult: string;
+  lastHeartbeatAt: string;
+  minutesSinceHeartbeat: number;
+  isStale: boolean;
+  message: string | null;
+}
+
+export interface QueueDepthDto {
+  name: string;
+  active: number;
+  deadLettered: number;
+  scheduled: number;
+}
+
+export interface QueueHealthSectionDto {
+  available: boolean;
+  error: string | null;
+  queues: QueueDepthDto[];
+  totalDeadLettered: number;
+}
+
+export interface MonitoringJobTypeCountDto {
+  jobType: string;
+  completed: number;
+  failed: number;
+}
+
+export interface MonitoringJobsDto {
+  failed24h: number;
+  completed24h: number;
+  processing: number;
+  enqueued: number;
+  byType: MonitoringJobTypeCountDto[];
+}
+
+export interface NamedCountDto {
+  name: string;
+  count: number;
+}
+
+export interface InsightsSectionDto {
+  available: boolean;
+  error: string | null;
+  requests24h: number;
+  failedRequestPct: number;
+  serverExceptions24h: number;
+  dependencyFailures24h: number;
+  claudeRateLimited24h: number;
+  topExceptions: NamedCountDto[];
+}
+
+export interface MonitoringSystemEventDto {
+  occurredAt: string;
+  accountId: number;
+  title: string;
+  result: string;
+  message: string | null;
+}
+
+export interface MonitoringTradingStateDto {
+  openPositions: number;
+  pendingIntents: number;
+  cancelledToday: number;
+  ordersPlacedToday: number;
+}
+
+export interface MonitoringDashboardDto {
+  generatedAt: string;
+  workers: MonitoringWorkerDto[];
+  queues: QueueHealthSectionDto;
+  jobs: MonitoringJobsDto;
+  recentJobFailures: AdminJobFailureDto[];
+  insights: InsightsSectionDto;
+  systemEvents: MonitoringSystemEventDto[];
+  trading: MonitoringTradingStateDto;
+}
+
 export type WatchlistType = 'AiManaged' | 'Manual' | 'Mixed';
 
 export interface WatchlistItemDto {

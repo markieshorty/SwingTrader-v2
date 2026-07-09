@@ -253,6 +253,13 @@ public static class AdminEndpoints
         adminGroup.MapGet("/logs", async (IAdminLogRepository adminLog, CancellationToken ct) =>
             Results.Ok(await adminLog.GetRecentAsync(200, ct)));
 
+        // Operational monitoring dashboard: DB health (workers, jobs, system
+        // events, trading state) plus Service Bus queue depths and App Insights
+        // telemetry. Each external source degrades independently - see
+        // MonitoringService - so this endpoint never 500s on a missing role.
+        adminGroup.MapGet("/monitoring", async (MonitoringService monitoring, CancellationToken ct) =>
+            Results.Ok(await monitoring.GetDashboardAsync(ct)));
+
         return app;
     }
 

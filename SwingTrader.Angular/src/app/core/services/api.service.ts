@@ -13,6 +13,7 @@ import {
   InviteResultDto,
   KeyStatusesDto,
   KeyTestResult,
+  MonitoringDashboardDto,
   NextRunDto,
   NotificationRecipientDto,
   PortfolioDto,
@@ -157,6 +158,10 @@ export class ApiService {
 
   getAdminLogs(): Observable<AdminActionLogDto[]> {
     return this.http.get<AdminActionLogDto[]>(`${this.baseUrl}/api/admin/logs`);
+  }
+
+  getMonitoringDashboard(): Observable<MonitoringDashboardDto> {
+    return this.http.get<MonitoringDashboardDto>(`${this.baseUrl}/api/admin/monitoring`);
   }
 
   createInvite(email: string, appBaseUrl: string): Observable<InviteResultDto> {

@@ -141,5 +141,11 @@
         </div>
       }
     </mat-tab>
+
+    <mat-tab label="Health">
+      @if (selectedTabIndex() === 4) {
+        <app-monitoring></app-monitoring>
+      }
+    </mat-tab>
   </mat-tab-group>
 </div>
