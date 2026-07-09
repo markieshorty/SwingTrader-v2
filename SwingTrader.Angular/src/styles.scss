@@ -89,6 +89,21 @@ body {
   --ag-odd-row-background-color: var(--st-card);
   --ag-foreground-color: var(--st-text);
   --ag-border-color: var(--st-border);
+
+  // Compact the grid so the many-column trade tables fit without truncating
+  // headers: smaller base spacing unit (drives row/header height), tighter
+  // horizontal cell+header padding, and a smaller text size overall.
+  --ag-grid-size: 4px;
+  --ag-cell-horizontal-padding: 8px;
+  --ag-font-size: 12px;
+  --ag-header-foreground-color: var(--st-text);
+
+  // Wrapped headers (wrapHeaderText) need normal line-wrapping and a touch of
+  // line-height so two-line headings read cleanly.
+  .ag-header-cell-text {
+    white-space: normal;
+    line-height: 1.25;
+  }
 }
 
 .stat-card,

@@ -7,7 +7,7 @@
     <mat-button-toggle value="AVOID">AVOID</mat-button-toggle>
   </mat-button-toggle-group>
 
-  <mat-form-field appearance="outline" class="search-field">
+  <mat-form-field appearance="outline" class="search-field" subscriptSizing="dynamic">
     <mat-label>Search symbol</mat-label>
     <input matInput (input)="updateSearch($any($event.target).value)" />
   </mat-form-field>
