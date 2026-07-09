@@ -1,10 +1,10 @@
 name: Deploy Infrastructure
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'infra/**'
+  # Manual-only: infra deploys re-apply containerapp.bicep, which resets the
+  # live API to its bootstrap placeholder image until deploy-api re-pushes the
+  # real one. Auto-firing this on every infra/** push caused an unintended API
+  # outage, so infra is now deliberately dispatched (then follow with deploy-api).
   workflow_dispatch:
 
 permissions:
