@@ -58,6 +58,22 @@ public class TradeRepositoryTests
     }
 
     [Fact]
+    public async Task GetPendingTradesAsync_ReturnsOnlyPendingForModeAndAccount()
+    {
+        await using var db = CreateDb();
+        var repo = new TradeRepository(db);
+        await repo.AddAsync(new Trade { AccountId = 1, Symbol = "AAA", EntryPrice = 10m, Quantity = 1, Status = TradeStatus.Pending, TradingMode = TradingMode.Demo });
+        await repo.AddAsync(new Trade { AccountId = 1, Symbol = "BBB", EntryPrice = 10m, Quantity = 1, Status = TradeStatus.Open, TradingMode = TradingMode.Demo });
+        await repo.AddAsync(new Trade { AccountId = 1, Symbol = "CCC", EntryPrice = 10m, Quantity = 1, Status = TradeStatus.Cancelled, TradingMode = TradingMode.Demo });
+        await repo.AddAsync(new Trade { AccountId = 1, Symbol = "DDD", EntryPrice = 10m, Quantity = 1, Status = TradeStatus.Pending, TradingMode = TradingMode.Live });
+        await repo.AddAsync(new Trade { AccountId = 2, Symbol = "EEE", EntryPrice = 10m, Quantity = 1, Status = TradeStatus.Pending, TradingMode = TradingMode.Demo });
+
+        var result = await repo.GetPendingTradesAsync(1, TradingMode.Demo);
+
+        result.Should().ContainSingle(t => t.Symbol == "AAA");
+    }
+
+    [Fact]
     public async Task GetClosedOnDateAsync_StillOpenTrade_IsNotReturned()
     {
         await using var db = CreateDb();

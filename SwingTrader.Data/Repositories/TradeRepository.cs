@@ -40,6 +40,11 @@ public class TradeRepository(SwingTraderDbContext context) : ITradeRepository
             .ToListAsync();
     }
 
+    public async Task<IEnumerable<Trade>> GetPendingTradesAsync(int accountId, TradingMode tradingMode) =>
+        await context.Trades
+            .Where(x => x.AccountId == accountId && x.TradingMode == tradingMode && x.Status == TradeStatus.Pending)
+            .ToListAsync();
+
     public async Task<IEnumerable<Trade>> GetUnreconciledOrdersAsync(int accountId, TradingMode tradingMode) =>
         await context.Trades
             .Where(x => x.AccountId == accountId && x.TradingMode == tradingMode &&

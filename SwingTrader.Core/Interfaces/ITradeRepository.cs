@@ -20,6 +20,12 @@ public interface ITradeRepository
     // confirmation from T212 - see Trade.EntryFillConfirmedAt.
     Task<IEnumerable<Trade>> GetUnreconciledOrdersAsync(int accountId, TradingMode tradingMode);
 
+    // Intent-first placements written before the broker call whose order
+    // outcome is still unknown (Status == Pending, no EntryOrderId yet).
+    // Monitor resolves these against T212 order history - see MonitorService's
+    // pending reconciliation.
+    Task<IEnumerable<Trade>> GetPendingTradesAsync(int accountId, TradingMode tradingMode);
+
     // Trades that closed on the given calendar day (by ClosedAt, not
     // OpenedAt - a position exited today could have been opened days ago).
     // Used by ExecutionService to stop a same-day re-enqueue (after an exit

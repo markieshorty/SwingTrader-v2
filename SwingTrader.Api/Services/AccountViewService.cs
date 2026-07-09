@@ -166,7 +166,11 @@ public class AccountViewService(
         if (account is null) return [];
 
         var from = DateTime.UtcNow.AddDays(-days);
-        var history = await trades.GetTradeHistoryAsync(accountId, account.TradingMode, from, DateTime.UtcNow);
+        // Exclude intent-first placement states: a Pending intent isn't a
+        // confirmed position yet, and a Cancelled one never reached the broker -
+        // neither belongs in the user's trade history.
+        var history = (await trades.GetTradeHistoryAsync(accountId, account.TradingMode, from, DateTime.UtcNow))
+            .Where(t => t.Status != TradeStatus.Pending && t.Status != TradeStatus.Cancelled);
 
         var results = new List<object>();
         foreach (var trade in history)

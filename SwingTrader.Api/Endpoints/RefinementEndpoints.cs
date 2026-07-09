@@ -52,7 +52,9 @@ public static class RefinementEndpoints
             // reflects the same count that would actually unblock a new one.
             var from = DateTime.UtcNow.AddDays(-refinementConfig.Value.AnalysisPeriodDays);
             var closed = (await tradeRepo.GetTradeHistoryAsync(ctx.AccountId, account.TradingMode, from, DateTime.UtcNow))
-                .Where(t => t.Status != TradeStatus.Open && t.SignalId.HasValue);
+                .Where(t => t.Status != TradeStatus.Open
+                    && t.Status != TradeStatus.Pending && t.Status != TradeStatus.Cancelled
+                    && t.SignalId.HasValue);
             var tradesScoredSoFar = 0;
             foreach (var t in closed)
             {

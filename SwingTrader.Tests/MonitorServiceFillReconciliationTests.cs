@@ -235,6 +235,107 @@ public class MonitorServiceFillReconciliationTests
             t.ExitPrice == 105m && t.ExitFillConfirmedAt != null));
     }
 
+    // ── Intent-first Pending reconciliation ──────────────────────────────────
+    // A Pending trade is an execution intent written before the broker call
+    // whose outcome was left unknown (crash/timeout mid-placement). Monitor
+    // resolves it against T212 order history: promote to Open if the order
+    // actually placed, or Cancel it once a grace window proves it never did.
+
+    [Fact]
+    public async Task RunCycleAsync_PendingOrderFoundInHistory_PromotedToOpenWithFill()
+    {
+        SetupNoOpenPositions();
+        _tradeRepo.GetPendingTradesAsync(1, TradingMode.Demo).Returns(new List<Trade>
+        {
+            new()
+            {
+                Id = 1, AccountId = 1, Symbol = "AAPL", Quantity = 10, EntryPrice = 100m,
+                Status = TradeStatus.Pending, EntryOrderId = null, OpenedAt = DateTime.UtcNow,
+            },
+        });
+        // A filled order for the same ticker at/after the intent time = the
+        // placement really did reach the broker.
+        _t212.GetOrderHistoryAsync(50, null, null).Returns(HistoryWithFilledOrder(111, 99.5m, 10m, netValueGbp: 74.60m));
+
+        await CreateSut().RunCycleAsync(1, _finnhub, _t212);
+
+        await _tradeRepo.Received(1).UpdateAsync(Arg.Is<Trade>(t =>
+            t.Status == TradeStatus.Open && t.EntryOrderId == "111"
+            && t.EntryPrice == 99.5m && t.EntryValueGbp == 74.60m && t.EntryFillConfirmedAt != null));
+    }
+
+    [Fact]
+    public async Task RunCycleAsync_PendingOrderNoMatchPastGrace_CancelledAndLogged()
+    {
+        SetupNoOpenPositions();
+        _tradeRepo.GetPendingTradesAsync(1, TradingMode.Demo).Returns(new List<Trade>
+        {
+            new()
+            {
+                Id = 1, AccountId = 1, Symbol = "AAPL", Quantity = 10, EntryPrice = 100m,
+                Status = TradeStatus.Pending, EntryOrderId = null,
+                OpenedAt = DateTime.UtcNow.AddMinutes(-40), // past the 30m grace
+            },
+        });
+        _t212.GetOrderHistoryAsync(50, null, null).Returns(new HistoricalOrdersResponse([], null));
+
+        await CreateSut().RunCycleAsync(1, _finnhub, _t212);
+
+        await _tradeRepo.Received(1).UpdateAsync(Arg.Is<Trade>(t => t.Status == TradeStatus.Cancelled));
+        await _activityLog.Received(1).LogAsync(1, "SystemEvent", "Order Not Placed", "Warning",
+            Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunCycleAsync_PendingOrderNoMatchWithinGrace_LeftPendingForRetry()
+    {
+        SetupNoOpenPositions();
+        _tradeRepo.GetPendingTradesAsync(1, TradingMode.Demo).Returns(new List<Trade>
+        {
+            new()
+            {
+                Id = 1, AccountId = 1, Symbol = "AAPL", Quantity = 10, EntryPrice = 100m,
+                Status = TradeStatus.Pending, EntryOrderId = null,
+                OpenedAt = DateTime.UtcNow.AddMinutes(-2), // still within grace
+            },
+        });
+        _t212.GetOrderHistoryAsync(50, null, null).Returns(new HistoricalOrdersResponse([], null));
+
+        await CreateSut().RunCycleAsync(1, _finnhub, _t212);
+
+        // Neither promoted nor cancelled - waits for T212 history to catch up.
+        await _tradeRepo.DidNotReceive().UpdateAsync(Arg.Any<Trade>());
+        await _activityLog.DidNotReceive().LogAsync(1, "SystemEvent", "Order Not Placed",
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunCycleAsync_PendingOrderStaleSameTickerFromEarlier_NotMatchedByTime()
+    {
+        // A filled order for the same ticker but *before* the intent time (e.g.
+        // a previous day's trade) must not be mistaken for this intent's fill.
+        SetupNoOpenPositions();
+        _tradeRepo.GetPendingTradesAsync(1, TradingMode.Demo).Returns(new List<Trade>
+        {
+            new()
+            {
+                Id = 1, AccountId = 1, Symbol = "AAPL", Quantity = 10, EntryPrice = 100m,
+                Status = TradeStatus.Pending, EntryOrderId = null,
+                OpenedAt = DateTime.UtcNow.AddMinutes(-40),
+            },
+        });
+        _t212.GetOrderHistoryAsync(50, null, null).Returns(new HistoricalOrdersResponse(
+            [new HistoricalOrderItem(
+                new HistoricalOrderDetail(111, "AAPL_US_EQ", "FILLED", 10m, 10m, 995m),
+                new HistoricalFillDetail(DateTime.UtcNow.AddDays(-1), 99.5m, 10m, null))],
+            null));
+
+        await CreateSut().RunCycleAsync(1, _finnhub, _t212);
+
+        // No time-valid match → cancelled as never-placed, not promoted to Open.
+        await _tradeRepo.Received(1).UpdateAsync(Arg.Is<Trade>(t => t.Status == TradeStatus.Cancelled));
+    }
+
     [Fact]
     public async Task RunCycleAsync_CircuitBreakerTriggers_AutoPausesEntriesForCurrentModeAndLogs()
     {

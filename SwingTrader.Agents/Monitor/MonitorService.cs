@@ -65,6 +65,12 @@ public class MonitorService(
         // early as possible once T212 confirms.
         await ReconcileOrderFillsAsync(accountId, account.TradingMode, t212, ct);
 
+        // Step 0b — resolve any intent-first Pending placement whose broker
+        // outcome was left unknown by Execution (crash/timeout mid-placement).
+        // Promotes it to Open if the order actually reached T212, or Cancels it
+        // if it never did - so it never becomes a duplicate or a stop-less ghost.
+        await ReconcilePendingOrdersAsync(accountId, account.TradingMode, t212, ct);
+
         // Step 1 — circuit breaker check
         if (await circuitBreaker.ShouldTriggerAsync(accountId, summary, ct))
         {
@@ -233,6 +239,113 @@ public class MonitorService(
     // fill (and any slippage) is known solely by T212. EntryPrice/ExitPrice
     // are written optimistically at order-placement time (ExecutionService /
     // PositionExitService) and corrected here once T212 confirms the fill.
+    // How long to wait for a Pending intent to appear in T212's order history
+    // before concluding the order never reached the broker. A market order fills
+    // within milliseconds and shows in history within seconds/minutes, so a
+    // generous window makes a false "never placed" verdict effectively
+    // impossible while still freeing reserved capital the same session.
+    private const int PendingReconcileGraceMinutes = 30;
+
+    private async Task ReconcilePendingOrdersAsync(int accountId, TradingMode tradingMode, ITrading212Client t212, CancellationToken ct)
+    {
+        List<Trade> pending;
+        try
+        {
+            pending = (await tradeRepo.GetPendingTradesAsync(accountId, tradingMode)).ToList();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to load pending intents for account {AccountId} — will retry next cycle", accountId);
+            return;
+        }
+
+        if (pending.Count == 0) return;
+        logger.LogInformation("Pending-order reconciliation for account {AccountId}: {Count} intent(s) awaiting resolution", accountId, pending.Count);
+
+        HistoricalOrdersResponse history;
+        try
+        {
+            history = await t212.GetOrderHistoryAsync(limit: 50);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not fetch T212 order history for pending reconciliation (account {AccountId}) — will retry next cycle", accountId);
+            return;
+        }
+
+        foreach (var trade in pending)
+        {
+            if (ct.IsCancellationRequested) break;
+
+            // Match a filled history order to this intent by ticker (T212 tickers
+            // look like "AAPL_US_EQ") and a fill at/after the intent time (minus a
+            // small clock-skew allowance). At most one order per symbol per day is
+            // placed, so the most recent match is unambiguous - and the time gate
+            // stops a same-ticker order from a previous day matching by accident.
+            var match = history.Items
+                .Where(i => i.Fill is not null
+                    && TickerMatchesSymbol(i.Order.Ticker, trade.Symbol)
+                    && i.Fill.FilledAt >= trade.OpenedAt.AddMinutes(-5))
+                .OrderByDescending(i => i.Fill!.FilledAt)
+                .FirstOrDefault();
+
+            if (match is not null)
+            {
+                // The order really did reach the broker - adopt its id and
+                // promote to Open, applying the confirmed fill (same plausibility
+                // guard as entry fill reconciliation) so the position is fully
+                // reconciled in one step.
+                trade.EntryOrderId = match.Order.Id.ToString();
+                trade.Status = TradeStatus.Open;
+                if (IsPlausibleFillPrice(match.Fill!.Price, trade.EntryPrice))
+                {
+                    trade.EntryPrice = match.Fill.Price;
+                    trade.EntryValueGbp = match.Fill.WalletImpact?.NetValue;
+                    trade.EntryFeesGbp = SumFeesGbp(match.Fill);
+                }
+                trade.EntryFillConfirmedAt = DateTime.UtcNow;
+                await tradeRepo.UpdateAsync(trade);
+                logger.LogWarning(
+                    "Recovered pending order for {Symbol} (account {AccountId}): matched T212 order {OrderId} — promoted to Open",
+                    trade.Symbol, accountId, match.Order.Id);
+                continue;
+            }
+
+            // No matching order after the grace window → the placement never
+            // reached the broker. Cancel the intent so its reserved capital frees
+            // up. Within the window we leave it Pending and retry next cycle
+            // (T212 history may simply not have caught up yet).
+            if (DateTime.UtcNow - trade.OpenedAt > TimeSpan.FromMinutes(PendingReconcileGraceMinutes))
+            {
+                trade.Status = TradeStatus.Cancelled;
+                await tradeRepo.UpdateAsync(trade);
+                logger.LogWarning(
+                    "Pending order for {Symbol} (account {AccountId}) had no matching T212 order after {Grace}m — marking Cancelled (never placed)",
+                    trade.Symbol, accountId, PendingReconcileGraceMinutes);
+                try
+                {
+                    await activityLog.LogAsync(accountId, "SystemEvent", "Order Not Placed", "Warning",
+                        $"{trade.Symbol}: execution intent could not be confirmed at the broker and was cancelled.");
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to write activity log for cancelled pending order {Symbol} (account {AccountId})", trade.Symbol, accountId);
+                }
+            }
+            else
+            {
+                logger.LogInformation(
+                    "Pending order for {Symbol} (account {AccountId}) not yet in T212 history — within grace window, will retry",
+                    trade.Symbol, accountId);
+            }
+        }
+    }
+
+    // T212 equity tickers carry a suffix, e.g. "AAPL_US_EQ" for symbol "AAPL".
+    private static bool TickerMatchesSymbol(string ticker, string symbol) =>
+        ticker.Equals(symbol, StringComparison.OrdinalIgnoreCase)
+        || ticker.StartsWith(symbol + "_", StringComparison.OrdinalIgnoreCase);
+
     private async Task ReconcileOrderFillsAsync(int accountId, TradingMode tradingMode, ITrading212Client t212, CancellationToken ct)
     {
         List<Trade> pending;

@@ -30,7 +30,16 @@ public enum TradeStatus
     Closed,
     StoppedOut,
     TargetHit,
-    ManuallyClosed
+    ManuallyClosed,
+    // Intent-first placement states (appended so existing stored int values are
+    // unchanged). Pending: a Trade row written BEFORE the broker order call so a
+    // crash/redelivery between placement and persistence can't duplicate the
+    // order or leave an untracked position - it has no EntryOrderId yet and is
+    // resolved by Monitor's pending reconciliation (promoted to Open once the
+    // order is confirmed in T212 history, or Cancelled if it never reached the
+    // broker). Cancelled: a Pending intent confirmed to have never placed.
+    Pending = 5,
+    Cancelled = 6
 }
 
 public enum CapitalTier

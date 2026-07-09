@@ -229,67 +229,90 @@ public class ExecutionService(
                 continue;
             }
 
+            // signal.CalculatedStopLoss/CalculatedTarget are absolute price
+            // levels computed from whatever price was live when Report ran
+            // (~6:30 ET) - by the time an order actually places (immediately
+            // at Execution's 9:20 ET window, or hours later via a same-day
+            // approval), the stock can have moved enough that those fixed
+            // levels no longer sit at their intended distance from the real
+            // entry price. The percentage table itself doesn't depend on any
+            // particular price snapshot, so re-deriving it from a quote taken
+            // right before order placement keeps the stop/target correctly
+            // anchored regardless of how stale the signal's own price is.
+            // Falls back to the signal's precomputed levels if this fails -
+            // not worth blocking the trade over one quote call.
+            var stopLossPrice = signal.CalculatedStopLoss ?? signal.CurrentPrice * 0.95m;
+            var targetPrice = signal.CalculatedTarget ?? signal.CurrentPrice * 1.08m;
             try
             {
-                // signal.CalculatedStopLoss/CalculatedTarget are absolute price
-                // levels computed from whatever price was live when Report ran
-                // (~6:30 ET) - by the time an order actually places (immediately
-                // at Execution's 9:20 ET window, or hours later via a same-day
-                // approval), the stock can have moved enough that those fixed
-                // levels no longer sit at their intended distance from the real
-                // entry price. The percentage table itself doesn't depend on any
-                // particular price snapshot, so re-deriving it from a quote taken
-                // right before order placement keeps the stop/target correctly
-                // anchored regardless of how stale the signal's own price is.
-                // Falls back to the signal's precomputed levels if this fails -
-                // not worth blocking the trade over one quote call.
-                var stopLossPrice = signal.CalculatedStopLoss ?? signal.CurrentPrice * 0.95m;
-                var targetPrice = signal.CalculatedTarget ?? signal.CurrentPrice * 1.08m;
-                try
+                await rateLimiter.WaitAsync(ct);
+                var freshQuote = await finnhub.GetQuoteAsync(signal.Symbol);
+                if (freshQuote.CurrentPrice is > 0)
                 {
-                    await rateLimiter.WaitAsync(ct);
-                    var freshQuote = await finnhub.GetQuoteAsync(signal.Symbol);
-                    if (freshQuote.CurrentPrice is > 0)
-                    {
-                        var (freshStop, freshTarget) = EntryLevelCalculator.Calculate(signal.SetupType, signal.ConvictionScore ?? 0m, freshQuote.CurrentPrice.Value);
-                        stopLossPrice = freshStop;
-                        targetPrice = freshTarget;
-                    }
+                    var (freshStop, freshTarget) = EntryLevelCalculator.Calculate(signal.SetupType, signal.ConvictionScore ?? 0m, freshQuote.CurrentPrice.Value);
+                    stopLossPrice = freshStop;
+                    targetPrice = freshTarget;
                 }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "Could not refresh entry levels for {Symbol} (account {AccountId}) — using Report's precomputed levels", signal.Symbol, accountId);
-                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Could not refresh entry levels for {Symbol} (account {AccountId}) — using Report's precomputed levels", signal.Symbol, accountId);
+            }
 
+            // ── Intent-first placement ────────────────────────────────────────
+            // Service Bus delivers execution messages at-least-once, so this
+            // handler can be redelivered after a crash/timeout. Persist the trade
+            // as Pending AND claim the signal (WasExecuted) *before* the broker
+            // call: a redelivery then sees the signal already executed (skipped)
+            // and the position tracked as Pending, instead of re-placing a
+            // duplicate order or leaving an untracked, stop-less position. The
+            // Pending row carries no EntryOrderId yet - Monitor's pending
+            // reconciliation promotes it to Open (or Cancels it) against T212's
+            // order history.
+            var trade = new Trade
+            {
+                AccountId = accountId,
+                TradingMode = account.TradingMode,
+                Symbol = signal.Symbol,
+                CompanyName = signal.CompanyName,
+                Direction = TradeDirection.Long,
+                EntryPrice = signal.CurrentPrice,
+                Quantity = sizing.Quantity,
+                StopLossPrice = stopLossPrice,
+                TargetPrice = targetPrice,
+                Status = TradeStatus.Pending,
+                OpenedAt = DateTime.UtcNow,
+                SignalId = signal.Id,
+            };
+            try
+            {
+                await tradeRepo.AddAsync(trade);
+                signal.WasExecuted = true;
+                await signalRepo.UpdateAsync(signal);
+            }
+            catch (Exception ex)
+            {
+                // No broker call has been made yet, so skipping is safe - nothing
+                // to reconcile. Retry naturally happens if the message redelivers.
+                logger.LogError(ex, "Failed to record execution intent for {Symbol} (account {AccountId}) — skipping before any order placed", signal.Symbol, accountId);
+                failed++;
+                continue;
+            }
+
+            try
+            {
                 var order = await t212.PlaceMarketOrderAsync(
                     new MarketOrderRequest(ticker, sizing.Quantity));
+
+                trade.EntryOrderId = order.Id.ToString();
+                trade.Status = TradeStatus.Open;
+                await PopulateMarketContextAsync(trade, finnhub, tiingo, ct);
+                await tradeRepo.UpdateAsync(trade);
+                openTrades.Add(trade);
 
                 logger.LogInformation(
                     "Order placed for account {AccountId}: {Symbol} ({Ticker}) qty={Qty} estimatedCost={Cost:F2} orderId={OrderId}",
                     accountId, signal.Symbol, ticker, sizing.Quantity, sizing.EstimatedCost, order.Id);
-
-                var trade = new Trade
-                {
-                    AccountId = accountId,
-                    TradingMode = account.TradingMode,
-                    Symbol = signal.Symbol,
-                    CompanyName = signal.CompanyName,
-                    Direction = TradeDirection.Long,
-                    EntryPrice = signal.CurrentPrice,
-                    Quantity = sizing.Quantity,
-                    StopLossPrice = stopLossPrice,
-                    TargetPrice = targetPrice,
-                    Status = TradeStatus.Open,
-                    EntryOrderId = order.Id.ToString(),
-                    OpenedAt = DateTime.UtcNow,
-                    SignalId = signal.Id,
-                };
-                await PopulateMarketContextAsync(trade, finnhub, tiingo, ct);
-                await tradeRepo.AddAsync(trade);
-                openTrades.Add(trade);
-
-                signal.WasExecuted = true;
-                await signalRepo.UpdateAsync(signal);
 
                 availableCash -= sizing.EstimatedCost;
                 placedSymbols.Add(signal.Symbol);
@@ -300,7 +323,12 @@ public class ExecutionService(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Order failed for {Symbol} ({Ticker}), account {AccountId}", signal.Symbol, ticker, accountId);
+                // The order's outcome is UNKNOWN - it may have reached the broker
+                // and filled. Leave the trade Pending (never delete, never
+                // re-place here): Monitor's pending reconciliation resolves it
+                // against T212 order history - promoting to Open if it actually
+                // placed, or Cancelling it if it definitively did not.
+                logger.LogError(ex, "Order placement outcome unknown for {Symbol} ({Ticker}), account {AccountId} — left as Pending for reconciliation", signal.Symbol, ticker, accountId);
                 failed++;
             }
         }
