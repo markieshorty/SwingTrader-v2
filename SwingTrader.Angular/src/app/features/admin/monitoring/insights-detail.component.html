@@ -25,7 +25,7 @@
       <div class="rows">
         @for (e of d.events; track e.timestamp + e.title) {
           <div class="event-row">
-            <span class="muted small nowrap">{{ e.timestamp | date: 'short' }}</span>
+            <span class="muted small nowrap">{{ e.timestamp | date: 'dd/MM/yyyy HH:mm:ss' }}</span>
             <span class="badge muted mono">{{ e.category }}</span>
             <div class="event-body">
               <span class="title">{{ e.title }}</span>
