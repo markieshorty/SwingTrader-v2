@@ -127,14 +127,16 @@ public class MonitoringService(
 
         var kql = kind switch
         {
+            // NB: 'title' is a reserved word in this Kusto dialect (a render
+            // property) and cannot appear as a project column - use 'evtitle'.
             "dependencies" =>
                 "dependencies | where success == false | order by timestamp desc | take 200 " +
-                "| project timestamp, category = coalesce(type, target), title = name, detail = strcat(tostring(resultCode), ' ', tostring(data)), operation = operation_Name, location = ''",
+                "| project timestamp, category = coalesce(type, target), evtitle = name, detail = strcat(tostring(resultCode), ' ', tostring(data)), operation = operation_Name, location = ''",
             "claude429" =>
                 "union traces, exceptions | where message has '429' or outerMessage has '429' " +
                 "| where message has 'Claude' or outerMessage has 'Claude' or operation_Name has 'esearch' or operation_Name has 'atchlist' " +
                 "| order by timestamp desc | take 200 " +
-                "| project timestamp, category = itemType, title = coalesce(message, outerMessage), detail = '', operation = operation_Name, location = ''",
+                "| project timestamp, category = itemType, evtitle = coalesce(message, outerMessage), detail = '', operation = operation_Name, location = ''",
             // default = exceptions. Walk the parsed stack of each exception and
             // surface the top application-code frame as "file.cs:line" (the
             // origin), falling back to the reported method when no SwingTrader
@@ -142,10 +144,10 @@ public class MonitoringService(
             _ =>
                 "exceptions | extend _d = todynamic(details) | mv-expand frame = _d[0].parsedStack " +
                 "| extend fa = tostring(frame['assembly']), fline = tolong(frame['line']), ffile = tostring(frame['fileName']), fmethod = tostring(frame['method']) " +
-                "| summarize timestamp = take_any(timestamp), category = take_any(type), title = take_any(outerMessage), detail = take_any(innermostMessage), operation = take_any(operation_Name), " +
+                "| summarize timestamp = take_any(timestamp), category = take_any(type), evtitle = take_any(outerMessage), detail = take_any(innermostMessage), operation = take_any(operation_Name), " +
                 "appLoc = take_anyif(strcat(replace_string(ffile, '/src/', ''), ':', tostring(fline)), fa startswith 'SwingTrader' and fline > 0), topMethod = take_any(method) by itemId " +
                 "| extend location = coalesce(appLoc, topMethod) " +
-                "| project timestamp, category, title, detail, operation, location " +
+                "| project timestamp, category, evtitle, detail, operation, location " +
                 "| order by timestamp desc | take 200",
         };
 
@@ -157,7 +159,7 @@ public class MonitoringService(
             var events = result.Value.Table.Rows.Select(r => new InsightsEvent(
                 r["timestamp"] is DateTimeOffset ts ? ts : DateTimeOffset.TryParse(r["timestamp"]?.ToString(), out var p) ? p : default,
                 r["category"]?.ToString() ?? "(unknown)",
-                r["title"]?.ToString() ?? string.Empty,
+                r["evtitle"]?.ToString() ?? string.Empty,
                 string.IsNullOrWhiteSpace(r["detail"]?.ToString()) ? null : r["detail"]!.ToString(),
                 r["operation"]?.ToString(),
                 string.IsNullOrWhiteSpace(r["location"]?.ToString()) ? null : r["location"]!.ToString())).ToList();
