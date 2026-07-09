@@ -26,6 +26,36 @@ public class JobLogRepository(SwingTraderDbContext db) : IJobLogRepository
         return entry;
     }
 
+    public async Task<bool> TryCreateEnqueuedAsync(int accountId, string jobType, DateOnly jobDate, CancellationToken ct = default)
+    {
+        // Fast path: someone already claimed this slot.
+        if (await FindAsync(accountId, jobType, jobDate, ct) is not null) return false;
+
+        var entry = new JobLogEntry
+        {
+            AccountId = accountId,
+            JobType = jobType,
+            JobDate = jobDate,
+            Status = JobStatus.Enqueued,
+            EnqueuedAt = DateTime.UtcNow,
+        };
+        db.JobLogEntries.Add(entry);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+            return true;
+        }
+        catch (DbUpdateException)
+        {
+            // Lost the race: a concurrent scheduler execution inserted between
+            // our Find and SaveChanges - the UNIQUE index on (AccountId,
+            // JobType, JobDate) rejected ours. Detach so this scoped context
+            // stays usable for the remaining accounts in the same tick.
+            db.Entry(entry).State = EntityState.Detached;
+            return false;
+        }
+    }
+
     public async Task MarkProcessingAsync(int accountId, string jobType, DateOnly jobDate, CancellationToken ct = default)
     {
         var entry = await FindAsync(accountId, jobType, jobDate, ct);

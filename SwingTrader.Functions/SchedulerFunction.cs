@@ -129,9 +129,34 @@ public class SchedulerFunction(
             return; // Already enqueued/processing/completed today.
         }
 
-        await using var sender = serviceBus!.CreateSender(queueName);
-        await sender.SendMessageAsync(new ServiceBusMessage(JsonSerializer.Serialize(message)), ct);
-        await jobLog.CreateEnqueuedAsync(accountId, jobType, jobDate, ct);
+        // Claim the job slot BEFORE sending. The old order (send, then record)
+        // was a check-then-act race: two overlapping scheduler executions (host
+        // restart mid-tick / missed-schedule catch-up firing beside the regular
+        // tick) both passed the Find above and both sent - observed live on
+        // 2026-07-09 as two Execution messages in the same 5-minute window and
+        // a duplicate pair of activity-log rows. Claiming first makes the
+        // UNIQUE index the arbiter: the loser's insert returns false and it
+        // never sends.
+        if (!await jobLog.TryCreateEnqueuedAsync(accountId, jobType, jobDate, ct))
+        {
+            logger.LogInformation(
+                "Skipped enqueue of {JobType} for account {AccountId} — a concurrent scheduler execution claimed it first",
+                jobType, accountId);
+            return;
+        }
+
+        try
+        {
+            await using var sender = serviceBus!.CreateSender(queueName);
+            await sender.SendMessageAsync(new ServiceBusMessage(JsonSerializer.Serialize(message)), ct);
+        }
+        catch
+        {
+            // Send failed after claiming - release the claim so the next tick
+            // retries, instead of the day's job silently never running.
+            await jobLog.DeleteAsync(accountId, jobType, jobDate, ct);
+            throw;
+        }
     }
 
     // No JobLog dedup - intentionally fires on every matching tick. Used for

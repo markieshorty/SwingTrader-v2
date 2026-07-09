@@ -29,6 +29,35 @@ public class JobLogRepositoryTests
     }
 
     [Fact]
+    public async Task TryCreateEnqueuedAsync_FirstClaimWins_SecondReturnsFalse()
+    {
+        // The claim-first enqueue fix: the scheduler inserts the job-log row
+        // BEFORE sending to Service Bus, so a concurrent scheduler execution
+        // must get false here and skip its send - this is what prevents the
+        // observed double-enqueue (two Execution messages in one tick).
+        await using var db = CreateDb();
+        var repo = new JobLogRepository(db);
+
+        var first = await repo.TryCreateEnqueuedAsync(1, "Execution", Date);
+        var second = await repo.TryCreateEnqueuedAsync(1, "Execution", Date);
+
+        first.Should().BeTrue();
+        second.Should().BeFalse();
+        (await repo.FindAsync(1, "Execution", Date))!.Status.Should().Be(JobStatus.Enqueued);
+    }
+
+    [Fact]
+    public async Task TryCreateEnqueuedAsync_DifferentDayOrType_BothSucceed()
+    {
+        await using var db = CreateDb();
+        var repo = new JobLogRepository(db);
+
+        (await repo.TryCreateEnqueuedAsync(1, "Execution", Date)).Should().BeTrue();
+        (await repo.TryCreateEnqueuedAsync(1, "Execution", Date.AddDays(1))).Should().BeTrue();
+        (await repo.TryCreateEnqueuedAsync(1, "Report", Date)).Should().BeTrue();
+    }
+
+    [Fact]
     public async Task FindAsync_UnknownCombination_ReturnsNull()
     {
         await using var db = CreateDb();
