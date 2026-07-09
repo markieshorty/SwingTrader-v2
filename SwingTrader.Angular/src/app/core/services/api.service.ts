@@ -30,6 +30,7 @@ import {
   TradeApprovalDto,
   TradeDto,
   TradingConfigDto,
+  UniverseSymbolDto,
   UpdateRiskProfileDto,
   WatchlistDto,
   WatchlistItemDto,
@@ -256,6 +257,10 @@ export class ApiService {
 
   updateStrategyWeights(weights: StrategyWeightsDto): Observable<unknown> {
     return this.http.put(`${this.baseUrl}/api/strategy-weights`, weights);
+  }
+
+  getUniverse(): Observable<UniverseSymbolDto[]> {
+    return this.http.get<UniverseSymbolDto[]>(`${this.baseUrl}/api/watchlists/universe`);
   }
 
   getWatchlists(): Observable<WatchlistDto[]> {

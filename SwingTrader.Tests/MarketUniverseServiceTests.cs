@@ -26,6 +26,13 @@ public class MarketUniverseServiceTests
     private MarketUniverseService CreateSut(IMemoryCache cache, WatchlistConfig? config = null) =>
         new(cache, _wikipedia, Options.Create(config ?? new WatchlistConfig()), NullLogger<MarketUniverseService>.Instance);
 
+    // Wrap plain tickers as UniverseSymbol (name unused in most assertions).
+    private static List<UniverseSymbol> Us(params string[] symbols) =>
+        symbols.Select(s => new UniverseSymbol(s, $"{s} Inc.")).ToList();
+
+    private static List<UniverseSymbol> UsRange(int start, int count) =>
+        Enumerable.Range(start, count).Select(i => new UniverseSymbol(FakeSymbol(i), $"Company {i}")).ToList();
+
     // IsValidSymbol requires letters only (real tickers never contain digits) -
     // this generates distinct letters-only fake tickers for bulk test data,
     // like Excel column naming (A, B, ... Z, AA, AB, ...).
@@ -42,12 +49,10 @@ public class MarketUniverseServiceTests
     }
 
     [Fact]
-    public async Task GetUniverse_FetchesBothIndices()
+    public async Task GetUniverse_FetchesLargeAndNasdaq()
     {
-        _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>())
-            .Returns(Enumerable.Range(0, 503).Select(FakeSymbol).ToList());
-        _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>())
-            .Returns(Enumerable.Range(1000, 101).Select(FakeSymbol).ToList());
+        _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(UsRange(0, 503));
+        _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(UsRange(1000, 101));
 
         var sut = CreateSut(new MemoryCache(new MemoryCacheOptions()));
         var result = await sut.GetUniverseAsync();
@@ -61,10 +66,10 @@ public class MarketUniverseServiceTests
     {
         // The whole point of Lever 1: mid (S&P 400) and small (S&P 600) caps
         // must land in the universe alongside the large caps.
-        _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(["AAPL"]);
-        _wikipedia.GetSp400ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(["MIDA", "MIDB"]);
-        _wikipedia.GetSp600ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(["SMLA", "SMLB"]);
-        _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(["NVDA"]);
+        _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(Us("AAPL"));
+        _wikipedia.GetSp400ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(Us("MIDA", "MIDB"));
+        _wikipedia.GetSp600ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(Us("SMLA", "SMLB"));
+        _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(Us("NVDA"));
 
         var sut = CreateSut(new MemoryCache(new MemoryCacheOptions()));
         var result = await sut.GetUniverseAsync();
@@ -74,10 +79,25 @@ public class MarketUniverseServiceTests
     }
 
     [Fact]
+    public async Task GetUniverseWithNames_ReturnsCompanyNames()
+    {
+        _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>())
+            .Returns([new UniverseSymbol("AAPL", "Apple Inc.")]);
+        _wikipedia.GetSp400ConstituentsAsync(Arg.Any<CancellationToken>())
+            .Returns([new UniverseSymbol("WING", "Wingstop Inc.")]);
+
+        var sut = CreateSut(new MemoryCache(new MemoryCacheOptions()));
+        var result = await sut.GetUniverseWithNamesAsync();
+
+        result.Should().ContainEquivalentOf(new UniverseSymbol("AAPL", "Apple Inc."));
+        result.Should().ContainEquivalentOf(new UniverseSymbol("WING", "Wingstop Inc."));
+    }
+
+    [Fact]
     public async Task GetUniverse_Deduplicates()
     {
-        _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(["AAPL", "MSFT", "SPXO"]);
-        _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(["AAPL", "MSFT", "NDXO"]);
+        _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(Us("AAPL", "MSFT", "SPXO"));
+        _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(Us("AAPL", "MSFT", "NDXO"));
 
         var sut = CreateSut(new MemoryCache(new MemoryCacheOptions()));
         var result = await sut.GetUniverseAsync();
@@ -90,8 +110,8 @@ public class MarketUniverseServiceTests
     [Fact]
     public async Task GetUniverse_CachedForConfiguredDays()
     {
-        _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(["AAPL"]);
-        _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(["MSFT"]);
+        _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(Us("AAPL"));
+        _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(Us("MSFT"));
 
         var sut = CreateSut(new MemoryCache(new MemoryCacheOptions()));
 
@@ -105,8 +125,7 @@ public class MarketUniverseServiceTests
     [Fact]
     public async Task GetUniverse_InvalidSymbolsExcluded()
     {
-        _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(["BRK.B", "BF-B", "AAPL"]);
-        _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>()).Returns([]);
+        _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(Us("BRK.B", "BF-B", "AAPL"));
 
         var sut = CreateSut(new MemoryCache(new MemoryCacheOptions()));
         var result = await sut.GetUniverseAsync();
@@ -119,9 +138,8 @@ public class MarketUniverseServiceTests
     public async Task GetUniverse_OneFails_OtherSucceeds()
     {
         _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>())
-            .Returns<Task<List<string>>>(_ => throw new HttpRequestException("boom"));
-        _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>())
-            .Returns(Enumerable.Range(0, 101).Select(FakeSymbol).ToList());
+            .Returns<Task<List<UniverseSymbol>>>(_ => throw new HttpRequestException("boom"));
+        _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(UsRange(0, 101));
 
         var sut = CreateSut(new MemoryCache(new MemoryCacheOptions()));
         var result = await sut.GetUniverseAsync();
@@ -131,12 +149,12 @@ public class MarketUniverseServiceTests
     }
 
     [Fact]
-    public async Task GetUniverse_BothFail_ReturnsEmpty()
+    public async Task GetUniverse_AllFail_ReturnsEmpty()
     {
         _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>())
-            .Returns<Task<List<string>>>(_ => throw new HttpRequestException("boom"));
+            .Returns<Task<List<UniverseSymbol>>>(_ => throw new HttpRequestException("boom"));
         _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>())
-            .Returns<Task<List<string>>>(_ => throw new HttpRequestException("boom"));
+            .Returns<Task<List<UniverseSymbol>>>(_ => throw new HttpRequestException("boom"));
 
         var sut = CreateSut(new MemoryCache(new MemoryCacheOptions()));
         var result = await sut.GetUniverseAsync();
@@ -145,11 +163,8 @@ public class MarketUniverseServiceTests
     }
 
     [Fact]
-    public async Task GetUniverse_EmptyResultsFromBoth_ReturnsEmpty()
+    public async Task GetUniverse_EmptyResultsFromAll_ReturnsEmpty()
     {
-        _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>()).Returns([]);
-        _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>()).Returns([]);
-
         var sut = CreateSut(new MemoryCache(new MemoryCacheOptions()));
         var result = await sut.GetUniverseAsync();
 

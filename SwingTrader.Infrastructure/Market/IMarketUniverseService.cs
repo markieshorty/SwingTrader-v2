@@ -10,4 +10,11 @@ public interface IMarketUniverseService
     /// symbols" rather than silently scanning nothing.
     /// </summary>
     Task<List<string>> GetUniverseAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Same universe as <see cref="GetUniverseAsync"/> but with each ticker's
+    /// company name, for display (the /watchlists Stock List Universe tab).
+    /// Shares the same cache.
+    /// </summary>
+    Task<List<UniverseSymbol>> GetUniverseWithNamesAsync(CancellationToken ct = default);
 }

@@ -46,7 +46,7 @@ public class WikipediaIndexClientTests
 
         var result = await sut.GetSp500ConstituentsAsync();
 
-        result.Should().BeEquivalentTo(["AAPL", "MSFT"]);
+        result.Select(r => r.Symbol).Should().BeEquivalentTo(["AAPL", "MSFT"]);
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class WikipediaIndexClientTests
 
         var result = await sut.GetNasdaq100ConstituentsAsync();
 
-        result.Should().BeEquivalentTo(["AAPL", "NVDA"]);
+        result.Select(r => r.Symbol).Should().BeEquivalentTo(["AAPL", "NVDA"]);
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public class WikipediaIndexClientTests
 
         var result = await sut.GetSp400ConstituentsAsync();
 
-        result.Should().BeEquivalentTo(["AAPL", "MSFT"]);
+        result.Select(r => r.Symbol).Should().BeEquivalentTo(["AAPL", "MSFT"]);
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public class WikipediaIndexClientTests
 
         var result = await sut.GetSp600ConstituentsAsync();
 
-        result.Should().BeEquivalentTo(["AAPL", "MSFT"]);
+        result.Select(r => r.Symbol).Should().BeEquivalentTo(["AAPL", "MSFT"]);
     }
 
     [Fact]
@@ -112,6 +112,17 @@ public class WikipediaIndexClientTests
 
         var result = await sut.GetSp500ConstituentsAsync();
 
-        result.Should().ContainSingle().Which.Should().Be("AAPL");
+        result.Should().ContainSingle().Which.Symbol.Should().Be("AAPL");
+    }
+
+    [Fact]
+    public async Task GetSp500ConstituentsAsync_CapturesCompanyNameFromSecurityColumn()
+    {
+        var sut = CreateSut(Sp500StyleHtml);
+
+        var result = await sut.GetSp500ConstituentsAsync();
+
+        result.Should().ContainEquivalentOf(new UniverseSymbol("AAPL", "Apple Inc."));
+        result.Should().ContainEquivalentOf(new UniverseSymbol("MSFT", "Microsoft Corporation"));
     }
 }

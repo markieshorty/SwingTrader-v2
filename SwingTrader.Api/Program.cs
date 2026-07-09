@@ -207,6 +207,15 @@ builder.Services.Configure<RiskManagementConfig>(builder.Configuration.GetSectio
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<AccountViewService>();
 builder.Services.AddScoped<IMarketRegimeService, MarketRegimeService>();
+
+// Screening universe (S&P 1500 + Nasdaq-100 via Wikipedia) for the /watchlists
+// Stock List Universe tab. Mirrors the Functions host's registration; Wikipedia
+// needs a descriptive User-Agent per its bot policy.
+builder.Services.AddScoped<IMarketUniverseService, MarketUniverseService>();
+builder.Services.AddHttpClient<IWikipediaIndexClient, WikipediaIndexClient>(client =>
+{
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("SwingTraderBot/1.0 (personal swing-trading app; contact via GitHub repo)");
+});
 builder.Services.AddScoped<IMomentumHealthService, MomentumHealthService>();
 
 // Same managed-identity Service Bus client as the Functions host - the manual

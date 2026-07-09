@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -8,12 +8,14 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/services/api.service';
-import { WatchlistDto, WatchlistType } from '../../core/models/dtos';
+import { UniverseSymbolDto, WatchlistDto, WatchlistType } from '../../core/models/dtos';
 import { errorMessage } from '../../shared/utils/error-message.util';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 
@@ -37,6 +39,8 @@ const MAX_TOTAL_ENABLED_SYMBOLS = 100;
     MatTooltipModule,
     MatSlideToggleModule,
     MatDialogModule,
+    MatTabsModule,
+    MatProgressSpinnerModule,
   ],
   templateUrl: './watchlists.component.html',
   styleUrl: './watchlists.component.scss',
@@ -57,6 +61,18 @@ export class WatchlistsComponent {
   newType: WatchlistType = 'Manual';
   newDescription = '';
   isOwner = signal(false);
+
+  // Stock List Universe tab — the full screening pool, lazy-loaded on first view.
+  universe = signal<UniverseSymbolDto[]>([]);
+  universeLoading = signal(false);
+  universeError = signal(false);
+  universeQuery = signal('');
+  filteredUniverse = computed(() => {
+    const q = this.universeQuery().trim().toLowerCase();
+    const all = this.universe();
+    if (!q) return all;
+    return all.filter((u) => u.symbol.toLowerCase().includes(q) || u.companyName.toLowerCase().includes(q));
+  });
 
   enabledCount = () => this.watchlists().filter((w) => w.isEnabled).length;
   totalEnabledSymbolCount = () => {
@@ -90,6 +106,28 @@ export class WatchlistsComponent {
 
   toggleExpanded(id: number): void {
     this.expandedId.set(this.expandedId() === id ? null : id);
+  }
+
+  onTabChange(index: number): void {
+    // Lazy-load the universe the first time the Stock List Universe tab opens.
+    if (index === 1 && this.universe().length === 0 && !this.universeLoading()) {
+      this.loadUniverse();
+    }
+  }
+
+  loadUniverse(): void {
+    this.universeLoading.set(true);
+    this.universeError.set(false);
+    this.api.getUniverse().subscribe({
+      next: (u) => {
+        this.universe.set(u);
+        this.universeLoading.set(false);
+      },
+      error: () => {
+        this.universeError.set(true);
+        this.universeLoading.set(false);
+      },
+    });
   }
 
   toggleEnabled(watchlist: WatchlistDto): void {

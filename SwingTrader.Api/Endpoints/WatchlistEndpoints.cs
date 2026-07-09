@@ -5,6 +5,7 @@ using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Infrastructure.HttpClients;
 using SwingTrader.Infrastructure.HttpClients.Dtos;
+using SwingTrader.Infrastructure.Market;
 
 namespace SwingTrader.Api.Endpoints;
 
@@ -25,6 +26,12 @@ public static class WatchlistEndpoints
 
         watchlistsGroup.MapGet("/enabled-symbols", async (IWatchlistRepository watchlists, IAccountContext ctx) =>
             Results.Ok(await watchlists.GetAllEnabledSymbolsAsync(ctx.AccountId)));
+
+        // The full screening universe (symbol + company name) the AI-managed
+        // watchlists draw from - shown on the Stock List Universe tab so users
+        // can see the whole pool at their disposal. Not account-specific.
+        watchlistsGroup.MapGet("/universe", async (IMarketUniverseService universe, CancellationToken ct) =>
+            Results.Ok(await universe.GetUniverseWithNamesAsync(ct)));
 
         watchlistsGroup.MapPost("/", async (
             CreateWatchlistRequest req,

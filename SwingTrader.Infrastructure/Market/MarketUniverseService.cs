@@ -15,34 +15,40 @@ public class MarketUniverseService(
 {
     private const string CacheKey = "market_universe";
 
-    public async Task<List<string>> GetUniverseAsync(CancellationToken ct = default)
+    // Symbols-only view for the screener (unchanged contract).
+    public async Task<List<string>> GetUniverseAsync(CancellationToken ct = default) =>
+        (await GetUniverseWithNamesAsync(ct)).Select(u => u.Symbol).ToList();
+
+    public async Task<List<UniverseSymbol>> GetUniverseWithNamesAsync(CancellationToken ct = default)
     {
-        if (cache.TryGetValue(CacheKey, out List<string>? cached) && cached is not null)
+        if (cache.TryGetValue(CacheKey, out List<UniverseSymbol>? cached) && cached is not null)
         {
             logger.LogDebug("Returning cached universe ({Count} symbols)", cached.Count);
             return cached;
         }
 
         var cfg = config.Value;
-        var symbols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Deduplicate by ticker, keeping the first index's company name (S&P 500
+        // wins over Nasdaq-100 for an overlapping name like AAPL).
+        var bySymbol = new Dictionary<string, UniverseSymbol>(StringComparer.OrdinalIgnoreCase);
 
         // The full S&P Composite 1500 (large + mid + small cap) plus Nasdaq-100.
         // Mid/small caps (S&P 400/600) are the point: mega-caps rarely swing the
         // 8-12% this strategy targets, so a large-cap-only universe was fishing
         // in the calmest pool. Each lookup is independent - one failing just
         // narrows the pool for that build, never aborts the whole universe.
-        await TryAddConstituentsAsync(symbols, "S&P 500", wikipedia.GetSp500ConstituentsAsync, ct);
-        await TryAddConstituentsAsync(symbols, "S&P 400 (MidCap)", wikipedia.GetSp400ConstituentsAsync, ct);
-        await TryAddConstituentsAsync(symbols, "S&P 600 (SmallCap)", wikipedia.GetSp600ConstituentsAsync, ct);
-        await TryAddConstituentsAsync(symbols, "Nasdaq-100", wikipedia.GetNasdaq100ConstituentsAsync, ct);
+        await TryAddConstituentsAsync(bySymbol, "S&P 500", wikipedia.GetSp500ConstituentsAsync, ct);
+        await TryAddConstituentsAsync(bySymbol, "S&P 400 (MidCap)", wikipedia.GetSp400ConstituentsAsync, ct);
+        await TryAddConstituentsAsync(bySymbol, "S&P 600 (SmallCap)", wikipedia.GetSp600ConstituentsAsync, ct);
+        await TryAddConstituentsAsync(bySymbol, "Nasdaq-100", wikipedia.GetNasdaq100ConstituentsAsync, ct);
 
-        if (symbols.Count == 0)
+        if (bySymbol.Count == 0)
         {
             logger.LogError("Universe fetch returned zero symbols — all index lookups failed");
             return [];
         }
 
-        var result = symbols.ToList();
+        var result = bySymbol.Values.OrderBy(u => u.Symbol, StringComparer.Ordinal).ToList();
 
         cache.Set(CacheKey, result, TimeSpan.FromDays(cfg.UniverseCacheDays));
 
@@ -52,13 +58,17 @@ public class MarketUniverseService(
     }
 
     private async Task TryAddConstituentsAsync(
-        HashSet<string> symbols, string indexName, Func<CancellationToken, Task<List<string>>> fetch, CancellationToken ct)
+        Dictionary<string, UniverseSymbol> bySymbol, string indexName,
+        Func<CancellationToken, Task<List<UniverseSymbol>>> fetch, CancellationToken ct)
     {
         try
         {
             var constituents = await fetch(ct);
-            foreach (var s in constituents.Where(IsValidSymbol))
-                symbols.Add(s.ToUpperInvariant());
+            foreach (var c in constituents.Where(c => IsValidSymbol(c.Symbol)))
+            {
+                var symbol = c.Symbol.ToUpperInvariant();
+                bySymbol.TryAdd(symbol, c with { Symbol = symbol });
+            }
 
             logger.LogInformation("Fetched {Count} constituents from {Index}", constituents.Count, indexName);
         }

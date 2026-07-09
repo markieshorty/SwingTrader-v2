@@ -482,6 +482,11 @@ export interface InsightsDetailSectionDto {
   events: InsightsEventDto[];
 }
 
+export interface UniverseSymbolDto {
+  symbol: string;
+  companyName: string;
+}
+
 export type WatchlistType = 'AiManaged' | 'Manual' | 'Mixed';
 
 export interface WatchlistItemDto {

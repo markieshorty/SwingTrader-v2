@@ -1,4 +1,7 @@
 <div class="watchlists-page">
+  <mat-tab-group (selectedIndexChange)="onTabChange($event)">
+    <mat-tab label="Configuration">
+      <div class="tab-body">
   <div class="page-header">
     <p class="muted small">
       {{ enabledCount() }} of {{ maxEnabled }} watchlists enabled — {{ totalEnabledSymbolCount() }} of
@@ -114,4 +117,45 @@
       </mat-card>
     }
   </div>
+      </div>
+    </mat-tab>
+
+    <mat-tab label="Stock List Universe">
+      <div class="tab-body universe-tab">
+        <p class="muted small">
+          The full pool the AI-managed watchlists screen from — the S&amp;P 1500 (large, mid &amp; small cap) plus the
+          Nasdaq-100. Your enabled watchlists narrow this down; this is everything at your disposal.
+        </p>
+
+        @if (universeLoading()) {
+          <div class="loading"><mat-spinner diameter="28"></mat-spinner><span>Loading universe…</span></div>
+        } @else if (universeError()) {
+          <p class="bad">Could not load the universe. <button mat-button (click)="loadUniverse()">Retry</button></p>
+        } @else {
+          <div class="universe-toolbar">
+            <mat-form-field appearance="outline" class="search-field">
+              <mat-label>Search symbol or company</mat-label>
+              <input matInput [ngModel]="universeQuery()" (ngModelChange)="universeQuery.set($event)" placeholder="e.g. WING or Wingstop" />
+            </mat-form-field>
+            <span class="muted small count">{{ filteredUniverse().length }} of {{ universe().length }} stocks</span>
+          </div>
+
+          <div class="universe-list">
+            <div class="universe-head">
+              <span class="sym">Symbol</span>
+              <span class="name">Company</span>
+            </div>
+            @for (u of filteredUniverse(); track u.symbol) {
+              <div class="universe-row">
+                <span class="sym">{{ u.symbol }}</span>
+                <span class="name">{{ u.companyName || '—' }}</span>
+              </div>
+            } @empty {
+              <p class="muted small no-match">No matches.</p>
+            }
+          </div>
+        }
+      </div>
+    </mat-tab>
+  </mat-tab-group>
 </div>
