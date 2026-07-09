@@ -66,6 +66,51 @@ public class PositionSizingServiceTests
         result.EstimatedCost.Should().BeLessThanOrEqualTo(100m);
     }
 
+    // ── Conviction-weighted sizing ────────────────────────────────────────────
+
+    private static StockSignal SignalWithConviction(decimal conviction) =>
+        new() { Symbol = "AAA", CurrentPrice = 100m, ConvictionScore = conviction };
+
+    [Fact]
+    public async Task CalculateAsync_HigherConviction_GetsBiggerSlice()
+    {
+        var sut = new PositionSizingService();
+        var profile = new AccountRiskProfile();
+
+        var weak = await sut.CalculateAsync(SignalWithConviction(6.0m), CapitalTier.Tier3, 0, 100000m, 100000m, profile);
+        var mid = await sut.CalculateAsync(SignalWithConviction(7.5m), CapitalTier.Tier3, 0, 100000m, 100000m, profile);
+        var strong = await sut.CalculateAsync(SignalWithConviction(9.0m), CapitalTier.Tier3, 0, 100000m, 100000m, profile);
+
+        weak.EstimatedCost.Should().BeLessThan(mid.EstimatedCost);
+        mid.EstimatedCost.Should().BeLessThan(strong.EstimatedCost);
+        // 6.0 sizes at half of what 9.0 gets (0.5x floor -> 1.0x ceiling).
+        (weak.EstimatedCost / strong.EstimatedCost).Should().BeApproximately(0.5m, 0.01m);
+    }
+
+    [Fact]
+    public async Task CalculateAsync_ConvictionAboveCeiling_CapsAtFullBudget()
+    {
+        var sut = new PositionSizingService();
+        var profile = new AccountRiskProfile();
+
+        var nine = await sut.CalculateAsync(SignalWithConviction(9.0m), CapitalTier.Tier3, 0, 100000m, 100000m, profile);
+        var ten = await sut.CalculateAsync(SignalWithConviction(10.0m), CapitalTier.Tier3, 0, 100000m, 100000m, profile);
+
+        ten.EstimatedCost.Should().Be(nine.EstimatedCost);
+    }
+
+    [Fact]
+    public async Task CalculateAsync_NullConviction_SizesAtFullBudget()
+    {
+        var sut = new PositionSizingService();
+        var profile = new AccountRiskProfile();
+
+        var noScore = await sut.CalculateAsync(MakeSignal(), CapitalTier.Tier3, 0, 100000m, 100000m, profile);
+        var maxScore = await sut.CalculateAsync(SignalWithConviction(9.0m), CapitalTier.Tier3, 0, 100000m, 100000m, profile);
+
+        noScore.EstimatedCost.Should().Be(maxScore.EstimatedCost);
+    }
+
     [Fact]
     public async Task CalculateAsync_HigherMaxPositionPctOfActive_YieldsLargerBudget()
     {

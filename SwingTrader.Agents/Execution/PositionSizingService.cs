@@ -6,6 +6,23 @@ namespace SwingTrader.Agents.Execution;
 
 public class PositionSizingService : IPositionSizingService
 {
+    // Conviction-weighted sizing: a 9+ conviction signal deserves a bigger
+    // slice of the pie than a 6 that barely cleared the Buy threshold. The
+    // budget scales linearly from MinConvictionMultiplier at the Buy threshold
+    // (6.0) up to 1.0 at conviction 9+. A signal without a conviction score
+    // (shouldn't happen for executed Buys) sizes at full budget unchanged.
+    private const decimal ConvictionFloor = 6.0m;   // StrategyWeights.BuyThreshold default
+    private const decimal ConvictionCeiling = 9.0m;
+    private const decimal MinConvictionMultiplier = 0.5m;
+
+    internal static decimal ConvictionMultiplier(decimal? conviction)
+    {
+        if (conviction is null) return 1.0m;
+        var t = (Math.Clamp(conviction.Value, ConvictionFloor, ConvictionCeiling) - ConvictionFloor)
+                / (ConvictionCeiling - ConvictionFloor);
+        return MinConvictionMultiplier + t * (1.0m - MinConvictionMultiplier);
+    }
+
     public Task<PositionSizeResult> CalculateAsync(
         StockSignal signal,
         CapitalTier currentTier,
@@ -57,8 +74,10 @@ public class PositionSizingService : IPositionSizingService
                 "Insufficient cash after applying 2% buffer"));
 
         // Step 6 — position budget is the least of: per-position cap, spendable
-        // cash, and the active pool's remaining headroom (step 4b)
-        var positionBudget = Math.Min(Math.Min(maxPositionBudget, spendableCash), remainingActiveCapital);
+        // cash, and the active pool's remaining headroom (step 4b) — then scaled
+        // by conviction so stronger signals get a bigger slice of the pie.
+        var positionBudget = Math.Min(Math.Min(maxPositionBudget, spendableCash), remainingActiveCapital)
+            * ConvictionMultiplier(signal.ConvictionScore);
 
         // Use the caller-supplied (GBP-converted) price when given so the budget
         // (GBP) and price are the same currency — otherwise the quantity would be
