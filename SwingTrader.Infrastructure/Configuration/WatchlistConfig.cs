@@ -9,7 +9,14 @@ public class WatchlistConfig
     public int MaxCandidatesForClaude { get; set; } = 80;
     public decimal MinPrice { get; set; } = 15.00m;
     public decimal MaxPrice { get; set; } = 500.00m;
-    public decimal MinDailyVolume { get; set; } = 500_000m;
+    // Liquidity floor: 20-day average volume x current price must be at least
+    // this (GBP-agnostic, quoted in USD like the prices). Replaces the old
+    // MinDailyVolume share-count knob, which was never actually applied -
+    // dollar volume is what determines whether a sized position can exit at
+    // target without moving the market. Matters most for the S&P 400/600
+    // small caps now in the universe. $10m/day is a conservative floor for
+    // the position sizes this system trades.
+    public decimal MinDollarVolume { get; set; } = 10_000_000m;
     public decimal MinAbsChangePercent { get; set; } = 1.0m;
     public decimal MaxAbsChangePercent { get; set; } = 15.0m;
 

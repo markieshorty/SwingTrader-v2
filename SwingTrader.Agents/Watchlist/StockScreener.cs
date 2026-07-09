@@ -116,14 +116,88 @@ public class StockScreener(
 
         // TopMoverOrderBoost nudges top movers up the ranking without hard-pinning
         // them above everything else regardless of how small their move is.
-        var results = candidates
+        var ranked = candidates
             .OrderByDescending(c => Math.Abs(c.ChangePercent) * (c.IsTopMover ? cfg.TopMoverOrderBoost : 1m))
-            .Take(cfg.MaxCandidatesForClaude)
             .ToList();
+
+        // Liquidity floor. Applied here (walking the ranking) rather than in
+        // the quote loop above because the quote endpoint returns no volume at
+        // all - which is also why the old MinDailyVolume knob never filtered
+        // anything - so liquidity needs a candles call per symbol, and those
+        // are only worth spending on candidates that would actually make the
+        // Claude cut.
+        var results = await ApplyLiquidityFloorAsync(ranked, cfg, finnhub, ct);
 
         logger.LogInformation("Screener produced {Count} candidates from {Universe} universe symbols ({TopMovers} top movers)",
             results.Count, universe.Count, results.Count(c => c.IsTopMover));
         return new ScreenResult(results, universe.Count, failedCount);
+    }
+
+    // Walks the ranked candidates keeping only those whose 20-day average
+    // dollar volume (avg shares x current price) clears MinDollarVolume, until
+    // MaxCandidatesForClaude are kept. This is what makes the S&P 400/600
+    // small caps in the widened universe safe to actually trade - an illiquid
+    // name can gap through a stop or be impossible to exit at target with a
+    // sized position. Kept candidates get their real average volume filled in
+    // so Claude's prompt shows meaningful numbers instead of 0.
+    //
+    // Fail-open on candle errors (keep, volume unknown): a systemic Finnhub
+    // blip shrinking the pool to nothing would be worse than occasionally
+    // passing an unverified name through. Fail-closed on confirmed-illiquid.
+    // Attempts are capped so a pathological day can't turn this into hundreds
+    // of extra candle calls.
+    private async Task<List<ScreenedCandidate>> ApplyLiquidityFloorAsync(
+        List<ScreenedCandidate> ranked, WatchlistConfig cfg, IFinnhubClient finnhub, CancellationToken ct)
+    {
+        var kept = new List<ScreenedCandidate>(cfg.MaxCandidatesForClaude);
+        var maxAttempts = cfg.MaxCandidatesForClaude * 2;
+        var attempts = 0;
+        var droppedIlliquid = 0;
+        var now = DateTimeOffset.UtcNow;
+        var from = now.AddDays(-30).ToUnixTimeSeconds();
+
+        foreach (var candidate in ranked)
+        {
+            if (kept.Count >= cfg.MaxCandidatesForClaude || attempts >= maxAttempts || ct.IsCancellationRequested)
+                break;
+            attempts++;
+
+            try
+            {
+                await rateLimiter.WaitAsync(ct);
+                var candles = await finnhub.GetCandlesAsync(candidate.Symbol, "D", from, now.ToUnixTimeSeconds());
+                if (candles.Status != "ok" || candles.Volume is not { Count: > 0 })
+                {
+                    kept.Add(candidate); // no data - fail open
+                    continue;
+                }
+
+                var avgVolume = (decimal)candles.Volume.TakeLast(20).Average();
+                var dollarVolume = avgVolume * candidate.LastPrice;
+                if (dollarVolume >= cfg.MinDollarVolume)
+                {
+                    kept.Add(candidate with { Volume = Math.Round(avgVolume) });
+                }
+                else
+                {
+                    droppedIlliquid++;
+                    logger.LogDebug(
+                        "Dropped {Symbol}: avg dollar volume {DollarVolume:N0} below the {Floor:N0} liquidity floor",
+                        candidate.Symbol, dollarVolume, cfg.MinDollarVolume);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "Liquidity check failed for {Symbol} — keeping (fail-open)", candidate.Symbol);
+                kept.Add(candidate);
+            }
+        }
+
+        if (droppedIlliquid > 0)
+            logger.LogInformation("Liquidity floor dropped {Dropped} illiquid candidate(s) (floor: ${Floor:N0}/day)",
+                droppedIlliquid, cfg.MinDollarVolume);
+
+        return kept;
     }
 
     // Supplementary candidate source: Finnhub's top gainers/losers/most-active

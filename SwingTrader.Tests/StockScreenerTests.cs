@@ -156,6 +156,62 @@ public class StockScreenerTests
         result.Candidates.Should().NotContain(c => c.Symbol == "BBB");
     }
 
+    // ── Liquidity floor (20-day average dollar volume) ────────────────────────
+
+    private static FinnhubCandlesResponse CandlesWithAvgVolume(long dailyVolume) =>
+        new(
+            Close: [100m], High: [105m], Low: [95m], Open: [96m],
+            Status: "ok", Timestamps: [0],
+            Volume: Enumerable.Repeat(dailyVolume, 20).ToList());
+
+    [Fact]
+    public async Task ScreenAsync_IlliquidCandidateBelowDollarVolumeFloor_IsDropped()
+    {
+        var cfg = DefaultConfig();
+        cfg.MinDollarVolume = 10_000_000m;
+        SetupUniverse("LIQ", "ILLQ"); // both quotes at $100
+        // LIQ: 500k shares x $100 = $50m/day - clears. ILLQ: 20k x $100 = $2m - dropped.
+        _finnhub.GetCandlesAsync("LIQ", "D", Arg.Any<long>(), Arg.Any<long>()).Returns(CandlesWithAvgVolume(500_000));
+        _finnhub.GetCandlesAsync("ILLQ", "D", Arg.Any<long>(), Arg.Any<long>()).Returns(CandlesWithAvgVolume(20_000));
+        var sut = CreateSut(cfg);
+
+        var result = await sut.ScreenAsync(1, _finnhub);
+
+        result.Candidates.Select(c => c.Symbol).Should().Contain("LIQ").And.NotContain("ILLQ");
+    }
+
+    [Fact]
+    public async Task ScreenAsync_LiquidCandidate_CarriesRealAverageVolumeForClaude()
+    {
+        // The quote endpoint returns no volume (the old MinDailyVolume knob
+        // never filtered anything) - kept candidates must now carry the real
+        // 20-day average so Claude's prompt shows a meaningful number, not 0.
+        var cfg = DefaultConfig();
+        SetupUniverse("LIQ");
+        _finnhub.GetCandlesAsync("LIQ", "D", Arg.Any<long>(), Arg.Any<long>()).Returns(CandlesWithAvgVolume(500_000));
+        var sut = CreateSut(cfg);
+
+        var result = await sut.ScreenAsync(1, _finnhub);
+
+        result.Candidates.Should().ContainSingle().Which.Volume.Should().Be(500_000m);
+    }
+
+    [Fact]
+    public async Task ScreenAsync_CandleFetchFails_FailsOpenAndKeepsCandidate()
+    {
+        // A Finnhub blip must not empty the candidate pool: unverifiable
+        // liquidity keeps the candidate rather than dropping it.
+        var cfg = DefaultConfig();
+        SetupUniverse("NODATA");
+        _finnhub.GetCandlesAsync("NODATA", "D", Arg.Any<long>(), Arg.Any<long>())
+            .Returns<Task<FinnhubCandlesResponse>>(_ => throw new HttpRequestException("boom"));
+        var sut = CreateSut(cfg);
+
+        var result = await sut.ScreenAsync(1, _finnhub);
+
+        result.Candidates.Should().ContainSingle().Which.Symbol.Should().Be("NODATA");
+    }
+
     [Fact]
     public async Task ScreenAsync_TopMoverBoost_CanOutrankALargerNonMoverWhenTruncated()
     {
