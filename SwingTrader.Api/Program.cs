@@ -201,6 +201,7 @@ builder.Services.AddScoped<IApplyRefinementService, ApplyRefinementService>();
 builder.Services.Configure<RefinementConfig>(builder.Configuration.GetSection(RefinementConfig.SectionName));
 builder.Services.Configure<RiskManagementConfig>(builder.Configuration.GetSection(RiskManagementConfig.SectionName));
 builder.Services.AddMemoryCache();
+builder.Services.AddScoped<AccountViewService>();
 builder.Services.AddScoped<IMarketRegimeService, MarketRegimeService>();
 builder.Services.AddScoped<IMomentumHealthService, MomentumHealthService>();
 

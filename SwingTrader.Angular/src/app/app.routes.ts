@@ -79,6 +79,13 @@ export const routes: Routes = [
     title: 'Admin',
   },
   {
+    path: 'admin/users/:userId',
+    canActivate: [authGuard, adminGuard],
+    loadComponent: () =>
+      import('./features/admin/admin-user-view/admin-user-view.component').then((m) => m.AdminUserViewComponent),
+    title: 'Admin · User',
+  },
+  {
     path: 'settings',
     canActivate: [authGuard, approvalGuard],
     loadComponent: () =>

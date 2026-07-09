@@ -1,0 +1,148 @@
+<a class="back-link" routerLink="/admin"><mat-icon>arrow_back</mat-icon> Back to admin</a>
+
+@if (loading()) {
+  <app-loading-spinner />
+} @else if (error()) {
+  <mat-card class="panel"><p class="muted">{{ error() }}</p></mat-card>
+}
+
+@if (!loading() && !error() && overview(); as o) {
+  <!-- Header -->
+  <div class="user-header">
+    <div>
+      <h2>{{ o.user.displayName || o.user.email }}</h2>
+      <p class="muted small">{{ o.user.email }}</p>
+    </div>
+    <div class="header-badges">
+      <span class="capsule" [class.amber]="o.user.tradingMode === 'Live'" [class.blue]="o.user.tradingMode === 'Demo'">
+        {{ o.user.tradingMode === 'Live' ? '🔴 LIVE' : 'Demo' }}
+      </span>
+      <span class="capsule grey">{{ o.user.role }}</span>
+    </div>
+  </div>
+
+  <!-- Portfolio stat cards -->
+  @if (o.portfolio; as p) {
+    <div class="stat-row">
+      <mat-card class="stat-card">
+        <div class="stat-label">Total Capital</div>
+        <div class="stat-value">{{ p.totalCapital | currencyGbp }}</div>
+      </mat-card>
+      <mat-card class="stat-card">
+        <div class="stat-label">Cash Available</div>
+        <div class="stat-value">{{ p.cashAvailable | currencyGbp }}</div>
+      </mat-card>
+      <mat-card class="stat-card">
+        <div class="stat-label">Today P&amp;L</div>
+        <div class="stat-value" [class.positive]="p.todayPnl >= 0" [class.negative]="p.todayPnl < 0">
+          {{ p.todayPnl | currencyGbp }}
+          <span class="stat-sub">{{ p.todayPnlPercent | percentSigned }}</span>
+        </div>
+      </mat-card>
+      <mat-card class="stat-card">
+        <div class="stat-label">30-Day Win Rate</div>
+        <div class="stat-value">{{ p.winRate30d | number: '1.0-1' }}%</div>
+      </mat-card>
+    </div>
+  } @else {
+    <mat-card class="panel"><p class="muted">No portfolio snapshot yet for this account.</p></mat-card>
+  }
+
+  <!-- Open Positions -->
+  <mat-card class="panel">
+    <h3>Open Positions</h3>
+    <div class="positions-grid">
+      @if (o.positions.length === 0) {
+        <p class="muted">No open positions.</p>
+      }
+      @for (position of o.positions; track position.id) {
+        <div class="position-card">
+          <div class="position-header">
+            <span class="symbol" [title]="position.companyName || position.symbol">{{ position.symbol }}</span>
+            <span class="pnl" [class.positive]="position.unrealisedPnl >= 0" [class.negative]="position.unrealisedPnl < 0">
+              {{ position.unrealisedPnl | currencyGbp }} ({{ position.unrealisedPnlPercent | percentSigned }})
+            </span>
+          </div>
+          <span class="phase-badge" [class]="'phase-' + position.phase.toLowerCase()">{{ phaseLabel(position) }}</span>
+          <app-stop-target-bar [position]="position" />
+          @if (position.momentumHealthVerdict) {
+            <p class="momentum-line">{{ position.momentumHealthScore | number: '1.2-2' }} — {{ position.momentumHealthReasoning }}</p>
+          }
+          <div class="position-footer">
+            <span>{{ heldLabel(position) }}</span>
+            @if (position.isNearStop) { <span class="warning">⚠️ Near stop</span> }
+            @if (position.isNearTarget) { <span class="warning positive">🎯 Near target</span> }
+          </div>
+        </div>
+      }
+    </div>
+  </mat-card>
+
+  <!-- Today's Signals -->
+  <mat-card class="panel">
+    <h3>Today's Signals</h3>
+    <mat-tab-group [selectedIndex]="activeTabIndex()" (selectedIndexChange)="activeTabIndex.set($event)">
+      <mat-tab [label]="'BUY (' + (overview()?.signals?.buy?.length ?? 0) + ')'"></mat-tab>
+      <mat-tab [label]="'WATCH (' + (overview()?.signals?.watch?.length ?? 0) + ')'"></mat-tab>
+      <mat-tab [label]="'HOLD (' + (overview()?.signals?.hold?.length ?? 0) + ')'"></mat-tab>
+      <mat-tab [label]="'AVOID (' + (overview()?.signals?.avoid?.length ?? 0) + ')'"></mat-tab>
+    </mat-tab-group>
+    @if (activeSignals().length === 0) {
+      <p class="muted">No signals in this category today.</p>
+    }
+    <div class="signal-grid">
+      @for (signal of activeSignals(); track signal.id) {
+        <div class="signal-card">
+          <div class="signal-header">
+            <span class="symbol" [title]="signal.companyName || signal.symbol">{{ signal.symbol }}</span>
+            <span class="setup-badge">{{ signal.setupType }}</span>
+          </div>
+          <app-conviction-bar [signal]="signal" />
+          <div class="signal-stats">
+            <span>RSI {{ signal.rsi14 | number: '1.0-1' }}</span>
+            <span>Vol {{ signal.volumeRatio | number: '1.1-1' }}x</span>
+            @if (signal.daysUntilEarnings != null && signal.daysUntilEarnings <= 7) {
+              <span class="warning">⚠️ Earnings in {{ signal.daysUntilEarnings }}d</span>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  </mat-card>
+
+  <!-- Recent Trades -->
+  <mat-card class="panel">
+    <h3>Recent Trades</h3>
+    <app-trade-history [trades]="o.trades" />
+  </mat-card>
+
+  <!-- Watchlists -->
+  <mat-card class="panel">
+    <h3>Watchlists</h3>
+    @if (o.watchlists.length === 0) {
+      <p class="muted">No watchlists.</p>
+    }
+    <div class="watchlist-grid">
+      @for (wl of o.watchlists; track wl.id) {
+        <div class="watchlist-card" [class.disabled]="!wl.isEnabled">
+          <div class="watchlist-head">
+            <span class="wl-name">{{ wl.name }}</span>
+            <span class="wl-badges">
+              @if (wl.isDefault) { <span class="badge">Default</span> }
+              <span class="badge">{{ wl.type }}</span>
+              @if (!wl.isEnabled) { <span class="badge off">Disabled</span> }
+            </span>
+          </div>
+          <div class="wl-symbols">
+            @if (wl.symbols.length === 0) {
+              <span class="muted small">Empty</span>
+            }
+            @for (s of wl.symbols; track s.symbol) {
+              <span class="wl-symbol" [class.inactive]="!s.isActive" [title]="s.companyName + ' · ' + s.sector">{{ s.symbol }}</span>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  </mat-card>
+}

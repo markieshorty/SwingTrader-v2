@@ -66,6 +66,11 @@
                 }
                 · {{ user.riskLabel }} · {{ user.enabledWatchlistCount }} watchlists
               </span>
+              @if (!user.accountDeleted) {
+                <a mat-icon-button [routerLink]="['/admin/users', user.userId]" title="View this user's dashboard">
+                  <mat-icon>visibility</mat-icon>
+                </a>
+              }
               <button mat-icon-button (click)="toggleExpanded(user.userId)" title="Actions">
                 <mat-icon>{{ expandedUserId() === user.userId ? 'expand_less' : 'expand_more' }}</mat-icon>
               </button>

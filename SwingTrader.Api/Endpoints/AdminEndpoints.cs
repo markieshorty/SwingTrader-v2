@@ -51,6 +51,59 @@ public static class AdminEndpoints
             return Results.Ok(user with { IsOnboarded = isOnboarded });
         });
 
+        // Read-only "view a user's account" overview for the admin per-user page:
+        // the same portfolio/positions/signals/trades the owner sees on their own
+        // dashboard (via the shared AccountViewService, so shapes never diverge),
+        // plus their watchlists inline. Fans out to the target account's Finnhub
+        // key for live quotes, so it's rate-limited like the other market-data reads.
+        adminGroup.MapGet("/users/{userId}/overview", async (
+            string userId,
+            IAdminRepository admin,
+            AccountViewService view,
+            ISignalRepository signalRepo,
+            IWatchlistRepository watchlistRepo,
+            CancellationToken ct) =>
+        {
+            var user = await admin.GetUserAsync(userId, ct);
+            if (user is null) return Results.NotFound();
+            var accountId = user.AccountId;
+
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var todaysSignals = (await signalRepo.GetByDateAsync(accountId, today)).ToList();
+
+            var watchlists = new List<object>();
+            foreach (var w in await watchlistRepo.GetAllWatchlistsAsync(accountId, ct))
+            {
+                var symbols = await watchlistRepo.GetSymbolsAsync(accountId, w.Id, ct);
+                watchlists.Add(new
+                {
+                    w.Id,
+                    w.Name,
+                    w.Type,
+                    w.IsEnabled,
+                    w.IsDefault,
+                    Symbols = symbols.Select(s => new { s.Symbol, s.CompanyName, s.Sector, s.IsActive }),
+                });
+            }
+
+            return Results.Ok(new
+            {
+                user = new { user.UserId, user.Email, user.DisplayName, user.TradingMode, user.Role, user.AccountId },
+                portfolio = await view.GetPortfolioAsync(accountId, ct),
+                positions = await view.GetPositionsAsync(accountId, ct),
+                trades = await view.GetRecentTradesAsync(accountId, 30, ct),
+                signals = new
+                {
+                    date = today,
+                    buy = todaysSignals.Where(s => s.Recommendation == Recommendation.Buy),
+                    watch = todaysSignals.Where(s => s.Recommendation == Recommendation.Watch),
+                    hold = todaysSignals.Where(s => s.Recommendation == Recommendation.Hold),
+                    avoid = todaysSignals.Where(s => s.Recommendation == Recommendation.Avoid),
+                },
+                watchlists,
+            });
+        }).RequireRateLimiting(RateLimitPolicies.ExternalRead);
+
         adminGroup.MapPost("/users/{userId}/suspend", async (
             string userId,
             SuspendUserRequest req,

@@ -1,0 +1,146 @@
+:host {
+  display: block;
+  padding: 4px 4px 40px;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--st-muted);
+  text-decoration: none;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+  mat-icon { font-size: 18px; height: 18px; width: 18px; }
+  &:hover { color: var(--st-text); }
+}
+
+.user-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  h2 { margin: 0; }
+  .header-badges { display: flex; gap: 8px; align-items: center; }
+}
+
+.capsule {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid var(--st-border);
+  &.amber { background: rgba(240, 173, 78, 0.15); color: #f0ad4e; border-color: #f0ad4e; }
+  &.blue { background: rgba(78, 161, 255, 0.15); color: var(--st-blue, #4ea1ff); }
+  &.grey { color: var(--st-muted); }
+}
+
+.panel {
+  background: var(--st-card);
+  border: 1px solid var(--st-border);
+  border-radius: 10px;
+  padding: 18px;
+  margin-bottom: 16px;
+  h3 { margin: 0 0 14px; font-size: 1.05rem; }
+}
+
+.muted { color: var(--st-muted); }
+.small { font-size: 0.85rem; }
+.positive { color: var(--st-green, #4caf50); }
+.negative { color: var(--st-red, #e05252); }
+.warning { color: #f0ad4e; font-size: 0.8rem; }
+.warning.positive { color: var(--st-green, #4caf50); }
+
+/* Stat cards */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.stat-card {
+  background: var(--st-card);
+  border: 1px solid var(--st-border);
+  border-radius: 10px;
+  padding: 16px;
+  .stat-label { color: var(--st-muted); font-size: 0.82rem; margin-bottom: 6px; }
+  .stat-value { font-size: 1.5rem; font-weight: 600; }
+  .stat-sub { font-size: 0.85rem; margin-left: 6px; font-weight: 500; }
+}
+
+/* Positions */
+.positions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.position-card {
+  border: 1px solid var(--st-border);
+  border-radius: 10px;
+  padding: 14px;
+  background: var(--st-navy, #0f1a2e);
+  .position-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .symbol { font-weight: 700; }
+  .pnl { font-size: 0.9rem; font-weight: 600; }
+  .phase-badge { display: inline-block; font-size: 0.72rem; color: var(--st-muted); margin: 4px 0 8px; }
+  .momentum-line { font-size: 0.78rem; color: var(--st-muted); margin: 8px 0 0; }
+  .position-footer { display: flex; gap: 10px; align-items: center; margin-top: 8px; font-size: 0.8rem; color: var(--st-muted); }
+}
+
+/* Signals */
+.signal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+.signal-card {
+  border: 1px solid var(--st-border);
+  border-radius: 10px;
+  padding: 14px;
+  background: var(--st-navy, #0f1a2e);
+  .signal-header { display: flex; justify-content: space-between; align-items: baseline; }
+  .symbol { font-weight: 700; }
+  .setup-badge { font-size: 0.72rem; color: var(--st-muted); }
+  .signal-stats { display: flex; gap: 12px; font-size: 0.8rem; color: var(--st-muted); margin-top: 8px; flex-wrap: wrap; }
+}
+
+/* Watchlists */
+.watchlist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.watchlist-card {
+  border: 1px solid var(--st-border);
+  border-radius: 10px;
+  padding: 14px;
+  background: var(--st-navy, #0f1a2e);
+  &.disabled { opacity: 0.55; }
+  .watchlist-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .wl-name { font-weight: 600; }
+  .wl-badges { display: flex; gap: 6px; }
+  .wl-symbols { display: flex; flex-wrap: wrap; gap: 6px; }
+  .wl-symbol {
+    font-size: 0.78rem;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--st-border);
+    &.inactive { opacity: 0.5; text-decoration: line-through; }
+  }
+}
+
+.badge {
+  font-size: 0.7rem;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--st-border);
+  color: var(--st-muted);
+  &.off { color: #e05252; }
+}

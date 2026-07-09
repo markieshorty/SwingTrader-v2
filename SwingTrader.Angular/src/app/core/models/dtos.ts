@@ -101,6 +101,41 @@ export interface TradeDto {
   closedAt: string | null;
 }
 
+// Admin "view a user's account" overview — reuses the same portfolio/position/
+// signal/trade shapes the owner sees on their own dashboard, plus their
+// watchlists inline. Served by GET /api/admin/users/{userId}/overview.
+export interface AdminWatchlistSymbolDto {
+  symbol: string;
+  companyName: string;
+  sector: string;
+  isActive: boolean;
+}
+
+export interface AdminWatchlistDto {
+  id: number;
+  name: string;
+  type: string;
+  isEnabled: boolean;
+  isDefault: boolean;
+  symbols: AdminWatchlistSymbolDto[];
+}
+
+export interface AdminUserOverviewDto {
+  user: {
+    userId: string;
+    email: string;
+    displayName: string;
+    tradingMode: 'Demo' | 'Live';
+    role: 'Owner' | 'Member';
+    accountId: number;
+  };
+  portfolio: PortfolioDto | null;
+  positions: PositionDto[];
+  trades: TradeDto[];
+  signals: SignalGroupDto;
+  watchlists: AdminWatchlistDto[];
+}
+
 export interface ActivityLogDto {
   category: string;
   title: string;

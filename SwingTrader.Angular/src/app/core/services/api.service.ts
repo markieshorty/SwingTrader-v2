@@ -7,6 +7,7 @@ import {
   AdminActionLogDto,
   AdminJobFailureDto,
   AdminStatsDto,
+  AdminUserOverviewDto,
   AdminUserSummaryDto,
   ApplyResultDto,
   InviteResultDto,
@@ -148,6 +149,10 @@ export class ApiService {
 
   deleteAdminJobFailure(jobLogId: number): Observable<unknown> {
     return this.http.delete(`${this.baseUrl}/api/admin/jobs/${jobLogId}`);
+  }
+
+  getAdminUserOverview(userId: string): Observable<AdminUserOverviewDto> {
+    return this.http.get<AdminUserOverviewDto>(`${this.baseUrl}/api/admin/users/${userId}/overview`);
   }
 
   getAdminLogs(): Observable<AdminActionLogDto[]> {
