@@ -45,7 +45,7 @@
             <div class="row">
               <span class="dot" [class]="resultClass(w.lastResult)"></span>
               <span class="name">{{ w.name }}</span>
-              <span class="muted small">{{ w.lastHeartbeatAt | date: 'short' }}</span>
+              <span class="muted small" [title]="w.lastHeartbeatAt | date: 'medium'">{{ relativeAge(w.minutesSinceHeartbeat) }}</span>
               @if (w.isStale) {
                 <span class="badge bad">STALE</span>
               } @else {

@@ -41,6 +41,15 @@ export class MonitoringComponent {
     });
   }
 
+  // Human-readable "last run X ago" from minutes-since-heartbeat.
+  relativeAge(minutes: number): string {
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${Math.round(minutes)}m ago`;
+    const hours = minutes / 60;
+    if (hours < 48) return `${Math.round(hours)}h ago`;
+    return `${Math.round(hours / 24)}d ago`;
+  }
+
   // Map a worker/event result string to a status colour class.
   resultClass(result: string): string {
     switch (result) {
