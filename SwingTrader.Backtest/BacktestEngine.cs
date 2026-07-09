@@ -52,10 +52,16 @@ public static class BacktestEngine
     private const int MaxHoldDays = 10;                 // calendar days, as production
     private const decimal TrailingActivationPct = 0.05m;
     private const decimal TrailingDistancePct = 0.03m;
-    private const decimal BuyThreshold = 6.0m;          // StrategyWeights default
     private const int WarmupBars = 60;
 
-    public static async Task<int> RunAsync(string dataDir, CancellationToken ct)
+    // Experiment knobs (CLI-settable) - defaults mirror production.
+    public sealed record Options(
+        decimal BuyThreshold = 6.0m,                    // StrategyWeights default
+        bool RegimeFilter = false,                      // only enter when SPY > its 200d SMA
+        HashSet<SetupType>? ExcludedSetups = null,
+        string Label = "baseline");
+
+    public static async Task<int> RunAsync(string dataDir, Options opts, CancellationToken ct)
     {
         if (!Directory.Exists(dataDir))
         {
@@ -127,14 +133,16 @@ public static class BacktestEngine
             }
 
             // ── Score today's watchlist, enter tomorrow at the open ───────────
-            if (open.Count < MaxOpenPositions)
+            var regimeOk = !opts.RegimeFilter || SpyAboveSma200(spy, d);
+            if (open.Count < MaxOpenPositions && regimeOk)
             {
                 var candidates = new List<(string Symbol, decimal Conviction, SetupType Setup)>();
                 foreach (var symbol in watchlist)
                 {
                     if (open.Any(p => p.Symbol.Equals(symbol, StringComparison.OrdinalIgnoreCase))) continue;
                     var scored = await ScoreAsync(indicators, weights, bars, index, symbol, today);
-                    if (scored is { } s && s.Conviction >= BuyThreshold && s.Rsi <= 75m)
+                    if (scored is { } s && s.Conviction >= opts.BuyThreshold && s.Rsi <= 75m
+                        && opts.ExcludedSetups?.Contains(s.Setup) != true)
                         candidates.Add((symbol, s.Conviction, s.Setup));
                 }
 
@@ -165,8 +173,16 @@ public static class BacktestEngine
             equityCurve.Add(equity);
         }
 
-        Report(closed, equityCurve, spy, calendar, dataDir);
+        Report(closed, equityCurve, spy, calendar, dataDir, opts);
         return 0;
+    }
+
+    private static bool SpyAboveSma200(Bar[] spy, int i)
+    {
+        if (i < 200) return true; // not enough history - don't block
+        var sma = 0m;
+        for (var k = i - 199; k <= i; k++) sma += spy[k].Close;
+        return spy[i].Close > sma / 200m;
     }
 
     private static (decimal? ExitPrice, string? Reason) CheckExit(Position pos, Bar bar, DateTime today)
@@ -290,6 +306,7 @@ public static class BacktestEngine
         foreach (var file in Directory.EnumerateFiles(dataDir, "*.csv"))
         {
             var symbol = Path.GetFileNameWithoutExtension(file).ToUpperInvariant();
+            if (symbol.StartsWith('_')) continue; // result/metadata files, not price data
             var lines = File.ReadAllLines(file);
             if (lines.Length < 2) continue;
 
@@ -312,9 +329,10 @@ public static class BacktestEngine
         return result;
     }
 
-    private static void Report(List<ClosedTrade> closed, List<decimal> equityCurve, Bar[] spy, List<DateTime> calendar, string dataDir)
+    private static void Report(List<ClosedTrade> closed, List<decimal> equityCurve, Bar[] spy, List<DateTime> calendar, string dataDir, Options opts)
     {
-        Console.WriteLine($"\n════════ BACKTEST RESULTS ════════");
+        Console.WriteLine($"\n════════ BACKTEST RESULTS [{opts.Label}] ════════");
+        Console.WriteLine($"Config: threshold={opts.BuyThreshold} regimeFilter={opts.RegimeFilter} excluded=[{string.Join(",", opts.ExcludedSetups ?? [])}]");
         if (closed.Count == 0)
         {
             Console.WriteLine("No trades taken.");
@@ -357,7 +375,7 @@ public static class BacktestEngine
         foreach (var g in closed.GroupBy(t => t.ExitReason.Replace("(gap)", "")).OrderByDescending(g => g.Count()))
             Console.WriteLine($"  {g.Key,-12} n={g.Count(),4}  avg={g.Average(t => t.ReturnPct):F2}%");
 
-        var tradesCsv = Path.Combine(dataDir, "_trades.csv");
+        var tradesCsv = Path.Combine(dataDir, $"_trades_{opts.Label}.csv");
         File.WriteAllLines(tradesCsv, new[] { "Symbol,EntryDate,ExitDate,EntryPrice,ExitPrice,Quantity,Setup,Conviction,ExitReason,NetPnl,ReturnPct" }
             .Concat(closed.Select(t => string.Join(',', t.Symbol, t.EntryDate.ToString("yyyy-MM-dd"), t.ExitDate.ToString("yyyy-MM-dd"),
                 t.EntryPrice, t.ExitPrice, t.Quantity, t.Setup, t.Conviction, t.ExitReason, Math.Round(t.NetPnl, 2), Math.Round(t.ReturnPct, 2)))));
