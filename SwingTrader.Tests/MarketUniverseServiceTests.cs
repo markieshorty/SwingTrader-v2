@@ -13,6 +13,16 @@ public class MarketUniverseServiceTests
 {
     private readonly IWikipediaIndexClient _wikipedia = Substitute.For<IWikipediaIndexClient>();
 
+    public MarketUniverseServiceTests()
+    {
+        // Default every index lookup to empty so each test only configures the
+        // ones it cares about (the universe now draws from four lists, not two).
+        _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>()).Returns([]);
+        _wikipedia.GetSp400ConstituentsAsync(Arg.Any<CancellationToken>()).Returns([]);
+        _wikipedia.GetSp600ConstituentsAsync(Arg.Any<CancellationToken>()).Returns([]);
+        _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>()).Returns([]);
+    }
+
     private MarketUniverseService CreateSut(IMemoryCache cache, WatchlistConfig? config = null) =>
         new(cache, _wikipedia, Options.Create(config ?? new WatchlistConfig()), NullLogger<MarketUniverseService>.Instance);
 
@@ -44,6 +54,23 @@ public class MarketUniverseServiceTests
 
         result.Should().Contain(FakeSymbol(0)).And.Contain(FakeSymbol(1000));
         result.Should().HaveCount(604);
+    }
+
+    [Fact]
+    public async Task GetUniverse_IncludesMidAndSmallCaps()
+    {
+        // The whole point of Lever 1: mid (S&P 400) and small (S&P 600) caps
+        // must land in the universe alongside the large caps.
+        _wikipedia.GetSp500ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(["AAPL"]);
+        _wikipedia.GetSp400ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(["MIDA", "MIDB"]);
+        _wikipedia.GetSp600ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(["SMLA", "SMLB"]);
+        _wikipedia.GetNasdaq100ConstituentsAsync(Arg.Any<CancellationToken>()).Returns(["NVDA"]);
+
+        var sut = CreateSut(new MemoryCache(new MemoryCacheOptions()));
+        var result = await sut.GetUniverseAsync();
+
+        result.Should().Contain(["AAPL", "MIDA", "MIDB", "SMLA", "SMLB", "NVDA"]);
+        result.Should().HaveCount(6);
     }
 
     [Fact]

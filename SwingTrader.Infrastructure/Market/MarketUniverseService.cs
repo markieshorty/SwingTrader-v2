@@ -26,12 +26,19 @@ public class MarketUniverseService(
         var cfg = config.Value;
         var symbols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        // The full S&P Composite 1500 (large + mid + small cap) plus Nasdaq-100.
+        // Mid/small caps (S&P 400/600) are the point: mega-caps rarely swing the
+        // 8-12% this strategy targets, so a large-cap-only universe was fishing
+        // in the calmest pool. Each lookup is independent - one failing just
+        // narrows the pool for that build, never aborts the whole universe.
         await TryAddConstituentsAsync(symbols, "S&P 500", wikipedia.GetSp500ConstituentsAsync, ct);
+        await TryAddConstituentsAsync(symbols, "S&P 400 (MidCap)", wikipedia.GetSp400ConstituentsAsync, ct);
+        await TryAddConstituentsAsync(symbols, "S&P 600 (SmallCap)", wikipedia.GetSp600ConstituentsAsync, ct);
         await TryAddConstituentsAsync(symbols, "Nasdaq-100", wikipedia.GetNasdaq100ConstituentsAsync, ct);
 
         if (symbols.Count == 0)
         {
-            logger.LogError("Universe fetch returned zero symbols — both index lookups failed");
+            logger.LogError("Universe fetch returned zero symbols — all index lookups failed");
             return [];
         }
 
@@ -39,7 +46,7 @@ public class MarketUniverseService(
 
         cache.Set(CacheKey, result, TimeSpan.FromDays(cfg.UniverseCacheDays));
 
-        logger.LogInformation("Universe built: {Count} symbols from S&P 500/Nasdaq-100 (via Wikipedia)", result.Count);
+        logger.LogInformation("Universe built: {Count} symbols from S&P 1500 + Nasdaq-100 (via Wikipedia)", result.Count);
 
         return result;
     }

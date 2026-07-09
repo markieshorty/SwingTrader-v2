@@ -8,12 +8,20 @@ public class WikipediaIndexClient(HttpClient http) : IWikipediaIndexClient
     // has stable "wikitable" markup to select against.
     private const string Sp500Url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies";
     private const string Nasdaq100Url = "https://en.wikipedia.org/wiki/Nasdaq-100";
+    private const string Sp400Url = "https://en.wikipedia.org/wiki/List_of_S%26P_400_companies";
+    private const string Sp600Url = "https://en.wikipedia.org/wiki/List_of_S%26P_600_companies";
 
     public Task<List<string>> GetSp500ConstituentsAsync(CancellationToken ct = default) =>
         FetchTickerColumnAsync(Sp500Url, ct);
 
     public Task<List<string>> GetNasdaq100ConstituentsAsync(CancellationToken ct = default) =>
         FetchTickerColumnAsync(Nasdaq100Url, ct);
+
+    public Task<List<string>> GetSp400ConstituentsAsync(CancellationToken ct = default) =>
+        FetchTickerColumnAsync(Sp400Url, ct);
+
+    public Task<List<string>> GetSp600ConstituentsAsync(CancellationToken ct = default) =>
+        FetchTickerColumnAsync(Sp600Url, ct);
 
     // The two pages use different header text ("Symbol" vs "Ticker") and
     // aren't guaranteed to be the first wikitable on the page (e.g. sector

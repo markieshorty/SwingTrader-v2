@@ -63,6 +63,26 @@ public class WikipediaIndexClientTests
     }
 
     [Fact]
+    public async Task GetSp400ConstituentsAsync_ParsesSymbolColumn()
+    {
+        var sut = CreateSut(Sp500StyleHtml); // S&P 400 page uses the same Symbol-headed wikitable
+
+        var result = await sut.GetSp400ConstituentsAsync();
+
+        result.Should().BeEquivalentTo(["AAPL", "MSFT"]);
+    }
+
+    [Fact]
+    public async Task GetSp600ConstituentsAsync_ParsesSymbolColumn()
+    {
+        var sut = CreateSut(Sp500StyleHtml); // S&P 600 page uses the same Symbol-headed wikitable
+
+        var result = await sut.GetSp600ConstituentsAsync();
+
+        result.Should().BeEquivalentTo(["AAPL", "MSFT"]);
+    }
+
+    [Fact]
     public async Task GetSp500ConstituentsAsync_NoMatchingTable_ReturnsEmpty()
     {
         const string html = """
