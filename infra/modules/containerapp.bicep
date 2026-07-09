@@ -2,6 +2,10 @@ param environmentName string
 param appName string
 param location string
 param appInsightsConnectionString string
+
+@description('ARM resource id of the App Insights component, for the admin monitoring dashboard LogsQueryClient. Empty disables the App Insights card (degrades gracefully) rather than failing to deploy.')
+param appInsightsResourceId string = ''
+
 param keyVaultUri string
 param tags object
 
@@ -101,6 +105,14 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             {
               name: 'ApplicationInsights__ConnectionString'
               value: appInsightsConnectionString
+            }
+            {
+              // Admin monitoring dashboard queries App Insights logs via
+              // managed identity (Monitoring Reader role). Empty = the
+              // dashboard's App Insights card reports unavailable rather than
+              // erroring.
+              name: 'ApplicationInsights__ResourceId'
+              value: appInsightsResourceId
             }
             { name: 'AzureAdB2C__Authority', value: b2cAuthority }
             { name: 'AzureAdB2C__Audience', value: b2cAudience }

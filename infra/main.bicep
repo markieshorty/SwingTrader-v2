@@ -105,6 +105,7 @@ module containerApp 'modules/containerapp.bicep' = {
     appName: '${prefix}-api-${environment}'
     location: location
     appInsightsConnectionString: appInsights.outputs.connectionString
+    appInsightsResourceId: appInsights.outputs.id
     keyVaultUri: keyVault.outputs.uri
     b2cAuthority: b2cAuthority
     b2cAudience: b2cAudience
