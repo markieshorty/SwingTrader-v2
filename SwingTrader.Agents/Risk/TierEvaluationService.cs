@@ -7,6 +7,7 @@ using SwingTrader.Core.Models;
 using SwingTrader.Infrastructure.Configuration;
 using SwingTrader.Infrastructure.HttpClients;
 using SwingTrader.Infrastructure.HttpClients.Dtos;
+using SwingTrader.Infrastructure.RateLimiting;
 using SwingTrader.Infrastructure.Services;
 
 namespace SwingTrader.Agents.Risk;
@@ -24,6 +25,7 @@ public class TierEvaluationService(
     IIndicatorService indicators,
     INotificationRecipientRepository recipients,
     IEmailService email,
+    IClaudeRateLimiter claudeRateLimiter,
     IOptions<RiskManagementConfig> riskConfig,
     IOptions<ClaudeConfig> claudeConfig,
     ILogger<TierEvaluationService> logger) : ITierEvaluationService
@@ -210,6 +212,7 @@ public class TierEvaluationService(
                 systemPrompt,
                 [new ClaudeMessage("user", userPrompt)]);
 
+            await claudeRateLimiter.WaitAsync(ct);
             var response = await claude.SendMessageAsync(request);
             var text = response.Content.FirstOrDefault(c => c.Type == "text")?.Text;
             return string.IsNullOrWhiteSpace(text) ? null : text.Trim();

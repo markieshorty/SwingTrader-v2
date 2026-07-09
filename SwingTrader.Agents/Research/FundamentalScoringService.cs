@@ -5,12 +5,14 @@ using SwingTrader.Infrastructure.Configuration;
 using SwingTrader.Infrastructure.Fundamental;
 using SwingTrader.Infrastructure.HttpClients;
 using SwingTrader.Infrastructure.HttpClients.Dtos;
+using SwingTrader.Infrastructure.RateLimiting;
 
 namespace SwingTrader.Agents.Research;
 
 public class FundamentalScoringService(
     IOptions<ClaudeConfig> claudeConfig,
     IOptions<FundamentalConfig> fundamentalConfig,
+    IClaudeRateLimiter claudeRateLimiter,
     ILogger<FundamentalScoringService> logger) : IFundamentalScoringService
 {
     public async Task<FundamentalScore> ScoreAsync(IClaudeClient claude, string symbol, FundamentalSnapshot snapshot, CancellationToken ct)
@@ -94,6 +96,7 @@ public class FundamentalScoringService(
                 systemPrompt,
                 [new ClaudeMessage("user", userPrompt)]);
 
+            await claudeRateLimiter.WaitAsync(ct);
             var response = await claude.SendMessageAsync(request);
             var text = response.Content.FirstOrDefault(c => c.Type == "text")?.Text;
 

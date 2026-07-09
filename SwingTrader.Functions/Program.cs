@@ -79,6 +79,9 @@ builder.Services.AddMemoryCache();
 // real quota at all.
 builder.Services.AddSingleton<ITiingoRateLimiter>(_ => new RateLimiter(50, TimeSpan.FromHours(1)));
 builder.Services.AddSingleton<IFinnhubRateLimiter>(_ => new RateLimiter(maxCallsPerMinute: 50));
+// Anthropic tier-1 is ~50 requests/min; 45 leaves headroom on the shared
+// fallback Claude key. Bump this if the platform key moves to a higher tier.
+builder.Services.AddSingleton<IClaudeRateLimiter>(_ => new RateLimiter(maxCallsPerMinute: 45));
 builder.Services.Configure<ClaudeConfig>(builder.Configuration.GetSection(ClaudeConfig.SectionName));
 builder.Services.Configure<ResearchConfig>(builder.Configuration.GetSection(ResearchConfig.SectionName));
 builder.Services.Configure<EarningsConfig>(builder.Configuration.GetSection(EarningsConfig.SectionName));

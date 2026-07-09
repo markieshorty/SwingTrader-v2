@@ -7,6 +7,7 @@ using SwingTrader.Core.Models;
 using SwingTrader.Infrastructure.Configuration;
 using SwingTrader.Infrastructure.HttpClients;
 using SwingTrader.Infrastructure.HttpClients.Dtos;
+using SwingTrader.Infrastructure.RateLimiting;
 using SwingTrader.Infrastructure.Services;
 
 namespace SwingTrader.Agents.Refinement;
@@ -20,6 +21,7 @@ public class RefinementService(
     IComponentCorrelationService correlationService,
     INotificationRecipientRepository recipients,
     IEmailService email,
+    IClaudeRateLimiter claudeRateLimiter,
     IOptions<RefinementConfig> refinementConfig,
     IOptions<ClaudeConfig> claudeConfig,
     ILogger<RefinementService> logger) : IRefinementService
@@ -183,6 +185,7 @@ public class RefinementService(
                 systemPrompt,
                 [new ClaudeMessage("user", userPrompt)]);
 
+            await claudeRateLimiter.WaitAsync(ct);
             var response = await claude.SendMessageAsync(request);
             var text = response.Content.FirstOrDefault(c => c.Type == "text")?.Text;
             return string.IsNullOrWhiteSpace(text) ? FallbackSummary(analysis, winRate, sampleSize) : text.Trim();

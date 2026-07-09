@@ -36,6 +36,7 @@ public class ResearchPipeline(
     IFundamentalScoringService fundamentalScoringService,
     ITiingoRateLimiter tiingoRateLimiter,
     IFinnhubRateLimiter finnhubRateLimiter,
+    IClaudeRateLimiter claudeRateLimiter,
     IOptions<ClaudeConfig> claudeConfig,
     IOptions<ResearchConfig> researchConfig,
     IOptions<EarningsConfig> earningsConfig,
@@ -319,6 +320,7 @@ public class ResearchPipeline(
                 systemPrompt,
                 [new ClaudeMessage("user", userPrompt)]);
 
+            await claudeRateLimiter.WaitAsync(ct);
             var response = await claude.SendMessageAsync(request);
             var raw = response.Content.FirstOrDefault(c => c.Type == "text")?.Text ?? string.Empty;
             var text = StripCodeFences(raw);

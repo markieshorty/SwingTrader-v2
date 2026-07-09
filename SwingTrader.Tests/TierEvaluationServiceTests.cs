@@ -9,6 +9,7 @@ using SwingTrader.Core.Models;
 using SwingTrader.Infrastructure.Configuration;
 using SwingTrader.Infrastructure.HttpClients;
 using SwingTrader.Infrastructure.HttpClients.Dtos;
+using SwingTrader.Infrastructure.RateLimiting;
 using SwingTrader.Infrastructure.Services;
 using Xunit;
 
@@ -37,7 +38,7 @@ public class TierEvaluationServiceTests
 
         _sut = new TierEvaluationService(
             _tradeRepo, _portfolioRepo, _evaluationRepo, _riskProfileRepo, _accountRepo, _indicators,
-            _recipients, _email,
+            _recipients, _email, Substitute.For<IClaudeRateLimiter>(),
             Options.Create(new RiskManagementConfig { Active = true }),
             Options.Create(new ClaudeConfig()),
             NullLogger<TierEvaluationService>.Instance);

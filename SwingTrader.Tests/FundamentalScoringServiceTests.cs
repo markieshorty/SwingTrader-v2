@@ -8,6 +8,7 @@ using SwingTrader.Infrastructure.Configuration;
 using SwingTrader.Infrastructure.Fundamental;
 using SwingTrader.Infrastructure.HttpClients;
 using SwingTrader.Infrastructure.HttpClients.Dtos;
+using SwingTrader.Infrastructure.RateLimiting;
 using Xunit;
 
 namespace SwingTrader.Tests;
@@ -24,7 +25,8 @@ public class FundamentalScoringServiceTests
     };
 
     private FundamentalScoringService CreateSut() =>
-        new(Options.Create(new ClaudeConfig()), Options.Create(_config), NullLogger<FundamentalScoringService>.Instance);
+        new(Options.Create(new ClaudeConfig()), Options.Create(_config),
+            Substitute.For<IClaudeRateLimiter>(), NullLogger<FundamentalScoringService>.Instance);
 
     private static FundamentalSnapshot Snapshot(
         AnalystTrend analyst, InsiderActivity insider, EarningsConsistency earnings, RevenueDirection revenue) =>

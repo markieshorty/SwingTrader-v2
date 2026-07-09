@@ -9,6 +9,7 @@ using SwingTrader.Infrastructure.Configuration;
 using SwingTrader.Infrastructure.HttpClients;
 using SwingTrader.Infrastructure.HttpClients.Dtos;
 using SwingTrader.Infrastructure.Market;
+using SwingTrader.Infrastructure.RateLimiting;
 using SwingTrader.Core.Trading;
 
 namespace SwingTrader.Agents.Report;
@@ -21,6 +22,7 @@ public class ReportGenerationService(
     IApprovalRepository approvalRepo,
     IAccountRepository accountRepo,
     IForexService forex,
+    IClaudeRateLimiter claudeRateLimiter,
     IOptions<ClaudeConfig> claudeConfig,
     IOptions<ReportConfig> reportConfig,
     IOptions<ApprovalConfig> approvalConfig,
@@ -369,6 +371,7 @@ public class ReportGenerationService(
     {
         var cfg = claudeConfig.Value;
         var request = new ClaudeRequest(cfg.Model, maxTokens, system, [new ClaudeMessage("user", user)]);
+        await claudeRateLimiter.WaitAsync(ct);
         var response = await claude.SendMessageAsync(request);
         var raw = response.Content.FirstOrDefault(c => c.Type == "text")?.Text ?? string.Empty;
         return StripCodeFences(raw).Trim();

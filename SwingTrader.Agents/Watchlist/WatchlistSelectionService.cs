@@ -5,11 +5,13 @@ using Microsoft.Extensions.Options;
 using SwingTrader.Infrastructure.Configuration;
 using SwingTrader.Infrastructure.HttpClients;
 using SwingTrader.Infrastructure.HttpClients.Dtos;
+using SwingTrader.Infrastructure.RateLimiting;
 
 namespace SwingTrader.Agents.Watchlist;
 
 public class WatchlistSelectionService(
     IOptions<ClaudeConfig> claudeConfig,
+    IClaudeRateLimiter claudeRateLimiter,
     ILogger<WatchlistSelectionService> logger) : IWatchlistSelectionService
 {
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
@@ -70,6 +72,7 @@ public class WatchlistSelectionService(
                 systemPrompt,
                 [new ClaudeMessage("user", userPrompt)]);
 
+            await claudeRateLimiter.WaitAsync(ct);
             var response = await claude.SendMessageAsync(request);
             var raw = response.Content.FirstOrDefault(c => c.Type == "text")?.Text ?? string.Empty;
             var text = StripCodeFences(raw);
