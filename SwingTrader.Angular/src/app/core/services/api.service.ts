@@ -212,6 +212,11 @@ export class ApiService {
     return this.http.put(`${this.baseUrl}/api/account/trading-config`, { tradingMode, approvalRequired, force });
   }
 
+  // Pause / resume new-position executions for the account's current mode.
+  setExecutionPaused(paused: boolean): Observable<unknown> {
+    return this.http.put(`${this.baseUrl}/api/account/execution-paused/${paused}`, {});
+  }
+
   updateMyEmail(email: string): Observable<unknown> {
     return this.http.put(`${this.baseUrl}/api/account/me/email`, { email });
   }

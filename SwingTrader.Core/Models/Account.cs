@@ -11,6 +11,18 @@ public class Account : UnscopedEntity
     public bool GlobalRefinementOptIn { get; set; } = true;
     public TradingMode TradingMode { get; set; } = TradingMode.Demo;
     public bool ApprovalRequired { get; set; } = true;
+
+    // Pause switch for new-position executions, held per mode so pausing Demo
+    // (e.g. to sit out a rough market) doesn't also freeze Live and vice
+    // versa. Only ExecutionService's buy path honours this - Monitor keeps
+    // running so open positions still get their stop-loss/target/time exits
+    // enforced while trading is paused.
+    public bool ExecutionPausedDemo { get; set; }
+    public bool ExecutionPausedLive { get; set; }
+
+    // True when new executions are paused for the given mode.
+    public bool IsExecutionPaused(TradingMode mode) =>
+        mode == TradingMode.Live ? ExecutionPausedLive : ExecutionPausedDemo;
     // Soft-delete: the account's own children (WatchlistItems,
     // StrategyWeights, etc.) carry a Restrict FK to Accounts, so a hard
     // delete would require cascading through every scoped table. Marking

@@ -46,6 +46,17 @@ public class ExecutionService(
         var account = await accountRepo.GetAsync(accountId, ct)
             ?? throw new InvalidOperationException($"Account {accountId} not found.");
 
+        // Pause gate — the Settings > Trading pause switch, held per mode. When
+        // paused, place no new buys (Monitor still manages open positions, so
+        // stops/targets keep working). Checked before the approval gate so a
+        // paused account never even looks for an approval row.
+        if (account.IsExecutionPaused(account.TradingMode))
+        {
+            logger.LogInformation("Execution skipped for account {AccountId} on {Date} — trading paused for {Mode}",
+                accountId, date, account.TradingMode);
+            return new ExecutionResult(0, 0, 0, "Trading paused", []);
+        }
+
         HashSet<string>? approvedSymbols = null;
         if (account.ApprovalRequired)
         {

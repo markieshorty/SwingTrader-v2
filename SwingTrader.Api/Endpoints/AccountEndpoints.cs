@@ -51,6 +51,9 @@ public static class AccountEndpoints
                 account.ApprovalRequired,
                 account.T212AccountId,
                 account.GlobalRefinementOptIn,
+                // Pause state for the mode currently in effect - the Settings
+                // toggle is scoped to whichever mode the account is on.
+                ExecutionPaused = account.IsExecutionPaused(account.TradingMode),
                 role = ctx.Role,
             });
         });
@@ -203,6 +206,30 @@ public static class AccountEndpoints
 
             account.TradingMode = req.TradingMode;
             account.ApprovalRequired = req.ApprovalRequired;
+            await accounts.UpdateAsync(account);
+            return Results.Ok();
+        });
+
+        // Pause / resume new-position executions for the account's current
+        // mode. Applied immediately (its own toggle, not the Trading "Save"
+        // button) so a user watching a bad market can stop new buys in one
+        // click. Scoped to account.TradingMode so Demo and Live pause
+        // independently. Monitor is unaffected - open positions keep their
+        // stop-loss/target/time exits while paused.
+        api.MapPut("/account/execution-paused/{paused:bool}", async (
+            bool paused,
+            IAccountRepository accounts,
+            IAccountContext ctx) =>
+        {
+            if (ctx.Role != AccountRole.Owner) return Results.Forbid();
+            var account = await accounts.GetAsync(ctx.AccountId)
+                ?? throw new InvalidOperationException("Authenticated caller has no account.");
+
+            if (account.TradingMode == TradingMode.Live)
+                account.ExecutionPausedLive = paused;
+            else
+                account.ExecutionPausedDemo = paused;
+
             await accounts.UpdateAsync(account);
             return Results.Ok();
         });

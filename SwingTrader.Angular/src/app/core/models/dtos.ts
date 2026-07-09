@@ -272,6 +272,8 @@ export interface TradingConfigDto {
   tradingMode: TradingMode;
   approvalRequired: boolean;
   t212AccountId: string | null;
+  // Whether new-position executions are paused for the current mode.
+  executionPaused: boolean;
   role: 'Owner' | 'Member';
 }
 

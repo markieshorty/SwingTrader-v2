@@ -198,7 +198,15 @@ export class SettingsComponent {
   // the unsaved UI selection) - used to detect an actual Demo/Live switch on
   // save so we can hard-reload for the new mode's money/positions data.
   private persistedTradingMode: TradingMode = 'Demo';
+  // Public accessor for the template - the pause switch is scoped to the mode
+  // actually in effect server-side, not the unsaved dropdown selection.
+  get currentTradingMode(): TradingMode {
+    return this.persistedTradingMode;
+  }
   approvalRequired = signal(true);
+  // Pause switch for new-position executions, scoped to the current mode
+  // (persistedTradingMode). Applied immediately on toggle, not via Save.
+  executionPaused = signal(false);
   t212AccountId = signal<string | null>(null);
   globalRefinementOptIn = signal(false);
   // Only the Owner can delete the account (enforced server-side too) - hide
@@ -403,6 +411,7 @@ export class SettingsComponent {
         this.approvalRequired.set(settings.approvalRequired);
         this.t212AccountId.set(settings.t212AccountId);
         this.globalRefinementOptIn.set(settings.globalRefinementOptIn);
+        this.executionPaused.set(settings.executionPaused);
         this.isOwner.set(settings.role === 'Owner');
       },
     });
@@ -570,6 +579,25 @@ export class SettingsComponent {
   toggleGlobalRefinement(enabled: boolean): void {
     this.globalRefinementOptIn.set(enabled);
     this.api.setGlobalRefinementOptIn(enabled).subscribe();
+  }
+
+  toggleExecutionPaused(paused: boolean): void {
+    this.executionPaused.set(paused);
+    this.api.setExecutionPaused(paused).subscribe({
+      next: () =>
+        this.snackbar.open(
+          paused
+            ? `${this.persistedTradingMode} trading paused — no new positions will open`
+            : `${this.persistedTradingMode} trading resumed`,
+          'Dismiss',
+          { duration: 3000 },
+        ),
+      error: () => {
+        // Revert the optimistic flip if the server rejected it.
+        this.executionPaused.set(!paused);
+        this.snackbar.open('Could not update pause state', 'Dismiss', { duration: 3000 });
+      },
+    });
   }
 
   startEditingEmail(): void {

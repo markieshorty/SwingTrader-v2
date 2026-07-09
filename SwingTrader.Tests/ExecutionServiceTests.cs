@@ -164,4 +164,36 @@ public class ExecutionServiceTests
         result.Summary.Should().Be("No eligible signals");
         result.SignalsSkipped.Should().Be(0);
     }
+
+    [Fact]
+    public async Task RunAsync_TradingPausedForCurrentMode_SkipsBeforeApprovalAndSignals()
+    {
+        // Paused for the mode the account is on -> no new buys, and the pause
+        // gate is checked before the approval/signal lookups so neither is hit.
+        _accountRepo.GetAsync(1, Arg.Any<CancellationToken>())
+            .Returns(new Account { Id = 1, TradingMode = TradingMode.Demo, ApprovalRequired = true, ExecutionPausedDemo = true });
+
+        var result = await CreateSut().RunAsync(1, _finnhub, _tiingo, _t212, DateOnly.FromDateTime(DateTime.UtcNow));
+
+        result.OrdersPlaced.Should().Be(0);
+        result.Summary.Should().Be("Trading paused");
+        await _approvalRepo.DidNotReceive().GetByDateAsync(Arg.Any<int>(), Arg.Any<TradingMode>(), Arg.Any<DateOnly>());
+        await _signalRepo.DidNotReceive().GetByDateAsync(Arg.Any<int>(), Arg.Any<DateOnly>());
+    }
+
+    [Fact]
+    public async Task RunAsync_PausedForOtherModeOnly_StillRuns()
+    {
+        // Pause is per-mode: Live is paused but the account is on Demo, so
+        // execution proceeds past the pause gate as normal.
+        _accountRepo.GetAsync(1, Arg.Any<CancellationToken>())
+            .Returns(new Account { Id = 1, TradingMode = TradingMode.Demo, ApprovalRequired = false, ExecutionPausedLive = true });
+        _riskProfileRepo.GetAsync(1, Arg.Any<CancellationToken>()).Returns(new AccountRiskProfile());
+        _tradeRepo.GetClosedOnDateAsync(1, TradingMode.Demo, Arg.Any<DateOnly>()).Returns([]);
+        _signalRepo.GetByDateAsync(1, Arg.Any<DateOnly>()).Returns([]);
+
+        var result = await CreateSut().RunAsync(1, _finnhub, _tiingo, _t212, DateOnly.FromDateTime(DateTime.UtcNow));
+
+        result.Summary.Should().Be("No eligible signals");
+    }
 }

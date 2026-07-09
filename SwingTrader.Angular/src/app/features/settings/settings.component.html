@@ -103,6 +103,21 @@
         <p class="muted small">Account ID: {{ t212AccountId() }}</p>
       }
 
+      <div class="toggle-row pause-row">
+        <mat-slide-toggle
+          color="warn"
+          [checked]="executionPaused()"
+          [disabled]="!isOwner()"
+          (change)="toggleExecutionPaused($event.checked)">
+          Pause {{ currentTradingMode }} trading
+        </mat-slide-toggle>
+      </div>
+      <p class="muted small">
+        Applies immediately to {{ currentTradingMode }} mode only. While paused, no new positions are opened — useful for
+        sitting out a rough market. Existing open positions keep being monitored, so their stop-loss, target and time
+        exits still fire. Switching mode or hitting Save isn't needed.
+      </p>
+
       <button mat-raised-button color="primary" [disabled]="!isOwner()" (click)="saveTradingConfig()">Save</button>
     </mat-card>
   </mat-tab>
