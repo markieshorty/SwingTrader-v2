@@ -91,6 +91,32 @@ public class MonitorServiceFillReconciliationTests
     }
 
     [Fact]
+    public async Task RunCycleAsync_ImplausibleEntryFill_KeepsPlacementPriceButStillConfirms()
+    {
+        // Regression: T212 demo returned an implausible fill price (165) for a
+        // ~34.86 placement, which used to overwrite EntryPrice and make the
+        // position read as a ~-79% loss. The bad price must be rejected (keep
+        // the placement price) yet the order still marked confirmed so it isn't
+        // re-pulled every cycle.
+        SetupNoOpenPositions();
+        _tradeRepo.GetUnreconciledOrdersAsync(1, TradingMode.Demo).Returns(new List<Trade>
+        {
+            new()
+            {
+                Id = 1, AccountId = 1, Symbol = "HAL", Quantity = 3.936m, EntryPrice = 34.86m,
+                Status = TradeStatus.Open, EntryOrderId = "222",
+            },
+        });
+        _t212.GetOrderHistoryAsync(50, null, null).Returns(HistoryWithFilledOrder(222, 165m, 3.936m, netValueGbp: 554.36m));
+
+        var sut = CreateSut();
+        await sut.RunCycleAsync(1, _finnhub, _t212);
+
+        await _tradeRepo.Received(1).UpdateAsync(Arg.Is<Trade>(t =>
+            t.EntryPrice == 34.86m && t.EntryFillConfirmedAt != null && t.EntryValueGbp == null));
+    }
+
+    [Fact]
     public async Task RunCycleAsync_ExitOrderFilledInHistory_UsesT212RealisedPnlNotPriceEstimate()
     {
         SetupNoOpenPositions();

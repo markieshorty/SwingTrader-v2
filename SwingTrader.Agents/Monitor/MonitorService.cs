@@ -282,9 +282,28 @@ public class MonitorService(
                     byId, trade.EntryOrderId, trade.Symbol, accountId, "entry",
                     onFilled: fill =>
                     {
-                        trade.EntryPrice = fill.Price;
-                        trade.EntryValueGbp = fill.WalletImpact?.NetValue;
-                        trade.EntryFeesGbp = SumFeesGbp(fill);
+                        // T212 (notably the demo endpoint) has been seen returning
+                        // an implausible fill price - e.g. Halliburton "filled" at
+                        // 165 when the placement quote was ~34.86 - which overwrote
+                        // a good EntryPrice and made the position read as a ~-79%
+                        // loss. A real market-order fill is within a small slippage
+                        // of the placement price, never a multiple of it, so reject
+                        // a wildly-off fill as bad data and keep the placement price
+                        // (which the stop/target were anchored to). markConfirmed()
+                        // still runs, so the same bad fill isn't re-pulled each cycle.
+                        if (IsPlausibleFillPrice(fill.Price, trade.EntryPrice))
+                        {
+                            trade.EntryPrice = fill.Price;
+                            trade.EntryValueGbp = fill.WalletImpact?.NetValue;
+                            trade.EntryFeesGbp = SumFeesGbp(fill);
+                        }
+                        else
+                        {
+                            logger.LogWarning(
+                                "Rejecting implausible entry fill for {Symbol} (account {AccountId}, order {OrderId}): " +
+                                "fill price {FillPrice} is not within 0.5x-2x of the placement price {PlacementPrice} — keeping placement price",
+                                trade.Symbol, accountId, trade.EntryOrderId, fill.Price, trade.EntryPrice);
+                        }
                     },
                     markConfirmed: () => trade.EntryFillConfirmedAt = DateTime.UtcNow);
 
@@ -316,6 +335,14 @@ public class MonitorService(
     // charged on this fill - quantity is reported negative (a deduction).
     private static decimal? SumFeesGbp(HistoricalFillDetail fill) =>
         fill.WalletImpact?.Taxes is { Count: > 0 } taxes ? -taxes.Sum(t => t.Quantity) : null;
+
+    // A genuine market-order fill lands within a small slippage of the price we
+    // placed at. Anything outside a wide sanity band (½× to 2×) is bad data - a
+    // T212 demo glitch or a mismatched fill - not slippage, and must not be
+    // allowed to overwrite the placement price.
+    private static bool IsPlausibleFillPrice(decimal fillPrice, decimal placementPrice) =>
+        fillPrice > 0 && placementPrice > 0 &&
+        fillPrice >= placementPrice * 0.5m && fillPrice <= placementPrice * 2m;
 
     // Returns true if the trade was mutated (fill confirmed, or the order
     // reached a terminal non-fill state and confirmation is being given up on
