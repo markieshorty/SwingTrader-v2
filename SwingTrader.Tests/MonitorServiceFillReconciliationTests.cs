@@ -336,6 +336,84 @@ public class MonitorServiceFillReconciliationTests
         await _tradeRepo.Received(1).UpdateAsync(Arg.Is<Trade>(t => t.Status == TradeStatus.Cancelled));
     }
 
+    // ── Position-drift reconciliation (local open positions vs broker holdings) ─
+
+    private static PortfolioPositionResponse BrokerPosition(string ticker, decimal qty) =>
+        new(ticker, qty, 100m, 100m, 0m, null, null, null, null, null, null);
+
+    private static Trade ConfirmedOpen(string symbol, decimal qty) => new()
+    {
+        Id = 1, AccountId = 1, Symbol = symbol, Quantity = qty, EntryPrice = 100m,
+        Status = TradeStatus.Open, EntryOrderId = "111", EntryFillConfirmedAt = DateTime.UtcNow.AddMinutes(-60),
+        OpenedAt = DateTime.UtcNow.AddMinutes(-60), // settled, past the 20-min grace
+    };
+
+    [Fact]
+    public async Task RunCycleAsync_LocalOpenNotHeldAtBroker_FlagsPositionDrift()
+    {
+        SetupNoOpenPositions();
+        _tradeRepo.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade> { ConfirmedOpen("AAPL", 10m) });
+        _t212.GetPortfolioAsync().Returns(new List<PortfolioPositionResponse>()); // broker holds nothing
+
+        await CreateSut().RunCycleAsync(1, _finnhub, _t212);
+
+        await _activityLog.Received(1).LogAsync(1, "SystemEvent", "Position Drift", "Warning",
+            Arg.Is<string>(m => m.Contains("AAPL") && m.Contains("not held at the broker")), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunCycleAsync_BrokerHoldingWithNoLocalRecord_FlagsPositionDrift()
+    {
+        SetupNoOpenPositions(); // no local open trades
+        _t212.GetPortfolioAsync().Returns(new List<PortfolioPositionResponse> { BrokerPosition("TSLA_US_EQ", 5m) });
+
+        await CreateSut().RunCycleAsync(1, _finnhub, _t212);
+
+        await _activityLog.Received(1).LogAsync(1, "SystemEvent", "Position Drift", "Warning",
+            Arg.Is<string>(m => m.Contains("TSLA_US_EQ") && m.Contains("no matching open position")), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunCycleAsync_QuantityMismatch_FlagsPositionDrift()
+    {
+        SetupNoOpenPositions();
+        _tradeRepo.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade> { ConfirmedOpen("AAPL", 10m) });
+        _t212.GetPortfolioAsync().Returns(new List<PortfolioPositionResponse> { BrokerPosition("AAPL_US_EQ", 7m) });
+
+        await CreateSut().RunCycleAsync(1, _finnhub, _t212);
+
+        await _activityLog.Received(1).LogAsync(1, "SystemEvent", "Position Drift", "Warning",
+            Arg.Is<string>(m => m.Contains("quantity mismatch")), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunCycleAsync_LocalAndBrokerMatch_NoDrift()
+    {
+        SetupNoOpenPositions();
+        _tradeRepo.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade> { ConfirmedOpen("AAPL", 10m) });
+        _t212.GetPortfolioAsync().Returns(new List<PortfolioPositionResponse> { BrokerPosition("AAPL_US_EQ", 10m) });
+
+        await CreateSut().RunCycleAsync(1, _finnhub, _t212);
+
+        await _activityLog.DidNotReceive().LogAsync(1, "SystemEvent", "Position Drift", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunCycleAsync_FreshUnsettledPosition_NotFlaggedAsPhantom()
+    {
+        // A position opened moments ago (within the grace window) may not be in
+        // T212's portfolio yet - it must not be flagged as drift.
+        SetupNoOpenPositions();
+        var fresh = ConfirmedOpen("AAPL", 10m);
+        fresh.OpenedAt = DateTime.UtcNow.AddMinutes(-2);
+        _tradeRepo.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade> { fresh });
+        _t212.GetPortfolioAsync().Returns(new List<PortfolioPositionResponse>());
+
+        await CreateSut().RunCycleAsync(1, _finnhub, _t212);
+
+        await _activityLog.DidNotReceive().LogAsync(1, "SystemEvent", "Position Drift", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task RunCycleAsync_CircuitBreakerTriggers_AutoPausesEntriesForCurrentModeAndLogs()
     {

@@ -71,6 +71,16 @@ public class MonitorService(
         // if it never did - so it never becomes a duplicate or a stop-less ghost.
         await ReconcilePendingOrdersAsync(accountId, account.TradingMode, t212, ct);
 
+        // Step 0c — position-drift check: compare the full set of local open
+        // positions against the broker's ACTUAL holdings and alert on any
+        // divergence (a local position the broker doesn't hold, a broker holding
+        // with no local record, or a quantity mismatch). The fill/pending
+        // reconciliation above is per-order; this is the holdings-level safety
+        // net that catches state that has already drifted for any reason.
+        // Detect-and-alert only: it never auto-closes, because acting on a
+        // transient T212 blip would be worse than surfacing the drift.
+        await ReconcilePositionsAsync(accountId, account.TradingMode, t212, ct);
+
         // Step 1 — circuit breaker check
         if (await circuitBreaker.ShouldTriggerAsync(accountId, summary, ct))
         {
@@ -245,6 +255,90 @@ public class MonitorService(
     // generous window makes a false "never placed" verdict effectively
     // impossible while still freeing reserved capital the same session.
     private const int PendingReconcileGraceMinutes = 30;
+
+    // A local position younger than this is exempt from the phantom/mismatch
+    // checks: a just-placed order may not appear in T212's portfolio yet, and a
+    // position mid-exit is briefly still open locally while its sell settles.
+    private const int PositionDriftGraceMinutes = 20;
+
+    private async Task ReconcilePositionsAsync(int accountId, TradingMode tradingMode, ITrading212Client t212, CancellationToken ct)
+    {
+        List<PortfolioPositionResponse> brokerPositions;
+        try
+        {
+            // Space this from the cycle's other T212 calls, matching the fill
+            // reconciliation's own pacing, to stay clear of the rate limit.
+            await Task.Delay(TimeSpan.FromSeconds(_execution.DelayBetweenOrdersSeconds), ct);
+            brokerPositions = await t212.GetPortfolioAsync() ?? [];
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not fetch T212 portfolio for position reconciliation (account {AccountId}) — skipping this cycle", accountId);
+            return;
+        }
+
+        List<Trade> openTrades, pendingTrades;
+        try
+        {
+            openTrades = (await tradeRepo.GetOpenTradesAsync(accountId, tradingMode)).ToList();
+            pendingTrades = (await tradeRepo.GetPendingTradesAsync(accountId, tradingMode)).ToList();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not load local positions for reconciliation (account {AccountId}) — skipping this cycle", accountId);
+            return;
+        }
+
+        var settledCutoff = DateTime.UtcNow.AddMinutes(-PositionDriftGraceMinutes);
+        var brokerHeld = brokerPositions.Where(p => Math.Abs(p.Quantity) > 0m).ToList();
+
+        // 1) Phantom / quantity-mismatch: a confirmed, settled local open
+        //    position that the broker either doesn't hold or holds a different
+        //    quantity of. Fresh/unconfirmed positions are skipped (grace window).
+        foreach (var trade in openTrades)
+        {
+            if (trade.EntryFillConfirmedAt is null || trade.OpenedAt > settledCutoff) continue;
+
+            var match = brokerHeld.FirstOrDefault(p => TickerMatchesSymbol(p.Ticker, trade.Symbol));
+            if (match is null)
+            {
+                await LogPositionDriftAsync(accountId,
+                    $"{trade.Symbol}: open locally (qty {trade.Quantity:0.####}) but not held at the broker — possible unrecorded exit or manual close.", ct);
+            }
+            else if (Math.Abs(match.Quantity - trade.Quantity) > Math.Max(0.0001m, Math.Abs(trade.Quantity) * 0.01m))
+            {
+                await LogPositionDriftAsync(accountId,
+                    $"{trade.Symbol}: quantity mismatch — local {trade.Quantity:0.####} vs broker {match.Quantity:0.####}.", ct);
+            }
+        }
+
+        // 2) Untracked: a broker holding with no matching open OR pending local
+        //    trade. Intent-first records every placement before it hits the
+        //    broker, so an untracked holding is genuinely anomalous.
+        foreach (var pos in brokerHeld)
+        {
+            var tracked = openTrades.Any(t => TickerMatchesSymbol(pos.Ticker, t.Symbol))
+                || pendingTrades.Any(t => TickerMatchesSymbol(pos.Ticker, t.Symbol));
+            if (!tracked)
+            {
+                await LogPositionDriftAsync(accountId,
+                    $"{pos.Ticker}: held at the broker (qty {pos.Quantity:0.####}) with no matching open position on record.", ct);
+            }
+        }
+    }
+
+    private async Task LogPositionDriftAsync(int accountId, string message, CancellationToken ct)
+    {
+        logger.LogWarning("Position drift for account {AccountId}: {Message}", accountId, message);
+        try
+        {
+            await activityLog.LogAsync(accountId, "SystemEvent", "Position Drift", "Warning", message, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to write position-drift activity log for account {AccountId}", accountId);
+        }
+    }
 
     private async Task ReconcilePendingOrdersAsync(int accountId, TradingMode tradingMode, ITrading212Client t212, CancellationToken ct)
     {
