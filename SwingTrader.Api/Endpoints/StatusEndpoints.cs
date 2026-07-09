@@ -1,0 +1,35 @@
+using SwingTrader.Api.Services;
+using SwingTrader.Core.Enums;
+using SwingTrader.Core.Interfaces;
+
+namespace SwingTrader.Api.Endpoints;
+
+public static class StatusEndpoints
+{
+    public static RouteGroupBuilder MapStatusEndpoints(this RouteGroupBuilder api)
+    {
+        api.MapGet("/status", async (IActivityLogRepository activityLog, IAccountRepository accounts, IAccountContext ctx, CancellationToken ct) =>
+        {
+            var account = await accounts.GetAsync(ctx.AccountId, ct);
+            if (account is null) return Results.NotFound();
+
+            var entries = await activityLog.GetRecentAsync(ctx.AccountId, account.TradingMode);
+            var runs = entries.Select(e => new
+            {
+                e.Category,
+                e.Title,
+                e.Result,
+                e.Message,
+                e.OccurredAt,
+            });
+            return Results.Ok(new { status = "ok", timestamp = DateTime.UtcNow, runs });
+        });
+
+        // Next scheduled run per job type, for the Dashboard's per-job cards -
+        // mirrors SchedulerFunction's windows (see JobScheduleInfo). Same for every
+        // account since the Scheduler's windows aren't account-specific.
+        api.MapGet("/jobs/next-runs", () => Results.Ok(JobScheduleInfo.GetNextRuns(DateTime.UtcNow)));
+
+        return api;
+    }
+}
