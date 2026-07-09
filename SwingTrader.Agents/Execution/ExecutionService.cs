@@ -194,6 +194,10 @@ public class ExecutionService(
         // Step 4 — execute signals
         int placed = 0, failed = 0, skipped = 0;
         var placedSymbols = new List<string>();
+        // GBP deployed by THIS run's placements - added to the broker's
+        // openPositionsValue for the cumulative active-capital check, since the
+        // broker total won't reflect just-placed orders yet.
+        var deployedThisRun = 0m;
 
         foreach (var signal in signals)
         {
@@ -212,7 +216,8 @@ public class ExecutionService(
 
             var sizing = await sizingService.CalculateAsync(
                 signal, currentTier, openTrades.Count, availableCash, totalPortfolioValue, riskProfile,
-                priceOverride: signal.CurrentPrice * gbpUsd);
+                priceOverride: signal.CurrentPrice * gbpUsd,
+                openPositionsValue: openPositionsValue + deployedThisRun);
 
             if (!sizing.CanTrade)
             {
@@ -326,6 +331,7 @@ public class ExecutionService(
                     accountId, signal.Symbol, ticker, sizing.Quantity, sizing.EstimatedCost, order.Id);
 
                 availableCash -= sizing.EstimatedCost;
+                deployedThisRun += sizing.EstimatedCost;
                 placedSymbols.Add(signal.Symbol);
                 placed++;
 
@@ -356,7 +362,11 @@ public class ExecutionService(
                     CapitalTier.Tier3 => Core.Constants.CapitalRules.Tier3CapitalPct,
                     _ => Core.Constants.CapitalRules.Tier1CapitalPct
                 };
-                var openValue = openPositionsValue + openTrades.Where(t => t.EntryOrderId != null).Sum(t => t.Quantity * t.EntryPrice);
+                // Broker investments (pre-run, GBP) plus this run's placements
+                // (GBP estimated costs). The old expression summed Quantity x
+                // EntryPrice over ALL open trades, double-counting positions
+                // already inside the broker total - and in USD to boot.
+                var openValue = openPositionsValue + deployedThisRun;
                 var snapshot = new PortfolioSnapshot
                 {
                     AccountId = accountId,

@@ -13,7 +13,8 @@ public class PositionSizingService : IPositionSizingService
         decimal availableCash,
         decimal totalPortfolioValue,
         AccountRiskProfile riskProfile,
-        decimal? priceOverride = null)
+        decimal? priceOverride = null,
+        decimal openPositionsValue = 0m)
     {
         // Step 1 — hard cap on concurrent positions
         if (currentOpenPositions >= riskProfile.MaxOpenPositions)
@@ -35,6 +36,18 @@ public class PositionSizingService : IPositionSizingService
         // Step 4 — max position size = active capital * MaxPositionPctOfActive
         var maxPositionBudget = activeCapital * riskProfile.MaxPositionPctOfActive;
 
+        // Step 4b — cumulative active-capital cap. The per-position cap alone
+        // never bounded TOTAL deployment: at the config extremes (10 positions
+        // x 33% of active) the pool could be oversubscribed 3.3x, limited only
+        // by cash - defeating the tier system's whole purpose of ramping
+        // exposure with proven performance. The remaining headroom in the pool
+        // (active capital minus what's already deployed, including earlier
+        // placements this run) now also caps the budget.
+        var remainingActiveCapital = activeCapital - openPositionsValue;
+        if (remainingActiveCapital <= 0)
+            return Task.FromResult(new PositionSizeResult(false, 0, 0,
+                $"Active capital pool (£{activeCapital:F2} at {currentTier}) is fully deployed (£{openPositionsValue:F2} in open positions)"));
+
         // Step 5 — apply 2% cash buffer: never spend more than (available - 2% of total)
         var cashBuffer = totalPortfolioValue * 0.02m;
         var spendableCash = availableCash - cashBuffer;
@@ -43,8 +56,9 @@ public class PositionSizingService : IPositionSizingService
             return Task.FromResult(new PositionSizeResult(false, 0, 0,
                 "Insufficient cash after applying 2% buffer"));
 
-        // Step 6 — position budget is the lesser of max budget and spendable cash
-        var positionBudget = Math.Min(maxPositionBudget, spendableCash);
+        // Step 6 — position budget is the least of: per-position cap, spendable
+        // cash, and the active pool's remaining headroom (step 4b)
+        var positionBudget = Math.Min(Math.Min(maxPositionBudget, spendableCash), remainingActiveCapital);
 
         // Use the caller-supplied (GBP-converted) price when given so the budget
         // (GBP) and price are the same currency — otherwise the quantity would be
