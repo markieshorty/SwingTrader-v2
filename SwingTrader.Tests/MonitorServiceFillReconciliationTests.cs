@@ -32,6 +32,7 @@ public class MonitorServiceFillReconciliationTests
     private readonly IFinnhubClient _finnhub = Substitute.For<IFinnhubClient>();
     private readonly ITrading212Client _t212 = Substitute.For<ITrading212Client>();
     private readonly IAccountRepository _accountRepo = Substitute.For<IAccountRepository>();
+    private readonly IActivityLogRepository _activityLog = Substitute.For<IActivityLogRepository>();
 
     public MonitorServiceFillReconciliationTests()
     {
@@ -41,7 +42,7 @@ public class MonitorServiceFillReconciliationTests
 
     private MonitorService CreateSut() => new(
         _tradeRepo, _portfolioRepo, _circuitBreaker, _positionMonitor, _riskProfileRepo,
-        _positionExit, _recipients, _emailService, _accountRepo,
+        _positionExit, _recipients, _emailService, _accountRepo, _activityLog,
         Options.Create(new ExecutionConfig { DelayBetweenOrdersSeconds = 0 }),
         NullLogger<MonitorService>.Instance);
 
@@ -206,5 +207,45 @@ public class MonitorServiceFillReconciliationTests
 
         await _tradeRepo.Received(1).UpdateAsync(Arg.Is<Trade>(t =>
             t.ExitPrice == 105m && t.ExitFillConfirmedAt != null));
+    }
+
+    [Fact]
+    public async Task RunCycleAsync_CircuitBreakerTriggers_AutoPausesEntriesForCurrentModeAndLogs()
+    {
+        var account = new Account { Id = 1, TradingMode = TradingMode.Demo };
+        _accountRepo.GetAsync(1, Arg.Any<CancellationToken>()).Returns(account);
+        _t212.GetAccountSummaryAsync().Returns(new T212AccountSummary(
+            1000m, new T212AccountSummaryCash(1000m, 0m, 0m), new T212AccountSummaryInvestments(0m, 0m, 0m, 0m)));
+        _circuitBreaker.ShouldTriggerAsync(1, Arg.Any<T212AccountSummary?>(), Arg.Any<CancellationToken>()).Returns(true);
+        _tradeRepo.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade>());
+
+        await CreateSut().RunCycleAsync(1, _finnhub, _t212);
+
+        account.ExecutionPausedDemo.Should().BeTrue();
+        account.ExecutionPauseReasonDemo.Should().Be(ExecutionPauseReason.CircuitBreaker);
+        account.ExecutionPausedAtDemo.Should().NotBeNull();
+        account.ExecutionPausedLive.Should().BeFalse(); // per-mode: Live untouched
+        await _accountRepo.Received(1).UpdateAsync(account, Arg.Any<CancellationToken>());
+        await _activityLog.Received(1).LogAsync(1, "SystemEvent", "Entries Auto-Paused", "Warning",
+            Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunCycleAsync_CircuitBreakerTriggersButAlreadyPaused_DoesNotRewriteAccount()
+    {
+        // Already paused (e.g. manually) - the breaker must not overwrite the
+        // reason/timestamp or hit the DB again every cycle.
+        var account = new Account { Id = 1, TradingMode = TradingMode.Demo, ExecutionPausedDemo = true, ExecutionPauseReasonDemo = ExecutionPauseReason.Manual };
+        _accountRepo.GetAsync(1, Arg.Any<CancellationToken>()).Returns(account);
+        _t212.GetAccountSummaryAsync().Returns(new T212AccountSummary(
+            1000m, new T212AccountSummaryCash(1000m, 0m, 0m), new T212AccountSummaryInvestments(0m, 0m, 0m, 0m)));
+        _circuitBreaker.ShouldTriggerAsync(1, Arg.Any<T212AccountSummary?>(), Arg.Any<CancellationToken>()).Returns(true);
+        _tradeRepo.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade>());
+
+        await CreateSut().RunCycleAsync(1, _finnhub, _t212);
+
+        account.ExecutionPauseReasonDemo.Should().Be(ExecutionPauseReason.Manual);
+        await _accountRepo.DidNotReceive().UpdateAsync(Arg.Any<Account>(), Arg.Any<CancellationToken>());
+        await _activityLog.DidNotReceive().LogAsync(1, "SystemEvent", "Entries Auto-Paused", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 }

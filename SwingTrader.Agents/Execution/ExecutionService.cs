@@ -52,9 +52,9 @@ public class ExecutionService(
         // paused account never even looks for an approval row.
         if (account.IsExecutionPaused(account.TradingMode))
         {
-            logger.LogInformation("Execution skipped for account {AccountId} on {Date} — trading paused for {Mode}",
+            logger.LogInformation("Execution skipped for account {AccountId} on {Date} — entries paused for {Mode}",
                 accountId, date, account.TradingMode);
-            return new ExecutionResult(0, 0, 0, "Trading paused", []);
+            return new ExecutionResult(0, 0, 0, "Entries paused", []);
         }
 
         HashSet<string>? approvedSymbols = null;

@@ -176,7 +176,7 @@ public class ExecutionServiceTests
         var result = await CreateSut().RunAsync(1, _finnhub, _tiingo, _t212, DateOnly.FromDateTime(DateTime.UtcNow));
 
         result.OrdersPlaced.Should().Be(0);
-        result.Summary.Should().Be("Trading paused");
+        result.Summary.Should().Be("Entries paused");
         await _approvalRepo.DidNotReceive().GetByDateAsync(Arg.Any<int>(), Arg.Any<TradingMode>(), Arg.Any<DateOnly>());
         await _signalRepo.DidNotReceive().GetByDateAsync(Arg.Any<int>(), Arg.Any<DateOnly>());
     }

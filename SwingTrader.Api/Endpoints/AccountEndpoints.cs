@@ -52,8 +52,12 @@ public static class AccountEndpoints
                 account.T212AccountId,
                 account.GlobalRefinementOptIn,
                 // Pause state for the mode currently in effect - the Settings
-                // toggle is scoped to whichever mode the account is on.
+                // toggle and dashboard capsule are scoped to whichever mode
+                // the account is on. Reason/PausedAt are only meaningful while
+                // paused (Manual switch vs circuit-breaker auto-pause).
                 ExecutionPaused = account.IsExecutionPaused(account.TradingMode),
+                ExecutionPauseReason = account.ExecutionPauseReasonFor(account.TradingMode).ToString(),
+                ExecutionPausedAt = account.ExecutionPausedAtFor(account.TradingMode),
                 role = ctx.Role,
             });
         });
@@ -219,18 +223,27 @@ public static class AccountEndpoints
         api.MapPut("/account/execution-paused/{paused:bool}", async (
             bool paused,
             IAccountRepository accounts,
+            IActivityLogRepository activityLog,
             IAccountContext ctx) =>
         {
             if (ctx.Role != AccountRole.Owner) return Results.Forbid();
             var account = await accounts.GetAsync(ctx.AccountId)
                 ?? throw new InvalidOperationException("Authenticated caller has no account.");
 
-            if (account.TradingMode == TradingMode.Live)
-                account.ExecutionPausedLive = paused;
+            if (paused)
+                account.PauseExecution(account.TradingMode, ExecutionPauseReason.Manual, DateTime.UtcNow);
             else
-                account.ExecutionPausedDemo = paused;
+                account.ResumeExecution(account.TradingMode);
 
             await accounts.UpdateAsync(account);
+
+            // Audit trail so the account's activity feed shows who stopped/
+            // started entries and when (the circuit-breaker auto-pause logs
+            // its own separate entry from Monitor).
+            await activityLog.LogAsync(ctx.AccountId, "UserAction",
+                paused ? "Entries Paused" : "Entries Resumed", "Info",
+                $"{account.TradingMode} entries {(paused ? "paused" : "resumed")} manually");
+
             return Results.Ok();
         });
 

@@ -272,8 +272,11 @@ export interface TradingConfigDto {
   tradingMode: TradingMode;
   approvalRequired: boolean;
   t212AccountId: string | null;
-  // Whether new-position executions are paused for the current mode.
+  // Whether new-position executions ("entries") are paused for the current
+  // mode, and — while paused — why and since when.
   executionPaused: boolean;
+  executionPauseReason: 'Manual' | 'CircuitBreaker';
+  executionPausedAt: string | null;
   role: 'Owner' | 'Member';
 }
 

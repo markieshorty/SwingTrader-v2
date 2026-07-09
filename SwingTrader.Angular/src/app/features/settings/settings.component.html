@@ -109,13 +109,18 @@
           [checked]="executionPaused()"
           [disabled]="!isOwner()"
           (change)="toggleExecutionPaused($event.checked)">
-          Pause {{ currentTradingMode }} trading
+          Pause new {{ currentTradingMode }} entries
         </mat-slide-toggle>
       </div>
+      @if (executionPaused() && executionPauseReason() === 'CircuitBreaker') {
+        <p class="warning small">
+          ⏸ Auto-paused by the daily loss circuit breaker. Review your positions, then toggle off to resume new entries.
+        </p>
+      }
       <p class="muted small">
-        Applies immediately to {{ currentTradingMode }} mode only. While paused, no new positions are opened — useful for
-        sitting out a rough market. Existing open positions keep being monitored, so their stop-loss, target and time
-        exits still fire. Switching mode or hitting Save isn't needed.
+        Applies immediately to {{ currentTradingMode }} mode only. Stops new entries — useful for sitting out a rough
+        market. Exits keep running: existing positions still get their stop-loss, target and time exits. Switching mode
+        or hitting Save isn't needed.
       </p>
 
       <button mat-raised-button color="primary" [disabled]="!isOwner()" (click)="saveTradingConfig()">Save</button>

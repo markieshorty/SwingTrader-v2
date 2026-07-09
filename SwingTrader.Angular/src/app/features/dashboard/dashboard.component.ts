@@ -96,6 +96,28 @@ export class DashboardComponent {
     (this.status()?.runs ?? []).filter(r => r.category === 'WorkerRun' && r.title === 'Monitor'),
   );
 
+  // Paused-entries capsule for the current mode. Null when not paused. Red for
+  // a circuit-breaker auto-pause, amber for a manual one; the tooltip spells
+  // out that exits still run and where to resume.
+  pauseCapsule = computed(() => {
+    const s = this.accountSettings();
+    if (!s?.executionPaused) return null;
+    const auto = s.executionPauseReason === 'CircuitBreaker';
+    const since = s.executionPausedAt ? new Date(s.executionPausedAt) : null;
+    const sinceText = since ? ` · since ${since.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : '';
+    return auto
+      ? {
+          auto,
+          label: '⏸ Auto-paused · daily loss limit',
+          title: `${s.tradingMode} entries auto-paused by the circuit breaker${sinceText}. Exits still run. Resume in Settings › Trading.`,
+        }
+      : {
+          auto,
+          label: `⏸ ${s.tradingMode} entries paused`,
+          title: `New ${s.tradingMode} entries paused${sinceText}. Exits still run. Resume in Settings › Trading.`,
+        };
+  });
+
   activeSignals = computed<SignalDto[]>(() => {
     const g = this.signals();
     if (!g) return [];

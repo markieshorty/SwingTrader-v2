@@ -204,9 +204,12 @@ export class SettingsComponent {
     return this.persistedTradingMode;
   }
   approvalRequired = signal(true);
-  // Pause switch for new-position executions, scoped to the current mode
-  // (persistedTradingMode). Applied immediately on toggle, not via Save.
+  // Pause switch for new-position executions ("entries"), scoped to the
+  // current mode (persistedTradingMode). Applied immediately on toggle, not
+  // via Save. Reason distinguishes a manual pause from a circuit-breaker
+  // auto-pause so the copy can explain it.
   executionPaused = signal(false);
+  executionPauseReason = signal<'Manual' | 'CircuitBreaker'>('Manual');
   t212AccountId = signal<string | null>(null);
   globalRefinementOptIn = signal(false);
   // Only the Owner can delete the account (enforced server-side too) - hide
@@ -412,6 +415,7 @@ export class SettingsComponent {
         this.t212AccountId.set(settings.t212AccountId);
         this.globalRefinementOptIn.set(settings.globalRefinementOptIn);
         this.executionPaused.set(settings.executionPaused);
+        this.executionPauseReason.set(settings.executionPauseReason);
         this.isOwner.set(settings.role === 'Owner');
       },
     });
@@ -583,12 +587,15 @@ export class SettingsComponent {
 
   toggleExecutionPaused(paused: boolean): void {
     this.executionPaused.set(paused);
+    // A manual toggle always sets the reason to Manual server-side; reflect
+    // that locally so a circuit-breaker note clears the moment they resume.
+    this.executionPauseReason.set('Manual');
     this.api.setExecutionPaused(paused).subscribe({
       next: () =>
         this.snackbar.open(
           paused
-            ? `${this.persistedTradingMode} trading paused — no new positions will open`
-            : `${this.persistedTradingMode} trading resumed`,
+            ? `${this.persistedTradingMode} entries paused — exits still run`
+            : `${this.persistedTradingMode} entries resumed`,
           'Dismiss',
           { duration: 3000 },
         ),

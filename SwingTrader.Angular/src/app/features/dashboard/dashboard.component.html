@@ -11,6 +11,11 @@
       <span class="capsule" [class.amber]="settings.tradingMode === 'Live'" [class.blue]="settings.tradingMode === 'Demo'">
         {{ settings.tradingMode === 'Live' ? '🔴 LIVE TRADING' : 'Demo Mode' }}
       </span>
+      @if (pauseCapsule(); as pause) {
+        <span class="capsule" [class.red]="pause.auto" [class.amber]="!pause.auto" [title]="pause.title">
+          {{ pause.label }}
+        </span>
+      }
       <span class="capsule" [class.green]="settings.approvalRequired" [class.grey]="!settings.approvalRequired">
         Approval {{ settings.approvalRequired ? 'Required' : 'Not Required' }}
       </span>

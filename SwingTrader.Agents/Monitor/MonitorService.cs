@@ -25,6 +25,7 @@ public class MonitorService(
     INotificationRecipientRepository recipients,
     IEmailService emailService,
     IAccountRepository accountRepo,
+    IActivityLogRepository activityLog,
     IOptions<ExecutionConfig> executionConfig,
     ILogger<MonitorService> logger) : IMonitorService
 {
@@ -70,11 +71,31 @@ public class MonitorService(
             var openTrades = (await tradeRepo.GetOpenTradesAsync(accountId, account.TradingMode)).ToList();
             var flagged = openTrades.Select(t => new FlaggedExit(t.Symbol, ExitReason.CircuitBreaker, t.EntryPrice)).ToList();
 
+            // Auto-pause new entries for the current mode so we stop opening
+            // positions into a day that's already hit its loss limit. Stays
+            // paused until the owner manually resumes (Settings > Trading) -
+            // deliberately no auto-resume, so a continuing downturn doesn't
+            // quietly re-arm trading. Guarded so we don't rewrite the row (or
+            // clobber an existing manual pause's reason/timestamp) every
+            // 5-minute cycle while the breaker stays tripped.
+            var autoPaused = false;
+            if (!account.IsExecutionPaused(account.TradingMode))
+            {
+                account.PauseExecution(account.TradingMode, ExecutionPauseReason.CircuitBreaker, DateTime.UtcNow);
+                await accountRepo.UpdateAsync(account, ct);
+                await activityLog.LogAsync(accountId, "SystemEvent", "Entries Auto-Paused", "Warning",
+                    $"{account.TradingMode} entries auto-paused by the daily loss circuit breaker");
+                autoPaused = true;
+            }
+
             await SendAlertAsync(
                 accountId,
                 $"# \U0001F6A8 CIRCUIT BREAKER TRIGGERED\n\n" +
                 $"The daily loss circuit breaker has fired for {openTrades.Count} open position(s): " +
                 $"{string.Join(", ", openTrades.Select(t => t.Symbol))}.\n\n" +
+                (autoPaused
+                    ? $"**New {account.TradingMode} entries have been auto-paused** — resume them in Settings › Trading when you're ready.\n\n"
+                    : "") +
                 $"**No positions were closed automatically — review and close manually in Trading212.**",
                 "\U0001F6A8 SwingTrader — CIRCUIT BREAKER TRIGGERED, manual review needed",
                 NotificationCategory.CircuitBreaker);
