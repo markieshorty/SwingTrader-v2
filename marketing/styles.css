@@ -1,0 +1,126 @@
+/* Acme Trading marketing site — placeholder brand, dark fintech theme.
+   Self-contained; no framework. Swap the palette / brand at rename time. */
+:root {
+  --navy: #0b1220;
+  --navy-2: #0f1a2e;
+  --card: #131f36;
+  --border: #22304d;
+  --text: #e8eef7;
+  --muted: #9fb0c9;
+  --brand: #4ea1ff;
+  --brand-2: #6ad3b0;
+  --accent: #1f6feb;
+  --radius: 14px;
+  --maxw: 1080px;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: var(--text);
+  background: radial-gradient(1200px 600px at 70% -10%, #16223c 0%, var(--navy) 55%) no-repeat, var(--navy);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+.container.narrow { max-width: 760px; }
+
+a { color: var(--brand); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Nav */
+.nav {
+  position: sticky; top: 0; z-index: 10;
+  backdrop-filter: blur(10px);
+  background: rgba(11, 18, 32, 0.72);
+  border-bottom: 1px solid var(--border);
+}
+.nav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.15rem; color: var(--text); }
+.brand:hover { text-decoration: none; }
+.brand-mark { color: var(--brand); font-size: 1.1em; }
+.nav-links { display: flex; align-items: center; gap: 26px; }
+.nav-links a { color: var(--muted); font-size: 0.95rem; }
+.nav-links a:hover { color: var(--text); text-decoration: none; }
+
+/* Buttons */
+.btn {
+  display: inline-block; padding: 12px 20px; border-radius: 10px; font-weight: 600;
+  font-size: 0.98rem; cursor: pointer; transition: transform .05s ease, background .15s ease, border-color .15s ease;
+}
+.btn:hover { text-decoration: none; }
+.btn:active { transform: translateY(1px); }
+.btn-primary { background: linear-gradient(135deg, var(--accent), var(--brand)); color: #fff; border: 1px solid transparent; }
+.btn-primary:hover { background: linear-gradient(135deg, #2a7cf0, #63b0ff); }
+.btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+.btn-ghost:hover { border-color: var(--brand); color: #fff; }
+.btn-lg { padding: 15px 28px; font-size: 1.05rem; }
+
+/* Hero */
+.hero { padding: 84px 0 64px; }
+.hero-inner { max-width: 780px; }
+.eyebrow { text-transform: uppercase; letter-spacing: .14em; font-size: .78rem; color: var(--brand-2); font-weight: 700; margin: 0 0 14px; }
+.hero h1 { font-size: clamp(2.1rem, 5vw, 3.4rem); line-height: 1.08; margin: 0 0 20px; letter-spacing: -0.02em; }
+.lede { font-size: 1.18rem; color: var(--muted); margin: 0 0 28px; }
+.cta-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+.disclaimer-inline { font-size: .9rem; color: var(--muted); margin: 0; }
+
+/* Trust bar */
+.trustbar { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--navy-2); }
+.trust-inner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 16px 24px; color: var(--muted); font-size: .95rem; }
+.trust-inner strong { color: var(--text); }
+
+/* Sections */
+.section { padding: 76px 0; }
+.section-alt { background: var(--navy-2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.section-title { font-size: clamp(1.6rem, 3.5vw, 2.3rem); text-align: center; margin: 0 0 10px; letter-spacing: -0.01em; }
+.section-sub { text-align: center; color: var(--muted); margin: 0 auto 44px; max-width: 620px; }
+
+/* Steps */
+.steps { list-style: none; counter-reset: step; margin: 0; padding: 0; display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.steps li { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+.step-num { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 9px; background: rgba(78,161,255,.14); color: var(--brand); font-weight: 700; margin-bottom: 12px; }
+.steps h3 { margin: 0 0 6px; font-size: 1.1rem; }
+.steps p { margin: 0; color: var(--muted); font-size: .95rem; }
+
+/* Feature grid */
+.grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 26px; }
+.card h3 { margin: 0 0 8px; font-size: 1.15rem; }
+.card p { margin: 0; color: var(--muted); }
+
+/* CTA band */
+.cta-band { text-align: center; }
+.cta-band-inner { background: linear-gradient(135deg, #12233f, #0f1a2e); border: 1px solid var(--border); border-radius: 20px; padding: 56px 24px; }
+.cta-band h2 { margin: 0 0 10px; font-size: clamp(1.5rem, 3vw, 2.1rem); }
+.cta-band p { color: var(--muted); margin: 0 0 26px; }
+
+/* FAQ */
+.faq details { border: 1px solid var(--border); border-radius: 12px; background: var(--card); padding: 4px 20px; margin-bottom: 12px; }
+.faq summary { cursor: pointer; font-weight: 600; padding: 16px 0; list-style: none; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: '+'; float: right; color: var(--brand); font-weight: 700; }
+.faq details[open] summary::after { content: '–'; }
+.faq p { margin: 0 0 16px; color: var(--muted); }
+
+/* Footer */
+.footer { border-top: 1px solid var(--border); background: var(--navy-2); padding: 48px 0 32px; margin-top: 20px; }
+.footer-inner { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+.footer-brand { font-weight: 700; }
+.footer-tag { font-weight: 400; color: var(--muted); margin: 8px 0 0; font-size: .92rem; }
+.footer-links { display: flex; flex-direction: column; gap: 8px; }
+.footer-links a { color: var(--muted); }
+.footer-legal { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); }
+.footer-legal p { color: #7c8aa5; font-size: .82rem; margin: 0; }
+
+@media (max-width: 640px) {
+  .nav-links { gap: 14px; }
+  .nav-links a:not(.btn) { display: none; }
+  .hero { padding: 56px 0 44px; }
+  .section { padding: 56px 0; }
+}

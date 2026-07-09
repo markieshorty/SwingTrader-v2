@@ -34,7 +34,7 @@ import { environment } from '../../../environments/environment';
     } @else {
     <div class="splash-container">
       <div class="splash-content">
-        <h1>SwingTrader</h1>
+        <h1>Acme Trading</h1>
 
         @if (alreadySignedIn()) {
           <p class="blurb">
@@ -42,7 +42,7 @@ import { environment } from '../../../environments/environment';
             only belong to one Account at a time. Redirecting to your dashboard…
           </p>
         } @else if (inviteToken()) {
-          <p class="blurb">You've been invited to join a SwingTrader account.</p>
+          <p class="blurb">You've been invited to join an Acme Trading account.</p>
           <div class="actions">
             <button mat-raised-button color="primary" (click)="joinAccount()">Join Account</button>
           </div>

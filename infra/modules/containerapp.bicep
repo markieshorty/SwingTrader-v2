@@ -14,6 +14,15 @@ param b2cAudience string = ''
 @description('Service Bus fully-qualified namespace, for the manual /run/{jobType} trigger endpoints - empty disables them (503) rather than failing to deploy')
 param serviceBusNamespace string = ''
 
+@description('Custom domain for the app, e.g. app.example.com. Empty = no custom domain (default *.azurecontainerapps.io only).')
+param appCustomDomain string = ''
+
+@description('Bind the custom domain + issue a managed certificate. Only turn on AFTER the app CNAME + asuid.app TXT records resolve (DNS delegated), or cert issuance hangs. See docs/branding-and-domains.md.')
+param bindAppCustomDomain bool = false
+
+// Guard so a normal deploy (defaults) leaves ingress exactly as before.
+var enableAppDomain = bindAppCustomDomain && !empty(appCustomDomain)
+
 // Bootstrap placeholder — no image has ever been pushed to ACR on a brand-new
 // deploy, so pointing at the real ACR image tag here would hang/fail waiting
 // on a pull that can never succeed. deploy-api.yml swaps this out
@@ -56,6 +65,15 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
         targetPort: 5001
         transport: 'http'
         allowInsecure: false
+        // SNI-bound custom domain + Container Apps managed (free) certificate.
+        // null when disabled, so the default deploy's ingress is unchanged.
+        customDomains: enableAppDomain ? [
+          {
+            name: appCustomDomain
+            bindingType: 'SniEnabled'
+            certificateId: appManagedCert.id
+          }
+        ] : null
       }
       // No registries[] block on the initial deploy: Container Apps appears
       // to validate every configured registry credential during revision
@@ -103,6 +121,20 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
   }
 }
 
+// Free managed certificate for the app custom domain. Validated by CNAME
+// (app.<domain> → this app's default FQDN) plus the asuid.app TXT proof, so
+// the DNS records must resolve before this is enabled or issuance hangs.
+resource appManagedCert 'Microsoft.App/managedEnvironments/managedCertificates@2024-03-01' = if (enableAppDomain) {
+  parent: containerAppEnv
+  name: 'cert-${uniqueString(appCustomDomain)}'
+  location: location
+  tags: tags
+  properties: {
+    subjectName: appCustomDomain
+    domainControlValidation: 'CNAME'
+  }
+}
+
 resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(resourceGroup().id, appName, 'acrpull')
   scope: resourceGroup()
@@ -118,3 +150,6 @@ resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 output principalId string = containerApp.identity.principalId
 output appName string = containerApp.name
 output fqdn string = containerApp.properties.configuration.ingress.fqdn
+// Publish as the asuid.app TXT record so Container Apps can verify domain
+// ownership before binding the custom domain (dns.bicep containerAppAsuid).
+output customDomainVerificationId string = containerApp.properties.customDomainVerificationId

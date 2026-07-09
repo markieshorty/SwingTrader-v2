@@ -75,7 +75,7 @@ public class ReportConsumerFunction(
                 {
                     await email.SendSimpleEmailAsync(
                         approvalAddresses, report.ApprovalMarkdown,
-                        $"SwingTrader — Action Required: Approve Today's Trades ({message.ReportDate:dd MMM yyyy})");
+                        $"Acme Trading — Action Required: Approve Today's Trades ({message.ReportDate:dd MMM yyyy})");
                 }
                 else
                 {

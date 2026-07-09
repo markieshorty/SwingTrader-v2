@@ -9,7 +9,7 @@ export const routes: Routes = [
     path: '',
     pathMatch: 'full',
     loadComponent: () => import('./features/splash/splash.component').then((m) => m.SplashComponent),
-    title: 'SwingTrader',
+    title: 'Acme Trading',
   },
   {
     path: 'join',

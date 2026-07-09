@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "SwingTrader.Angular", "start"],
       "port": 4200
+    },
+    {
+      "name": "marketing",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["-y", "http-server", "marketing", "-p", "4321", "-c-1"],
+      "port": 4321
     }
   ]
 }

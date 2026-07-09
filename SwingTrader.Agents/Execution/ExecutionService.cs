@@ -349,7 +349,7 @@ public class ExecutionService(
             {
                 var mdLines = new List<string>
                 {
-                    $"# SwingTrader Execution Report — {date:dd MMM yyyy}",
+                    $"# Acme Trading Execution Report — {date:dd MMM yyyy}",
                     string.Empty,
                     $"| | Count |",
                     $"|---|---|",
@@ -369,7 +369,7 @@ public class ExecutionService(
                     await emailService.SendSimpleEmailAsync(
                         toAddresses,
                         string.Join(Environment.NewLine, mdLines),
-                        $"SwingTrader Execution — {date:dd MMM yyyy}");
+                        $"Acme Trading Execution — {date:dd MMM yyyy}");
             }
             catch (Exception ex)
             {

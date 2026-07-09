@@ -149,12 +149,12 @@ public class PositionExitService(
             var pnlSign = realizedPnl >= 0 ? "+" : "";
             var markdown =
                 $"# \U0001F4C9 {label} — {trade.Symbol}\n\n" +
-                $"Position closed automatically by SwingTrader — no action needed in Trading212.\n\n" +
+                $"Position closed automatically by Acme Trading — no action needed in Trading212.\n\n" +
                 $"**Exit price:** £{exitPrice:F2}\n" +
                 $"**P&L:** {pnlSign}£{realizedPnl:F2}\n" +
                 $"**Reason:** {reasonDetail}";
 
-            await emailService.SendSimpleEmailAsync(toAddresses, markdown, $"SwingTrader — {trade.Symbol} closed ({label})");
+            await emailService.SendSimpleEmailAsync(toAddresses, markdown, $"Acme Trading — {trade.Symbol} closed ({label})");
         }
         catch (Exception ex)
         {

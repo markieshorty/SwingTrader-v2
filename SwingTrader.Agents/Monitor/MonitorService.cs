@@ -97,7 +97,7 @@ public class MonitorService(
                     ? $"**New {account.TradingMode} entries have been auto-paused** — resume them in Settings › Trading when you're ready.\n\n"
                     : "") +
                 $"**No positions were closed automatically — review and close manually in Trading212.**",
-                "\U0001F6A8 SwingTrader — CIRCUIT BREAKER TRIGGERED, manual review needed",
+                "\U0001F6A8 Acme Trading — CIRCUIT BREAKER TRIGGERED, manual review needed",
                 NotificationCategory.CircuitBreaker);
 
             return new MonitorCycleResult(openTrades.Count, 0, flagged, true);
@@ -217,7 +217,7 @@ public class MonitorService(
                 "\n\nSwingTrader tried to close these positions automatically but the order failed " +
                 "(see the activity log for details). It will retry next cycle, but you may want to " +
                 "close them manually in Trading212 if this persists.",
-                $"SwingTrader — {flaggedExits.Count} position(s) failed to auto-close",
+                $"Acme Trading — {flaggedExits.Count} position(s) failed to auto-close",
                 NotificationCategory.Execution);
         }
 
