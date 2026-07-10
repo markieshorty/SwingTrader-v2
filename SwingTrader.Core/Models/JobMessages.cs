@@ -17,3 +17,7 @@ public record RiskJobMessage(int AccountId, string JobId, DateOnly EvaluationDat
 public record RefinementJobMessage(int AccountId, string JobId, DateOnly EvaluationDate);
 
 public record ReadinessJobMessage(int AccountId, string JobId, DateOnly SnapshotDate);
+
+public record CandleSyncJobMessage(int AccountId, string JobId);
+
+public record BacktestJobMessage(int AccountId, string JobId, int BacktestRunId);

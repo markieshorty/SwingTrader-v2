@@ -101,6 +101,21 @@ public class SchedulerFunction(
                 // Continue to the next account - one account's failure shouldn't block the rest.
             }
         }
+
+        // Platform-level weekly candle sync (the shared HistoricalCandles
+        // table serves every account's historic backtests) - one job under the
+        // system account, not per user. Saturday morning: markets closed, the
+        // week's bars are final, and it lands before Sunday's watchlist run.
+        try
+        {
+            if (nowEt.DayOfWeek == DayOfWeek.Saturday && InWindow(nowEt, 8, 0, 8, 5))
+                await TryEnqueueAsync(Data.SwingTraderDbContext.SystemAccountId, "CandleSync", today, "candlesync-jobs",
+                    new CandleSyncJobMessage(Data.SwingTraderDbContext.SystemAccountId, Guid.NewGuid().ToString("N")), ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Scheduler failed to enqueue the weekly candle sync");
+        }
     }
 
     private static bool InWindow(DateTime nowEt, int startHour, int startMin, int endHour, int endMin)

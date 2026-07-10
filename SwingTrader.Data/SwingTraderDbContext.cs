@@ -30,6 +30,8 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     public DbSet<AccountRiskProfile> AccountRiskProfiles => Set<AccountRiskProfile>();
     public DbSet<AdminActionLog> AdminActionLogs => Set<AdminActionLog>();
     public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
+    public DbSet<HistoricalCandle> HistoricalCandles => Set<HistoricalCandle>();
+    public DbSet<BacktestRun> BacktestRuns => Set<BacktestRun>();
 
     // The 'system' Account created by the AddMultiTenancy migration - all
     // pre-existing (pre-Phase-10c) data defaults to this AccountId.
@@ -338,6 +340,15 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.EncryptedDek).IsRequired();
             e.Property(x => x.LastTestResult).HasMaxLength(500);
             e.HasIndex(x => new { x.AccountId, x.Provider }).IsUnique();
+        });
+
+        modelBuilder.Entity<HistoricalCandle>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Symbol).IsRequired().HasMaxLength(10);
+            // One row per symbol per day; the sync job relies on this to be
+            // idempotent across overlapping runs.
+            e.HasIndex(x => new { x.Symbol, x.Date }).IsUnique();
         });
 
         modelBuilder.Entity<JobLogEntry>(e =>

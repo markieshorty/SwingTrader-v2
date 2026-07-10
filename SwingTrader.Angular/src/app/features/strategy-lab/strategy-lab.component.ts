@@ -13,6 +13,8 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/services/api.service';
 import {
+  HistoricResultDto,
+  LabDataStatusDto,
   LabSuggestionDto,
   LabWeightsDto,
   StrategyLabResponseDto,
@@ -72,8 +74,13 @@ export class StrategyLabComponent {
 
   running = signal(false);
   response = signal<StrategyLabResponseDto | null>(null);
+  historicResult = signal<HistoricResultDto | null>(null);
+  historicStatus = signal<string | null>(null); // Queued/Running progress text
+  dataStatus = signal<LabDataStatusDto | null>(null);
+  syncing = signal(false);
   productionWeights = signal<StrategyWeightsDto | null>(null);
   isOwner = signal(false);
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
 
   weightSum = computed(() => {
     const w = this.weights();
@@ -102,6 +109,28 @@ export class StrategyLabComponent {
       next: (s) => this.isOwner.set(s.role === 'Owner'),
       error: () => {},
     });
+    this.api.getLabDataStatus().subscribe({
+      next: (d) => this.dataStatus.set(d),
+      error: () => {},
+    });
+  }
+
+  historicAvailable(): boolean {
+    return (this.dataStatus()?.bars ?? 0) > 0;
+  }
+
+  syncData(): void {
+    this.syncing.set(true);
+    this.api.syncLabData().subscribe({
+      next: () => {
+        this.snackbar.open('Candle sync queued — the initial 3-year load takes ~15 minutes. Check back shortly.', 'Dismiss', { duration: 6000 });
+        this.syncing.set(false);
+      },
+      error: (err) => {
+        this.snackbar.open(errorMessage(err, 'Failed to queue sync.'), 'Dismiss', { duration: 5000 });
+        this.syncing.set(false);
+      },
+    });
   }
 
   setWeight(key: keyof LabWeightsDto, value: number): void {
@@ -115,23 +144,60 @@ export class StrategyLabComponent {
     }
     this.running.set(true);
     this.response.set(null);
-    this.api
-      .runStrategyLab({
-        dataSource: this.dataSource(),
-        weights: this.weights(),
-        buyThreshold: this.buyThreshold(),
-        excludeBreakout: this.excludeBreakout(),
-      })
-      .subscribe({
-        next: (r) => {
-          this.response.set(r);
-          this.running.set(false);
-        },
+    this.historicResult.set(null);
+    this.historicStatus.set(null);
+
+    const request = {
+      dataSource: this.dataSource(),
+      weights: this.weights(),
+      buyThreshold: this.buyThreshold(),
+      excludeBreakout: this.excludeBreakout(),
+    };
+
+    if (this.dataSource() === 'historic') {
+      this.api.runStrategyLabHistoric(request).subscribe({
+        next: (r) => this.pollHistoric(r.backtestRunId),
         error: (err) => {
-          this.snackbar.open(errorMessage(err, 'Simulation failed.'), 'Dismiss', { duration: 5000 });
+          this.snackbar.open(errorMessage(err, 'Failed to queue the backtest.'), 'Dismiss', { duration: 5000 });
           this.running.set(false);
         },
       });
+      return;
+    }
+
+    this.api.runStrategyLab(request).subscribe({
+      next: (r) => {
+        this.response.set(r);
+        this.running.set(false);
+      },
+      error: (err) => {
+        this.snackbar.open(errorMessage(err, 'Simulation failed.'), 'Dismiss', { duration: 5000 });
+        this.running.set(false);
+      },
+    });
+  }
+
+  // Historic runs execute server-side as a queued job (full engine over ~1M
+  // bars takes a few minutes) - poll until it completes.
+  private pollHistoric(runId: number): void {
+    this.historicStatus.set('Queued — the simulation runs server-side and takes a few minutes…');
+    if (this.pollTimer) clearInterval(this.pollTimer);
+    this.pollTimer = setInterval(() => {
+      this.api.getBacktestRun(runId).subscribe({
+        next: (r) => {
+          if (r.status === 'Running') this.historicStatus.set('Running — replaying 3 years of market data through your dials…');
+          if (r.status === 'Completed' || r.status === 'Failed') {
+            if (this.pollTimer) clearInterval(this.pollTimer);
+            this.pollTimer = null;
+            this.running.set(false);
+            this.historicStatus.set(null);
+            if (r.status === 'Completed') this.historicResult.set(r.result);
+            else this.snackbar.open(`Backtest failed: ${r.error}`, 'Dismiss', { duration: 8000 });
+          }
+        },
+        error: () => {}, // transient poll failure - keep polling
+      });
+    }, 5000);
   }
 
   // Load a suggestion's dials into the form (doesn't touch production).

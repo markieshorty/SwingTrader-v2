@@ -552,6 +552,45 @@ export interface StrategyLabResponseDto {
   warning: string | null;
 }
 
+export interface LabBucketStatDto {
+  key: string;
+  count: number;
+  winRate: number;
+  avgReturnPct: number;
+}
+
+export interface HistoricResultDto {
+  from: string;
+  to: string;
+  trades: number;
+  winRate: number;
+  avgWinPct: number;
+  avgLossPct: number;
+  expectancyPct: number;
+  profitFactor: number;
+  totalReturnPct: number;
+  maxDrawdownPct: number;
+  spyReturnPct: number;
+  bySetup: LabBucketStatDto[];
+  byConviction: LabBucketStatDto[];
+  byExitReason: LabBucketStatDto[];
+}
+
+export interface BacktestRunStatusDto {
+  id: number;
+  status: 'Queued' | 'Running' | 'Completed' | 'Failed';
+  error: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  result: HistoricResultDto | null;
+}
+
+export interface LabDataStatusDto {
+  bars: number;
+  latestDate: string | null;
+  platformKeyConfigured: boolean;
+}
+
 export type WatchlistType = 'AiManaged' | 'Manual' | 'Mixed';
 
 export interface WatchlistItemDto {

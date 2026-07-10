@@ -11,13 +11,32 @@
     <div class="source-row">
       <mat-select [ngModel]="dataSource()" (ngModelChange)="dataSource.set($event)" class="source-select">
         <mat-option value="own">Backtest against your own trade history</mat-option>
-        <mat-option value="historic" disabled>Backtest against 3 years of market data (coming soon — runs via the local backtester today)</mat-option>
+        <mat-option value="historic" [disabled]="!historicAvailable()">
+          Backtest against 3 years of market data{{ historicAvailable() ? '' : ' (no data synced yet)' }}
+        </mat-option>
       </mat-select>
-      <p class="muted small">
-        Own-data mode re-scores every closed trade you've made using the dials below, and shows which of those
-        trades these settings would have taken — and how that subset actually performed. It can only <em>filter</em>
-        your history, not invent trades you never took.
-      </p>
+      @if (dataSource() === 'own') {
+        <p class="muted small">
+          Own-data mode re-scores every closed trade you've made using the dials below, and shows which of those
+          trades these settings would have taken — and how that subset actually performed (market-adjusted). It can
+          only <em>filter</em> your history, not invent trades you never took.
+        </p>
+      } @else {
+        <p class="muted small">
+          Historic mode replays the full strategy — screener, scoring, entries and exits — over the S&amp;P 1500
+          across 3 years of daily bars. It runs server-side and takes a few minutes. Caveats: no Claude selection,
+          sentiment neutral, today's index membership — use it to <em>compare</em> dial settings, not predict returns.
+        </p>
+      }
+      @if (dataStatus(); as ds) {
+        <p class="muted small data-status">
+          Historic dataset: {{ ds.bars | number }} bars{{ ds.latestDate ? ' · up to ' + (ds.latestDate | date: 'dd/MM/yyyy') : '' }}
+          @if (!ds.platformKeyConfigured) { · platform Tiingo key not configured }
+          @if (isOwner()) {
+            <button mat-button [disabled]="syncing()" (click)="syncData()"><mat-icon>sync</mat-icon> Sync now</button>
+          }
+        </p>
+      }
     </div>
 
     <div class="dials-grid">
@@ -58,6 +77,65 @@
       </button>
     </div>
   </mat-card>
+
+  @if (historicStatus(); as hs) {
+    <mat-card class="panel loading"><mat-spinner diameter="24"></mat-spinner><span>{{ hs }}</span></mat-card>
+  }
+
+  @if (historicResult(); as h) {
+    <mat-card class="panel results">
+      <h3>Historic backtest — {{ h.from | date: 'dd/MM/yyyy' }} to {{ h.to | date: 'dd/MM/yyyy' }}</h3>
+      <p class="summary">
+        These dials placed {{ h.trades }} trades over the period, winning {{ h.winRate | percent: '1.0-1' }} of them
+        for a total return of {{ h.totalReturnPct | number: '1.1-1' }}% (SPY buy-and-hold: {{ h.spyReturnPct | number: '1.1-1' }}%),
+        with a worst peak-to-trough drawdown of {{ h.maxDrawdownPct | number: '1.1-1' }}%.
+        {{ h.expectancyPct > 0 ? 'Positive expectancy after costs — each trade earned ' + (h.expectancyPct | number: '1.2-2') + '% on average.'
+           : 'Negative expectancy after costs — these dials lose ' + (h.expectancyPct | number: '1.2-2') + '% per trade on average.' }}
+        Remember: survivorship-biased, no Claude selection — compare configs, don't bank the number.
+      </p>
+
+      <div class="stat-grid">
+        <div class="stat" [class.good]="h.expectancyPct > 0" [class.bad]="h.expectancyPct < 0">
+          <span class="stat-value">{{ h.expectancyPct | number: '1.2-2' }}%</span>
+          <span class="stat-label">expectancy / trade ({{ h.trades }} trades)</span>
+        </div>
+        <div class="stat" [class.good]="h.profitFactor > 1" [class.bad]="h.profitFactor < 1">
+          <span class="stat-value">{{ h.profitFactor | number: '1.2-2' }}</span>
+          <span class="stat-label">profit factor</span>
+        </div>
+        <div class="stat" [class.good]="h.totalReturnPct > 0" [class.bad]="h.totalReturnPct < 0">
+          <span class="stat-value">{{ h.totalReturnPct | number: '1.1-1' }}%</span>
+          <span class="stat-label">total return (max DD {{ h.maxDrawdownPct | number: '1.1-1' }}%)</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value">{{ h.winRate | percent: '1.0-1' }}</span>
+          <span class="stat-label">win rate (avg win {{ h.avgWinPct | number: '1.1-1' }}% / loss {{ h.avgLossPct | number: '1.1-1' }}%)</span>
+        </div>
+      </div>
+
+      <div class="bucket-tables">
+        @for (bucket of [{ title: 'By setup', rows: h.bySetup }, { title: 'By conviction', rows: h.byConviction }, { title: 'By exit', rows: h.byExitReason }]; track bucket.title) {
+          <div class="bucket">
+            <h4>{{ bucket.title }}</h4>
+            @for (row of bucket.rows; track row.key) {
+              <div class="bucket-row">
+                <span>{{ row.key }}</span>
+                <span class="muted small">n={{ row.count }}</span>
+                <span class="num" [class.good]="row.avgReturnPct > 0" [class.bad]="row.avgReturnPct < 0">{{ row.avgReturnPct | number: '1.2-2' }}%</span>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="apply-row">
+        <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applyToProduction()">
+          <mat-icon>rocket_launch</mat-icon> Apply these dials to production
+        </button>
+        <span class="muted small">Sets your live strategy weights + Buy threshold. Owner only.</span>
+      </div>
+    </mat-card>
+  }
 
   @if (response(); as r) {
     @if (r.warning) {

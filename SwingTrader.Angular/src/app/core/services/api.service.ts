@@ -26,6 +26,8 @@ import {
   RunResultDto,
   SignalGroupDto,
   StatusDto,
+  BacktestRunStatusDto,
+  LabDataStatusDto,
   StrategyLabRequestDto,
   StrategyLabResponseDto,
   StrategyWeightsDto,
@@ -166,6 +168,22 @@ export class ApiService {
 
   runStrategyLab(request: StrategyLabRequestDto): Observable<StrategyLabResponseDto> {
     return this.http.post<StrategyLabResponseDto>(`${this.baseUrl}/api/strategy-lab/run`, request);
+  }
+
+  runStrategyLabHistoric(request: StrategyLabRequestDto): Observable<{ backtestRunId: number }> {
+    return this.http.post<{ backtestRunId: number }>(`${this.baseUrl}/api/strategy-lab/run`, request);
+  }
+
+  getBacktestRun(id: number): Observable<BacktestRunStatusDto> {
+    return this.http.get<BacktestRunStatusDto>(`${this.baseUrl}/api/strategy-lab/backtest/${id}`);
+  }
+
+  getLabDataStatus(): Observable<LabDataStatusDto> {
+    return this.http.get<LabDataStatusDto>(`${this.baseUrl}/api/strategy-lab/data-status`);
+  }
+
+  syncLabData(): Observable<unknown> {
+    return this.http.post(`${this.baseUrl}/api/strategy-lab/sync-data`, {});
   }
 
   getMonitoringDashboard(): Observable<MonitoringDashboardDto> {
