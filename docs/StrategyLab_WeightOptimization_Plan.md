@@ -1,6 +1,6 @@
 # Strategy Lab: Weight Optimization — Plan
 
-Two features, both building on the existing Strategy Lab (own-data + historic modes,
+Three features, all building on the existing Strategy Lab (own-data + historic modes,
 suggestion search, apply-to-production flow). Written up for pickup once available —
 not started.
 
@@ -90,17 +90,60 @@ available — reuse the stat-grid layout already in the historic result card, ju
 duplicated per side with a delta column (or arrow + color) showing which one's
 better for each metric.
 
+## Feature 3: Claude-assisted "what to try next" (analysis only, no auto-apply)
+
+**Goal:** after any run (own-data or historic), send the result to Claude — headline
+stats, the by-setup/conviction/exit breakdowns, and the weights/threshold/breakout
+config that produced it — and ask for a short written analysis plus a *suggested next
+config to try*. Purely advisory: no run, no apply, no simulation triggered by Claude
+itself. The user reads the suggestion, then manually loads those dials (reusing the
+existing `tryDials()` mechanism the mechanical suggestions already use) and clicks Run
+Simulation themselves if they want to test it.
+
+**Why this is worth it alongside Feature 1's mechanical optimizer:** the nudge-search
+in `Search()` is mechanical — it only tries fixed ±5% single-dial deltas and keeps
+whatever clears a small bar. It can't reason about *why* a config underperformed. A
+model looking at the full breakdown could notice things a fixed search can't, e.g.
+"StopLoss exits account for 47% of trades and average -5.5%, more than double the
+frequency of Target exits, which suggests tightening entry-quality weights rather than
+this bucket being unavoidable" or "the 7-conviction bucket is inversely predictive
+here too, consistent with prior data — the model's own confidence isn't reliable
+above 6." Cross-signal reasoning like that is exactly what a fixed nudge-search
+misses.
+
+**Important framing:** a Claude suggestion is a hypothesis, not a verified result —
+unlike the mechanical suggestions (which only appear because they already
+back-tested better), this hasn't been simulated. It must flow through the normal
+Run Simulation step before anyone treats the numbers as real. Should be presented
+as "worth trying" language, not a result.
+
+**Implementation shape:** a small new endpoint (e.g.
+`POST /strategy-lab/analyse`) that takes the just-completed result (own-data
+`LabResultDto` or historic `HistoricResultDto`) plus the weights/threshold that
+produced it, builds a prompt summarizing the stats + bucket breakdowns, calls Claude,
+and returns free text (analysis paragraph) plus optionally a structured suggested
+`LabWeightsDto`/threshold/breakout the UI can feed straight into `tryDials()`. Cheap
+to build — no new job/queue infra, just one Claude call per "Analyse this run" click
+(user-triggered, not automatic on every run, to control cost).
+
 ## Suggested build order
 
-1. Own-data mode optimizer (Feature 1, cheap, no infra changes — biggest bang for
-   effort).
-2. Own-data mode manual A/B (Feature 2, also cheap, reuses existing evaluate path).
-3. Historic mode capped sweep (Feature 1 extension) — reuse `BacktestConsumerFunction`
+1. Feature 3, own-data mode first (cheapest — one Claude call, no job/queue infra,
+   no optimizer math to get right; also the fastest way to validate whether the
+   analysis is actually useful before investing in Feature 1's optimizer).
+2. Own-data mode optimizer (Feature 1, cheap, no infra changes — biggest mechanical
+   bang for effort).
+3. Own-data mode manual A/B (Feature 2, also cheap, reuses existing evaluate path).
+4. Feature 3 extended to historic mode (same endpoint, just fed `HistoricResultDto`
+   instead — trivial once the own-data version exists).
+5. Historic mode capped sweep (Feature 1 extension) — reuse `BacktestConsumerFunction`
    pattern, extend `HistoricBacktestRequest`/`BacktestJobMessage` to carry multiple
    candidate weight sets, return winner + top-N.
-4. Historic mode opt-in A/B (Feature 2 extension) — smallest incremental change once
-   #3's multi-candidate job plumbing exists (an A/B is just a sweep of 2).
+6. Historic mode opt-in A/B (Feature 2 extension) — smallest incremental change once
+   #5's multi-candidate job plumbing exists (an A/B is just a sweep of 2).
 
-Steps 3–4 share a lot of the "run N weight sets as one background job" plumbing, so
+Steps 5–6 share a lot of the "run N weight sets as one background job" plumbing, so
 sequencing the historic-mode optimizer before historic A/B avoids building the same
-multi-candidate job infrastructure twice.
+multi-candidate job infrastructure twice. Feature 3 is deliberately first because it's
+the cheapest signal on whether this whole direction (more automated dial-tuning
+assistance) is worth the later, pricier investments.
