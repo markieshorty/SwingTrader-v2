@@ -43,6 +43,7 @@ switch (command)
             RegimeFilter: args.Contains("--regime"),
             ExcludedSetups: excluded.Count > 0 ? excluded : null,
             BreakoutQualityOverride: bq.Length > 0 ? decimal.Parse(bq) : null,
+            ConvictionSizing: args.Contains("--conviction-sizing"),
             Label: Arg("--label", "baseline"));
         return await BacktestEngine.RunAsync(dataDir, opts, cts.Token);
     }

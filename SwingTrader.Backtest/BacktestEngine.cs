@@ -60,6 +60,7 @@ public static class BacktestEngine
         bool RegimeFilter = false,                      // only enter when SPY > its 200d SMA
         HashSet<SetupType>? ExcludedSetups = null,
         decimal? BreakoutQualityOverride = null,        // penalize (production: 0.9) instead of excluding
+        bool ConvictionSizing = false,                  // scale budget 0.5x-1.0x over conviction 6-9, as production
         string Label = "baseline");
 
     public static async Task<int> RunAsync(string dataDir, Options opts, CancellationToken ct)
@@ -154,6 +155,12 @@ public static class BacktestEngine
                     if (entryBar is null || entryBar.Open <= 0) continue;
 
                     var budget = Math.Min(equity * PositionFraction, cash / (1 + CostPerSide));
+                    if (opts.ConvictionSizing)
+                    {
+                        // Mirror PositionSizingService.ConvictionMultiplier.
+                        var t = (Math.Clamp(c.Conviction, 6.0m, 9.0m) - 6.0m) / 3.0m;
+                        budget *= 0.5m + t * 0.5m;
+                    }
                     if (budget < 50m) continue; // dust guard
 
                     var qty = Math.Floor(budget / entryBar.Open * 1000m) / 1000m;

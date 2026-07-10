@@ -66,49 +66,24 @@ public class PositionSizingServiceTests
         result.EstimatedCost.Should().BeLessThanOrEqualTo(100m);
     }
 
-    // ── Conviction-weighted sizing ────────────────────────────────────────────
-
-    private static StockSignal SignalWithConviction(decimal conviction) =>
-        new() { Symbol = "AAA", CurrentPrice = 100m, ConvictionScore = conviction };
-
     [Fact]
-    public async Task CalculateAsync_HigherConviction_GetsBiggerSlice()
+    public async Task CalculateAsync_ConvictionDoesNotAffectBudget()
     {
+        // Conviction-weighted sizing was tried and reverted (2026-07-10): the
+        // backtest showed conviction isn't predictive above ~7 with current
+        // weights, so scaling budget by it halved returns. Sizing must be
+        // conviction-agnostic until that changes - this pins the revert.
         var sut = new PositionSizingService();
         var profile = new AccountRiskProfile();
 
-        var weak = await sut.CalculateAsync(SignalWithConviction(6.0m), CapitalTier.Tier3, 0, 100000m, 100000m, profile);
-        var mid = await sut.CalculateAsync(SignalWithConviction(7.5m), CapitalTier.Tier3, 0, 100000m, 100000m, profile);
-        var strong = await sut.CalculateAsync(SignalWithConviction(9.0m), CapitalTier.Tier3, 0, 100000m, 100000m, profile);
+        var low = await sut.CalculateAsync(
+            new StockSignal { Symbol = "AAA", CurrentPrice = 100m, ConvictionScore = 6.0m },
+            CapitalTier.Tier3, 0, 100000m, 100000m, profile);
+        var high = await sut.CalculateAsync(
+            new StockSignal { Symbol = "AAA", CurrentPrice = 100m, ConvictionScore = 9.0m },
+            CapitalTier.Tier3, 0, 100000m, 100000m, profile);
 
-        weak.EstimatedCost.Should().BeLessThan(mid.EstimatedCost);
-        mid.EstimatedCost.Should().BeLessThan(strong.EstimatedCost);
-        // 6.0 sizes at half of what 9.0 gets (0.5x floor -> 1.0x ceiling).
-        (weak.EstimatedCost / strong.EstimatedCost).Should().BeApproximately(0.5m, 0.01m);
-    }
-
-    [Fact]
-    public async Task CalculateAsync_ConvictionAboveCeiling_CapsAtFullBudget()
-    {
-        var sut = new PositionSizingService();
-        var profile = new AccountRiskProfile();
-
-        var nine = await sut.CalculateAsync(SignalWithConviction(9.0m), CapitalTier.Tier3, 0, 100000m, 100000m, profile);
-        var ten = await sut.CalculateAsync(SignalWithConviction(10.0m), CapitalTier.Tier3, 0, 100000m, 100000m, profile);
-
-        ten.EstimatedCost.Should().Be(nine.EstimatedCost);
-    }
-
-    [Fact]
-    public async Task CalculateAsync_NullConviction_SizesAtFullBudget()
-    {
-        var sut = new PositionSizingService();
-        var profile = new AccountRiskProfile();
-
-        var noScore = await sut.CalculateAsync(MakeSignal(), CapitalTier.Tier3, 0, 100000m, 100000m, profile);
-        var maxScore = await sut.CalculateAsync(SignalWithConviction(9.0m), CapitalTier.Tier3, 0, 100000m, 100000m, profile);
-
-        noScore.EstimatedCost.Should().Be(maxScore.EstimatedCost);
+        low.EstimatedCost.Should().Be(high.EstimatedCost);
     }
 
     [Fact]
