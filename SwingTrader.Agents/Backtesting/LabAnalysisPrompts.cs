@@ -75,6 +75,34 @@ public static class LabAnalysisPrompts
         return sb.ToString();
     }
 
+    public static string BuildAbComparisonPrompt(
+        IReadOnlyList<(string Label, HistoricBacktestWeights Weights, decimal BuyThreshold, bool ExcludeBreakout, HistoricResult Result)> candidates)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("A head-to-head historic backtest just completed: the configurations below were replayed over the " +
+                      "IDENTICAL market window (S&P 1500 daily bars, full strategy replay), so every difference in outcome " +
+                      "comes from the dials alone.");
+        foreach (var c in candidates)
+        {
+            var r = c.Result;
+            sb.AppendLine($"--- {c.Label} ---");
+            sb.AppendLine($"Config: {DescribeConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout)}.");
+            sb.AppendLine($"Period {r.From:yyyy-MM-dd} to {r.To:yyyy-MM-dd}: {r.Trades} trades, {r.WinRate:P1} win rate, " +
+                          $"avg win {r.AvgWinPct:F1}% / avg loss {r.AvgLossPct:F1}%, expectancy {r.ExpectancyPct:F2}%/trade (raw), " +
+                          $"profit factor {r.ProfitFactor:F2}, total return {r.TotalReturnPct:F1}% (SPY buy-and-hold {r.SpyReturnPct:F1}%), " +
+                          $"max drawdown {r.MaxDrawdownPct:F1}%.");
+            sb.AppendLine(DescribeBuckets("By setup type", r.BySetup));
+            sb.AppendLine(DescribeBuckets("By conviction score (floored)", r.ByConviction));
+            sb.AppendLine(DescribeBuckets("By exit reason", r.ByExitReason));
+        }
+        sb.AppendLine("Caveats baked into this backtest: survivorship-biased universe, no AI stock selection, sentiment " +
+                      "fixed neutral — results compare configs, they don't predict returns.");
+        sb.AppendLine("Compare the runs: where do the outcomes actually differ (which setups/exits drive the gap), is the " +
+                      "difference large enough to matter given the trade counts, and — if the data justifies it — suggest " +
+                      "ONE next configuration worth testing.");
+        return sb.ToString();
+    }
+
     public static string BuildSweepExplanationPrompt(
         SweepCandidateResult baseline, SweepCandidateResult winner, SweepValidation validation,
         IReadOnlyList<SweepCandidateResult> candidates)

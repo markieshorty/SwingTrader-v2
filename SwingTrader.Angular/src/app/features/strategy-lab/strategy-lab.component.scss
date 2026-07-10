@@ -395,8 +395,8 @@ h3 .bad {
 
 .bucket-tables {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
   margin: 8px 0 12px;
 
   h4 {
@@ -409,11 +409,25 @@ h3 .bad {
   }
   .bucket-row {
     display: grid;
-    grid-template-columns: 1fr auto 70px;
-    gap: 8px;
+    // First column absorbs all spare space and may shrink below content width
+    // (minmax(0, …)); the count and value columns size to their content and
+    // never wrap - previously the fixed 70px value track overflowed into the
+    // neighbouring table and long labels forced the count to wrap.
+    grid-template-columns: minmax(0, 1fr) max-content max-content;
+    gap: 12px;
+    align-items: baseline;
     padding: 3px 0;
     font-size: 0.85rem;
     border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+
+    span:first-child {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    span:not(:first-child) {
+      white-space: nowrap;
+    }
 
     &.bucket-head {
       border-bottom: 1px solid rgba(128, 128, 128, 0.25);

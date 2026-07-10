@@ -23,6 +23,11 @@ public class StrategyLabAnalysisService(
 {
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
 
+    // Shape of BacktestConsumerFunction's stored A/B result (camelCase JSON).
+    private sealed record StoredAbCandidate(
+        string Label, HistoricBacktestWeights Weights, decimal BuyThreshold, bool ExcludeBreakout, HistoricResult Result);
+    private sealed record StoredAbResult(string Mode, List<StoredAbCandidate> Candidates);
+
     public async Task<(LabAnalyseResponse? Response, string? Error)> AnalyseAsync(
         int accountId, LabAnalyseRequest req, CancellationToken ct)
     {
@@ -39,15 +44,29 @@ public class StrategyLabAnalysisService(
             if (run?.ResultJson is null || run.Status != "Completed")
                 return (null, "That backtest run has no completed result to analyse.");
 
+            string? mode = null;
             using (var doc = JsonDocument.Parse(run.ResultJson))
             {
-                if (doc.RootElement.TryGetProperty("mode", out _))
-                    return (null, "Comparison and sweep runs carry their own explanation — per-run analysis applies to single simulations.");
+                if (doc.RootElement.TryGetProperty("mode", out var m)) mode = m.GetString();
             }
 
-            var result = JsonSerializer.Deserialize<HistoricResult>(run.ResultJson, Web);
-            if (result is null) return (null, "Stored result could not be read.");
-            userPrompt = LabAnalysisPrompts.BuildHistoricRunPrompt(weights, req.BuyThreshold, req.ExcludeBreakout, result);
+            switch (mode)
+            {
+                case "sweep":
+                    return (null, "Optimizer sweeps carry their own explanation — see the writeup on the sweep result.");
+                case "ab":
+                    var ab = JsonSerializer.Deserialize<StoredAbResult>(run.ResultJson, Web);
+                    if (ab?.Candidates is not { Count: > 0 })
+                        return (null, "Stored comparison result could not be read.");
+                    userPrompt = LabAnalysisPrompts.BuildAbComparisonPrompt(
+                        ab.Candidates.Select(c => (c.Label, c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.Result)).ToList());
+                    break;
+                default:
+                    var result = JsonSerializer.Deserialize<HistoricResult>(run.ResultJson, Web);
+                    if (result is null) return (null, "Stored result could not be read.");
+                    userPrompt = LabAnalysisPrompts.BuildHistoricRunPrompt(weights, req.BuyThreshold, req.ExcludeBreakout, result);
+                    break;
+            }
         }
         else
         {

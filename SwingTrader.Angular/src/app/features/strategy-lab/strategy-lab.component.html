@@ -165,7 +165,10 @@
       <!-- Historic A/B result: your dials vs production, same window -->
       @if (abResult(); as ab) {
         <mat-card class="panel results">
-          <h3>Head-to-head — your dials vs production, same historic window</h3>
+          <h3>
+            Head-to-head — your dials vs production,
+            {{ ab.candidates[0].result.from | date: 'dd/MM/yyyy' }} to {{ ab.candidates[0].result.to | date: 'dd/MM/yyyy' }}
+          </h3>
           <p class="summary">
             Both configurations were replayed over the identical historic window. The production column shows the dials
             that were live when this job was queued. Higher expectancy = more per trade on average; lower drawdown = a
@@ -192,9 +195,28 @@
             "Stronger run" = higher expectancy per trade on this window. One backtest window is evidence, not proof —
             a small edge here can easily be noise.
           </p>
+
+          @for (c of ab.candidates; track c.label) {
+            <mat-expansion-panel class="suggestion-row">
+              <mat-expansion-panel-header>
+                <mat-panel-title>Detailed breakdown — {{ c.label }}</mat-panel-title>
+                <mat-panel-description class="muted small">
+                  by setup, conviction and exit reason
+                </mat-panel-description>
+              </mat-expansion-panel-header>
+              <ng-container *ngTemplateOutlet="historicStats; context: { $implicit: c.result }"></ng-container>
+              <ng-container *ngTemplateOutlet="historicBuckets; context: { $implicit: c.result }"></ng-container>
+            </mat-expansion-panel>
+          }
+
           <div class="apply-row">
             <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applyToProduction()">
               <mat-icon>rocket_launch</mat-icon> Apply your dials to production
+            </button>
+            <button mat-stroked-button [disabled]="analysing()" (click)="analyseRun()"
+              matTooltip="Claude compares both runs — what actually drives the gap, whether it's big enough to matter — and suggests what might be worth testing next. Advisory only.">
+              @if (analysing()) { <mat-spinner diameter="16"></mat-spinner> } @else { <mat-icon>psychology</mat-icon> }
+              Analyse this comparison
             </button>
             <span class="muted small">Applies the dials in the form above (the "Your dials" column). Owner only.</span>
           </div>
