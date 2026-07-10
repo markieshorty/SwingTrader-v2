@@ -18,6 +18,10 @@ public class BacktestConsumerFunction(
     IHistoricalCandleRepository candles,
     ILogger<BacktestConsumerFunction> logger)
 {
+    // Must match the API's camelCase JSON output - this string gets embedded
+    // verbatim into the poll response, so it can't be re-cased downstream.
+    private static readonly JsonSerializerOptions CamelCase = new(JsonSerializerDefaults.Web);
+
     [Function("BacktestConsumer")]
     public async Task Run(
         [ServiceBusTrigger("backtest-jobs", Connection = "ServiceBusConnection")] string messageBody,
@@ -64,7 +68,7 @@ public class BacktestConsumerFunction(
 
             // Trade log stays out of the stored JSON - it can be thousands of
             // rows; the headline stats + buckets are what the UI shows.
-            run.ResultJson = JsonSerializer.Serialize(result with { TradeLog = [] });
+            run.ResultJson = JsonSerializer.Serialize(result with { TradeLog = [] }, CamelCase);
             run.Status = "Completed";
             run.CompletedAt = DateTime.UtcNow;
             await runs.UpdateAsync(run);
