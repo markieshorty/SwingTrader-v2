@@ -23,6 +23,26 @@ public static class SignalsEndpoints
             });
         });
 
+        // Every signal ever scored for the account, most recent first - backs
+        // the "View historic signals" toggle on the Today's Signals page.
+        // ExecutionService and /signals/today only ever query GetByDateAsync
+        // for a single day, so nothing here is ever eligible to be bought;
+        // this is a read-only history view.
+        api.MapGet("/signals/history", async (ISignalRepository signals, IAccountContext ctx) =>
+        {
+            var all = (await signals.GetAllAsync(ctx.AccountId))
+                .OrderByDescending(s => s.SignalDate)
+                .ThenBy(s => s.Symbol)
+                .ToList();
+            return Results.Ok(new
+            {
+                buy = all.Where(s => s.Recommendation == Recommendation.Buy),
+                watch = all.Where(s => s.Recommendation == Recommendation.Watch),
+                hold = all.Where(s => s.Recommendation == Recommendation.Hold),
+                avoid = all.Where(s => s.Recommendation == Recommendation.Avoid),
+            });
+        });
+
         return api;
     }
 }

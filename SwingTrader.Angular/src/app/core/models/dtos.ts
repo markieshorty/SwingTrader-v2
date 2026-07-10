@@ -49,6 +49,7 @@ export interface SignalDto {
   symbol: string;
   // Null for signals scored before StockSignal.CompanyName existed.
   companyName: string | null;
+  signalDate: string; // used by the "View historic signals" toggle to show which day each card is from
   convictionScore: number | null;
   recommendation: 'Buy' | 'Watch' | 'Hold' | 'Avoid' | 'Sell';
   setupType: string;
@@ -718,6 +719,9 @@ export interface WatchlistItemDto {
   sector: string;
   isActive: boolean;
   notes: string | null;
+  // Bypasses the stock screener and the parent watchlist's enabled state -
+  // researched every trading day regardless.
+  forceIntoFinalList: boolean;
 }
 
 export interface WatchlistDto {

@@ -306,6 +306,41 @@ public class WatchlistRepositoryTests
     }
 
     [Fact]
+    public async Task GetAllEnabledSymbolsAsync_IncludesForcedItemFromDisabledWatchlist()
+    {
+        // The whole point of ForceIntoFinalList: research a specific pick
+        // without switching its entire (possibly disabled/idea) watchlist live.
+        await using var db = CreateDb();
+        var repo = new WatchlistRepository(db);
+        await repo.SeedDefaultAsync(1);
+        var disabled = await repo.CreateWatchlistAsync(1, "Ideas", WatchlistType.Manual, null);
+        await repo.AddSymbolAsync(1, disabled.Id, "FORCEME", "Co", "Sector");
+        await repo.SetForceIntoFinalListAsync(1, disabled.Id, "FORCEME", true);
+        await repo.AddSymbolAsync(1, disabled.Id, "NOTFORCED", "Co", "Sector");
+
+        var symbols = await repo.GetAllEnabledSymbolsAsync(1);
+
+        symbols.Should().Contain(s => s.Symbol == "FORCEME");
+        symbols.Should().NotContain(s => s.Symbol == "NOTFORCED"); // still excluded - disabled watchlist, not forced
+    }
+
+    [Fact]
+    public async Task SetForceIntoFinalListAsync_CanBeToggledOff()
+    {
+        await using var db = CreateDb();
+        var repo = new WatchlistRepository(db);
+        await repo.SeedDefaultAsync(1);
+        var disabled = await repo.CreateWatchlistAsync(1, "Ideas", WatchlistType.Manual, null);
+        await repo.AddSymbolAsync(1, disabled.Id, "FORCEME", "Co", "Sector");
+        await repo.SetForceIntoFinalListAsync(1, disabled.Id, "FORCEME", true);
+
+        await repo.SetForceIntoFinalListAsync(1, disabled.Id, "FORCEME", false);
+
+        var symbols = await repo.GetAllEnabledSymbolsAsync(1);
+        symbols.Should().NotContain(s => s.Symbol == "FORCEME");
+    }
+
+    [Fact]
     public async Task LegacyGetActiveAsync_OperatesAgainstDefaultWatchlist()
     {
         await using var db = CreateDb();

@@ -210,6 +210,29 @@ public static class WatchlistEndpoints
             return Results.Ok();
         });
 
+        // Force a single item straight into research regardless of whether
+        // its parent watchlist is enabled - bypasses the stock screener the
+        // same way any active watchlist item already does.
+        watchlistsGroup.MapPost("/{id:int}/symbols/{symbol}/force", async (
+            int id,
+            string symbol,
+            ForceWatchlistSymbolRequest req,
+            IWatchlistRepository watchlists,
+            IAccountContext ctx,
+            CancellationToken ct) =>
+        {
+            if (ctx.Role != AccountRole.Owner) return Results.Forbid();
+            try
+            {
+                await watchlists.SetForceIntoFinalListAsync(ctx.AccountId, id, symbol, req.Force, ct);
+                return Results.Ok();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.NotFound(new { message = ex.Message });
+            }
+        });
+
         return api;
     }
 }

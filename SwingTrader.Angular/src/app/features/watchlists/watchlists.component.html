@@ -87,18 +87,44 @@
 
         @if (expandedId() === watchlist.id) {
           <div class="symbols-section">
-            <mat-chip-set>
-              @for (item of watchlist.items; track item.id) {
-                <mat-chip [removable]="isOwner()" (removed)="removeSymbol(watchlist, item.symbol)" [matTooltip]="item.companyName">
-                  {{ item.symbol }}
-                  @if (isOwner()) {
-                    <button matChipRemove title="Remove {{ item.symbol }}">
-                      <mat-icon>cancel</mat-icon>
-                    </button>
-                  }
-                </mat-chip>
-              }
-            </mat-chip-set>
+            @if (watchlist.type === 'Manual') {
+              <!-- Custom watchlists get a richer per-item row (rather than a
+                   compact chip) so there's room for the force-into-final-list
+                   toggle next to each pick. -->
+              <div class="custom-item-list">
+                @for (item of watchlist.items; track item.id) {
+                  <div class="custom-item-row">
+                    <span class="symbol" [matTooltip]="item.companyName">{{ item.symbol }}</span>
+                    <mat-slide-toggle
+                      [checked]="item.forceIntoFinalList"
+                      [disabled]="!isOwner()"
+                      (change)="toggleForceIntoFinalList(watchlist, item, $event.checked)"
+                      matTooltip="These picks will bypass the stock screener and be picked up by the research agent on the next trading day"
+                    >
+                      Force into final list
+                    </mat-slide-toggle>
+                    @if (isOwner()) {
+                      <button mat-icon-button (click)="removeSymbol(watchlist, item.symbol)" title="Remove {{ item.symbol }}">
+                        <mat-icon>cancel</mat-icon>
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+            } @else {
+              <mat-chip-set>
+                @for (item of watchlist.items; track item.id) {
+                  <mat-chip [removable]="isOwner()" (removed)="removeSymbol(watchlist, item.symbol)" [matTooltip]="item.companyName">
+                    {{ item.symbol }}
+                    @if (isOwner()) {
+                      <button matChipRemove title="Remove {{ item.symbol }}">
+                        <mat-icon>cancel</mat-icon>
+                      </button>
+                    }
+                  </mat-chip>
+                }
+              </mat-chip-set>
+            }
 
             <div class="add-symbol-row">
               <mat-form-field appearance="outline" class="symbol-field">

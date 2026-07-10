@@ -66,6 +66,11 @@ export class ApiService {
     return this.http.get<SignalGroupDto>(`${this.baseUrl}/api/signals/today`);
   }
 
+  // Every signal ever scored - read-only history, never used for buy decisions.
+  getSignalsHistory(): Observable<SignalGroupDto> {
+    return this.http.get<SignalGroupDto>(`${this.baseUrl}/api/signals/history`);
+  }
+
   getRecentTrades(days = 30): Observable<TradeDto[]> {
     return this.http.get<TradeDto[]>(`${this.baseUrl}/api/trades/recent`, {
       params: { days },
@@ -341,6 +346,10 @@ export class ApiService {
 
   removeWatchlistSymbol(id: number, symbol: string): Observable<unknown> {
     return this.http.delete(`${this.baseUrl}/api/watchlists/${id}/symbols/${symbol}`);
+  }
+
+  setForceIntoFinalList(watchlistId: number, symbol: string, force: boolean): Observable<unknown> {
+    return this.http.post(`${this.baseUrl}/api/watchlists/${watchlistId}/symbols/${symbol}/force`, { force });
   }
 
   getRiskProfile(): Observable<RiskProfileDto> {

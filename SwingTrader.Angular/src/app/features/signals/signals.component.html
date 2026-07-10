@@ -12,16 +12,26 @@
     <input matInput (input)="updateSearch($any($event.target).value)" />
   </mat-form-field>
 
+  <mat-slide-toggle
+    [checked]="showHistoric()"
+    (change)="toggleHistoric($event.checked)"
+    matTooltip="Shows every signal ever scored, not just today's. Read-only — the research and execution agents only ever act on today's signals, regardless of this view."
+  >
+    View historic signals
+  </mat-slide-toggle>
+
   <button mat-stroked-button (click)="exportCsv()">
     <mat-icon>download</mat-icon>
     Export CSV
   </button>
 </div>
 
-@if (!signalsGroup()) {
+@if (isLoading()) {
   <app-loading-spinner />
 } @else if (filteredSignals().length === 0) {
-  <p class="muted">No signals match the current filter.</p>
+  <p class="muted">
+    {{ showHistoric() ? 'No historic signals found.' : "No signals match the current filter." }}
+  </p>
 } @else {
   <div class="signal-list">
     @for (signal of filteredSignals(); track signal.id) {

@@ -208,6 +208,26 @@
   border-top: 1px solid var(--st-border);
 }
 
+.custom-item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.custom-item-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 4px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+
+  .symbol {
+    font-weight: 600;
+    min-width: 70px;
+    cursor: help;
+  }
+}
+
 .add-symbol-row {
   display: flex;
   align-items: center;

@@ -49,4 +49,8 @@ public interface IWatchlistRepository
     Task<WatchlistItem> AddSymbolAsync(int accountId, int watchlistId, string symbol, string companyName, string sector, CancellationToken ct = default);
     Task RemoveSymbolAsync(int accountId, int watchlistId, string symbol, CancellationToken ct = default);
     Task<List<WatchlistItem>> GetSymbolsAsync(int accountId, int watchlistId, CancellationToken ct = default);
+
+    // Bypasses the stock screener and the parent watchlist's enabled state -
+    // a forced item is researched on the next trading day regardless.
+    Task SetForceIntoFinalListAsync(int accountId, int watchlistId, string symbol, bool force, CancellationToken ct = default);
 }

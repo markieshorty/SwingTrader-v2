@@ -58,6 +58,8 @@ public record UpdateWatchlistRequest(string Name, string? Description, bool TopM
 
 public record AddWatchlistSymbolRequest(string Symbol);
 
+public record ForceWatchlistSymbolRequest(bool Force);
+
 public record SuspendUserRequest(string? Reason);
 
 public record RetryJobRequest(int JobLogId);

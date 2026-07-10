@@ -15,7 +15,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/services/api.service';
-import { UniverseSymbolDto, WatchlistDto, WatchlistType } from '../../core/models/dtos';
+import { UniverseSymbolDto, WatchlistDto, WatchlistItemDto, WatchlistType } from '../../core/models/dtos';
 import { errorMessage } from '../../shared/utils/error-message.util';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 
@@ -263,6 +263,21 @@ export class WatchlistsComponent {
     this.api.updateWatchlist(watchlist.id, watchlist.name, watchlist.description ?? undefined, !watchlist.topMoversEnabled).subscribe({
       next: () => this.load(),
       error: (err) => this.snackbar.open(errorMessage(err, 'Failed to update top movers setting.'), 'Dismiss', { duration: 4000 }),
+    });
+  }
+
+  toggleForceIntoFinalList(watchlist: WatchlistDto, item: WatchlistItemDto, checked: boolean): void {
+    this.api.setForceIntoFinalList(watchlist.id, item.symbol, checked).subscribe({
+      next: () => {
+        item.forceIntoFinalList = checked; // optimistic - avoids a full reload for a single flag
+        this.snackbar.open(
+          checked
+            ? `${item.symbol} will be researched on the next trading day, regardless of this watchlist's enabled state.`
+            : `${item.symbol} no longer forced into the final list.`,
+          'Dismiss', { duration: 4000 },
+        );
+      },
+      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to update.'), 'Dismiss', { duration: 4000 }),
     });
   }
 }

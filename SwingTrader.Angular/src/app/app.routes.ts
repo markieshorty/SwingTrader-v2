@@ -42,7 +42,7 @@ export const routes: Routes = [
     canActivate: [authGuard, approvalGuard, onboardingGuard],
     loadComponent: () =>
       import('./features/signals/signals.component').then((m) => m.SignalsComponent),
-    title: 'Signals',
+    title: "Today's Signals",
   },
   {
     path: 'trades',

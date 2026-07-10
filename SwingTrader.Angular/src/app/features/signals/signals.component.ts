@@ -6,10 +6,14 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { catchError, of } from 'rxjs';
+import { ApiService } from '../../core/services/api.service';
 import { DashboardDataService } from '../../core/services/dashboard-data.service';
 import { SignalCardComponent } from './signal-card/signal-card.component';
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
-import { SignalDto } from '../../core/models/dtos';
+import { SignalDto, SignalGroupDto } from '../../core/models/dtos';
 
 type FilterKey = 'All' | 'BUY' | 'WATCH' | 'HOLD' | 'AVOID';
 
@@ -23,6 +27,8 @@ type FilterKey = 'All' | 'BUY' | 'WATCH' | 'HOLD' | 'AVOID';
     MatInputModule,
     MatButtonModule,
     MatIconModule,
+    MatSlideToggleModule,
+    MatTooltipModule,
     SignalCardComponent,
     LoadingSpinnerComponent,
   ],
@@ -30,11 +36,39 @@ type FilterKey = 'All' | 'BUY' | 'WATCH' | 'HOLD' | 'AVOID';
   styleUrl: './signals.component.scss',
 })
 export class SignalsComponent {
+  private api = inject(ApiService);
   data = inject(DashboardDataService);
-  signalsGroup = toSignal(this.data.signals$, { initialValue: null });
+  todaysSignalsGroup = toSignal(this.data.signals$, { initialValue: null });
+
+  // Default off: the page shows today's signals only unless the user
+  // explicitly asks to see history. Research/Execution never act on
+  // anything but today's signals - this toggle is purely a read-only view.
+  showHistoric = signal(false);
+  private historicLoading = signal(false);
+  private historicGroup = signal<SignalGroupDto | null>(null);
+
+  signalsGroup = computed<SignalGroupDto | null>(() =>
+    this.showHistoric() ? this.historicGroup() : this.todaysSignalsGroup(),
+  );
+
+  isLoading = computed(() => this.showHistoric() ? this.historicLoading() && !this.historicGroup() : !this.todaysSignalsGroup());
 
   filter = signal<FilterKey>('All');
   search = signal('');
+
+  toggleHistoric(checked: boolean): void {
+    this.showHistoric.set(checked);
+    if (checked && !this.historicGroup()) {
+      this.historicLoading.set(true);
+      this.api
+        .getSignalsHistory()
+        .pipe(catchError(() => of(null)))
+        .subscribe((g) => {
+          this.historicGroup.set(g);
+          this.historicLoading.set(false);
+        });
+    }
+  }
 
   allSignals = computed<SignalDto[]>(() => {
     const g = this.signalsGroup();
@@ -65,11 +99,11 @@ export class SignalsComponent {
 
   exportCsv(): void {
     const rows = this.filteredSignals();
-    const header = 'Symbol,CompanyName,Conviction,Recommendation,SetupType,RSI,VolumeRatio\n';
+    const header = 'Date,Symbol,CompanyName,Conviction,Recommendation,SetupType,RSI,VolumeRatio\n';
     const body = rows
       .map(
         (s) =>
-          `${s.symbol},${s.companyName},${s.convictionScore ?? ''},${s.recommendation},${s.setupType},${s.rsi14 ?? ''},${s.volumeRatio ?? ''}`,
+          `${s.signalDate},${s.symbol},${s.companyName},${s.convictionScore ?? ''},${s.recommendation},${s.setupType},${s.rsi14 ?? ''},${s.volumeRatio ?? ''}`,
       )
       .join('\n');
     const blob = new Blob([header + body], { type: 'text/csv' });

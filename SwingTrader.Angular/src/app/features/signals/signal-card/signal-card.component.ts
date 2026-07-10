@@ -12,6 +12,7 @@ import { ConvictionBarComponent } from '../../../shared/components/conviction-ba
     <div class="signal-row" (click)="expanded.set(!expanded())">
       <span class="symbol">{{ signal().symbol }}</span>
       <span class="company">{{ signal().companyName }}</span>
+      <span class="date">{{ signal().signalDate | date: 'dd/MM/yyyy' }}</span>
       <app-conviction-bar [signal]="signal()" />
       <span class="badge" [class]="signal().recommendation.toLowerCase()">{{
         signal().recommendation
@@ -38,7 +39,7 @@ import { ConvictionBarComponent } from '../../../shared/components/conviction-ba
     `
       .signal-row {
         display: grid;
-        grid-template-columns: 80px 1fr 160px 90px 24px;
+        grid-template-columns: 80px 1fr 90px 160px 90px 24px;
         align-items: center;
         gap: 12px;
         padding: 10px 12px;
@@ -51,6 +52,11 @@ import { ConvictionBarComponent } from '../../../shared/components/conviction-ba
       .company {
         color: var(--st-muted);
         font-size: 13px;
+      }
+      .date {
+        color: var(--st-muted);
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
       }
       .badge {
         font-size: 11px;

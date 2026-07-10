@@ -18,4 +18,11 @@ public class WatchlistItem : BaseEntity
     public string Sector { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public string? Notes { get; set; }
+
+    // When true, this item is researched every trading day regardless of
+    // whether its parent Watchlist is enabled, and is excluded from the
+    // stock screener's candidate pool the same way any active watchlist item
+    // is - so a pick on a disabled/manual watchlist can still be forced
+    // straight into the research pipeline without enabling the whole list.
+    public bool ForceIntoFinalList { get; set; }
 }

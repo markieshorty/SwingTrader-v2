@@ -139,8 +139,12 @@ public class WatchlistRepository(SwingTraderDbContext db) : IWatchlistRepository
 
     public async Task<List<WatchlistItem>> GetAllEnabledSymbolsAsync(int accountId, CancellationToken ct = default)
     {
+        // ForceIntoFinalList items are included even from a disabled
+        // watchlist - that's the whole point of the flag: research a
+        // specific pick without switching its entire (possibly manual/idea)
+        // watchlist live.
         var items = await db.WatchlistItems
-            .Where(i => i.AccountId == accountId && i.Watchlist!.IsEnabled)
+            .Where(i => i.AccountId == accountId && (i.Watchlist!.IsEnabled || i.ForceIntoFinalList))
             .ToListAsync(ct);
 
         // Dedup by symbol - a symbol on multiple enabled watchlists is
@@ -348,4 +352,16 @@ public class WatchlistRepository(SwingTraderDbContext db) : IWatchlistRepository
         await db.WatchlistItems
             .Where(i => i.AccountId == accountId && i.WatchlistId == watchlistId)
             .ToListAsync(ct);
+
+    public async Task SetForceIntoFinalListAsync(int accountId, int watchlistId, string symbol, bool force, CancellationToken ct = default)
+    {
+        var symbolUpper = symbol.ToUpperInvariant();
+        var item = await db.WatchlistItems
+            .FirstOrDefaultAsync(i => i.AccountId == accountId && i.WatchlistId == watchlistId && i.Symbol == symbolUpper, ct)
+            ?? throw new InvalidOperationException($"Symbol '{symbol}' not found on watchlist {watchlistId}.");
+
+        item.ForceIntoFinalList = force;
+        item.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
+    }
 }
