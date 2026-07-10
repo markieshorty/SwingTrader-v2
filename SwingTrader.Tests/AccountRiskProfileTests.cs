@@ -55,7 +55,7 @@ public class AccountRiskProfileTests
 
     [Theory]
     [InlineData(0.04)]
-    [InlineData(0.34)]
+    [InlineData(0.41)]
     public void Validate_MaxPositionPctOfActiveOutOfRange_Throws(decimal pct)
     {
         var profile = Valid();

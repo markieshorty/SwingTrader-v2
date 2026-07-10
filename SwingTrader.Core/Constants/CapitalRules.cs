@@ -5,8 +5,18 @@ public static class CapitalRules
     public const decimal Tier1CapitalPct = 0.10m;
     public const decimal Tier2CapitalPct = 0.20m;
     public const decimal Tier3CapitalPct = 0.50m;
-    public const decimal LockedCapitalPct = 0.70m;
-    public const decimal MaxPositionPctOfActive = 0.20m;
+    // Deployment defaults raised 2026-07-10 (locked 0.70 -> 0.60, max position
+    // 0.20 -> 0.40) after the backtest deployment sweep: scaling SIZE on the
+    // same top-3 daily trades preserved the per-trade edge, and 20%-of-
+    // portfolio positions at Tier3 (50% x 40% = 60% deployed) doubled total
+    // return (+14.1% -> +27.0%) at near-identical risk-efficiency
+    // (return/maxDD 1.22 vs 1.24, ~22% max drawdown). Pushing to 100%
+    // deployed decayed efficiency, and adding position SLOTS (the day's
+    // 4th/5th picks) diluted expectancy - scale by size, never slot count.
+    // Tier ladder discipline unchanged: Tier1 = 10% x 40% = 4%/position,
+    // earning up to 20%/position at Tier3.
+    public const decimal LockedCapitalPct = 0.60m;
+    public const decimal MaxPositionPctOfActive = 0.40m;
     public const int MaxOpenPositions = 3;
     public const int Tier1UnlockMinTrades = 30;
     public const decimal Tier1UnlockMinWinRate = 0.55m;
@@ -60,7 +70,7 @@ public static class CapitalRules
     public const decimal MinLockedCapitalPct = 0.50m;
     public const decimal MaxLockedCapitalPct = 0.90m;
     public const decimal MinMaxPositionPctOfActive = 0.05m;
-    public const decimal MaxMaxPositionPctOfActive = 0.33m;
+    public const decimal MaxMaxPositionPctOfActive = 0.40m;
     public const int MinMaxOpenPositions = 1;
     public const int MaxMaxOpenPositions = 10;
     public const decimal MinDailyLossCircuitBreakerPct = 0.02m;

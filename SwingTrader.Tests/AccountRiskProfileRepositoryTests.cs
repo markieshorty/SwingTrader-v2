@@ -1,3 +1,4 @@
+using SwingTrader.Core.Constants;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using SwingTrader.Data;
@@ -23,7 +24,7 @@ public class AccountRiskProfileRepositoryTests
         await repo.SeedDefaultAsync(1);
 
         var profile = await db.AccountRiskProfiles.SingleAsync(p => p.AccountId == 1);
-        profile.LockedCapitalPct.Should().Be(0.70m);
+        profile.LockedCapitalPct.Should().Be(CapitalRules.LockedCapitalPct);
         profile.MaxOpenPositions.Should().Be(3);
     }
 
@@ -48,7 +49,7 @@ public class AccountRiskProfileRepositoryTests
         var profile = await repo.GetAsync(1);
 
         profile.AccountId.Should().Be(1);
-        profile.LockedCapitalPct.Should().Be(0.70m);
+        profile.LockedCapitalPct.Should().Be(CapitalRules.LockedCapitalPct);
         (await db.AccountRiskProfiles.CountAsync()).Should().Be(1);
     }
 
@@ -104,7 +105,7 @@ public class AccountRiskProfileRepositoryTests
 
         await using var verifyDb = CreateDb(dbName);
         var stored = await verifyDb.AccountRiskProfiles.SingleAsync(p => p.AccountId == 1);
-        stored.LockedCapitalPct.Should().Be(0.70m);
+        stored.LockedCapitalPct.Should().Be(CapitalRules.LockedCapitalPct);
     }
 
     [Fact]
@@ -132,7 +133,7 @@ public class AccountRiskProfileRepositoryTests
 
         var reset = await repo.ResetToDefaultsAsync(1);
 
-        reset.LockedCapitalPct.Should().Be(0.70m);
+        reset.LockedCapitalPct.Should().Be(CapitalRules.LockedCapitalPct);
         reset.MaxOpenPositions.Should().Be(3);
     }
 
@@ -144,7 +145,7 @@ public class AccountRiskProfileRepositoryTests
 
         var reset = await repo.ResetToDefaultsAsync(1);
 
-        reset.LockedCapitalPct.Should().Be(0.70m);
+        reset.LockedCapitalPct.Should().Be(CapitalRules.LockedCapitalPct);
         (await db.AccountRiskProfiles.CountAsync()).Should().Be(1);
     }
 }
