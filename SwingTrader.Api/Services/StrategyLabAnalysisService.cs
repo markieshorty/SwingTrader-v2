@@ -25,7 +25,8 @@ public class StrategyLabAnalysisService(
 
     // Shape of BacktestConsumerFunction's stored A/B result (camelCase JSON).
     private sealed record StoredAbCandidate(
-        string Label, HistoricBacktestWeights Weights, decimal BuyThreshold, bool ExcludeBreakout, HistoricResult Result);
+        string Label, HistoricBacktestWeights Weights, decimal BuyThreshold, bool ExcludeBreakout,
+        bool AutopauseDuringBear, HistoricResult Result);
     private sealed record StoredAbResult(string Mode, List<StoredAbCandidate> Candidates);
 
     public async Task<(LabAnalyseResponse? Response, string? Error)> AnalyseAsync(
@@ -59,12 +60,13 @@ public class StrategyLabAnalysisService(
                     if (ab?.Candidates is not { Count: > 0 })
                         return (null, "Stored comparison result could not be read.");
                     userPrompt = LabAnalysisPrompts.BuildAbComparisonPrompt(
-                        ab.Candidates.Select(c => (c.Label, c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.Result)).ToList());
+                        ab.Candidates.Select(c => (c.Label, c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, c.Result)).ToList());
                     break;
                 default:
                     var result = JsonSerializer.Deserialize<HistoricResult>(run.ResultJson, Web);
                     if (result is null) return (null, "Stored result could not be read.");
-                    userPrompt = LabAnalysisPrompts.BuildHistoricRunPrompt(weights, req.BuyThreshold, req.ExcludeBreakout, result);
+                    userPrompt = LabAnalysisPrompts.BuildHistoricRunPrompt(
+                        weights, req.BuyThreshold, req.ExcludeBreakout, req.AutopauseDuringBear, result);
                     break;
             }
         }

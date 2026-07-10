@@ -21,6 +21,7 @@ public static class StrategyLabEndpoints
             StrategyLabService lab,
             IBacktestRunRepository runs,
             IStrategyWeightsRepository weightsRepo,
+            IAccountRiskProfileRepository riskProfileRepo,
             [FromServices] ServiceBusClient? serviceBus,
             IAccountContext ctx,
             CancellationToken ct) =>
@@ -46,8 +47,10 @@ public static class StrategyLabEndpoints
                 {
                     // A/B: snapshot the production dials into the request NOW,
                     // so the comparison is labelled with what was actually
-                    // evaluated even if production changes mid-run.
-                    var baseline = await SnapshotBaselineAsync(weightsRepo, ctx.AccountId);
+                    // evaluated even if production changes mid-run. The
+                    // baseline runs with the ACCOUNT's autopause setting; the
+                    // user's column runs with the checkbox value.
+                    var baseline = await SnapshotBaselineAsync(weightsRepo, riskProfileRepo, ctx.AccountId, ct);
                     if (baseline is null)
                         return Results.BadRequest(new { message = "No active production weights found to compare against." });
                     historicRequest = new HistoricBacktestRequest(
@@ -55,13 +58,15 @@ public static class StrategyLabEndpoints
                         Mode: "ab",
                         Candidates:
                         [
-                            new HistoricBacktestCandidate("Your dials", userWeights, req.BuyThreshold, req.ExcludeBreakout),
+                            new HistoricBacktestCandidate("Your dials", userWeights, req.BuyThreshold, req.ExcludeBreakout, req.AutopauseDuringBear),
                             baseline,
                         ]);
                 }
                 else
                 {
-                    historicRequest = new HistoricBacktestRequest(userWeights, req.BuyThreshold, req.ExcludeBreakout);
+                    historicRequest = new HistoricBacktestRequest(
+                        userWeights, req.BuyThreshold, req.ExcludeBreakout,
+                        AutopauseDuringBear: req.AutopauseDuringBear);
                 }
 
                 var run = await runs.AddAsync(new BacktestRun
@@ -88,6 +93,7 @@ public static class StrategyLabEndpoints
         api.MapPost("/strategy-lab/optimize", async (
             IBacktestRunRepository runs,
             IStrategyWeightsRepository weightsRepo,
+            IAccountRiskProfileRepository riskProfileRepo,
             [FromServices] ServiceBusClient? serviceBus,
             IAccountContext ctx,
             CancellationToken ct) =>
@@ -95,7 +101,7 @@ public static class StrategyLabEndpoints
             if (serviceBus is null)
                 return Results.Problem("Service Bus is not configured on this environment.", statusCode: StatusCodes.Status503ServiceUnavailable);
 
-            var baseline = await SnapshotBaselineAsync(weightsRepo, ctx.AccountId);
+            var baseline = await SnapshotBaselineAsync(weightsRepo, riskProfileRepo, ctx.AccountId, ct);
             if (baseline is null)
                 return Results.BadRequest(new { message = "No active production weights found to optimize around." });
 
@@ -183,10 +189,11 @@ public static class StrategyLabEndpoints
 
     // The production dials as a labelled candidate, captured at queue time.
     private static async Task<HistoricBacktestCandidate?> SnapshotBaselineAsync(
-        IStrategyWeightsRepository weightsRepo, int accountId)
+        IStrategyWeightsRepository weightsRepo, IAccountRiskProfileRepository riskProfileRepo, int accountId, CancellationToken ct)
     {
         var prod = await weightsRepo.GetActiveWeightsAsync(accountId);
         if (prod is null) return null;
+        var profile = await riskProfileRepo.GetAsync(accountId, ct);
         return new HistoricBacktestCandidate(
             "Production baseline",
             new HistoricBacktestWeights(
@@ -195,6 +202,7 @@ public static class StrategyLabEndpoints
             prod.BuyThreshold,
             // Production policy: Breakout setups are hard-capped at Watch in
             // ResearchPipeline, so the baseline replays with them excluded.
-            ExcludeBreakout: true);
+            ExcludeBreakout: true,
+            AutopauseDuringBear: profile.AutopauseDuringBear);
     }
 }

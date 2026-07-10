@@ -24,9 +24,12 @@ public record HistoricBacktestWeights(
 // One named dial configuration inside a multi-candidate job (A/B comparison or
 // optimizer sweep). Baseline configs are snapshotted into the request at queue
 // time so the comparison is labelled with what was actually evaluated, even if
-// production weights change while the job runs.
+// production weights change while the job runs. AutopauseDuringBear maps to
+// the engine's regime filter (skip entries while SPY < 200dma), approximating
+// the live bear autopause.
 public record HistoricBacktestCandidate(
-    string Label, HistoricBacktestWeights Weights, decimal BuyThreshold, bool ExcludeBreakout);
+    string Label, HistoricBacktestWeights Weights, decimal BuyThreshold, bool ExcludeBreakout,
+    bool AutopauseDuringBear = true);
 
 // Mode:
 //   null / "single" - one config, one result (the original shape)
@@ -38,4 +41,5 @@ public record HistoricBacktestCandidate(
 public record HistoricBacktestRequest(
     HistoricBacktestWeights Weights, decimal BuyThreshold, bool ExcludeBreakout,
     string? Mode = null,
-    List<HistoricBacktestCandidate>? Candidates = null);
+    List<HistoricBacktestCandidate>? Candidates = null,
+    bool AutopauseDuringBear = true);

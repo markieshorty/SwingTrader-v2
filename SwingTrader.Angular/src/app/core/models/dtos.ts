@@ -509,6 +509,7 @@ export interface StrategyLabRequestDto {
   buyThreshold: number;
   excludeBreakout: boolean;
   compareBaseline?: boolean; // A/B: also evaluate production dials over the same data
+  autopauseDuringBear?: boolean; // historic: skip entries while SPY < 200dma (mirrors live autopause)
 }
 
 export interface LabResultDto {
@@ -594,6 +595,7 @@ export interface AbCandidateDto {
   weights: LabWeightsDto;
   buyThreshold: number;
   excludeBreakout: boolean;
+  autopauseDuringBear: boolean;
   result: HistoricResultDto;
 }
 
@@ -609,6 +611,7 @@ export interface SweepCandidateDto {
   weights: LabWeightsDto;
   buyThreshold: number;
   excludeBreakout: boolean;
+  autopauseDuringBear: boolean;
   trades: number;
   winRate: number;
   expectancyPct: number;
@@ -671,6 +674,7 @@ export interface LabAnalyseRequestDto {
   excludeBreakout: boolean;
   ownResult: LabAnalyseOwnResultDto | null;
   backtestRunId: number | null;
+  autopauseDuringBear?: boolean;
 }
 
 export interface LabAnalyseSuggestionDto {

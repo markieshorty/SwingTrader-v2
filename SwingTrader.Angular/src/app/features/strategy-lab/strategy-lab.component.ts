@@ -115,6 +115,12 @@ export class StrategyLabComponent {
   // Historic A/B is opt-in (doubles a multi-minute job); own-data A/B is free
   // and always on - the server evaluates production dials alongside yours.
   compareBaselineHistoric = signal(false);
+  // Historic-only dial: skip new entries while SPY < its 200-day average
+  // (approximates the live bear autopause). Initialised from the account's
+  // live setting; unlike sentiment etc. this IS reconstructable from bars,
+  // so flipping it is a legitimate experiment.
+  autopauseBear = signal(true);
+  private productionAutopauseBear = true;
 
   running = signal(false);
   response = signal<StrategyLabResponseDto | null>(null);
@@ -129,6 +135,7 @@ export class StrategyLabComponent {
   private ranWeights: LabWeightsDto | null = null;
   private ranThreshold = 0;
   private ranExcludeBreakout = false;
+  private ranAutopauseBear = true;
   private lastHistoricRunId: number | null = null;
 
   // ── Claude analysis (advisory only) ────────────────────────────────────────
@@ -178,6 +185,15 @@ export class StrategyLabComponent {
         this.dataStatusLoading.set(false);
       },
       error: () => this.dataStatusLoading.set(false),
+    });
+    // Prefill the bear-autopause dial from the account's live setting so an
+    // untouched Run simulates what production does today.
+    this.api.getRiskProfile().subscribe({
+      next: (p) => {
+        this.productionAutopauseBear = p.autopauseDuringBear;
+        this.autopauseBear.set(p.autopauseDuringBear);
+      },
+      error: () => {},
     });
   }
 
@@ -237,6 +253,7 @@ export class StrategyLabComponent {
     });
     this.buyThreshold.set(w.buyThreshold);
     this.excludeBreakout.set(true);
+    this.autopauseBear.set(this.productionAutopauseBear);
     if (notify) this.snackbar.open('Dials reset to current production settings.', 'Dismiss', { duration: 3000 });
   }
 
@@ -261,10 +278,12 @@ export class StrategyLabComponent {
       // Own-data comparison is a free in-memory replay - always on. Historic
       // doubles a multi-minute job, so it follows the checkbox.
       compareBaseline: historic ? this.compareBaselineHistoric() : true,
+      autopauseDuringBear: this.autopauseBear(),
     };
     this.ranWeights = request.weights;
     this.ranThreshold = request.buyThreshold;
     this.ranExcludeBreakout = request.excludeBreakout;
+    this.ranAutopauseBear = request.autopauseDuringBear;
 
     if (historic) {
       this.api.runStrategyLabHistoric(request).subscribe({
@@ -377,6 +396,7 @@ export class StrategyLabComponent {
           }
         : null,
       backtestRunId: this.dataSource() === 'historic' ? this.lastHistoricRunId : null,
+      autopauseDuringBear: this.ranAutopauseBear,
     }).subscribe({
       next: (r) => {
         this.analysis.set(r);
@@ -419,9 +439,16 @@ export class StrategyLabComponent {
   }
 
   sweepDiffRows(sweep: SweepResultDto): DiffRow[] {
-    return this.diffRows(
+    const rows = this.diffRows(
       sweep.baseline.weights, sweep.baseline.buyThreshold, sweep.baseline.excludeBreakout,
       sweep.winner.weights, sweep.winner.buyThreshold, sweep.winner.excludeBreakout);
+    rows.push({
+      label: 'Bear autopause',
+      oldVal: sweep.baseline.autopauseDuringBear ? 'On' : 'Off',
+      newVal: sweep.winner.autopauseDuringBear ? 'On' : 'Off',
+      changed: sweep.baseline.autopauseDuringBear !== sweep.winner.autopauseDuringBear,
+    });
+    return rows;
   }
 
   // "Stronger run" in the A/B card = higher expectancy per trade. Ties (or a
@@ -448,21 +475,71 @@ export class StrategyLabComponent {
 
   applyToProduction(): void {
     const w = this.weights();
+    const autopause = this.dataSource() === 'historic' ? this.autopauseBear() : undefined;
+    const autopauseNote = autopause !== undefined && autopause !== this.productionAutopauseBear
+      ? ` This also turns the live bear-market autopause ${autopause ? 'ON' : 'OFF'}.`
+      : '';
     this.applyConfig(w, this.buyThreshold(),
-      `This sets your LIVE strategy weights and Buy threshold (${this.buyThreshold().toFixed(1)}) to the dials currently in the form. ` +
-      'The next research run will score every signal with them. Are you sure?');
+      `This sets your LIVE strategy weights and Buy threshold (${this.buyThreshold().toFixed(1)}) to the dials currently in the form.` +
+      `${autopauseNote} The next research run will score every signal with them. Are you sure?`,
+      autopause);
   }
 
   applySweepWinner(sweep: SweepResultDto): void {
     const extra = sweep.validation.heldUp
       ? ''
       : ' WARNING: this configuration did NOT hold up on held-out data — applying it is not recommended.';
+    const autopause = sweep.winner.autopauseDuringBear;
+    const autopauseNote = autopause !== this.productionAutopauseBear
+      ? ` This also turns the live bear-market autopause ${autopause ? 'ON' : 'OFF'}.`
+      : '';
     this.applyConfig(sweep.winner.weights, sweep.winner.buyThreshold,
       `This sets your LIVE strategy weights and Buy threshold (${sweep.winner.buyThreshold.toFixed(1)}) to the optimizer's ` +
-      `winning configuration ("${sweep.winner.label}").${extra} Are you sure?`);
+      `winning configuration ("${sweep.winner.label}").${autopauseNote}${extra} Are you sure?`,
+      autopause);
   }
 
-  private applyConfig(w: LabWeightsDto, threshold: number, message: string): void {
+  // Syncs the live bear-autopause setting when an applied config carries a
+  // different value than the account currently has - "Apply" must mean the
+  // whole tested configuration, not just the weights.
+  private syncAutopauseSetting(autopause: boolean | undefined): void {
+    if (autopause === undefined || autopause === this.productionAutopauseBear) return;
+    this.api.getRiskProfile().subscribe({
+      next: (p) => {
+        this.api.updateRiskProfile({
+          lockedCapitalPct: p.lockedCapitalPct,
+          maxPositionPctOfActive: p.maxPositionPctOfActive,
+          maxOpenPositions: p.maxOpenPositions,
+          dailyLossCircuitBreakerPct: p.dailyLossCircuitBreakerPct,
+          tier1UnlockMinTrades: p.tier1UnlockMinTrades,
+          tier1UnlockMinWinRate: p.tier1UnlockMinWinRate,
+          tier2UnlockMinTrades: p.tier2UnlockMinTrades,
+          tier2UnlockMinWinRate: p.tier2UnlockMinWinRate,
+          maxHoldDays: p.maxHoldDays,
+          trailingActivationPct: p.trailingActivationPct,
+          trailingDistancePct: p.trailingDistancePct,
+          earningsGateDays: p.earningsGateDays,
+          minHoldDays: p.minHoldDays,
+          momentumHealthThreshold: p.momentumHealthThreshold,
+          targetWatchlistSize: p.targetWatchlistSize,
+          autopauseDuringBear: autopause,
+        }).subscribe({
+          next: () => {
+            this.productionAutopauseBear = autopause;
+            this.snackbar.open(`Live bear-market autopause turned ${autopause ? 'ON' : 'OFF'}.`, 'Dismiss', { duration: 4000 });
+          },
+          error: (err) => this.snackbar.open(
+            errorMessage(err, 'Weights applied, but updating the bear-autopause setting failed — change it in Settings › Trading.'),
+            'Dismiss', { duration: 8000 }),
+        });
+      },
+      error: () => this.snackbar.open(
+        'Weights applied, but updating the bear-autopause setting failed — change it in Settings › Trading.',
+        'Dismiss', { duration: 8000 }),
+    });
+  }
+
+  private applyConfig(w: LabWeightsDto, threshold: number, message: string, autopause?: boolean): void {
     const prod = this.productionWeights();
     if (!prod) return;
     this.dialog
@@ -494,6 +571,7 @@ export class StrategyLabComponent {
                 next: (updated) => this.productionWeights.set(updated),
                 error: () => {},
               });
+              this.syncAutopauseSetting(autopause);
             },
             error: (err) => this.snackbar.open(errorMessage(err, 'Failed to apply.'), 'Dismiss', { duration: 5000 }),
           });

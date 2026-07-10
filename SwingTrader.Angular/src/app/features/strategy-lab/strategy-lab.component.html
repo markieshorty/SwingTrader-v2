@@ -110,6 +110,11 @@
           </mat-slide-toggle>
 
           @if (dataSource() === 'historic') {
+            <mat-checkbox [checked]="autopauseBear()" (change)="autopauseBear.set($event.checked)"
+              matTooltip="Skips new entries while SPY is below its 200-day average, approximating the live bear-market autopause. Unlike the locked dials, this IS reconstructable from historic data — flipping it is a real experiment. Prefilled from your live setting.">
+              Autopause during bear market
+            </mat-checkbox>
+
             <mat-checkbox [checked]="compareBaselineHistoric()" (change)="compareBaselineHistoric.set($event.checked)"
               matTooltip="Also runs the current production dials over the same historic window so you see both side by side. Doubles the wait — the job runs two full simulations.">
               Also compare against production
@@ -188,6 +193,8 @@
                   <span class="num" [class.good]="c.result.totalReturnPct > 0" [class.bad]="c.result.totalReturnPct < 0">{{ c.result.totalReturnPct | number: '1.1-1' }}%</span></div>
                 <div class="ab-stat"><span matTooltip="Worst peak-to-trough fall in account value during the period">Max drawdown</span>
                   <span class="num">{{ c.result.maxDrawdownPct | number: '1.1-1' }}%</span></div>
+                <div class="ab-stat"><span matTooltip="Whether this run skipped new entries while SPY was below its 200-day average">Bear autopause</span>
+                  <span class="num">{{ c.autopauseDuringBear ? 'On' : 'Off' }}</span></div>
               </div>
             }
           </div>

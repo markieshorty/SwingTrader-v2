@@ -93,7 +93,7 @@ public class BacktestConsumerFunction(
     }
 
     private static HistoricConfig ToConfig(
-        HistoricBacktestWeights w, decimal buyThreshold, bool excludeBreakout, AccountRiskProfile profile) =>
+        HistoricBacktestWeights w, decimal buyThreshold, bool excludeBreakout, bool autopauseDuringBear, AccountRiskProfile profile) =>
         new(new StrategyWeights
         {
             RsiWeight = w.Rsi, MacdWeight = w.Macd, VolumeWeight = w.Volume, SentimentWeight = w.Sentiment,
@@ -101,7 +101,9 @@ public class BacktestConsumerFunction(
             PriceLevelWeight = w.PriceLevel, FundamentalMomentumWeight = w.FundamentalMomentum,
         }, buyThreshold, excludeBreakout,
         // SPY-below-200dma entry pause approximates the live bear autopause.
-        RegimeFilter: profile.AutopauseDuringBear,
+        // Per-request/candidate (a Lab dial), not the profile setting - the
+        // baseline candidate snapshots the profile value at queue time.
+        RegimeFilter: autopauseDuringBear,
         MaxOpenPositions: profile.MaxOpenPositions,
         MaxHoldDays: profile.MaxHoldDays);
 
@@ -109,7 +111,7 @@ public class BacktestConsumerFunction(
         HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, AccountRiskProfile profile, CancellationToken ct)
     {
         var result = await HistoricBacktester.RunAsync(
-            bars, ToConfig(request.Weights, request.BuyThreshold, request.ExcludeBreakout, profile), ct);
+            bars, ToConfig(request.Weights, request.BuyThreshold, request.ExcludeBreakout, request.AutopauseDuringBear, profile), ct);
         // Trade log stays out of the stored JSON - it can be thousands of
         // rows; the headline stats + buckets are what the UI shows.
         return JsonSerializer.Serialize(result with { TradeLog = [] }, CamelCase);
@@ -126,13 +128,14 @@ public class BacktestConsumerFunction(
         var results = new List<object>();
         foreach (var c in candidates)
         {
-            var r = await HistoricBacktester.RunAsync(bars, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, profile), ct);
+            var r = await HistoricBacktester.RunAsync(bars, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile), ct);
             results.Add(new
             {
                 label = c.Label,
                 weights = c.Weights,
                 buyThreshold = c.BuyThreshold,
                 excludeBreakout = c.ExcludeBreakout,
+                autopauseDuringBear = c.AutopauseDuringBear,
                 result = r with { TradeLog = [] },
             });
         }
@@ -156,7 +159,7 @@ public class BacktestConsumerFunction(
 
         // Baseline first - its drawdown sets the ceiling for everyone else.
         var baselineTrain = await HistoricBacktester.RunAsync(
-            train, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, profile), ct);
+            train, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear, profile), ct);
         var baselineSummary = SweepOptimizer.Summarise(candidates[0], baselineTrain, trainSpy, baselineTrain.MaxDrawdownPct);
 
         var summaries = new List<SweepCandidateResult> { baselineSummary };
@@ -164,7 +167,7 @@ public class BacktestConsumerFunction(
         foreach (var c in candidates.Skip(1))
         {
             ct.ThrowIfCancellationRequested();
-            var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, profile), ct);
+            var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile), ct);
             summaries.Add(SweepOptimizer.Summarise(c, r, trainSpy, baselineTrain.MaxDrawdownPct));
             trainResults[c.Label] = r;
             logger.LogInformation("Sweep candidate '{Label}': {Trades} trades, {Adj}% adjusted expectancy", c.Label, r.Trades, summaries[^1].AdjustedExpectancyPct);
@@ -178,11 +181,11 @@ public class BacktestConsumerFunction(
 
         // Out-of-sample validation: winner and baseline on the held-out window.
         var winnerHoldout = await HistoricBacktester.RunAsync(
-            holdout, ToConfig(winnerSummary.Weights, winnerSummary.BuyThreshold, winnerSummary.ExcludeBreakout, profile), ct);
+            holdout, ToConfig(winnerSummary.Weights, winnerSummary.BuyThreshold, winnerSummary.ExcludeBreakout, winnerSummary.AutopauseDuringBear, profile), ct);
         var baselineHoldout = winnerSummary.Label == baselineSummary.Label
             ? winnerHoldout
             : await HistoricBacktester.RunAsync(
-                holdout, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, profile), ct);
+                holdout, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear, profile), ct);
 
         var validation = SweepOptimizer.BuildValidation(
             trainResults[winnerSummary.Label], winnerHoldout, baselineHoldout, trainSpy, holdoutSpy);

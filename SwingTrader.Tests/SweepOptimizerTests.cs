@@ -64,6 +64,19 @@ public class SweepOptimizerTests
     }
 
     [Fact]
+    public void GenerateCandidates_IncludesBearAutopauseToggle()
+    {
+        // The regime filter IS reconstructable from bars (unlike the dead
+        // components), so the sweep tests it flipped relative to the baseline.
+        var candidates = SweepOptimizer.GenerateCandidates(Baseline()); // baseline default: autopause ON
+
+        var toggle = candidates.Single(c => c.Label == "Bear autopause OFF");
+        toggle.AutopauseDuringBear.Should().BeFalse();
+        toggle.Weights.Should().Be(ProdWeights); // toggle-only candidate, weights untouched
+        candidates.Count(c => !c.AutopauseDuringBear).Should().Be(1);
+    }
+
+    [Fact]
     public void SplitBars_TrainEndsBeforeHoldoutEvaluationStarts_WithWarmupOverlap()
     {
         var start = new DateTime(2023, 1, 2);

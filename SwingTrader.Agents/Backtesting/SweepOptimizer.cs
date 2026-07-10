@@ -15,6 +15,7 @@ public sealed record SweepCandidateResult(
     HistoricBacktestWeights Weights,
     decimal BuyThreshold,
     bool ExcludeBreakout,
+    bool AutopauseDuringBear,
     int Trades,
     decimal WinRate,
     decimal ExpectancyPct,               // raw avg return/trade on the train window
@@ -110,6 +111,15 @@ public static class SweepOptimizer
             if (nt != baseline.BuyThreshold && candidates.All(c => c.BuyThreshold != nt || c.Weights != baseline.Weights))
                 candidates.Add(baseline with { Label = $"Buy threshold {nt:0.0}", BuyThreshold = nt });
         }
+
+        // Bear-autopause toggle: unlike the dead components, the regime filter
+        // IS reconstructable from bars, so testing it flipped is a legitimate,
+        // transferable hypothesis.
+        candidates.Add(baseline with
+        {
+            Label = baseline.AutopauseDuringBear ? "Bear autopause OFF" : "Bear autopause ON",
+            AutopauseDuringBear = !baseline.AutopauseDuringBear,
+        });
 
         // Structural variants: small nudges rarely separate from noise on a
         // finite trade sample, so also try genuinely different LIVE mixes -
@@ -226,7 +236,7 @@ public static class SweepOptimizer
             rejection = $"max drawdown {result.MaxDrawdownPct:F1}% exceeds the ceiling ({baselineMaxDrawdownPct * MaxDrawdownCeilingFactor:F1}%, 1.25× baseline)";
 
         return new SweepCandidateResult(
-            candidate.Label, candidate.Weights, candidate.BuyThreshold, candidate.ExcludeBreakout,
+            candidate.Label, candidate.Weights, candidate.BuyThreshold, candidate.ExcludeBreakout, candidate.AutopauseDuringBear,
             result.Trades, result.WinRate, result.ExpectancyPct, adjusted,
             result.ProfitFactor, result.MaxDrawdownPct, result.TotalReturnPct,
             rejection is null, rejection);

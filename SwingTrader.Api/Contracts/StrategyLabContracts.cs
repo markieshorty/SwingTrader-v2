@@ -21,7 +21,11 @@ public record StrategyLabRequest(
     // so the user sees both side by side. Cheap for own-data (a second
     // in-memory replay); for historic it doubles a multi-minute job, so the
     // UI keeps it opt-in there.
-    bool CompareBaseline = false);
+    bool CompareBaseline = false,
+    // Historic mode only: skip new entries while SPY is below its 200-day
+    // average, approximating the live bear autopause. Unlike sentiment etc.,
+    // this IS reconstructable from bars, so it's a legitimate dial to test.
+    bool AutopauseDuringBear = true);
 
 public record LabTradeOutcome(
     string Symbol, DateTime OpenedAt, decimal Conviction, string Setup, decimal ReturnPct, bool WouldTake);
@@ -81,7 +85,8 @@ public record LabAnalyseRequest(
     decimal BuyThreshold,
     bool ExcludeBreakout,
     LabAnalyseOwnResult? OwnResult, // own mode: the result the UI displayed
-    int? BacktestRunId);            // historic mode: result loaded server-side
+    int? BacktestRunId,             // historic mode: result loaded server-side
+    bool AutopauseDuringBear = true);
 
 public record LabAnalyseSuggestion(
     string Rationale,               // one sentence: what this tests and why
