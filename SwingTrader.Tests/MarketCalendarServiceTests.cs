@@ -51,4 +51,36 @@ public class MarketCalendarServiceTests
         // resolves purely on day-of-week.
         _sut.IsMarketDay(new DateOnly(2030, 3, 6)).Should().BeTrue(); // a Wednesday
     }
+
+    [Fact]
+    public void TradingDaysBetween_FullWeek_CountsFiveNotSeven()
+    {
+        // Mon 6 Jul 2026 -> Mon 13 Jul: 7 calendar days, but Sat/Sun don't
+        // count, so 5 trading days (Tue,Wed,Thu,Fri,Mon).
+        _sut.TradingDaysBetween(new DateOnly(2026, 7, 6), new DateOnly(2026, 7, 13)).Should().Be(5);
+    }
+
+    [Fact]
+    public void TradingDaysBetween_SpanningAHoliday_ExcludesIt()
+    {
+        // Wed 1 Jul -> Mon 6 Jul 2026 spans the 3 Jul holiday (Independence Day
+        // observed) and a weekend. Trading days after the 1st: Thu 2 (only
+        // 3rd is holiday), 6th Mon = 2 trading days.
+        _sut.TradingDaysBetween(new DateOnly(2026, 7, 1), new DateOnly(2026, 7, 6)).Should().Be(2);
+    }
+
+    [Fact]
+    public void TradingDaysBetween_OpenedFridayCheckedMonday_IsOneTradingDay()
+    {
+        // The motivating case: a position opened Friday is only ONE trading day
+        // old by Monday, not three.
+        _sut.TradingDaysBetween(new DateOnly(2026, 7, 10), new DateOnly(2026, 7, 13)).Should().Be(1);
+    }
+
+    [Fact]
+    public void TradingDaysBetween_SameOrEarlierEnd_ReturnsZero()
+    {
+        _sut.TradingDaysBetween(new DateOnly(2026, 7, 10), new DateOnly(2026, 7, 10)).Should().Be(0);
+        _sut.TradingDaysBetween(new DateOnly(2026, 7, 10), new DateOnly(2026, 7, 8)).Should().Be(0);
+    }
 }

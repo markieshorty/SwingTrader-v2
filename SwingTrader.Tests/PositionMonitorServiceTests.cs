@@ -1,13 +1,17 @@
 using FluentAssertions;
 using SwingTrader.Agents.Monitor;
 using SwingTrader.Core.Models;
+using SwingTrader.Infrastructure.Market;
 using Xunit;
 
 namespace SwingTrader.Tests;
 
 public class PositionMonitorServiceTests
 {
-    private readonly PositionMonitorService _sut = new();
+    // Real calendar so the time-exit path counts trading days (weekends/
+    // holidays excluded). Time-based cases below use wide margins so they
+    // don't sit on the trading-day boundary whatever day the suite runs.
+    private readonly PositionMonitorService _sut = new(new MarketCalendarService());
 
     private static Trade MakeTrade(decimal entry, decimal stopLoss, decimal target, decimal? trailingStop = null, DateTime? openedAt = null) =>
         new()
@@ -118,7 +122,9 @@ public class PositionMonitorServiceTests
     {
         // 102 is deliberately below the 5%-activation threshold (105) so the
         // trailing stop never arms and Step 4 (time exit) is actually reached.
-        var trade = MakeTrade(entry: 100m, stopLoss: 90m, target: 200m, openedAt: DateTime.UtcNow.AddDays(-15));
+        // 25 calendar days back is comfortably >10 trading days even with
+        // holidays, so the trading-day count clears maxHoldDays=10.
+        var trade = MakeTrade(entry: 100m, stopLoss: 90m, target: 200m, openedAt: DateTime.UtcNow.AddDays(-25));
 
         var result = await _sut.CheckPositionAsync(trade, currentPrice: 102m, maxHoldDays: 10, trailingActivationPct: 0.05, trailingDistancePct: 0.03);
 

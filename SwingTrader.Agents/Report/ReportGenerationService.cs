@@ -22,6 +22,7 @@ public class ReportGenerationService(
     IApprovalRepository approvalRepo,
     IAccountRepository accountRepo,
     IForexService forex,
+    IMarketCalendarService marketCalendar,
     IClaudeRateLimiter claudeRateLimiter,
     IOptions<ClaudeConfig> claudeConfig,
     IOptions<ReportConfig> reportConfig,
@@ -147,7 +148,11 @@ public class ReportGenerationService(
 
             var unrealisedAmt = (currentPrice - trade.EntryPrice) * trade.Quantity;
             var unrealisedPct = (currentPrice - trade.EntryPrice) / trade.EntryPrice * 100m;
-            var daysHeld = (DateTime.UtcNow - trade.OpenedAt).Days;
+            // Trading days held (weekends/holidays excluded), matching the
+            // time-exit accounting in PositionMonitorService so the reported
+            // age and the exit logic never disagree.
+            var daysHeld = marketCalendar.TradingDaysBetween(
+                DateOnly.FromDateTime(trade.OpenedAt), DateOnly.FromDateTime(DateTime.UtcNow));
             var pctFromStop = (currentPrice - trade.StopLossPrice) / trade.StopLossPrice * 100m;
             var pctFromTarget = (trade.TargetPrice - currentPrice) / trade.TargetPrice * 100m;
             var cfg = reportConfig.Value;

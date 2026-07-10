@@ -60,6 +60,11 @@ public static class HistoricBacktester
     {
         public required string Symbol;
         public required DateTime EntryDate;
+        // Calendar index of the entry bar. Bars ARE trading days, so
+        // (currentIndex - EntryBarIndex) is the trading days held - matching
+        // the live time-exit accounting (PositionMonitorService), which counts
+        // trading days, not calendar days.
+        public required int EntryBarIndex;
         public required decimal EntryPrice;
         public required decimal Quantity;
         public required decimal StopLoss;
@@ -103,7 +108,7 @@ public static class HistoricBacktester
                 var bar = GetBar(bars, index, pos.Symbol, today);
                 if (bar is null) continue;
 
-                var (exitPrice, reason) = CheckExit(pos, bar, today);
+                var (exitPrice, reason) = CheckExit(pos, bar, d);
                 if (exitPrice.HasValue)
                 {
                     var proceeds = exitPrice.Value * pos.Quantity * (1 - CostPerSide);
@@ -155,7 +160,7 @@ public static class HistoricBacktester
                     cash -= entryBar.Open * qty * (1 + CostPerSide);
                     open.Add(new Position
                     {
-                        Symbol = c.Symbol, EntryDate = calendar[d + 1], EntryPrice = entryBar.Open,
+                        Symbol = c.Symbol, EntryDate = calendar[d + 1], EntryBarIndex = d + 1, EntryPrice = entryBar.Open,
                         Quantity = qty, StopLoss = stop, Target = target, Setup = c.Setup, Conviction = c.Conviction,
                     });
                 }
@@ -207,7 +212,7 @@ public static class HistoricBacktester
             closed);
     }
 
-    private static (decimal? ExitPrice, string? Reason) CheckExit(Position pos, DailyBar bar, DateTime today)
+    private static (decimal? ExitPrice, string? Reason) CheckExit(Position pos, DailyBar bar, int currentBarIndex)
     {
         if (bar.Open <= pos.StopLoss) return (bar.Open, "StopLoss(gap)");
         if (bar.Low <= pos.StopLoss) return (pos.StopLoss, "StopLoss");
@@ -218,7 +223,9 @@ public static class HistoricBacktester
             if (bar.Open <= trail) return (bar.Open, "Trailing(gap)");
             if (bar.Low <= trail) return (trail, "Trailing");
         }
-        if ((today - pos.EntryDate).TotalDays > MaxHoldDays) return (bar.Close, "TimeExit");
+        // Trading days held = bar-index difference (bars are trading days),
+        // matching the live PositionMonitorService time-exit accounting.
+        if (currentBarIndex - pos.EntryBarIndex > MaxHoldDays) return (bar.Close, "TimeExit");
         return (null, null);
     }
 

@@ -1,8 +1,9 @@
 using SwingTrader.Core.Models;
+using SwingTrader.Infrastructure.Market;
 
 namespace SwingTrader.Agents.Monitor;
 
-public class PositionMonitorService : IPositionMonitorService
+public class PositionMonitorService(IMarketCalendarService marketCalendar) : IPositionMonitorService
 {
     public Task<PositionCheckResult> CheckPositionAsync(
         Trade trade,
@@ -47,8 +48,12 @@ public class PositionMonitorService : IPositionMonitorService
                 ExitReason.None, currentPrice, newTrail));
         }
 
-        // Step 4 — time exit (thesis stalled, neither stop nor target hit)
-        var daysHeld = (int)(DateTime.UtcNow - trade.OpenedAt).TotalDays;
+        // Step 4 — time exit (thesis stalled, neither stop nor target hit).
+        // Count TRADING days held, not calendar days: a weekend or holiday
+        // shouldn't burn the hold budget when the market was shut and the
+        // thesis had no chance to play out.
+        var daysHeld = marketCalendar.TradingDaysBetween(
+            DateOnly.FromDateTime(trade.OpenedAt), DateOnly.FromDateTime(DateTime.UtcNow));
         if (daysHeld > maxHoldDays
             && currentPrice > trade.StopLossPrice
             && currentPrice < trade.TargetPrice)

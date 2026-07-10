@@ -8,6 +8,7 @@ using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
 using SwingTrader.Infrastructure.HttpClients;
+using SwingTrader.Infrastructure.Market;
 
 namespace SwingTrader.Functions;
 
@@ -26,6 +27,7 @@ public class ResearchConsumerFunction(
     IWorkerHeartbeatRepository heartbeats,
     IActivityLogRepository activityLog,
     IUserHttpClientFactory clientFactory,
+    IMarketCalendarService marketCalendar,
     ILogger<ResearchConsumerFunction> logger)
 {
     // Matches ResearchConfig.CandleHistoryDays - mirrored here rather than
@@ -171,7 +173,11 @@ public class ResearchConsumerFunction(
             if (trade.Phase != TradePhase.Probation)
                 continue; // Confirmed positions aren't rechecked; Exiting positions are awaiting close.
 
-            var daysHeld = (today - trade.OpenedAt).Days;
+            // Trading days held, not calendar days: the probation window is
+            // "give the thesis N sessions to prove itself", so weekends and
+            // market holidays must not count toward it.
+            var daysHeld = marketCalendar.TradingDaysBetween(
+                DateOnly.FromDateTime(trade.OpenedAt), DateOnly.FromDateTime(today));
             var isGraceDayRecheck = daysHeld == profile.MinHoldDays + 1 && trade.MomentumHealthVerdict == "Borderline";
             if (daysHeld != profile.MinHoldDays && !isGraceDayRecheck)
                 continue;

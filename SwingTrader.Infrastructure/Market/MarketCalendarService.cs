@@ -37,4 +37,14 @@ public class MarketCalendarService : IMarketCalendarService
 
         return !Holidays.Contains(date);
     }
+
+    public int TradingDaysBetween(DateOnly from, DateOnly to)
+    {
+        if (to <= from) return 0;
+
+        var count = 0;
+        for (var d = from.AddDays(1); d <= to; d = d.AddDays(1))
+            if (IsMarketDay(d)) count++;
+        return count;
+    }
 }
