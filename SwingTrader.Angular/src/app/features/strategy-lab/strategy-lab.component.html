@@ -9,12 +9,15 @@
 
   <mat-card class="panel controls">
     <div class="source-row">
-      <mat-select [ngModel]="dataSource()" (ngModelChange)="dataSource.set($event)" class="source-select">
-        <mat-option value="own">Backtest against your own trade history</mat-option>
-        <mat-option value="historic" [disabled]="!historicAvailable()">
-          Backtest against 3 years of market data{{ historicAvailable() ? '' : ' (no data synced yet)' }}
-        </mat-option>
-      </mat-select>
+      <mat-form-field appearance="outline" class="source-select" subscriptSizing="dynamic">
+        <mat-label>Data source</mat-label>
+        <mat-select [ngModel]="dataSource()" (ngModelChange)="dataSource.set($event)">
+          <mat-option value="own">Backtest against your own trade history</mat-option>
+          <mat-option value="historic" [disabled]="!historicAvailable()">
+            Backtest against 3 years of market data{{ historicAvailable() ? '' : ' (no data synced yet)' }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
       @if (dataSource() === 'own') {
         <p class="muted small">
           Own-data mode re-scores every closed trade you've made using the dials below, and shows which of those
