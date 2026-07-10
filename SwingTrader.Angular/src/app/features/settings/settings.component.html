@@ -123,6 +123,31 @@
         or hitting Save isn't needed.
       </p>
 
+      @if (riskProfileDraft(); as riskDraft) {
+        <div class="toggle-row">
+          <mat-slide-toggle
+            [checked]="riskDraft.autopauseDuringBear"
+            [disabled]="!isOwner() || executionPaused()"
+            (change)="toggleAutopauseDuringBear($event.checked)"
+          >
+            Autopause &amp; auto-resume during bear markets
+          </mat-slide-toggle>
+        </div>
+        <p class="muted small">
+          When the market regime turns structurally bearish (SPY below a falling 200-day average, a deep breach, or a
+          death cross), new entries pause automatically — and resume on their own when the market recovers. Open
+          positions are still managed (stops, targets and exits keep working) while paused. Long-only momentum
+          strategies bleed in downtrends; leaving this on is recommended. Applies immediately, like the manual pause
+          above — no Save needed.
+        </p>
+        @if (executionPaused()) {
+          <p class="muted small">
+            Unavailable while entries are manually paused above — turn manual pause off first if you want autopause
+            back on.
+          </p>
+        }
+      }
+
       <button mat-raised-button color="primary" [disabled]="!isOwner()" (click)="saveTradingConfig()">Save</button>
     </mat-card>
   </mat-tab>
@@ -333,20 +358,9 @@
             (exits stalling positions sooner).
           </p>
 
-          <div class="toggle-row">
-            <mat-slide-toggle
-              [checked]="draft.autopauseDuringBear"
-              [disabled]="!isOwner()"
-              (change)="updateRiskDraftField('autopauseDuringBear', $event.checked)"
-            >
-              Auto-pause during bear markets
-            </mat-slide-toggle>
-          </div>
           <p class="muted small">
-            When the market regime turns structurally bearish (SPY below a falling 200-day average, a deep breach,
-            or a death cross), new entries pause automatically — and resume on their own when the market recovers.
-            Open positions are still managed (stops, targets and exits keep working) while paused. Long-only momentum
-            strategies bleed in downtrends; leaving this on is recommended.
+            Auto-pause during bear markets has moved — see the "Autopause &amp; auto-resume" toggle under Pause new
+            entries on the Trading tab.
           </p>
 
           <div class="slider-row">

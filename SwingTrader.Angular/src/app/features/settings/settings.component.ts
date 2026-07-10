@@ -330,6 +330,33 @@ export class SettingsComponent {
     this.riskProfileDraft.set({ ...draft, [key]: value });
   }
 
+  // Saves immediately rather than waiting on the Risk Management tab's
+  // explicit Save button - it lives next to the manual pause toggle in
+  // Trading, and a toggle sitting next to an immediate-acting control
+  // shouldn't itself require a trip to another tab to take effect.
+  toggleAutopauseDuringBear(checked: boolean): void {
+    const draft = this.riskProfileDraft();
+    if (!draft) return;
+    // Can only be turned ON while manual pause is off - the toggle is
+    // disabled in the template for this case too, but guard here as well
+    // since this method also drives the auto-off when manual pause engages.
+    if (checked && this.executionPaused()) return;
+    const updated = { ...draft, autopauseDuringBear: checked };
+    this.riskProfileDraft.set(updated);
+    this.api.updateRiskProfile(updated).subscribe({
+      next: () => {
+        this.riskProfile.set(this.riskProfile() ? { ...this.riskProfile()!, autopauseDuringBear: checked } : null);
+        this.snackbar.open(
+          checked ? 'Bear-market autopause enabled' : 'Bear-market autopause disabled',
+          'Dismiss', { duration: 3000 });
+      },
+      error: (err) => {
+        this.riskProfileDraft.set({ ...updated, autopauseDuringBear: !checked }); // revert
+        this.snackbar.open(errorMessage(err, 'Failed to update.'), 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
   saveRiskProfile(): void {
     const draft = this.riskProfileDraft();
     if (!draft) return;
@@ -592,6 +619,14 @@ export class SettingsComponent {
     // A manual toggle always sets the reason to Manual server-side; reflect
     // that locally so a circuit-breaker note clears the moment they resume.
     this.executionPauseReason.set('Manual');
+
+    // Manual and auto pause can't both be "in control" at once - turning on
+    // manual pause takes precedence and turns bear-autopause off, rather than
+    // leaving it silently armed underneath a pause the user just set by hand.
+    if (paused && this.riskProfileDraft()?.autopauseDuringBear) {
+      this.toggleAutopauseDuringBear(false);
+    }
+
     this.api.setExecutionPaused(paused).subscribe({
       next: () =>
         this.snackbar.open(
