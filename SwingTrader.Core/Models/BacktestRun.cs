@@ -21,4 +21,21 @@ public record HistoricBacktestWeights(
     decimal Rsi, decimal Macd, decimal Volume, decimal Sentiment,
     decimal SetupQuality, decimal RelativeStrength, decimal PriceLevel, decimal FundamentalMomentum);
 
-public record HistoricBacktestRequest(HistoricBacktestWeights Weights, decimal BuyThreshold, bool ExcludeBreakout);
+// One named dial configuration inside a multi-candidate job (A/B comparison or
+// optimizer sweep). Baseline configs are snapshotted into the request at queue
+// time so the comparison is labelled with what was actually evaluated, even if
+// production weights change while the job runs.
+public record HistoricBacktestCandidate(
+    string Label, HistoricBacktestWeights Weights, decimal BuyThreshold, bool ExcludeBreakout);
+
+// Mode:
+//   null / "single" - one config, one result (the original shape)
+//   "ab"            - Candidates[0] = the user's dials, Candidates[1] = the
+//                     production baseline; both evaluated over the full window
+//   "sweep"         - Candidates[0] = production baseline; the consumer
+//                     generates perturbation candidates around it, evaluates on
+//                     a train window and validates the winner out-of-sample
+public record HistoricBacktestRequest(
+    HistoricBacktestWeights Weights, decimal BuyThreshold, bool ExcludeBreakout,
+    string? Mode = null,
+    List<HistoricBacktestCandidate>? Candidates = null);

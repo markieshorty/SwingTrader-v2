@@ -16,7 +16,12 @@ public record StrategyLabRequest(
     string DataSource,
     LabWeights Weights,
     decimal BuyThreshold,
-    bool ExcludeBreakout);
+    bool ExcludeBreakout,
+    // A/B mode: also evaluate the current production dials over the same data
+    // so the user sees both side by side. Cheap for own-data (a second
+    // in-memory replay); for historic it doubles a multi-minute job, so the
+    // UI keeps it opt-in there.
+    bool CompareBaseline = false);
 
 public record LabTradeOutcome(
     string Symbol, DateTime OpenedAt, decimal Conviction, string Setup, decimal ReturnPct, bool WouldTake);
@@ -45,8 +50,45 @@ public record LabSuggestion(
     int TradesKept,
     decimal ImprovementPct);        // avg-return improvement vs the user's run
 
+// The production dials evaluated over the same data as the user's run, for
+// side-by-side comparison. Weights snapshotted at evaluation time so the
+// comparison is labelled with what was actually run.
+public record LabBaseline(
+    LabWeights Weights,
+    decimal BuyThreshold,
+    bool ExcludeBreakout,
+    LabResult Result);
+
 public record StrategyLabResponse(
     LabResult Result,
     IReadOnlyList<LabSuggestion> Suggestions,
     IReadOnlyList<LabTradeOutcome> Trades,
-    string? Warning);               // e.g. small sample caveat
+    string? Warning,                // e.g. small sample caveat
+    LabBaseline? Baseline = null);  // present when CompareBaseline was requested
+
+// ── Claude analysis ("Analyse this run") ────────────────────────────────────
+// Advisory only: Claude reads a completed run and suggests a next config worth
+// TESTING. Nothing is run or applied on its behalf - the user loads the dials
+// and clicks Run Simulation themselves.
+
+public record LabAnalyseOwnResult(
+    int TotalClosedTrades, int TradesKept, int DroppedWinners, int DroppedLosers,
+    decimal ActualAvgReturnPct, decimal SimAvgReturnPct, decimal ActualWinRate, decimal SimWinRate);
+
+public record LabAnalyseRequest(
+    string DataSource,              // "own" | "historic"
+    LabWeights Weights,             // the config that produced the run
+    decimal BuyThreshold,
+    bool ExcludeBreakout,
+    LabAnalyseOwnResult? OwnResult, // own mode: the result the UI displayed
+    int? BacktestRunId);            // historic mode: result loaded server-side
+
+public record LabAnalyseSuggestion(
+    string Rationale,               // one sentence: what this tests and why
+    LabWeights Weights,
+    decimal BuyThreshold,
+    bool ExcludeBreakout);
+
+public record LabAnalyseResponse(
+    string Analysis,                    // plain-text paragraphs
+    LabAnalyseSuggestion? Suggestion);  // null when the data doesn't justify one

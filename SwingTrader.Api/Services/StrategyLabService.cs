@@ -17,7 +17,8 @@ namespace SwingTrader.Api.Services;
 // trades"), never expansions.
 public class StrategyLabService(
     ITradeReplayService tradeReplay,
-    IAccountRepository accountRepo)
+    IAccountRepository accountRepo,
+    IStrategyWeightsRepository weightsRepo)
 {
     public async Task<StrategyLabResponse?> RunOwnDataAsync(int accountId, StrategyLabRequest req, CancellationToken ct)
     {
@@ -44,7 +45,19 @@ public class StrategyLabService(
             _ => null,
         };
 
-        return new StrategyLabResponse(result, suggestions, trades, warning);
+        // A/B: evaluate the current production dials over the same replay set
+        // so the user sees their experiment and the live config side by side.
+        LabBaseline? baseline = null;
+        if (req.CompareBaseline && await weightsRepo.GetActiveWeightsAsync(accountId) is { } prod)
+        {
+            var baselineResult = Evaluate(replayable, prod, prod.BuyThreshold, excludeBreakout: true);
+            baseline = new LabBaseline(
+                new LabWeights(prod.RsiWeight, prod.MacdWeight, prod.VolumeWeight, prod.SentimentWeight,
+                    prod.SetupQualityWeight, prod.RelativeStrengthWeight, prod.PriceLevelWeight, prod.FundamentalMomentumWeight),
+                prod.BuyThreshold, ExcludeBreakout: true, baselineResult);
+        }
+
+        return new StrategyLabResponse(result, suggestions, trades, warning, baseline);
     }
 
     private static StrategyWeights ToWeights(LabWeights w) => new()

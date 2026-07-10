@@ -20,6 +20,7 @@ public static class StrategyLabEndpoints
             StrategyLabRequest req,
             StrategyLabService lab,
             IBacktestRunRepository runs,
+            IStrategyWeightsRepository weightsRepo,
             [FromServices] ServiceBusClient? serviceBus,
             IAccountContext ctx,
             CancellationToken ct) =>
@@ -36,11 +37,32 @@ public static class StrategyLabEndpoints
                 if (serviceBus is null)
                     return Results.Problem("Service Bus is not configured on this environment.", statusCode: StatusCodes.Status503ServiceUnavailable);
 
-                var historicRequest = new HistoricBacktestRequest(
-                    new HistoricBacktestWeights(
-                        req.Weights.Rsi, req.Weights.Macd, req.Weights.Volume, req.Weights.Sentiment,
-                        req.Weights.SetupQuality, req.Weights.RelativeStrength, req.Weights.PriceLevel, req.Weights.FundamentalMomentum),
-                    req.BuyThreshold, req.ExcludeBreakout);
+                var userWeights = new HistoricBacktestWeights(
+                    req.Weights.Rsi, req.Weights.Macd, req.Weights.Volume, req.Weights.Sentiment,
+                    req.Weights.SetupQuality, req.Weights.RelativeStrength, req.Weights.PriceLevel, req.Weights.FundamentalMomentum);
+
+                HistoricBacktestRequest historicRequest;
+                if (req.CompareBaseline)
+                {
+                    // A/B: snapshot the production dials into the request NOW,
+                    // so the comparison is labelled with what was actually
+                    // evaluated even if production changes mid-run.
+                    var baseline = await SnapshotBaselineAsync(weightsRepo, ctx.AccountId);
+                    if (baseline is null)
+                        return Results.BadRequest(new { message = "No active production weights found to compare against." });
+                    historicRequest = new HistoricBacktestRequest(
+                        userWeights, req.BuyThreshold, req.ExcludeBreakout,
+                        Mode: "ab",
+                        Candidates:
+                        [
+                            new HistoricBacktestCandidate("Your dials", userWeights, req.BuyThreshold, req.ExcludeBreakout),
+                            baseline,
+                        ]);
+                }
+                else
+                {
+                    historicRequest = new HistoricBacktestRequest(userWeights, req.BuyThreshold, req.ExcludeBreakout);
+                }
 
                 var run = await runs.AddAsync(new BacktestRun
                 {
@@ -57,6 +79,40 @@ public static class StrategyLabEndpoints
 
             var response = await lab.RunOwnDataAsync(ctx.AccountId, req, ct);
             return response is null ? Results.NotFound() : Results.Ok(response);
+        });
+
+        // Optimizer sweep: evaluates a capped set of dial candidates around the
+        // production baseline on a train window, validates the winner on the
+        // held-out remainder. Long job (roughly 25 engine runs) - queued like
+        // any historic run and polled via the same endpoint.
+        api.MapPost("/strategy-lab/optimize", async (
+            IBacktestRunRepository runs,
+            IStrategyWeightsRepository weightsRepo,
+            [FromServices] ServiceBusClient? serviceBus,
+            IAccountContext ctx,
+            CancellationToken ct) =>
+        {
+            if (serviceBus is null)
+                return Results.Problem("Service Bus is not configured on this environment.", statusCode: StatusCodes.Status503ServiceUnavailable);
+
+            var baseline = await SnapshotBaselineAsync(weightsRepo, ctx.AccountId);
+            if (baseline is null)
+                return Results.BadRequest(new { message = "No active production weights found to optimize around." });
+
+            var run = await runs.AddAsync(new BacktestRun
+            {
+                AccountId = ctx.AccountId,
+                RequestJson = JsonSerializer.Serialize(new HistoricBacktestRequest(
+                    baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout,
+                    Mode: "sweep",
+                    Candidates: [baseline])),
+            });
+
+            await using var sender = serviceBus.CreateSender("backtest-jobs");
+            await sender.SendMessageAsync(new ServiceBusMessage(JsonSerializer.Serialize(
+                new BacktestJobMessage(ctx.AccountId, Guid.NewGuid().ToString("N"), run.Id))), ct);
+
+            return Results.Ok(new { backtestRunId = run.Id });
         });
 
         // Poll a historic run. Result JSON is the shared HistoricResult shape.
@@ -76,6 +132,22 @@ public static class StrategyLabEndpoints
                     result = run.ResultJson is null ? (JsonElement?)null : JsonSerializer.Deserialize<JsonElement>(run.ResultJson),
                 });
         });
+
+        // "Analyse this run": Claude reads a completed run and suggests a next
+        // config worth TESTING. Advisory only - the user loads the suggestion
+        // and runs it themselves. Rate-limited like the other Claude-backed
+        // endpoints since every call costs an API request.
+        api.MapPost("/strategy-lab/analyse", async (
+            LabAnalyseRequest req,
+            StrategyLabAnalysisService analysis,
+            IAccountContext ctx,
+            CancellationToken ct) =>
+        {
+            var (response, error) = await analysis.AnalyseAsync(ctx.AccountId, req, ct);
+            return error is not null
+                ? Results.BadRequest(new { message = error })
+                : Results.Ok(response);
+        }).RequireRateLimiting(RateLimitPolicies.ClaudeJobs);
 
         // Availability of the shared historic dataset, so the UI can enable/
         // disable the historic option and show data freshness.
@@ -107,5 +179,22 @@ public static class StrategyLabEndpoints
         });
 
         return api;
+    }
+
+    // The production dials as a labelled candidate, captured at queue time.
+    private static async Task<HistoricBacktestCandidate?> SnapshotBaselineAsync(
+        IStrategyWeightsRepository weightsRepo, int accountId)
+    {
+        var prod = await weightsRepo.GetActiveWeightsAsync(accountId);
+        if (prod is null) return null;
+        return new HistoricBacktestCandidate(
+            "Production baseline",
+            new HistoricBacktestWeights(
+                prod.RsiWeight, prod.MacdWeight, prod.VolumeWeight, prod.SentimentWeight,
+                prod.SetupQualityWeight, prod.RelativeStrengthWeight, prod.PriceLevelWeight, prod.FundamentalMomentumWeight),
+            prod.BuyThreshold,
+            // Production policy: Breakout setups are hard-capped at Watch in
+            // ResearchPipeline, so the baseline replays with them excluded.
+            ExcludeBreakout: true);
     }
 }

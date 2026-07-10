@@ -508,6 +508,7 @@ export interface StrategyLabRequestDto {
   weights: LabWeightsDto;
   buyThreshold: number;
   excludeBreakout: boolean;
+  compareBaseline?: boolean; // A/B: also evaluate production dials over the same data
 }
 
 export interface LabResultDto {
@@ -545,11 +546,21 @@ export interface LabTradeOutcomeDto {
   wouldTake: boolean;
 }
 
+// Production dials evaluated over the same data as the user's run, for
+// side-by-side comparison (weights snapshotted at evaluation time).
+export interface LabBaselineDto {
+  weights: LabWeightsDto;
+  buyThreshold: number;
+  excludeBreakout: boolean;
+  result: LabResultDto;
+}
+
 export interface StrategyLabResponseDto {
   result: LabResultDto;
   suggestions: LabSuggestionDto[];
   trades: LabTradeOutcomeDto[];
   warning: string | null;
+  baseline: LabBaselineDto | null;
 }
 
 export interface LabBucketStatDto {
@@ -576,13 +587,102 @@ export interface HistoricResultDto {
   byExitReason: LabBucketStatDto[];
 }
 
+// Historic A/B: both configs evaluated over the identical window, labelled
+// with what was actually run (baseline snapshotted at queue time).
+export interface AbCandidateDto {
+  label: string;
+  weights: LabWeightsDto;
+  buyThreshold: number;
+  excludeBreakout: boolean;
+  result: HistoricResultDto;
+}
+
+export interface AbResultDto {
+  mode: 'ab';
+  candidates: AbCandidateDto[];
+}
+
+// Optimizer sweep: candidates evaluated on the train window (earlier ~70%),
+// winner validated on the held-out remainder it never saw.
+export interface SweepCandidateDto {
+  label: string;
+  weights: LabWeightsDto;
+  buyThreshold: number;
+  excludeBreakout: boolean;
+  trades: number;
+  winRate: number;
+  expectancyPct: number;
+  adjustedExpectancyPct: number;
+  profitFactor: number;
+  maxDrawdownPct: number;
+  totalReturnPct: number;
+  metConstraints: boolean;
+  rejectionReason: string | null;
+}
+
+export interface SweepValidationDto {
+  train: HistoricResultDto;
+  holdout: HistoricResultDto;
+  trainAdjustedExpectancyPct: number;
+  holdoutAdjustedExpectancyPct: number;
+  baselineHoldout: HistoricResultDto;
+  baselineHoldoutAdjustedExpectancyPct: number;
+  heldUp: boolean;
+  verdict: string;
+}
+
+export interface SweepResultDto {
+  mode: 'sweep';
+  baseline: SweepCandidateDto;
+  winner: SweepCandidateDto;
+  validation: SweepValidationDto;
+  candidates: SweepCandidateDto[];
+  explanation: string | null;
+}
+
+export type BacktestResultDto = HistoricResultDto | AbResultDto | SweepResultDto;
+
 export interface BacktestRunStatusDto {
   id: number;
   status: 'Queued' | 'Running' | 'Completed' | 'Failed';
   error: string | null;
   startedAt: string | null;
   completedAt: string | null;
-  result: HistoricResultDto | null;
+  result: BacktestResultDto | null;
+}
+
+// Claude "Analyse this run": advisory text + an optional next config worth
+// testing. Never runs or applies anything itself.
+export interface LabAnalyseOwnResultDto {
+  totalClosedTrades: number;
+  tradesKept: number;
+  droppedWinners: number;
+  droppedLosers: number;
+  actualAvgReturnPct: number;
+  simAvgReturnPct: number;
+  actualWinRate: number;
+  simWinRate: number;
+}
+
+export interface LabAnalyseRequestDto {
+  dataSource: 'own' | 'historic';
+  weights: LabWeightsDto;
+  buyThreshold: number;
+  excludeBreakout: boolean;
+  ownResult: LabAnalyseOwnResultDto | null;
+  backtestRunId: number | null;
+}
+
+export interface LabAnalyseSuggestionDto {
+  rationale: string;
+  weights: LabWeightsDto;
+  buyThreshold: number;
+  excludeBreakout: boolean;
+}
+
+export interface LabAnalyseResponseDto {
+  analysis: string;
+  suggestion: LabAnalyseSuggestionDto | null;
 }
 
 export interface LabDataStatusDto {

@@ -16,9 +16,10 @@ public class StrategyLabServiceTests
 {
     private readonly ITradeReplayService _replay = Substitute.For<ITradeReplayService>();
     private readonly IAccountRepository _accounts = Substitute.For<IAccountRepository>();
+    private readonly IStrategyWeightsRepository _weightsRepo = Substitute.For<IStrategyWeightsRepository>();
     private readonly List<ReplayableTrade> _trades = [];
 
-    private StrategyLabService CreateSut() => new(_replay, _accounts);
+    private StrategyLabService CreateSut() => new(_replay, _accounts, _weightsRepo);
 
     private static LabWeights EqualWeights() => new(0.125m, 0.125m, 0.125m, 0.125m, 0.125m, 0.125m, 0.125m, 0.125m);
 

@@ -7,257 +7,499 @@
     </p>
   </div>
 
-  <mat-card class="panel controls">
-    <div class="source-row">
-      <mat-form-field appearance="outline" class="source-select" subscriptSizing="dynamic">
-        <mat-label>Data source</mat-label>
-        <mat-select [ngModel]="dataSource()" (ngModelChange)="dataSource.set($event)">
-          <mat-option value="own">Backtest against your own trade history</mat-option>
-          <mat-option value="historic" [disabled]="!historicAvailable()">
-            Backtest against 3 years of market data{{ historicAvailable() ? '' : ' (no data synced yet)' }}
-          </mat-option>
-        </mat-select>
-      </mat-form-field>
-      @if (dataSource() === 'own') {
-        <p class="muted small">
-          Own-data mode re-scores every closed trade you've made using the dials below, and shows which of those
-          trades these settings would have taken — and how that subset actually performed (market-adjusted). It can
-          only <em>filter</em> your history, not invent trades you never took.
-        </p>
-      } @else {
-        <p class="muted small">
-          Historic mode replays the full strategy — screener, scoring, entries and exits — over the S&amp;P 1500
-          across 3 years of daily bars. It runs server-side and takes a few minutes. Caveats: no Claude selection,
-          sentiment neutral, today's index membership — use it to <em>compare</em> dial settings, not predict returns.
-        </p>
-      }
-      @if (dataStatus(); as ds) {
-        <p class="muted small data-status">
-          Historic dataset: {{ ds.bars | number }} bars{{ ds.latestDate ? ' · up to ' + (ds.latestDate | date: 'dd/MM/yyyy') : '' }}
-          @if (!ds.platformKeyConfigured) { · platform Tiingo key not configured }
-          @if (isOwner()) {
-            <button mat-button [disabled]="syncing()" (click)="syncData()"><mat-icon>sync</mat-icon> Sync now</button>
+  <mat-tab-group>
+    <!-- ══════════════════════════ A/B TESTING TAB ══════════════════════════ -->
+    <mat-tab label="A/B Testing">
+      <mat-card class="panel controls">
+        <div class="source-row">
+          <mat-form-field appearance="outline" class="source-select" subscriptSizing="dynamic">
+            <mat-label>Data source</mat-label>
+            <mat-select [ngModel]="dataSource()" (ngModelChange)="dataSource.set($event)">
+              <mat-option value="own">Backtest against your own trade history</mat-option>
+              <mat-option value="historic" [disabled]="!historicAvailable()">
+                Backtest against 3 years of market data{{ historicAvailable() ? '' : ' (no data synced yet)' }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+          @if (dataSource() === 'own') {
+            <p class="muted small">
+              Own-data mode re-scores every closed trade you've made using the dials below, and shows which of those
+              trades these settings would have taken — and how that subset actually performed (market-adjusted). It can
+              only <em>filter</em> your history, not invent trades you never took. Your run is always compared against
+              the current production dials so you can see both side by side.
+            </p>
+          } @else {
+            <p class="muted small">
+              Historic mode replays the full strategy — screener, scoring, entries and exits — over the S&amp;P 1500
+              across 3 years of daily bars. It runs server-side and takes a few minutes. Caveats: no Claude selection,
+              sentiment neutral, today's index membership — use it to <em>compare</em> dial settings, not predict returns.
+            </p>
           }
-        </p>
-      }
-    </div>
-
-    <div class="dials-grid">
-      @for (dial of dials; track dial.key) {
-        <div class="dial">
-          <div class="dial-label">
-            <span [matTooltip]="dial.hint">{{ dial.label }}</span>
-            <span class="value">{{ weights()[dial.key] | percent: '1.0-0' }}</span>
-          </div>
-          <mat-slider min="0" max="0.45" step="0.01" discrete>
-            <input matSliderThumb [ngModel]="weights()[dial.key]" (ngModelChange)="setWeight(dial.key, $event)" />
-          </mat-slider>
+          @if (dataStatus(); as ds) {
+            <p class="muted small data-status">
+              Historic dataset: {{ ds.bars | number }} bars{{ ds.latestDate ? ' · up to ' + (ds.latestDate | date: 'dd/MM/yyyy') : '' }}
+              @if (!ds.platformKeyConfigured) { · platform Tiingo key not configured }
+              @if (isOwner()) {
+                <button mat-button [disabled]="syncing()" (click)="syncData()"><mat-icon>sync</mat-icon> Sync now</button>
+              }
+            </p>
+          }
         </div>
-      }
-    </div>
 
-    <div class="meta-row">
-      <span class="sum" [class.bad]="!sumOk()">Weights sum: {{ weightSum() | number: '1.2-2' }} {{ sumOk() ? '✓' : '— must equal 1.00' }}</span>
-
-      <div class="dial threshold">
-        <div class="dial-label">
-          <span matTooltip="A signal must score at least this conviction (0-10) to become a Buy">Buy threshold</span>
-          <span class="value">{{ buyThreshold() | number: '1.1-1' }}</span>
-        </div>
-        <mat-slider min="3" max="9" step="0.1" discrete>
-          <input matSliderThumb [ngModel]="buyThreshold()" (ngModelChange)="buyThreshold.set($event)" />
-        </mat-slider>
-      </div>
-
-      <mat-slide-toggle [checked]="excludeBreakout()" (change)="excludeBreakout.set($event.checked)"
-        matTooltip="Backtested: Breakout setups averaged -1.2%/trade; production currently excludes them">
-        Exclude Breakout setups
-      </mat-slide-toggle>
-
-      <button mat-raised-button color="primary" [disabled]="running() || !sumOk()" (click)="run()">
-        @if (running()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>science</mat-icon> }
-        Run Simulation
-      </button>
-    </div>
-  </mat-card>
-
-  @if (historicStatus(); as hs) {
-    <mat-card class="panel loading"><mat-spinner diameter="24"></mat-spinner><span>{{ hs }}</span></mat-card>
-  }
-
-  @if (historicResult(); as h) {
-    <mat-card class="panel results">
-      <h3>Historic backtest — {{ h.from | date: 'dd/MM/yyyy' }} to {{ h.to | date: 'dd/MM/yyyy' }}</h3>
-      <p class="summary">
-        These dials placed {{ h.trades }} trades over the period, winning {{ h.winRate | percent: '1.0-1' }} of them
-        for a total return of {{ h.totalReturnPct | number: '1.1-1' }}% (SPY buy-and-hold: {{ h.spyReturnPct | number: '1.1-1' }}%),
-        with a worst peak-to-trough drawdown of {{ h.maxDrawdownPct | number: '1.1-1' }}%.
-        {{ h.expectancyPct > 0 ? 'Positive expectancy after costs — each trade earned ' + (h.expectancyPct | number: '1.2-2') + '% on average.'
-           : 'Negative expectancy after costs — these dials lose ' + (h.expectancyPct | number: '1.2-2') + '% per trade on average.' }}
-        Remember: survivorship-biased, no Claude selection — compare configs, don't bank the number.
-      </p>
-
-      <div class="stat-grid">
-        <div class="stat" [class.good]="h.expectancyPct > 0" [class.bad]="h.expectancyPct < 0">
-          <span class="stat-value">{{ h.expectancyPct | number: '1.2-2' }}%</span>
-          <span class="stat-label">expectancy / trade ({{ h.trades }} trades)</span>
-        </div>
-        <div class="stat" [class.good]="h.profitFactor > 1" [class.bad]="h.profitFactor < 1">
-          <span class="stat-value">{{ h.profitFactor | number: '1.2-2' }}</span>
-          <span class="stat-label">profit factor</span>
-        </div>
-        <div class="stat" [class.good]="h.totalReturnPct > 0" [class.bad]="h.totalReturnPct < 0">
-          <span class="stat-value">{{ h.totalReturnPct | number: '1.1-1' }}%</span>
-          <span class="stat-label">total return (max DD {{ h.maxDrawdownPct | number: '1.1-1' }}%)</span>
-        </div>
-        <div class="stat">
-          <span class="stat-value">{{ h.winRate | percent: '1.0-1' }}</span>
-          <span class="stat-label">win rate (avg win {{ h.avgWinPct | number: '1.1-1' }}% / loss {{ h.avgLossPct | number: '1.1-1' }}%)</span>
-        </div>
-      </div>
-
-      <div class="bucket-tables">
-        @for (bucket of [
-          { title: 'By setup', rows: h.bySetup, hint: 'How trades broke down by the chart pattern that triggered them, and how each group performed on average.' },
-          { title: 'By conviction', rows: h.byConviction, hint: 'How trades broke down by their conviction score (0-10, rounded), and how each score band performed on average.' },
-          { title: 'By exit', rows: h.byExitReason, hint: 'How trades broke down by why they closed (stop-loss, target hit, time limit, trailing stop), and how each group performed on average.' },
-        ]; track bucket.title) {
-          <div class="bucket">
-            <h4 [matTooltip]="bucket.hint">{{ bucket.title }}</h4>
-            <div class="bucket-row bucket-head muted small">
-              <span></span>
-              <span matTooltip="Number of trades in this group, out of {{ h.trades }} total">trades</span>
-              <span matTooltip="Average raw return per trade in this group (price change alone — not compared against SPY)">avg return</span>
+        <div class="dials-grid">
+          @for (dial of dials; track dial.key) {
+            <div class="dial">
+              <div class="dial-label">
+                <span [matTooltip]="dial.hint">{{ dial.label }}</span>
+                <span class="value">{{ weights()[dial.key] | percent: '1.0-0' }}</span>
+              </div>
+              <mat-slider min="0" max="0.45" step="0.01" discrete>
+                <input matSliderThumb [ngModel]="weights()[dial.key]" (ngModelChange)="setWeight(dial.key, $event)" />
+              </mat-slider>
             </div>
-            @for (row of bucket.rows; track row.key) {
-              <div class="bucket-row">
-                <span>{{ row.key }}</span>
-                <span class="muted small" [matTooltip]="row.count + ' of ' + h.trades + ' trades were this type'">{{ row.count }} trades</span>
-                <span class="num" [class.good]="row.avgReturnPct > 0" [class.bad]="row.avgReturnPct < 0"
-                  [matTooltip]="'Averaged ' + (row.avgReturnPct | number: '1.2-2') + '% raw return per trade'">{{ row.avgReturnPct | number: '1.2-2' }}%</span>
+          }
+        </div>
+
+        <div class="meta-row">
+          <span class="sum" [class.bad]="!sumOk()">Weights sum: {{ weightSum() | number: '1.2-2' }} {{ sumOk() ? '✓' : '— must equal 1.00' }}</span>
+
+          <div class="dial threshold">
+            <div class="dial-label">
+              <span matTooltip="A signal must score at least this conviction (0-10) to become a Buy">Buy threshold</span>
+              <span class="value">{{ buyThreshold() | number: '1.1-1' }}</span>
+            </div>
+            <mat-slider min="3" max="9" step="0.1" discrete>
+              <input matSliderThumb [ngModel]="buyThreshold()" (ngModelChange)="buyThreshold.set($event)" />
+            </mat-slider>
+          </div>
+
+          <mat-slide-toggle [checked]="excludeBreakout()" (change)="excludeBreakout.set($event.checked)"
+            matTooltip="Backtested: Breakout setups averaged -1.2%/trade; production currently excludes them">
+            Exclude Breakout setups
+          </mat-slide-toggle>
+
+          @if (dataSource() === 'historic') {
+            <mat-checkbox [checked]="compareBaselineHistoric()" (change)="compareBaselineHistoric.set($event.checked)"
+              matTooltip="Also runs the current production dials over the same 3 years so you see both side by side. Doubles the wait — the job runs two full simulations.">
+              Also compare against production
+            </mat-checkbox>
+          }
+
+          <button mat-stroked-button [disabled]="running() || !productionWeights()" (click)="resetToProduction()"
+            matTooltip="Snap all dials back to the current live production settings">
+            <mat-icon>settings_backup_restore</mat-icon> Reset to production
+          </button>
+
+          <button mat-raised-button color="primary" [disabled]="running() || !sumOk()" (click)="run()">
+            @if (running()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>science</mat-icon> }
+            Run Simulation
+          </button>
+        </div>
+      </mat-card>
+
+      @if (historicStatus(); as hs) {
+        <mat-card class="panel loading"><mat-spinner diameter="24"></mat-spinner><span>{{ hs }}</span></mat-card>
+      }
+
+      <!-- Historic single result -->
+      @if (historicResult(); as h) {
+        <mat-card class="panel results">
+          <h3>Historic backtest — {{ h.from | date: 'dd/MM/yyyy' }} to {{ h.to | date: 'dd/MM/yyyy' }}</h3>
+          <p class="summary">
+            These dials placed {{ h.trades }} trades over the period, winning {{ h.winRate | percent: '1.0-1' }} of them
+            for a total return of {{ h.totalReturnPct | number: '1.1-1' }}% (SPY buy-and-hold: {{ h.spyReturnPct | number: '1.1-1' }}%),
+            with a worst peak-to-trough drawdown of {{ h.maxDrawdownPct | number: '1.1-1' }}%.
+            {{ h.expectancyPct > 0 ? 'Positive expectancy after costs — each trade earned ' + (h.expectancyPct | number: '1.2-2') + '% on average.'
+               : 'Negative expectancy after costs — these dials lose ' + (h.expectancyPct | number: '1.2-2') + '% per trade on average.' }}
+            Remember: survivorship-biased, no Claude selection — compare configs, don't bank the number.
+          </p>
+
+          <ng-container *ngTemplateOutlet="historicStats; context: { $implicit: h }"></ng-container>
+          <ng-container *ngTemplateOutlet="historicBuckets; context: { $implicit: h }"></ng-container>
+
+          <div class="apply-row">
+            <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applyToProduction()">
+              <mat-icon>rocket_launch</mat-icon> Apply these dials to production
+            </button>
+            <button mat-stroked-button [disabled]="analysing()" (click)="analyseRun()"
+              matTooltip="Claude reads this result and suggests what might be worth testing next. Advisory only — nothing is run or applied for you.">
+              @if (analysing()) { <mat-spinner diameter="16"></mat-spinner> } @else { <mat-icon>psychology</mat-icon> }
+              Analyse this run
+            </button>
+            <span class="muted small">Apply sets your live strategy weights + Buy threshold. Owner only.</span>
+          </div>
+        </mat-card>
+      }
+
+      <!-- Historic A/B result: your dials vs production, same window -->
+      @if (abResult(); as ab) {
+        <mat-card class="panel results">
+          <h3>Head-to-head — your dials vs production, same 3 years</h3>
+          <p class="summary">
+            Both configurations were replayed over the identical historic window. The production column shows the dials
+            that were live when this job was queued. Higher expectancy = more per trade on average; lower drawdown = a
+            shallower worst losing stretch.
+          </p>
+          <div class="ab-grid">
+            @for (c of ab.candidates; track c.label) {
+              <div class="ab-column" [class.winner-col]="abWinnerLabel(ab) === c.label">
+                <h4>{{ c.label }} @if (abWinnerLabel(ab) === c.label) { <span class="winner-chip">stronger run</span> }</h4>
+                <div class="ab-stat"><span>Trades placed</span><span class="num">{{ c.result.trades }}</span></div>
+                <div class="ab-stat"><span matTooltip="Average return per trade after costs">Expectancy / trade</span>
+                  <span class="num" [class.good]="c.result.expectancyPct > 0" [class.bad]="c.result.expectancyPct < 0">{{ c.result.expectancyPct | number: '1.2-2' }}%</span></div>
+                <div class="ab-stat"><span>Win rate</span><span class="num">{{ c.result.winRate | percent: '1.0-1' }}</span></div>
+                <div class="ab-stat"><span matTooltip="Gross wins ÷ gross losses — above 1.0 means wins outweigh losses">Profit factor</span>
+                  <span class="num" [class.good]="c.result.profitFactor > 1" [class.bad]="c.result.profitFactor < 1">{{ c.result.profitFactor | number: '1.2-2' }}</span></div>
+                <div class="ab-stat"><span>Total return</span>
+                  <span class="num" [class.good]="c.result.totalReturnPct > 0" [class.bad]="c.result.totalReturnPct < 0">{{ c.result.totalReturnPct | number: '1.1-1' }}%</span></div>
+                <div class="ab-stat"><span matTooltip="Worst peak-to-trough fall in account value during the period">Max drawdown</span>
+                  <span class="num">{{ c.result.maxDrawdownPct | number: '1.1-1' }}%</span></div>
               </div>
             }
           </div>
+          <p class="muted small">
+            "Stronger run" = higher expectancy per trade on this window. One backtest window is evidence, not proof —
+            a small edge here can easily be noise.
+          </p>
+          <div class="apply-row">
+            <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applyToProduction()">
+              <mat-icon>rocket_launch</mat-icon> Apply your dials to production
+            </button>
+            <span class="muted small">Applies the dials in the form above (the "Your dials" column). Owner only.</span>
+          </div>
+        </mat-card>
+      }
+
+      <!-- Own-data result -->
+      @if (response(); as r) {
+        @if (r.warning) {
+          <mat-card class="panel warning-card"><mat-icon>warning</mat-icon> {{ r.warning }}</mat-card>
         }
-      </div>
-      <p class="muted small bucket-explainer">
-        <strong>How to read this:</strong> each row shows how many of your {{ h.trades }} trades fell into that group, and
-        what they returned <em>on average</em> — this is the trade's own price return (entry to exit), not compared against
-        SPY. The overall total return above <em>is</em> compared against SPY buy-and-hold ({{ h.spyReturnPct | number: '1.1-1' }}%);
-        these per-group breakdowns are just to spot which setups, conviction levels or exit reasons are pulling that number up
-        or down.
-      </p>
 
-      <div class="apply-row">
-        <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applyToProduction()">
-          <mat-icon>rocket_launch</mat-icon> Apply these dials to production
-        </button>
-        <span class="muted small">Sets your live strategy weights + Buy threshold. Owner only.</span>
-      </div>
-    </mat-card>
-  }
+        <mat-card class="panel results">
+          <h3>What would have happened</h3>
+          <p class="summary">{{ r.result.summary }}</p>
 
-  @if (response(); as r) {
-    @if (r.warning) {
-      <mat-card class="panel warning-card"><mat-icon>warning</mat-icon> {{ r.warning }}</mat-card>
-    }
+          <div class="stat-grid">
+            <div class="stat">
+              <span class="stat-value">{{ r.result.tradesKept }} / {{ r.result.totalClosedTrades }}</span>
+              <span class="stat-label">trades these dials would have taken</span>
+            </div>
+            <div class="stat" [class.good]="r.result.simAvgReturnPct > r.result.actualAvgReturnPct"
+                 [class.bad]="r.result.simAvgReturnPct < r.result.actualAvgReturnPct">
+              <span class="stat-value">{{ r.result.simAvgReturnPct | number: '1.2-2' }}%</span>
+              <span class="stat-label">avg return/trade (actual: {{ r.result.actualAvgReturnPct | number: '1.2-2' }}%)</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">{{ r.result.simWinRate | percent: '1.0-1' }}</span>
+              <span class="stat-label">win rate (actual: {{ r.result.actualWinRate | percent: '1.0-1' }})</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">{{ r.result.droppedLosers }} / {{ r.result.droppedWinners }}</span>
+              <span class="stat-label">losers avoided vs winners missed</span>
+            </div>
+          </div>
 
-    <mat-card class="panel results">
-      <h3>What would have happened</h3>
-      <p class="summary">{{ r.result.summary }}</p>
+          @if (r.baseline; as b) {
+            <div class="baseline-strip">
+              <h4>vs current production dials over the same history</h4>
+              <div class="baseline-row head muted small">
+                <span></span><span>Your dials</span><span>Production</span>
+              </div>
+              <div class="baseline-row">
+                <span>Trades kept</span>
+                <span class="num">{{ r.result.tradesKept }}</span>
+                <span class="num">{{ b.result.tradesKept }}</span>
+              </div>
+              <div class="baseline-row">
+                <span matTooltip="Average market-adjusted return of the kept trades (each trade's return minus SPY's move while it was open)">Avg return / trade</span>
+                <span class="num" [class.good]="r.result.simAvgReturnPct > b.result.simAvgReturnPct"
+                      [class.bad]="r.result.simAvgReturnPct < b.result.simAvgReturnPct">{{ r.result.simAvgReturnPct | number: '1.2-2' }}%</span>
+                <span class="num">{{ b.result.simAvgReturnPct | number: '1.2-2' }}%</span>
+              </div>
+              <div class="baseline-row">
+                <span>Win rate</span>
+                <span class="num" [class.good]="r.result.simWinRate > b.result.simWinRate"
+                      [class.bad]="r.result.simWinRate < b.result.simWinRate">{{ r.result.simWinRate | percent: '1.0-1' }}</span>
+                <span class="num">{{ b.result.simWinRate | percent: '1.0-1' }}</span>
+              </div>
+              <p class="muted small">
+                Same replayable history, two filters: your dials vs the production dials live right now. Green = your
+                dials did better on that measure. Remember this can only compare how each config <em>filters</em> the
+                trades you actually took.
+              </p>
+            </div>
+          }
 
-      <div class="stat-grid">
-        <div class="stat">
-          <span class="stat-value">{{ r.result.tradesKept }} / {{ r.result.totalClosedTrades }}</span>
-          <span class="stat-label">trades these dials would have taken</span>
-        </div>
-        <div class="stat" [class.good]="r.result.simAvgReturnPct > r.result.actualAvgReturnPct"
-             [class.bad]="r.result.simAvgReturnPct < r.result.actualAvgReturnPct">
-          <span class="stat-value">{{ r.result.simAvgReturnPct | number: '1.2-2' }}%</span>
-          <span class="stat-label">avg return/trade (actual: {{ r.result.actualAvgReturnPct | number: '1.2-2' }}%)</span>
-        </div>
-        <div class="stat">
-          <span class="stat-value">{{ r.result.simWinRate | percent: '1.0-1' }}</span>
-          <span class="stat-label">win rate (actual: {{ r.result.actualWinRate | percent: '1.0-1' }})</span>
-        </div>
-        <div class="stat">
-          <span class="stat-value">{{ r.result.droppedLosers }} / {{ r.result.droppedWinners }}</span>
-          <span class="stat-label">losers avoided vs winners missed</span>
-        </div>
-      </div>
+          <div class="apply-row">
+            <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applyToProduction()">
+              <mat-icon>rocket_launch</mat-icon> Apply these dials to production
+            </button>
+            <button mat-stroked-button [disabled]="analysing()" (click)="analyseRun()"
+              matTooltip="Claude reads this result and suggests what might be worth testing next. Advisory only — nothing is run or applied for you.">
+              @if (analysing()) { <mat-spinner diameter="16"></mat-spinner> } @else { <mat-icon>psychology</mat-icon> }
+              Analyse this run
+            </button>
+            <span class="muted small">Apply sets your live strategy weights + Buy threshold. Owner only.</span>
+          </div>
+        </mat-card>
+      }
 
-      <div class="apply-row">
-        <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applyToProduction()">
-          <mat-icon>rocket_launch</mat-icon> Apply these dials to production
-        </button>
-        <span class="muted small">Sets your live strategy weights + Buy threshold. Owner only.</span>
-      </div>
-    </mat-card>
+      <!-- Claude analysis of the last completed run -->
+      @if (analysis(); as a) {
+        <mat-card class="panel analysis-card">
+          <h3><mat-icon>psychology</mat-icon> Claude's read on this run</h3>
+          <p class="analysis-text">{{ a.analysis }}</p>
+          @if (a.suggestion; as s) {
+            <div class="analysis-suggestion">
+              <p><strong>Worth testing next:</strong> {{ s.rationale }}</p>
+              <button mat-stroked-button (click)="tryAnalysisSuggestion(s)">
+                <mat-icon>tune</mat-icon> Load suggested dials
+              </button>
+            </div>
+          }
+          <p class="muted small">
+            This is a hypothesis, not a verified result — it hasn't been simulated. Load the dials and run the
+            simulation yourself before trusting any of it.
+          </p>
+        </mat-card>
+      }
 
-    @if (r.suggestions.length > 0) {
-      <mat-card class="panel suggestions">
-        <h3>Suggested adjustments</h3>
+      @if (response(); as r) {
+        @if (r.suggestions.length > 0) {
+          <mat-card class="panel suggestions">
+            <h3>Suggested adjustments</h3>
+            <p class="muted small">
+              The Lab tested nearby dial settings against the same history. These beat your current run — load one,
+              re-run to inspect it, then apply if you like it.
+            </p>
+            @for (s of r.suggestions; track s.description) {
+              <mat-expansion-panel class="suggestion-row">
+                <mat-expansion-panel-header>
+                  <mat-panel-title class="desc">{{ s.description }}</mat-panel-title>
+                  <mat-panel-description class="muted small">
+                    avg return {{ s.simAvgReturnPct | number: '1.2-2' }}%/trade (+{{ s.improvementPct | number: '1.2-2' }} vs your run)
+                    · win {{ s.simWinRate | percent: '1.0-0' }} · keeps {{ s.tradesKept }} trades
+                  </mat-panel-description>
+                </mat-expansion-panel-header>
+
+                <table class="diff-table">
+                  <thead>
+                    <tr><th>Dial</th><th>Old weight</th><th></th><th>Suggested new weight</th></tr>
+                  </thead>
+                  <tbody>
+                    @for (row of suggestionDiffRows(s); track row.label) {
+                      <tr [class.changed]="row.changed">
+                        <td>{{ row.label }}</td>
+                        <td>{{ row.oldVal }}</td>
+                        <td class="arrow">→</td>
+                        <td>{{ row.newVal }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+
+                <div class="suggestion-actions">
+                  <button mat-stroked-button (click)="tryDials(s)"><mat-icon>tune</mat-icon> Load these dials</button>
+                </div>
+              </mat-expansion-panel>
+            }
+          </mat-card>
+        } @else {
+          <mat-card class="panel">
+            <p class="muted">No nearby dial change beat your current settings on this history — that's a good sign for the dials you ran.</p>
+          </mat-card>
+        }
+
+        @if (r.trades.length > 0) {
+          <mat-card class="panel trades">
+            <h3>Trade-by-trade</h3>
+            <div class="trade-list">
+              <div class="trade-head">
+                <span>Symbol</span><span>Opened</span><span>Setup</span><span class="num">Conviction</span><span class="num">Return</span><span>Verdict</span>
+              </div>
+              @for (t of r.trades; track t.symbol + t.openedAt) {
+                <div class="trade-row" [class.dropped]="!t.wouldTake">
+                  <span class="sym">{{ t.symbol }}</span>
+                  <span class="muted small">{{ t.openedAt | date: 'dd/MM/yy' }}</span>
+                  <span class="muted small">{{ t.setup }}</span>
+                  <span class="num">{{ t.conviction | number: '1.1-1' }}</span>
+                  <span class="num" [class.good]="t.returnPct > 0" [class.bad]="t.returnPct < 0">{{ t.returnPct | number: '1.2-2' }}%</span>
+                  <span class="verdict">{{ t.wouldTake ? 'kept' : 'skipped' }}</span>
+                </div>
+              }
+            </div>
+          </mat-card>
+        }
+      }
+    </mat-tab>
+
+    <!-- ══════════════════════════ OPTIMIZER TAB ══════════════════════════ -->
+    <mat-tab label="Optimizer" [disabled]="!historicAvailable()">
+      <mat-card class="panel controls">
+        <h3>Find optimum weights</h3>
         <p class="muted small">
-          The Lab tested nearby dial settings against the same history. These beat your current run — load one,
-          re-run to inspect it, then apply if you like it.
+          The optimizer tries ~25 dial variations around your current production settings against the historic dataset.
+          To guard against flukes, it tunes on the <strong>earlier ~70%</strong> of the 3-year window, then re-tests the
+          best configuration on the <strong>held-out remainder it never saw</strong>. A config that only wins on the
+          data it was tuned on is noise — the result tells you plainly whether the winner held up. Candidates are judged
+          on <em>market-adjusted</em> expectancy (each trade's return minus SPY's move over the same days), with
+          guardrails: at least {{ 40 }} trades, and a max drawdown no worse than 1.25× the baseline's.
         </p>
-        @for (s of r.suggestions; track s.description) {
+        <div class="meta-row">
+          <button mat-raised-button color="primary" [disabled]="optimizing() || !historicAvailable()" (click)="runOptimizer()">
+            @if (optimizing()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>auto_awesome</mat-icon> }
+            Find optimum weights
+          </button>
+          <span class="muted small">Runs ~25 full simulations server-side — expect 10–20 minutes.</span>
+        </div>
+      </mat-card>
+
+      @if (sweepStatus(); as ss) {
+        <mat-card class="panel loading"><mat-spinner diameter="24"></mat-spinner><span>{{ ss }}</span></mat-card>
+      }
+
+      @if (sweepResult(); as sw) {
+        <mat-card class="panel results" [class.flagged]="!sw.validation.heldUp">
+          <h3>
+            @if (sw.validation.heldUp) { <mat-icon class="good">verified</mat-icon> Optimizer result — held up out-of-sample }
+            @else { <mat-icon class="bad">warning</mat-icon> Optimizer result — did not hold up out-of-sample }
+          </h3>
+          <p class="summary">{{ sw.validation.verdict }}</p>
+
+          <h4>Best configuration found: {{ sw.winner.label }}</h4>
+          <table class="diff-table">
+            <thead>
+              <tr><th>Dial</th><th>Current production</th><th></th><th>Optimizer's pick</th></tr>
+            </thead>
+            <tbody>
+              @for (row of sweepDiffRows(sw); track row.label) {
+                <tr [class.changed]="row.changed">
+                  <td>{{ row.label }}</td>
+                  <td>{{ row.oldVal }}</td>
+                  <td class="arrow">→</td>
+                  <td>{{ row.newVal }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+
+          <div class="validation-grid">
+            <div class="stat">
+              <span class="stat-value">{{ sw.validation.trainAdjustedExpectancyPct | number: '1.2-2' }}%</span>
+              <span class="stat-label">per trade on the tuning window (where it was found — expect this to look good)</span>
+            </div>
+            <div class="stat" [class.good]="sw.validation.heldUp" [class.bad]="!sw.validation.heldUp">
+              <span class="stat-value">{{ sw.validation.holdoutAdjustedExpectancyPct | number: '1.2-2' }}%</span>
+              <span class="stat-label">per trade on held-out data it never saw — this is the number to trust</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">{{ sw.validation.baselineHoldoutAdjustedExpectancyPct | number: '1.2-2' }}%</span>
+              <span class="stat-label">current production dials on that same held-out data, for comparison</span>
+            </div>
+          </div>
+          <p class="muted small">
+            All three numbers are market-adjusted expectancy: the average a trade made per trade <em>beyond</em> what
+            simply holding SPY over the same days would have made.
+          </p>
+
+          @if (sw.explanation) {
+            <div class="analysis-card inline">
+              <h4><mat-icon>psychology</mat-icon> What the sweep found</h4>
+              <p class="analysis-text">{{ sw.explanation }}</p>
+            </div>
+          }
+
           <mat-expansion-panel class="suggestion-row">
             <mat-expansion-panel-header>
-              <mat-panel-title class="desc">{{ s.description }}</mat-panel-title>
-              <mat-panel-description class="muted small">
-                avg return {{ s.simAvgReturnPct | number: '1.2-2' }}%/trade (+{{ s.improvementPct | number: '1.2-2' }} vs your run)
-                · win {{ s.simWinRate | percent: '1.0-0' }} · keeps {{ s.tradesKept }} trades
-              </mat-panel-description>
+              <mat-panel-title>All {{ sw.candidates.length }} configurations tried</mat-panel-title>
+              <mat-panel-description class="muted small">ranked by market-adjusted expectancy on the tuning window</mat-panel-description>
             </mat-expansion-panel-header>
-
             <table class="diff-table">
               <thead>
-                <tr><th>Dial</th><th>Old weight</th><th></th><th>Suggested new weight</th></tr>
+                <tr><th>Configuration</th><th>Adj. expectancy</th><th>Trades</th><th>Max DD</th><th>Eligible?</th></tr>
               </thead>
               <tbody>
-                @for (row of suggestionDiffRows(s); track row.label) {
-                  <tr [class.changed]="row.changed">
-                    <td>{{ row.label }}</td>
-                    <td>{{ row.oldVal }}</td>
-                    <td class="arrow">→</td>
-                    <td>{{ row.newVal }}</td>
+                @for (c of sweepCandidatesRanked(sw); track c.label) {
+                  <tr [class.changed]="c.label === sw.winner.label">
+                    <td>{{ c.label }}</td>
+                    <td class="num" [class.good]="c.adjustedExpectancyPct > 0" [class.bad]="c.adjustedExpectancyPct < 0">{{ c.adjustedExpectancyPct | number: '1.2-2' }}%</td>
+                    <td class="num">{{ c.trades }}</td>
+                    <td class="num">{{ c.maxDrawdownPct | number: '1.1-1' }}%</td>
+                    <td>{{ c.metConstraints ? (c.label === sw.winner.label ? 'winner' : 'yes') : c.rejectionReason }}</td>
                   </tr>
                 }
               </tbody>
             </table>
-
-            <div class="suggestion-actions">
-              <button mat-stroked-button (click)="tryDials(s)"><mat-icon>tune</mat-icon> Load these dials</button>
-            </div>
           </mat-expansion-panel>
-        }
-      </mat-card>
-    } @else {
-      <mat-card class="panel">
-        <p class="muted">No nearby dial change beat your current settings on this history — that's a good sign for the dials you ran.</p>
-      </mat-card>
-    }
 
-    @if (r.trades.length > 0) {
-      <mat-card class="panel trades">
-        <h3>Trade-by-trade</h3>
-        <div class="trade-list">
-          <div class="trade-head">
-            <span>Symbol</span><span>Opened</span><span>Setup</span><span class="num">Conviction</span><span class="num">Return</span><span>Verdict</span>
+          <div class="apply-row">
+            <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applySweepWinner(sw)">
+              <mat-icon>rocket_launch</mat-icon> Apply winning dials to production
+            </button>
+            <span class="muted small">
+              @if (sw.validation.heldUp) { Sets your live strategy weights + Buy threshold to the winner. Owner only. }
+              @else { Not recommended — this configuration failed out-of-sample validation. }
+            </span>
           </div>
-          @for (t of r.trades; track t.symbol + t.openedAt) {
-            <div class="trade-row" [class.dropped]="!t.wouldTake">
-              <span class="sym">{{ t.symbol }}</span>
-              <span class="muted small">{{ t.openedAt | date: 'dd/MM/yy' }}</span>
-              <span class="muted small">{{ t.setup }}</span>
-              <span class="num">{{ t.conviction | number: '1.1-1' }}</span>
-              <span class="num" [class.good]="t.returnPct > 0" [class.bad]="t.returnPct < 0">{{ t.returnPct | number: '1.2-2' }}%</span>
-              <span class="verdict">{{ t.wouldTake ? 'kept' : 'skipped' }}</span>
-            </div>
-          }
-        </div>
-      </mat-card>
-    }
-  }
+        </mat-card>
+      }
+    </mat-tab>
+  </mat-tab-group>
 </div>
+
+<!-- Shared historic stat-grid + bucket tables (used by single-result card) -->
+<ng-template #historicStats let-h>
+  <div class="stat-grid">
+    <div class="stat" [class.good]="h.expectancyPct > 0" [class.bad]="h.expectancyPct < 0">
+      <span class="stat-value">{{ h.expectancyPct | number: '1.2-2' }}%</span>
+      <span class="stat-label">expectancy / trade ({{ h.trades }} trades)</span>
+    </div>
+    <div class="stat" [class.good]="h.profitFactor > 1" [class.bad]="h.profitFactor < 1">
+      <span class="stat-value">{{ h.profitFactor | number: '1.2-2' }}</span>
+      <span class="stat-label">profit factor</span>
+    </div>
+    <div class="stat" [class.good]="h.totalReturnPct > 0" [class.bad]="h.totalReturnPct < 0">
+      <span class="stat-value">{{ h.totalReturnPct | number: '1.1-1' }}%</span>
+      <span class="stat-label">total return (max DD {{ h.maxDrawdownPct | number: '1.1-1' }}%)</span>
+    </div>
+    <div class="stat">
+      <span class="stat-value">{{ h.winRate | percent: '1.0-1' }}</span>
+      <span class="stat-label">win rate (avg win {{ h.avgWinPct | number: '1.1-1' }}% / loss {{ h.avgLossPct | number: '1.1-1' }}%)</span>
+    </div>
+  </div>
+</ng-template>
+
+<ng-template #historicBuckets let-h>
+  <div class="bucket-tables">
+    @for (bucket of [
+      { title: 'By setup', rows: h.bySetup, hint: 'How trades broke down by the chart pattern that triggered them, and how each group performed on average.' },
+      { title: 'By conviction', rows: h.byConviction, hint: 'How trades broke down by their conviction score (0-10, rounded), and how each score band performed on average.' },
+      { title: 'By exit', rows: h.byExitReason, hint: 'How trades broke down by why they closed (stop-loss, target hit, time limit, trailing stop), and how each group performed on average.' },
+    ]; track bucket.title) {
+      <div class="bucket">
+        <h4 [matTooltip]="bucket.hint">{{ bucket.title }}</h4>
+        <div class="bucket-row bucket-head muted small">
+          <span></span>
+          <span matTooltip="Number of trades in this group, out of {{ h.trades }} total">trades</span>
+          <span matTooltip="Average raw return per trade in this group (price change alone — not compared against SPY)">avg return</span>
+        </div>
+        @for (row of bucket.rows; track row.key) {
+          <div class="bucket-row">
+            <span>{{ row.key }}</span>
+            <span class="muted small" [matTooltip]="row.count + ' of ' + h.trades + ' trades were this type'">{{ row.count }} trades</span>
+            <span class="num" [class.good]="row.avgReturnPct > 0" [class.bad]="row.avgReturnPct < 0"
+              [matTooltip]="'Averaged ' + (row.avgReturnPct | number: '1.2-2') + '% raw return per trade'">{{ row.avgReturnPct | number: '1.2-2' }}%</span>
+          </div>
+        }
+      </div>
+    }
+  </div>
+  <p class="muted small bucket-explainer">
+    <strong>How to read this:</strong> each row shows how many of the {{ h.trades }} trades fell into that group, and
+    what they returned <em>on average</em> — this is the trade's own price return (entry to exit), not compared against
+    SPY. The overall total return above <em>is</em> compared against SPY buy-and-hold ({{ h.spyReturnPct | number: '1.1-1' }}%);
+    these per-group breakdowns are just to spot which setups, conviction levels or exit reasons are pulling that number up
+    or down.
+  </p>
+</ng-template>

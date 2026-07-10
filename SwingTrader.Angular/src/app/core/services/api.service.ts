@@ -27,6 +27,8 @@ import {
   SignalGroupDto,
   StatusDto,
   BacktestRunStatusDto,
+  LabAnalyseRequestDto,
+  LabAnalyseResponseDto,
   LabDataStatusDto,
   StrategyLabRequestDto,
   StrategyLabResponseDto,
@@ -184,6 +186,17 @@ export class ApiService {
 
   syncLabData(): Observable<unknown> {
     return this.http.post(`${this.baseUrl}/api/strategy-lab/sync-data`, {});
+  }
+
+  // Queues the optimizer sweep (candidates around production weights, train/
+  // holdout validated). Poll the returned run id like any historic run.
+  runStrategyLabOptimize(): Observable<{ backtestRunId: number }> {
+    return this.http.post<{ backtestRunId: number }>(`${this.baseUrl}/api/strategy-lab/optimize`, {});
+  }
+
+  // Claude analysis of a completed run — advisory only.
+  analyseStrategyLabRun(request: LabAnalyseRequestDto): Observable<LabAnalyseResponseDto> {
+    return this.http.post<LabAnalyseResponseDto>(`${this.baseUrl}/api/strategy-lab/analyse`, request);
   }
 
   getMonitoringDashboard(): Observable<MonitoringDashboardDto> {

@@ -207,6 +207,8 @@ builder.Services.Configure<RiskManagementConfig>(builder.Configuration.GetSectio
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<AccountViewService>();
 builder.Services.AddScoped<StrategyLabService>();
+builder.Services.AddScoped<StrategyLabAnalysisService>();
+builder.Services.Configure<ClaudeConfig>(builder.Configuration.GetSection(ClaudeConfig.SectionName));
 builder.Services.AddScoped<SwingTrader.Agents.Refinement.ITradeReplayService, SwingTrader.Agents.Refinement.TradeReplayService>();
 builder.Services.AddScoped<IHistoricalCandleRepository, HistoricalCandleRepository>();
 builder.Services.AddScoped<IBacktestRunRepository, BacktestRunRepository>();
