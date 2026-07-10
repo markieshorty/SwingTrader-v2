@@ -28,3 +28,19 @@
     font-weight: 500;
   }
 }
+
+.origin-chip {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-radius: 10px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  background: rgba(128, 128, 128, 0.15);
+  color: var(--st-muted);
+
+  &.lab {
+    background: rgba(99, 102, 241, 0.18);
+    color: #818cf8;
+  }
+}

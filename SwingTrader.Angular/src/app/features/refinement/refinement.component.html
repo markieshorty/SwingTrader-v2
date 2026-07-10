@@ -33,6 +33,7 @@
         <thead>
           <tr>
             <th>Date</th>
+            <th>Origin</th>
             <th>Trades</th>
             <th>Confidence</th>
             <th>Status</th>
@@ -42,6 +43,14 @@
           @for (item of status()!.history; track item.id) {
             <tr>
               <td>{{ item.generatedAt | date: 'medium' }}</td>
+              <td>
+                <span class="origin-chip" [class.lab]="item.origin === 'StrategyLab'"
+                  [matTooltip]="item.origin === 'StrategyLab'
+                    ? 'Applied by you from the Strategy Lab — the evidence is in the suggestion details'
+                    : 'Proposed by the scheduled auto-refinement analysis'">
+                  {{ item.origin === 'StrategyLab' ? 'Strategy Lab' : 'Auto refinement' }}
+                </span>
+              </td>
               <td>{{ item.tradeCountAnalysed }}</td>
               <td>{{ item.confidenceLevel }}</td>
               <td>{{ item.status }}</td>

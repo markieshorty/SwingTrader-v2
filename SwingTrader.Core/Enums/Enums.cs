@@ -83,6 +83,15 @@ public enum RefinementStatus
     Superseded
 }
 
+// Where a weight-change suggestion came from. Every production weight change
+// flows through a RefinementSuggestion row so the refinement page is the one
+// audit trail, regardless of which tool proposed the change.
+public enum RefinementOrigin
+{
+    AutoRefinement = 0,   // the scheduled correlation engine
+    StrategyLab = 1,      // user-driven apply from the Strategy Lab (A/B run or optimizer sweep)
+}
+
 public enum MarketRegime
 {
     Bull,

@@ -61,10 +61,12 @@ public class ApplyRefinementService(
             WatchThreshold = suggested.WatchThreshold,
             StopLossPctDefault = suggested.StopLossPctDefault,
             IsActive = false,
-            Source = "RefinementAgent",
+            // Provenance carried onto the weights row itself, so "why are the
+            // weights what they are" is answerable from either table.
+            Source = suggestion.Origin == RefinementOrigin.StrategyLab ? "StrategyLab" : "RefinementAgent",
             ApplicableRegime = specificRegime,
             Notes = specificRegime is null
-                ? $"Applied from RefinementSuggestion #{suggestion.Id} generated {suggestion.GeneratedAt:yyyy-MM-dd}"
+                ? $"Applied from {(suggestion.Origin == RefinementOrigin.StrategyLab ? "Strategy Lab" : "auto-refinement")} suggestion #{suggestion.Id} generated {suggestion.GeneratedAt:yyyy-MM-dd}"
                 : $"Applied ({specificRegime} only) from RefinementSuggestion #{suggestion.Id} generated {suggestion.GeneratedAt:yyyy-MM-dd}"
         };
 

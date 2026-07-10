@@ -139,6 +139,7 @@ public static class RefinementEndpoints
             assessmentSummary = s.AssessmentSummary,
             confidenceLevel = s.ConfidenceLevel,
             status = s.Status,
+            origin = s.Origin.ToString(), // "AutoRefinement" | "StrategyLab"
             isShadowMode = s.IsShadowMode,
             marketAdjustedWinRate = s.MarketAdjustedWinRate,
             unusualMarketConditions = s.UnusualMarketConditions,

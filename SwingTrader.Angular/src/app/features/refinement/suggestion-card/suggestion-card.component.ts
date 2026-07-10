@@ -17,6 +17,9 @@ import { RefinementSuggestionDto } from '../../../core/models/dtos';
         <span class="confidence" [class]="suggestion().confidenceLevel.toLowerCase()">
           {{ suggestion().confidenceLevel }} confidence
         </span>
+        <span class="origin-chip" [class.lab]="suggestion().origin === 'StrategyLab'">
+          {{ suggestion().origin === 'StrategyLab' ? 'Strategy Lab' : 'Auto refinement' }}
+        </span>
         <span class="period">
           {{ suggestion().analysisPeriodStart | date: 'mediumDate' }} –
           {{ suggestion().analysisPeriodEnd | date: 'mediumDate' }}
@@ -96,6 +99,19 @@ import { RefinementSuggestionDto } from '../../../core/models/dtos';
       }
       .period {
         color: var(--st-muted);
+      }
+      .origin-chip {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        border-radius: 10px;
+        padding: 2px 8px;
+        background: rgba(128, 128, 128, 0.15);
+        color: var(--st-muted);
+      }
+      .origin-chip.lab {
+        background: rgba(99, 102, 241, 0.18);
+        color: #818cf8;
       }
       .stats {
         font-size: 13px;

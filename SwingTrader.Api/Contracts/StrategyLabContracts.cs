@@ -97,3 +97,20 @@ public record LabAnalyseSuggestion(
 public record LabAnalyseResponse(
     string Analysis,                    // plain-text paragraphs
     LabAnalyseSuggestion? Suggestion);  // null when the data doesn't justify one
+
+// ── Apply from the Strategy Lab ─────────────────────────────────────────────
+// One-click apply that still leaves a full audit trail: the endpoint records a
+// RefinementSuggestion (Origin = StrategyLab) and immediately applies it via
+// the same service the refinement page's Approve button uses - so every
+// production weight change, whatever tool proposed it, appears in the
+// refinement history with its evidence.
+public record LabApplyRequest(
+    LabWeights Weights,
+    decimal BuyThreshold,
+    // Plain-English description of the run that justified this change, e.g.
+    // "Optimizer sweep winner 'Volume +10pp' — held up out-of-sample
+    // (train 0.42%, holdout 0.31% vs baseline 0.12%/trade)".
+    string EvidenceSummary,
+    int TradeCount,                     // trades in the justifying run (0 if n/a)
+    decimal WinRate,                    // win rate of the justifying run (0 if n/a)
+    SwingTrader.Core.Enums.RefinementConfidenceLevel Confidence);

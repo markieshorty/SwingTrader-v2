@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using Microsoft.AspNetCore.Mvc;
+using SwingTrader.Agents.Refinement;
 using SwingTrader.Api.Contracts;
 using SwingTrader.Api.Services;
 using SwingTrader.Core.Enums;
@@ -137,6 +138,78 @@ public static class StrategyLabEndpoints
                     run.CompletedAt,
                     result = run.ResultJson is null ? (JsonElement?)null : JsonSerializer.Deserialize<JsonElement>(run.ResultJson),
                 });
+        });
+
+        // Apply dials to production from the Lab - one click, but with the
+        // same audit trail as the refinement page's Approve: records a
+        // RefinementSuggestion (Origin = StrategyLab, with the run's evidence)
+        // and immediately applies it through ApplyRefinementService, so the
+        // refinement history shows every production weight change and where
+        // it came from.
+        api.MapPost("/strategy-lab/apply", async (
+            LabApplyRequest req,
+            IStrategyWeightsRepository weightsRepo,
+            IRefinementSuggestionRepository suggestionRepo,
+            IApplyRefinementService applyService,
+            IAccountRepository accounts,
+            IAccountContext ctx,
+            CancellationToken ct) =>
+        {
+            if (ctx.Role != AccountRole.Owner)
+                return Results.Forbid();
+
+            var sum = req.Weights.Rsi + req.Weights.Macd + req.Weights.Volume + req.Weights.Sentiment
+                + req.Weights.SetupQuality + req.Weights.RelativeStrength + req.Weights.PriceLevel + req.Weights.FundamentalMomentum;
+            if (Math.Abs(sum - 1.0m) > 0.01m)
+                return Results.BadRequest(new { message = $"Weights must sum to 1.0 (currently {sum:F2})." });
+
+            var account = await accounts.GetAsync(ctx.AccountId, ct);
+            if (account is null) return Results.NotFound();
+
+            var current = await weightsRepo.GetActiveWeightsAsync(ctx.AccountId);
+            if (current is null)
+                return Results.BadRequest(new { message = "No active production weights found." });
+
+            var suggested = new StrategyWeights
+            {
+                RsiWeight = req.Weights.Rsi, MacdWeight = req.Weights.Macd,
+                VolumeWeight = req.Weights.Volume, SentimentWeight = req.Weights.Sentiment,
+                SetupQualityWeight = req.Weights.SetupQuality, RelativeStrengthWeight = req.Weights.RelativeStrength,
+                PriceLevelWeight = req.Weights.PriceLevel, FundamentalMomentumWeight = req.Weights.FundamentalMomentum,
+                BuyThreshold = req.BuyThreshold,
+                WatchThreshold = current.WatchThreshold,
+                StopLossPctDefault = current.StopLossPctDefault,
+                Source = "StrategyLab",
+            };
+
+            // A Lab apply makes any pending auto-refinement suggestion stale -
+            // it was computed against the weights being replaced.
+            await suggestionRepo.SupersedeAllPendingAsync(ctx.AccountId, account.TradingMode);
+
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var suggestion = await suggestionRepo.AddAsync(new RefinementSuggestion
+            {
+                AccountId = ctx.AccountId,
+                TradingMode = account.TradingMode,
+                Origin = RefinementOrigin.StrategyLab,
+                GeneratedAt = DateTime.UtcNow,
+                AnalysisPeriodStart = today,
+                AnalysisPeriodEnd = today,
+                TradeCountAnalysed = req.TradeCount,
+                OverallWinRate = Math.Round(req.WinRate, 4),
+                CurrentWeightsJson = JsonSerializer.Serialize(current),
+                SuggestedWeightsJson = JsonSerializer.Serialize(suggested),
+                ComponentAnalysisJson = "[]",
+                AssessmentSummary = req.EvidenceSummary,
+                ConfidenceLevel = req.Confidence,
+                Status = RefinementStatus.Pending, // consumed by ApplyAsync below
+                IsShadowMode = false,              // explicit user action, never shadow-gated
+            });
+
+            var result = await applyService.ApplyAsync(ctx.AccountId, suggestion.Id, ct: ct);
+            return result.Success
+                ? Results.Ok(new { success = true, suggestionId = suggestion.Id, weightsId = result.NewWeightsId })
+                : Results.BadRequest(new { success = false, message = result.Error });
         });
 
         // "Analyse this run": Claude reads a completed run and suggests a next

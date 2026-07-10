@@ -482,7 +482,7 @@ export class StrategyLabComponent {
     this.applyConfig(w, this.buyThreshold(),
       `This sets your LIVE strategy weights and Buy threshold (${this.buyThreshold().toFixed(1)}) to the dials currently in the form.` +
       `${autopauseNote} The next research run will score every signal with them. Are you sure?`,
-      autopause);
+      autopause, this.buildManualEvidence());
   }
 
   applySweepWinner(sweep: SweepResultDto): void {
@@ -496,7 +496,69 @@ export class StrategyLabComponent {
     this.applyConfig(sweep.winner.weights, sweep.winner.buyThreshold,
       `This sets your LIVE strategy weights and Buy threshold (${sweep.winner.buyThreshold.toFixed(1)}) to the optimizer's ` +
       `winning configuration ("${sweep.winner.label}").${autopauseNote}${extra} Are you sure?`,
-      autopause);
+      autopause,
+      {
+        summary:
+          `Optimizer sweep winner "${sweep.winner.label}": market-adjusted expectancy ` +
+          `${sweep.validation.trainAdjustedExpectancyPct.toFixed(2)}%/trade on the tuning window, ` +
+          `${sweep.validation.holdoutAdjustedExpectancyPct.toFixed(2)}% on held-out data ` +
+          `(production baseline: ${sweep.validation.baselineHoldoutAdjustedExpectancyPct.toFixed(2)}% on the same held-out window) — ` +
+          `${sweep.validation.heldUp ? 'HELD UP out-of-sample' : 'did NOT hold up out-of-sample; applied against recommendation'}.`,
+        tradeCount: sweep.winner.trades,
+        winRate: sweep.winner.winRate,
+        confidence: sweep.validation.heldUp ? 2 : 0,
+      });
+  }
+
+  // Evidence description for a form-dials apply, based on whatever run the
+  // user most recently completed - the refinement page's audit trail should
+  // say WHY the weights changed, not just that they did.
+  private buildManualEvidence(): { summary: string; tradeCount: number; winRate: number; confidence: 0 | 1 | 2 } {
+    const ab = this.abResult();
+    if (ab && ab.candidates.length > 0) {
+      const yours = ab.candidates[0];
+      const prod = ab.candidates.length > 1 ? ab.candidates[1] : null;
+      return {
+        summary:
+          `Strategy Lab historic A/B: "${yours.label}" expectancy ${yours.result.expectancyPct.toFixed(2)}%/trade over ` +
+          `${yours.result.trades} trades` +
+          (prod ? ` vs production ${prod.result.expectancyPct.toFixed(2)}%/trade over ${prod.result.trades} trades` : '') +
+          ' on the same historic window.',
+        tradeCount: yours.result.trades,
+        winRate: yours.result.winRate,
+        confidence: 1,
+      };
+    }
+    const h = this.historicResult();
+    if (h) {
+      return {
+        summary:
+          `Strategy Lab historic run: ${h.trades} trades, expectancy ${h.expectancyPct.toFixed(2)}%/trade, ` +
+          `profit factor ${h.profitFactor.toFixed(2)}, total return ${h.totalReturnPct.toFixed(1)}% ` +
+          `(SPY ${h.spyReturnPct.toFixed(1)}%).`,
+        tradeCount: h.trades,
+        winRate: h.winRate,
+        confidence: 1,
+      };
+    }
+    const own = this.response();
+    if (own) {
+      return {
+        summary:
+          `Strategy Lab own-data replay: dials keep ${own.result.tradesKept}/${own.result.totalClosedTrades} of your closed ` +
+          `trades, avg market-adjusted return ${own.result.simAvgReturnPct.toFixed(2)}%/trade ` +
+          `(actual: ${own.result.actualAvgReturnPct.toFixed(2)}%).`,
+        tradeCount: own.result.tradesKept,
+        winRate: own.result.simWinRate,
+        confidence: 1,
+      };
+    }
+    return {
+      summary: 'Applied manually from the Strategy Lab without a completed run to reference.',
+      tradeCount: 0,
+      winRate: 0,
+      confidence: 0,
+    };
   }
 
   // Syncs the live bear-autopause setting when an applied config carries a
@@ -539,9 +601,14 @@ export class StrategyLabComponent {
     });
   }
 
-  private applyConfig(w: LabWeightsDto, threshold: number, message: string, autopause?: boolean): void {
-    const prod = this.productionWeights();
-    if (!prod) return;
+  // Applies through POST /strategy-lab/apply rather than the raw weights PUT:
+  // one click for the user, but the endpoint records an immediately-applied
+  // RefinementSuggestion (origin Strategy Lab, carrying the run's evidence),
+  // so the refinement page holds the audit trail of every weight change.
+  private applyConfig(
+    w: LabWeightsDto, threshold: number, message: string, autopause: boolean | undefined,
+    evidence: { summary: string; tradeCount: number; winRate: number; confidence: 0 | 1 | 2 },
+  ): void {
     this.dialog
       .open(ConfirmDialogComponent, {
         data: {
@@ -557,16 +624,17 @@ export class StrategyLabComponent {
       .subscribe((confirmed) => {
         if (!confirmed) return;
         this.api
-          .updateStrategyWeights({
-            ...prod,
-            rsiWeight: w.rsi, macdWeight: w.macd, volumeWeight: w.volume, sentimentWeight: w.sentiment,
-            setupQualityWeight: w.setupQuality, relativeStrengthWeight: w.relativeStrength,
-            priceLevelWeight: w.priceLevel, fundamentalMomentumWeight: w.fundamentalMomentum,
+          .applyLabConfig({
+            weights: w,
             buyThreshold: threshold,
+            evidenceSummary: evidence.summary,
+            tradeCount: evidence.tradeCount,
+            winRate: evidence.winRate,
+            confidence: evidence.confidence,
           })
           .subscribe({
             next: () => {
-              this.snackbar.open('Applied — production now uses these dials. ✅', 'Dismiss', { duration: 4000 });
+              this.snackbar.open('Applied — production now uses these dials. Recorded in the refinement history. ✅', 'Dismiss', { duration: 4000 });
               this.api.getStrategyWeights().subscribe({
                 next: (updated) => this.productionWeights.set(updated),
                 error: () => {},

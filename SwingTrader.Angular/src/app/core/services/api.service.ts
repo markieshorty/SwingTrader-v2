@@ -29,6 +29,7 @@ import {
   BacktestRunStatusDto,
   LabAnalyseRequestDto,
   LabAnalyseResponseDto,
+  LabApplyRequestDto,
   LabDataStatusDto,
   StrategyLabRequestDto,
   StrategyLabResponseDto,
@@ -197,6 +198,12 @@ export class ApiService {
   // Claude analysis of a completed run — advisory only.
   analyseStrategyLabRun(request: LabAnalyseRequestDto): Observable<LabAnalyseResponseDto> {
     return this.http.post<LabAnalyseResponseDto>(`${this.baseUrl}/api/strategy-lab/analyse`, request);
+  }
+
+  // Apply Lab dials to production with a full audit trail (refinement history).
+  applyLabConfig(request: LabApplyRequestDto): Observable<{ success: boolean; suggestionId: number; weightsId: number }> {
+    return this.http.post<{ success: boolean; suggestionId: number; weightsId: number }>(
+      `${this.baseUrl}/api/strategy-lab/apply`, request);
   }
 
   getMonitoringDashboard(): Observable<MonitoringDashboardDto> {

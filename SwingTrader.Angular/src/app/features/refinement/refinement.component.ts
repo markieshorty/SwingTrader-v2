@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/services/api.service';
 import { WeightEditorComponent } from './weight-editor/weight-editor.component';
 import { SuggestionCardComponent } from './suggestion-card/suggestion-card.component';
@@ -11,7 +12,7 @@ import { RefinementStatusDto } from '../../core/models/dtos';
 @Component({
   selector: 'app-refinement',
   standalone: true,
-  imports: [CommonModule, MatCardModule, WeightEditorComponent, SuggestionCardComponent, LoadingSpinnerComponent],
+  imports: [CommonModule, MatCardModule, MatTooltipModule, WeightEditorComponent, SuggestionCardComponent, LoadingSpinnerComponent],
   templateUrl: './refinement.component.html',
   styleUrl: './refinement.component.scss',
 })

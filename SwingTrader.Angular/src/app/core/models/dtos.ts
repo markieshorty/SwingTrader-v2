@@ -183,6 +183,9 @@ export interface RefinementSuggestionDto {
   assessmentSummary: string | null;
   confidenceLevel: 'Low' | 'Medium' | 'High';
   status: 'Pending' | 'Applied' | 'Rejected' | 'Superseded';
+  // Which tool proposed this weight change - the refinement page is the one
+  // audit trail for every production weight change, whatever its origin.
+  origin: 'AutoRefinement' | 'StrategyLab';
   isShadowMode: boolean;
   marketAdjustedWinRate: number;
   unusualMarketConditions: boolean;
@@ -687,6 +690,17 @@ export interface LabAnalyseSuggestionDto {
 export interface LabAnalyseResponseDto {
   analysis: string;
   suggestion: LabAnalyseSuggestionDto | null;
+}
+
+// Apply from the Lab: one click, but audited - records an immediately-applied
+// RefinementSuggestion (origin StrategyLab) carrying the run's evidence.
+export interface LabApplyRequestDto {
+  weights: LabWeightsDto;
+  buyThreshold: number;
+  evidenceSummary: string;
+  tradeCount: number;
+  winRate: number;
+  confidence: 0 | 1 | 2; // RefinementConfidenceLevel: Low | Medium | High
 }
 
 export interface LabDataStatusDto {

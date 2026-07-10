@@ -21,6 +21,12 @@ public class RefinementSuggestion : BaseEntity
     public string? AssessmentSummary { get; set; }
     public RefinementConfidenceLevel ConfidenceLevel { get; set; }
     public RefinementStatus Status { get; set; } = RefinementStatus.Pending;
+
+    // Provenance: which tool proposed this weight change. Strategy Lab applies
+    // are recorded here too (created Applied in one step, no pending detour)
+    // so the refinement page carries the complete audit trail of every
+    // production weight change. Defaults to AutoRefinement for old rows.
+    public RefinementOrigin Origin { get; set; } = RefinementOrigin.AutoRefinement;
     public DateTime? AppliedAt { get; set; }
     public int? AppliedWeightsId { get; set; }
     public DateTime? RejectedAt { get; set; }
