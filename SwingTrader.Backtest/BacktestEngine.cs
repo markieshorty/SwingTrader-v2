@@ -61,6 +61,7 @@ public static class BacktestEngine
         HashSet<SetupType>? ExcludedSetups = null,
         decimal? BreakoutQualityOverride = null,        // penalize (production: 0.9) instead of excluding
         bool ConvictionSizing = false,                  // scale budget 0.5x-1.0x over conviction 6-9, as production
+        StrategyWeights? Weights = null,                // override component weights (default: production)
         string Label = "baseline");
 
     public static async Task<int> RunAsync(string dataDir, Options opts, CancellationToken ct)
@@ -81,7 +82,7 @@ public static class BacktestEngine
         Console.WriteLine($"Loaded {bars.Count} symbols.");
 
         var indicators = new IndicatorService();
-        var weights = new StrategyWeights(); // production defaults
+        var weights = opts.Weights ?? new StrategyWeights(); // production defaults unless overridden
         var calendar = spy.Select(b => b.Date).ToList();
 
         // Per-symbol date -> index lookups for O(1) bar access.

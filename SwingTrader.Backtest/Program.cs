@@ -38,12 +38,36 @@ switch (command)
             .Select(Enum.Parse<SwingTrader.Core.Enums.SetupType>)
             .ToHashSet();
         var bq = Arg("--breakout-quality", "");
+
+        // --weights rsi,macd,volume,setup — the four ACTIVE components (the
+        // other four are neutral 0.5 in the sim, so their weights only shift
+        // scores by a constant). Values are auto-scaled so the active block
+        // keeps its production share (0.59) and total weight stays 1.0,
+        // keeping conviction comparable against the 6.0 Buy threshold.
+        SwingTrader.Core.Models.StrategyWeights? weights = null;
+        var w = Arg("--weights", "");
+        if (w.Length > 0)
+        {
+            var parts = w.Split(',').Select(decimal.Parse).ToArray();
+            if (parts.Length != 4) { Console.Error.WriteLine("--weights needs 4 values: rsi,macd,volume,setup"); return 2; }
+            var scale = 0.59m / parts.Sum();
+            weights = new SwingTrader.Core.Models.StrategyWeights
+            {
+                RsiWeight = parts[0] * scale,
+                MacdWeight = parts[1] * scale,
+                VolumeWeight = parts[2] * scale,
+                SetupQualityWeight = parts[3] * scale,
+                // neutral components keep production weights (sum 0.41)
+            };
+        }
+
         var opts = new BacktestEngine.Options(
             BuyThreshold: decimal.Parse(Arg("--threshold", "6.0")),
             RegimeFilter: args.Contains("--regime"),
             ExcludedSetups: excluded.Count > 0 ? excluded : null,
             BreakoutQualityOverride: bq.Length > 0 ? decimal.Parse(bq) : null,
             ConvictionSizing: args.Contains("--conviction-sizing"),
+            Weights: weights,
             Label: Arg("--label", "baseline"));
         return await BacktestEngine.RunAsync(dataDir, opts, cts.Token);
     }
