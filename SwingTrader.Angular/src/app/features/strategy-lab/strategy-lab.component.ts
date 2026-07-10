@@ -325,7 +325,7 @@ export class StrategyLabComponent {
       next: (r) => this.pollRun(
         'sweep',
         r.backtestRunId,
-        'Running — evaluating ~25 dial variations on the training window, then validating the best on held-out data. This takes a while…',
+        'Running — evaluating ~200 dial variations on the training window, then validating the best on held-out data. Expect 10–20 minutes…',
         this.sweepStatus,
         (result) => {
           if (result && 'mode' in result && result.mode === 'sweep') this.sweepResult.set(result);

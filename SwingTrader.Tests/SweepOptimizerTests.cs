@@ -32,7 +32,7 @@ public class SweepOptimizerTests
         var first = SweepOptimizer.GenerateCandidates(Baseline());
         var second = SweepOptimizer.GenerateCandidates(Baseline());
 
-        first.Count.Should().BeGreaterThan(15).And.BeLessThan(35);
+        first.Count.Should().Be(SweepOptimizer.TargetCandidateCount);
         first.Should().AllSatisfy(c => Sum(c.Weights).Should().BeApproximately(1.0m, 0.005m));
         first.Select(c => c.Label).Should().Equal(second.Select(c => c.Label));
         first.Select(c => c.Weights).Should().Equal(second.Select(c => c.Weights));
@@ -73,7 +73,10 @@ public class SweepOptimizerTests
         var toggle = candidates.Single(c => c.Label == "Bear autopause OFF");
         toggle.AutopauseDuringBear.Should().BeFalse();
         toggle.Weights.Should().Be(ProdWeights); // toggle-only candidate, weights untouched
-        candidates.Count(c => !c.AutopauseDuringBear).Should().Be(1);
+
+        // Plus the three structural mixes get autopause-flipped twins, so the
+        // sweep can spot mix/regime-filter interactions.
+        candidates.Count(c => !c.AutopauseDuringBear).Should().Be(4);
     }
 
     [Fact]

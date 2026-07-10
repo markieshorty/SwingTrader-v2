@@ -123,10 +123,15 @@ public static class LabAnalysisPrompts
                       $"held-out window (train was {validation.TrainAdjustedExpectancyPct:F2}%); the baseline scored " +
                       $"{validation.BaselineHoldoutAdjustedExpectancyPct:F2}% on that same held-out window. " +
                       $"Verdict: {(validation.HeldUp ? "held up" : "did NOT hold up")}.");
-        sb.AppendLine("All candidates tried (label: adjusted expectancy on train, trades, eligible?):");
-        foreach (var c in candidates.OrderByDescending(c => c.AdjustedExpectancyPct))
+        var ranked = candidates.OrderByDescending(c => c.AdjustedExpectancyPct).ToList();
+        var shown = ranked.Take(25).ToList();
+        sb.AppendLine($"Top candidates of {candidates.Count} tried (label: adjusted expectancy on train, trades, eligible?):");
+        foreach (var c in shown)
             sb.AppendLine($"  {c.Label}: {c.AdjustedExpectancyPct:F2}%/trade, {c.Trades} trades" +
                           (c.MetConstraints ? "" : $" — rejected: {c.RejectionReason}"));
+        if (ranked.Count > shown.Count)
+            sb.AppendLine($"  … plus {ranked.Count - shown.Count} more candidates ranked below these (worst: " +
+                          $"{ranked[^1].AdjustedExpectancyPct:F2}%/trade).");
         sb.AppendLine("Write the analysis explaining which dials moved vs the baseline and what was OBSERVED across " +
                       "candidates (patterns in which direction scored better). Remember: with ~25 configs differing in " +
                       "several weights at once, you cannot establish WHY a direction won — any causal reading must be " +

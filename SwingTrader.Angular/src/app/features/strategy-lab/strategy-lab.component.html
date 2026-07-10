@@ -399,23 +399,24 @@
       <mat-card class="panel controls">
         <h3>Find optimum weights</h3>
         <p class="muted small">
-          The optimizer tries ~25 dial variations around your current production settings against the historic dataset —
-          small nudges, bigger single-signal shifts, and structurally different mixes. It only redistributes weight among
-          the four components historic data exists for (<strong>RSI, MACD, Volume, Setup quality</strong>); the other four
-          are held at your production values, because the backtest scores them neutral and "tuning" them would only
-          produce conclusions that don't carry over to live trading. To guard against flukes, it tunes on the
+          The optimizer tries ~200 dial variations around your current production settings against the historic dataset —
+          single-dial nudges, pair shifts between every signal, Buy-threshold variants, structurally different mixes,
+          bear-autopause toggles, and a dense random sweep of the joint weights + threshold space. It only redistributes
+          weight among the four components historic data exists for (<strong>RSI, MACD, Volume, Setup quality</strong>);
+          the other four are held at your production values, because the backtest scores them neutral and "tuning" them
+          would only produce conclusions that don't carry over to live trading. To guard against flukes, it tunes on the
           <strong>earlier ~70%</strong> of the window, then re-tests the best configuration on the <strong>held-out
-          remainder it never saw</strong>. A config that only wins on the data it was tuned on is noise — the result
-          tells you plainly whether the winner held up. Candidates are judged on <em>market-adjusted</em> expectancy
-          (each trade's return minus SPY's move over the same days), with guardrails: at least {{ 40 }} trades, and a
-          max drawdown no worse than 1.25× the baseline's.
+          remainder it never saw</strong> — with 200 candidates tried, out-of-sample validation matters more than ever,
+          since the best of 200 on one window is almost guaranteed to look good by chance. Candidates are judged on
+          <em>market-adjusted</em> expectancy (each trade's return minus SPY's move over the same days), with guardrails:
+          at least {{ 40 }} trades, and a max drawdown no worse than 1.25× the baseline's.
         </p>
         <div class="meta-row">
           <button mat-raised-button color="primary" [disabled]="optimizing() || !historicAvailable()" (click)="runOptimizer()">
             @if (optimizing()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>auto_awesome</mat-icon> }
             Find optimum weights
           </button>
-          <span class="muted small">Runs ~30 full simulations server-side — expect 15–25 minutes.</span>
+          <span class="muted small">Runs ~200 full simulations server-side — expect 10–20 minutes.</span>
         </div>
       </mat-card>
 

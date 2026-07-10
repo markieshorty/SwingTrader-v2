@@ -77,6 +77,11 @@ public static class SweepOptimizer
     // optimizer output - own-data evaluation is censored (only trades
     // production weights took) and would pipe its overfit into this, the
     // honest pipeline.
+    // Total candidates per sweep. Each engine run costs a few seconds, so
+    // ~200 keeps the job in the 10-20 minute range while searching the live
+    // simplex far more densely than the original ~25.
+    public const int TargetCandidateCount = 200;
+
     public static List<HistoricBacktestCandidate> GenerateCandidates(HistoricBacktestCandidate baseline)
     {
         var candidates = new List<HistoricBacktestCandidate> { baseline with { Label = "Production baseline" } };
@@ -84,12 +89,12 @@ public static class SweepOptimizer
         var baseArr = ToArray(baseline.Weights);
         var liveBudget = LiveIndices.Sum(i => baseArr[i]); // what the live dials must always sum to
 
-        // Single-dial nudges: ±0.05 on each LIVE weight, other live weights
-        // renormalised to keep the live total (and therefore the overall sum)
-        // unchanged.
+        // Single-dial nudges: ±5pp and ±10pp on each LIVE weight, other live
+        // weights renormalised to keep the live total (and therefore the
+        // overall sum) unchanged.
         foreach (var i in LiveIndices)
         {
-            foreach (var delta in new[] { 0.05m, -0.05m })
+            foreach (var delta in new[] { 0.05m, -0.05m, 0.10m, -0.10m })
             {
                 var arr = (decimal[])baseArr.Clone();
                 var nv = arr[i] + delta;
@@ -98,14 +103,14 @@ public static class SweepOptimizer
                 RenormaliseLive(arr, liveBudget);
                 candidates.Add(baseline with
                 {
-                    Label = $"{names[i]} {(delta > 0 ? "+" : "−")}5pp",
+                    Label = $"{names[i]} {(delta > 0 ? "+" : "−")}{Math.Abs(delta) * 100:0}pp",
                     Weights = FromArray(arr),
                 });
             }
         }
 
         // Buy-threshold variants on the baseline mix.
-        foreach (var t in new[] { -1.0m, -0.5m, 0.5m, 1.0m })
+        foreach (var t in new[] { -1.5m, -1.0m, -0.5m, -0.25m, 0.25m, 0.5m, 1.0m, 1.5m })
         {
             var nt = Math.Clamp(baseline.BuyThreshold + t, 3.0m, 9.0m);
             if (nt != baseline.BuyThreshold && candidates.All(c => c.BuyThreshold != nt || c.Weights != baseline.Weights))
@@ -124,41 +129,75 @@ public static class SweepOptimizer
         // Structural variants: small nudges rarely separate from noise on a
         // finite trade sample, so also try genuinely different LIVE mixes -
         // each spreads/concentrates the same live budget differently, dead
-        // dials untouched.
-        candidates.Add(MakeLiveMix(baseline, baseArr, liveBudget, "Equal live weights", [0.25m, 0.25m, 0.25m, 0.25m]));
-        candidates.Add(MakeLiveMix(baseline, baseArr, liveBudget, "Momentum tilt (MACD/Volume heavy)", [0.15m, 0.35m, 0.35m, 0.15m]));
-        candidates.Add(MakeLiveMix(baseline, baseArr, liveBudget, "Pattern tilt (RSI/Setup heavy)", [0.35m, 0.10m, 0.15m, 0.40m]));
-
-        // Pair trades among live components: shift a meaningful chunk (8pp)
-        // from one live dial to another - each tests a distinct "this signal
-        // matters more than that one" hypothesis.
-        var pairs = new (int From, int To, string Desc)[]
+        // dials untouched. Each also gets an autopause-flipped twin so the
+        // sweep can spot interactions between the mix and the regime filter.
+        var structural = new (string Label, decimal[] Proportions)[]
         {
-            (0, 2, "RSI → Volume"),
-            (2, 4, "Volume → Setup quality"),
-            (1, 0, "MACD → RSI"),
-            (4, 1, "Setup quality → MACD"),
+            ("Equal live weights", [0.25m, 0.25m, 0.25m, 0.25m]),
+            ("Momentum tilt (MACD/Volume heavy)", [0.15m, 0.35m, 0.35m, 0.15m]),
+            ("Pattern tilt (RSI/Setup heavy)", [0.35m, 0.10m, 0.15m, 0.40m]),
         };
-        foreach (var (from, to, desc) in pairs)
+        foreach (var (label, proportions) in structural)
         {
-            var arr = (decimal[])baseArr.Clone();
-            var shift = Math.Min(0.08m, arr[from] - 0.02m);
-            if (shift <= 0m || arr[to] + shift > 0.45m) continue;
-            arr[from] -= shift;
-            arr[to] += shift;
-            candidates.Add(baseline with { Label = $"Shift 8pp: {desc}", Weights = FromArray(arr) });
+            var mix = MakeLiveMix(baseline, baseArr, liveBudget, label, proportions);
+            candidates.Add(mix);
+            candidates.Add(mix with
+            {
+                Label = $"{label} + autopause {(baseline.AutopauseDuringBear ? "OFF" : "ON")}",
+                AutopauseDuringBear = !baseline.AutopauseDuringBear,
+            });
         }
 
-        // A few deterministic pseudo-random LIVE mixes for diversity (fixed
-        // seed so repeated sweeps on the same data give the same answer).
-        var rng = new Random(20260710);
-        for (var k = 0; k < 5; k++)
+        // Pair trades among live components: shift 4pp and 8pp from each live
+        // dial to each other - every "this signal matters more than that one"
+        // hypothesis, both directions, two magnitudes.
+        foreach (var from in LiveIndices)
         {
+            foreach (var to in LiveIndices)
+            {
+                if (from == to) continue;
+                foreach (var magnitude in new[] { 0.04m, 0.08m })
+                {
+                    var arr = (decimal[])baseArr.Clone();
+                    var shift = Math.Min(magnitude, arr[from] - 0.02m);
+                    if (shift <= 0m || arr[to] + shift > 0.45m) continue;
+                    arr[from] -= shift;
+                    arr[to] += shift;
+                    candidates.Add(baseline with
+                    {
+                        Label = $"Shift {magnitude * 100:0}pp: {names[from]} → {names[to]}",
+                        Weights = FromArray(arr),
+                    });
+                }
+            }
+        }
+
+        // Fill the remainder to TargetCandidateCount with deterministic
+        // pseudo-random LIVE mixes (fixed seed - repeated sweeps on the same
+        // data give the same answer). Half also jitter the Buy threshold so
+        // the search covers the joint weights-threshold space, not just the
+        // simplex at one threshold.
+        var rng = new Random(20260710);
+        var k = 0;
+        while (candidates.Count < TargetCandidateCount)
+        {
+            k++;
             var arr = (decimal[])baseArr.Clone();
             foreach (var i in LiveIndices)
-                arr[i] = Math.Max(0.02m, baseArr[i] + (decimal)(rng.NextDouble() - 0.5) * 0.16m);
+                arr[i] = Math.Max(0.02m, baseArr[i] + (decimal)(rng.NextDouble() - 0.5) * 0.30m);
             RenormaliseLive(arr, liveBudget);
-            candidates.Add(baseline with { Label = $"Random live mix {k + 1}", Weights = FromArray(arr) });
+
+            var jitterThreshold = k % 2 == 0;
+            var nt = jitterThreshold
+                ? Math.Clamp(Math.Round(baseline.BuyThreshold + (decimal)(rng.NextDouble() - 0.5) * 2.0m, 1), 3.0m, 9.0m)
+                : baseline.BuyThreshold;
+
+            candidates.Add(baseline with
+            {
+                Label = jitterThreshold ? $"Random mix {k} (threshold {nt:0.0})" : $"Random mix {k}",
+                Weights = FromArray(arr),
+                BuyThreshold = nt,
+            });
         }
 
         return candidates;
