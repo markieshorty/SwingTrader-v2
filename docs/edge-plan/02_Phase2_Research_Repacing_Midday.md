@@ -1,6 +1,13 @@
 # Phase 2 — Research Repacing + Fresh-Signal Execution
 
-**Status: Planned**
+**Status: Built 10 Jul 2026 — awaiting user verification (515 tests green).**
+Build notes: Readiness moved 7:00 → 8:45 ET (the phase doc missed that it must
+stay after Report, which moved to 8:30). Midday rescore rides the same
+research-jobs queue via `ResearchJobMessage.JobType = "ResearchMidday"` (the
+job-log dedup key; legacy queued messages default to "Research").
+`RateLimiting:TiingoMaxPerHour` and `Tiingo:SyncDelayMs` must be set in the
+Function App's configuration (deliberately NOT in infra/** — pushing infra
+resets the live API image); until set, both fall back to free-tier pacing.
 
 **Objective:** stop trading on 5-hour-old scores. The Tiingo pacing is still set for
 the FREE tier (50 req/hour), which forces Research to run at 4:00 ET and Execution to

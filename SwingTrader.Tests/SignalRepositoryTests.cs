@@ -44,7 +44,10 @@ public class SignalRepositoryTests
 
         var updated = await repo.GetByIdAsync(1, original.Id);
         updated!.WasExecuted.Should().BeTrue();
+        // ...while the scoring fields DO refresh - a (midday) rescore must
+        // actually update the signal, not just leave the row untouched.
         updated.Recommendation.Should().Be(Recommendation.Hold);
+        updated.ConvictionScore.Should().Be(3.0m);
     }
 
     [Fact]

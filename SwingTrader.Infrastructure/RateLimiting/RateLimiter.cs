@@ -31,6 +31,10 @@ public class RateLimiter : ITiingoRateLimiter, IFinnhubRateLimiter, IClaudeRateL
         _minDelayMs = (int)Math.Ceiling(period.TotalMilliseconds / maxCalls);
     }
 
+    // Exposed so config-plumbing tests can assert the computed spacing without
+    // timing-sensitive stopwatch asserts (see the flakiness note in RateLimiterTests).
+    public int MinDelayMs => _minDelayMs;
+
     public async Task WaitAsync(CancellationToken ct = default)
     {
         await _gate.WaitAsync(ct);

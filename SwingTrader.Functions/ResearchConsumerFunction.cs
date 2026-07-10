@@ -56,7 +56,11 @@ public class ResearchConsumerFunction(
         CancellationToken ct)
     {
         var message = JsonSerializer.Deserialize<ResearchJobMessage>(messageBody)!;
-        await jobLog.MarkProcessingAsync(message.AccountId, "Research", message.TradeDate, ct);
+        // "Research" (morning) or "ResearchMidday" (optional rescore) - the
+        // job-log rows are separate so each run's dedup/status is its own;
+        // everything else (heartbeat, activity log) reports as Research.
+        var jobType = string.IsNullOrWhiteSpace(message.JobType) ? "Research" : message.JobType;
+        await jobLog.MarkProcessingAsync(message.AccountId, jobType, message.TradeDate, ct);
         await activityLog.LogAsync(message.AccountId, "WorkerRun", "Research", "Started", "Scoring watchlist symbols…", ct);
 
         try
@@ -143,12 +147,12 @@ public class ResearchConsumerFunction(
                 ? $"{symbols.Count - failedList.Count}/{symbols.Count} symbol(s) scored, {failedList.Count} kept prior signal"
                 : $"{symbols.Count} symbol(s) scored";
             await heartbeats.UpsertAsync(message.AccountId, "Research", "Success", summary);
-            await jobLog.MarkCompletedAsync(message.AccountId, "Research", message.TradeDate, ct);
+            await jobLog.MarkCompletedAsync(message.AccountId, jobType, message.TradeDate, ct);
         }
         catch (Exception ex)
         {
             await heartbeats.UpsertAsync(message.AccountId, "Research", "Failed", ex.Message);
-            await jobLog.MarkFailedAsync(message.AccountId, "Research", message.TradeDate, ex.Message, ct);
+            await jobLog.MarkFailedAsync(message.AccountId, jobType, message.TradeDate, ex.Message, ct);
             throw; // Re-throw so Service Bus retries, then dead-letters after maxDeliveryCount.
         }
     }

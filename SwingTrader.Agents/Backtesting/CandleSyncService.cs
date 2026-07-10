@@ -30,6 +30,10 @@ public class CandleSyncService(
     ILogger<CandleSyncService> logger) : ICandleSyncService
 {
     private const string TiingoBaseUrl = "https://api.tiingo.com";
+    // Config-driven (Tiingo:SyncDelayMs) since the right pace depends on the
+    // key's plan. 400ms default = 2.5 req/s = 9,000/hr, just inside Power's
+    // 10k/hr ceiling (the previous hardcoded 350ms was ~10,300/hr - OVER it).
+    private const int DefaultSyncDelayMs = 400;
     // 5 years so the optimizer's train/holdout split has enough trades on both
     // sides to distinguish a real edge from noise (was 3).
     private const int HistoryYears = 5;
@@ -58,6 +62,7 @@ public class CandleSyncService(
         http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Token", apiKey);
         var tiingo = RestService.For<ITiingoClient>(http);
 
+        var syncDelayMs = int.TryParse(config["Tiingo:SyncDelayMs"], out var d) && d > 0 ? d : DefaultSyncDelayMs;
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var endDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
         int synced = 0, skipped = 0, failed = 0, rows = 0;
@@ -101,9 +106,9 @@ public class CandleSyncService(
                 logger.LogDebug(ex, "CandleSync failed for {Symbol} — continuing", symbol);
             }
 
-            // Pace inside Tiingo Power's allowance; irrelevant for the
-            // incremental weekly run, matters on the initial multi-year load.
-            await Task.Delay(350, ct);
+            // Pace inside the plan's allowance; irrelevant for the incremental
+            // weekly run, matters on the initial multi-year load.
+            await Task.Delay(syncDelayMs, ct);
         }
 
         var summary = $"CandleSync: {synced} synced, {skipped} already current, {failed} failed, {rows:N0} bars added.";

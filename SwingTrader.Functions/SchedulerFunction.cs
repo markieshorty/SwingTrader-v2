@@ -15,6 +15,7 @@ public class SchedulerFunction(
     ServiceBusClient? serviceBus,
     IAccountRepository accounts,
     IJobLogRepository jobLog,
+    Microsoft.Extensions.Configuration.IConfiguration config,
     ILogger<SchedulerFunction> logger)
 {
     private static readonly TimeZoneInfo EasternTimeZone =
@@ -39,19 +40,34 @@ public class SchedulerFunction(
         {
             try
             {
-                // Moved 2 hours earlier (was 6:00 ET) - at Tiingo's real 50
-                // requests/hour cap, a 75-symbol universe now takes up to ~90
-                // minutes to fully rescore, and needs to finish comfortably
-                // before Report reads today's signals at 6:30 ET.
-                if (isWeekday && InWindow(nowEt, 4, 0, 4, 5))
+                // 7:30 ET (was 4:00): the 4 AM slot existed only because the
+                // free-tier Tiingo cap (50/hr) made a full rescore take ~90
+                // minutes. With config-driven pacing on a Power key the run
+                // takes minutes, so research now uses fresh pre-market data
+                // (morning earnings/news included) and still finishes well
+                // before Report at 8:30 ET.
+                if (isWeekday && InWindow(nowEt, 7, 30, 7, 35))
                     await TryEnqueueAsync(account.Id, "Research", today, "research-jobs",
                         new ResearchJobMessage(account.Id, Guid.NewGuid().ToString("N"), today, nowEt), ct);
+
+                // Optional midday rescore (config Research:MiddayRescoreEnabled,
+                // default off): re-scores the same SignalDate so afternoon
+                // execution re-runs (position closes freeing capital, late
+                // approvals) buy from scores that reflect the morning session.
+                // Distinct job-log key ("ResearchMidday") so the morning run's
+                // dedup row doesn't block it; signals upsert in place and
+                // WasExecuted survives a rescore, so no double-buys.
+                if (isWeekday && MiddayRescoreEnabled && InWindow(nowEt, 12, 30, 12, 35))
+                    await TryEnqueueAsync(account.Id, "ResearchMidday", today, "research-jobs",
+                        new ResearchJobMessage(account.Id, Guid.NewGuid().ToString("N"), today, nowEt, "ResearchMidday"), ct);
 
                 if (nowEt.DayOfWeek == DayOfWeek.Sunday && InWindow(nowEt, 20, 0, 20, 5))
                     await TryEnqueueAsync(account.Id, "Watchlist", today, "watchlist-jobs",
                         new WatchlistJobMessage(account.Id, Guid.NewGuid().ToString("N"), nowEt), ct);
 
-                if (isWeekday && InWindow(nowEt, 6, 30, 6, 35))
+                // 8:30 ET (was 6:30) - follows Research at 7:30 with ~55 min of
+                // margin; the approval email lands ~8:35 ET / 13:35 UK.
+                if (isWeekday && InWindow(nowEt, 8, 30, 8, 35))
                     await TryEnqueueAsync(account.Id, "Report", today, "report-jobs",
                         new ReportJobMessage(account.Id, Guid.NewGuid().ToString("N"), today), ct);
 
@@ -89,9 +105,10 @@ public class SchedulerFunction(
                 // Daily (every day, not just weekdays) so the readiness
                 // trajectory chart accrues an unbroken day-over-day history -
                 // system-running-days and trade-rate progress advance on
-                // weekends too. 7:00 ET is after Report (6:30) so weekday
-                // snapshots reflect the day's fresh signals.
-                if (InWindow(nowEt, 7, 0, 7, 5))
+                // weekends too. 8:45 ET (was 7:00) keeps it after Report,
+                // which moved to 8:30, so weekday snapshots reflect the day's
+                // fresh signals.
+                if (InWindow(nowEt, 8, 45, 8, 50))
                     await TryEnqueueAsync(account.Id, "Readiness", today, "readiness-jobs",
                         new ReadinessJobMessage(account.Id, Guid.NewGuid().ToString("N"), today), ct);
             }
@@ -117,6 +134,9 @@ public class SchedulerFunction(
             logger.LogError(ex, "Scheduler failed to enqueue the weekly candle sync");
         }
     }
+
+    private bool MiddayRescoreEnabled =>
+        bool.TryParse(config["Research:MiddayRescoreEnabled"], out var b) && b;
 
     private static bool InWindow(DateTime nowEt, int startHour, int startMin, int endHour, int endMin)
     {

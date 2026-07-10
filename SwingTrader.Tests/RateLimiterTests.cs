@@ -69,6 +69,18 @@ public class RateLimiterTests
         Math.Abs(sw1.ElapsedMilliseconds - sw2.ElapsedMilliseconds).Should().BeLessThan(150);
     }
 
+    [Theory]
+    // Config-driven Tiingo pacing (RateLimiting:TiingoMaxPerHour) - the
+    // computed spacing for the values that matter, asserted directly on
+    // MinDelayMs so this can't go flaky the way the stopwatch tests can.
+    [InlineData(50, 72_000)]     // free-tier fallback: one call per 72s
+    [InlineData(3_600, 1_000)]   // recommended Power setting: 1 req/s
+    [InlineData(10_000, 360)]    // Power ceiling: one call per 360ms
+    public void MinDelayMs_PerHourConfigValues_ComputeExpectedSpacing(int maxPerHour, int expectedDelayMs)
+    {
+        new RateLimiter(maxPerHour, TimeSpan.FromHours(1)).MinDelayMs.Should().Be(expectedDelayMs);
+    }
+
     [Fact]
     public async Task WaitAsync_CancelledToken_ThrowsAndReleasesSemaphore()
     {

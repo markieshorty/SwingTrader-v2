@@ -2,7 +2,12 @@ namespace SwingTrader.Core.Models;
 
 // AccountId-keyed (not UserId) so consumers can resolve the shared trading
 // data/keys for the account directly, matching every other scoped entity.
-public record ResearchJobMessage(int AccountId, string JobId, DateOnly TradeDate, DateTime ScheduledFor);
+// JobType distinguishes the morning run ("Research") from the optional midday
+// rescore ("ResearchMidday"). It is the job-log dedup key, so the two runs
+// dedup independently while sharing the same queue and consumer. The default
+// keeps older queued messages (serialized without the property)
+// deserializing as the morning run.
+public record ResearchJobMessage(int AccountId, string JobId, DateOnly TradeDate, DateTime ScheduledFor, string JobType = "Research");
 
 public record WatchlistJobMessage(int AccountId, string JobId, DateTime ScheduledFor);
 

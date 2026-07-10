@@ -73,11 +73,16 @@ builder.Services.AddScoped<INotificationRecipientRepository, NotificationRecipie
 builder.Services.AddMemoryCache();
 // Separate limiters per provider so a heavy Finnhub run can't eat into the
 // budget Tiingo needs (or vice versa) - see ITiingoRateLimiter/IFinnhubRateLimiter.
-// Tiingo's free-tier plan caps at 50 requests/HOUR (confirmed against the
-// account's own usage dashboard) - previously configured as 50/minute, a 60x
-// mismatch that left this limiter not actually protecting against Tiingo's
-// real quota at all.
-builder.Services.AddSingleton<ITiingoRateLimiter>(_ => new RateLimiter(50, TimeSpan.FromHours(1)));
+// Tiingo pacing is config-driven (RateLimiting:TiingoMaxPerHour) because the
+// right value depends on the PLAN of the configured key: free tier is 50/hour,
+// Power is 10,000/hour. The code default stays at the free-tier 50 so a
+// missing/removed config value can never burst a free key - set the config to
+// e.g. 3600 (1 req/s, ~36% of the Power cap, leaving headroom for candle sync,
+// Lab backtests and regime checks) when a Power key is in use. Note the Power
+// limits are PER TOKEN: the platform candle-sync key and per-user keys share
+// the budget when they're the same Tiingo account.
+var tiingoMaxPerHour = int.TryParse(builder.Configuration["RateLimiting:TiingoMaxPerHour"], out var tph) && tph > 0 ? tph : 50;
+builder.Services.AddSingleton<ITiingoRateLimiter>(_ => new RateLimiter(tiingoMaxPerHour, TimeSpan.FromHours(1)));
 builder.Services.AddSingleton<IFinnhubRateLimiter>(_ => new RateLimiter(maxCallsPerMinute: 50));
 // Anthropic tier-1 is ~50 requests/min; 45 leaves headroom on the shared
 // fallback Claude key. Bump this if the platform key moves to a higher tier.
