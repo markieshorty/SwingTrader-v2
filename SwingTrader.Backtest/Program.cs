@@ -68,6 +68,8 @@ switch (command)
             BreakoutQualityOverride: bq.Length > 0 ? decimal.Parse(bq) : null,
             ConvictionSizing: args.Contains("--conviction-sizing"),
             Weights: weights,
+            PositionFraction: decimal.Parse(Arg("--position-fraction", "0.10")),
+            MaxOpenPositions: int.Parse(Arg("--max-open", "3")),
             Label: Arg("--label", "baseline"));
         return await BacktestEngine.RunAsync(dataDir, opts, cts.Token);
     }

@@ -44,8 +44,6 @@ public static class BacktestEngine
 
     // ── Config (mirrors production defaults where they exist) ────────────────
     private const decimal StartingEquity = 10_000m;
-    private const decimal PositionFraction = 0.10m;     // 10% of equity per position
-    private const int MaxOpenPositions = 3;
     private const int MaxOrdersPerDay = 3;
     private const decimal CostPerSide = 0.0025m;        // 0.15% T212 FX + ~0.1% spread/slippage
     private const int WatchlistSize = 25;
@@ -62,6 +60,8 @@ public static class BacktestEngine
         decimal? BreakoutQualityOverride = null,        // penalize (production: 0.9) instead of excluding
         bool ConvictionSizing = false,                  // scale budget 0.5x-1.0x over conviction 6-9, as production
         StrategyWeights? Weights = null,                // override component weights (default: production)
+        decimal PositionFraction = 0.10m,               // fraction of equity per position
+        int MaxOpenPositions = 3,
         string Label = "baseline");
 
     public static async Task<int> RunAsync(string dataDir, Options opts, CancellationToken ct)
@@ -137,7 +137,7 @@ public static class BacktestEngine
 
             // ── Score today's watchlist, enter tomorrow at the open ───────────
             var regimeOk = !opts.RegimeFilter || SpyAboveSma200(spy, d);
-            if (open.Count < MaxOpenPositions && regimeOk)
+            if (open.Count < opts.MaxOpenPositions && regimeOk)
             {
                 var candidates = new List<(string Symbol, decimal Conviction, SetupType Setup)>();
                 foreach (var symbol in watchlist)
@@ -151,11 +151,11 @@ public static class BacktestEngine
 
                 foreach (var c in candidates.OrderByDescending(c => c.Conviction).Take(MaxOrdersPerDay))
                 {
-                    if (open.Count >= MaxOpenPositions) break;
+                    if (open.Count >= opts.MaxOpenPositions) break;
                     var entryBar = GetBar(bars, index, c.Symbol, calendar[d + 1]);
                     if (entryBar is null || entryBar.Open <= 0) continue;
 
-                    var budget = Math.Min(equity * PositionFraction, cash / (1 + CostPerSide));
+                    var budget = Math.Min(equity * opts.PositionFraction, cash / (1 + CostPerSide));
                     if (opts.ConvictionSizing)
                     {
                         // Mirror PositionSizingService.ConvictionMultiplier.
