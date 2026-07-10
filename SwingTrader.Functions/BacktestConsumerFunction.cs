@@ -31,8 +31,6 @@ public class BacktestConsumerFunction(
     // verbatim into the poll response, so it can't be re-cased downstream.
     private static readonly JsonSerializerOptions CamelCase = new(JsonSerializerDefaults.Web);
 
-    private const int EngineWarmupBars = 60; // keep in sync with HistoricBacktester.WarmupBars
-
     [Function("BacktestConsumer")]
     public async Task Run(
         [ServiceBusTrigger("backtest-jobs", Connection = "ServiceBusConnection")] string messageBody,
@@ -153,7 +151,7 @@ public class BacktestConsumerFunction(
             ?? throw new InvalidOperationException("Sweep request carries no baseline candidate.");
 
         var candidates = SweepOptimizer.GenerateCandidates(baseline);
-        var (train, holdout) = SweepOptimizer.SplitBars(bars, EngineWarmupBars);
+        var (train, holdout) = SweepOptimizer.SplitBars(bars, HistoricBacktester.WarmupBars);
         var trainSpy = train["SPY"];
         var holdoutSpy = holdout["SPY"];
 

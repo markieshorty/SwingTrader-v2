@@ -93,7 +93,7 @@ export class StrategyLabComponent {
   // wouldn't transfer to production where these components have real data.
   // The UI locks these dials while historic mode is selected.
   private readonly noHistoricDataKeys: ReadonlySet<keyof LabWeightsDto> = new Set([
-    'sentiment', 'relativeStrength', 'priceLevel', 'fundamentalMomentum',
+    'sentiment', 'fundamentalMomentum',
   ]);
 
   lacksHistoricData(key: keyof LabWeightsDto): boolean {

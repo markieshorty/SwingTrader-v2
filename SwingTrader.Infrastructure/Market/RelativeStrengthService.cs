@@ -22,15 +22,11 @@ public class RelativeStrengthService(
                 .OrderBy(c => c.Timestamp)
                 .ToList();
 
-            if (stockCandles.Count < 5)
+            if (stockCandles.Count < RelativeStrengthCalculator.WindowDays)
             {
                 logger.LogWarning("Insufficient candles for {Symbol} to calculate relative strength", symbol);
                 return null;
             }
-
-            var stockFrom = stockCandles[^5].Close;
-            var stockTo = stockCandles[^1].Close;
-            var stockReturn5d = (stockTo - stockFrom) / stockFrom * 100m;
 
             var etf = SectorEtfMap.GetEtf(symbol);
 
@@ -48,18 +44,18 @@ public class RelativeStrengthService(
                 cache.Set(cacheKey, etfCloses, TimeSpan.FromHours(24));
             }
 
-            if (etfCloses.Count < 5)
+            // Shared algorithm (RelativeStrengthCalculator) - the exact same
+            // code the historic backtester runs, so live and backtest can
+            // never drift apart.
+            var outcome = RelativeStrengthCalculator.Compute(
+                stockCandles.Select(c => c.Close).ToList(), etfCloses);
+            if (outcome is null)
             {
                 logger.LogWarning("Insufficient ETF candles for {Etf} to calculate relative strength", etf);
                 return null;
             }
 
-            var etfFrom = etfCloses[^5];
-            var etfTo = etfCloses[^1];
-            var etfReturn5d = (etfTo - etfFrom) / etfFrom * 100m;
-
-            var relativeReturn = stockReturn5d - etfReturn5d;
-            var score = ScoreRelativeReturn(relativeReturn);
+            var (stockReturn5d, etfReturn5d, relativeReturn, score) = outcome;
 
             var label = score >= 0.80m
                 ? $"Outperforming {etf} by {relativeReturn:+0.0;-0.0}%"
@@ -78,17 +74,4 @@ public class RelativeStrengthService(
         }
     }
 
-    private static decimal ScoreRelativeReturn(decimal rel) =>
-        rel >= 3.0m ? 1.00m
-            : rel >= 1.0m ? Lerp(rel, 1.0m, 3.0m, 0.80m, 1.00m)
-            : rel >= 0.0m ? Lerp(rel, 0.0m, 1.0m, 0.60m, 0.80m)
-            : rel >= -1.0m ? Lerp(rel, -1.0m, 0.0m, 0.40m, 0.60m)
-            : rel >= -3.0m ? Lerp(rel, -3.0m, -1.0m, 0.20m, 0.40m)
-            : 0.00m;
-
-    private static decimal Lerp(decimal value, decimal min, decimal max, decimal outMin, decimal outMax)
-    {
-        var t = (value - min) / (max - min);
-        return outMin + t * (outMax - outMin);
-    }
 }

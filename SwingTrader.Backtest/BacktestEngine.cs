@@ -1,8 +1,10 @@
 using System.Globalization;
+using SwingTrader.Agents.Backtesting;
 using SwingTrader.Agents.Research;
 using SwingTrader.Core.Enums;
 using SwingTrader.Core.Models;
 using SwingTrader.Core.Trading;
+using SwingTrader.Infrastructure.Market;
 using SwingTrader.Infrastructure.Services;
 
 namespace SwingTrader.Backtest;
@@ -15,9 +17,10 @@ namespace SwingTrader.Backtest;
 // Honest divergences from production (kept deliberately, all conservative):
 // - No Claude: the watchlist proxy is "top 25 by screener rank" (production
 //   sends 80 to Claude which picks ~25 with sector diversity), and sentiment /
-//   relative-strength / price-level / fundamental components score a neutral
-//   0.5 (they can't be reconstructed historically). Conviction therefore only
-//   differentiates on RSI/MACD/volume/setup (~59% of the weight).
+//   fundamental components score a neutral 0.5 (the only two that can't be
+//   reconstructed from bars). Relative strength (needs the sector ETF CSVs in
+//   the data dir - neutral when absent) and price level ARE computed, via the
+//   same shared calculators the live services and the in-app Lab run.
 // - Survivorship bias: the universe is TODAY'S index membership, so results
 //   are optimistic in absolute terms - use them to COMPARE configurations,
 //   not to predict returns.
@@ -53,7 +56,8 @@ public static class BacktestEngine
     private const int MaxHoldDays = 10;                 // calendar days, as production
     private const decimal TrailingActivationPct = 0.05m;
     private const decimal TrailingDistancePct = 0.03m;
-    private const int WarmupBars = 60;
+    // Shared with the in-app Lab engine so both replay identical windows.
+    private const int WarmupBars = HistoricBacktester.WarmupBars;
 
     // Experiment knobs (CLI-settable) - defaults mirror production.
     public sealed record Options(
@@ -240,15 +244,45 @@ public static class BacktestEngine
             ? q
             : ConvictionScorer.ScoreSetupQuality(setup);
 
+        // Same shared RS + price-level calculators as live/Lab. RS is neutral
+        // when the sector ETF CSV isn't in the data dir.
+        var rsScore = ComputeRelativeStrengthScore(bars, index, symbol, history, today);
+        var priceBars = history.Select(b => new PriceBar(b.High, b.Low, b.Close, b.Volume)).ToList();
+        var priceLevel = PriceLevelCalculator.Compute(priceBars, history[^1].Close, PriceLevelDefaults);
+
         var conviction = ConvictionScorer.Calculate(
             weights,
             ConvictionScorer.ScoreRsi(ind.Rsi14),
             ConvictionScorer.ScoreMacd(ind.MacdHistogram, prev.Histogram),
             ConvictionScorer.ScoreVolume(ind.VolumeRatio),
             sentimentScore: 0.5m, // not reconstructible historically
-            setupScore);
+            setupScore,
+            relativeStrengthScore: rsScore ?? 0.5m,
+            priceLevelScore: priceLevel.Score);
 
         return (conviction, setup, ind.Rsi14.Value);
+    }
+
+    // Production defaults (PriceLevelConfig class defaults) - deliberately not
+    // read from appsettings so results are reproducible across environments.
+    private static readonly Infrastructure.Configuration.PriceLevelConfig PriceLevelDefaults = new();
+
+    private static decimal? ComputeRelativeStrengthScore(
+        Dictionary<string, Bar[]> bars, Dictionary<string, Dictionary<DateTime, int>> index,
+        string symbol, Bar[] history, DateTime today)
+    {
+        var etf = SectorEtfMap.GetEtf(symbol);
+        if (!bars.TryGetValue(etf, out var etfBars) ||
+            !index.TryGetValue(etf, out var etfDates) ||
+            !etfDates.TryGetValue(today, out var etfIdx) ||
+            etfIdx < RelativeStrengthCalculator.WindowDays - 1)
+            return null;
+
+        var window = RelativeStrengthCalculator.WindowDays;
+        var stockCloses = history[^window..].Select(b => b.Close).ToList();
+        var etfCloses = etfBars[(etfIdx - window + 1)..(etfIdx + 1)].Select(b => b.Close).ToList();
+
+        return RelativeStrengthCalculator.Compute(stockCloses, etfCloses)?.Score;
     }
 
     // Mirror of ResearchPipeline.DetectSetup (private there) - keep in sync.
@@ -291,7 +325,9 @@ public static class BacktestEngine
         var ranked = new List<(string Symbol, decimal AbsChange)>();
         foreach (var (symbol, series) in bars)
         {
-            if (symbol == "SPY") continue;
+            // SPY and the sector ETFs are benchmarks, never trade candidates.
+            if (symbol.Equals("SPY", StringComparison.OrdinalIgnoreCase) ||
+                SectorEtfMap.AllEtfs().Contains(symbol, StringComparer.OrdinalIgnoreCase)) continue;
             if (!index[symbol].TryGetValue(asOf, out var i) || i < 21) continue;
 
             var bar = series[i];
@@ -397,6 +433,6 @@ public static class BacktestEngine
             .Concat(closed.Select(t => string.Join(',', t.Symbol, t.EntryDate.ToString("yyyy-MM-dd"), t.ExitDate.ToString("yyyy-MM-dd"),
                 t.EntryPrice, t.ExitPrice, t.Quantity, t.Setup, t.Conviction, t.ExitReason, Math.Round(t.NetPnl, 2), Math.Round(t.ReturnPct, 2)))));
         Console.WriteLine($"\nTrade log: {Path.GetFullPath(tradesCsv)}");
-        Console.WriteLine("\nCaveats: survivorship-biased universe (today's members); sentiment/RS/price-level neutral; no Claude selection. Use for RELATIVE comparisons.");
+        Console.WriteLine("\nCaveats: survivorship-biased universe (today's members); sentiment/fundamental neutral; no Claude selection. Use for RELATIVE comparisons.");
     }
 }

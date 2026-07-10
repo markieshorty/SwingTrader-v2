@@ -1,6 +1,7 @@
 using SwingTrader.Agents.Research;
 using SwingTrader.Core.Enums;
 using SwingTrader.Core.Models;
+using SwingTrader.Infrastructure.Market;
 using SwingTrader.Infrastructure.Services;
 
 namespace SwingTrader.Agents.Backtesting;
@@ -13,10 +14,12 @@ namespace SwingTrader.Agents.Backtesting;
 // trailing/time exits, with round-trip costs.
 //
 // Honest divergences from production (deliberate, conservative): no Claude
-// (watchlist proxy = top-N by screener rank; sentiment and the other
-// unreconstructable components score neutral 0.5), and the universe is
-// today's membership (survivorship bias) - results are for RELATIVE
-// comparisons, not absolute predictions.
+// (watchlist proxy = top-N by screener rank; sentiment and fundamental
+// momentum score neutral 0.5 - the only two components not reconstructable
+// from bars), and the universe is today's membership (survivorship bias) -
+// results are for RELATIVE comparisons, not absolute predictions.
+// Relative strength (vs sector ETF bars) and price level (support/resistance)
+// ARE computed, via the same shared calculators the live services run.
 
 public sealed record DailyBar(DateTime Date, decimal Open, decimal High, decimal Low, decimal Close, decimal Volume);
 
@@ -61,7 +64,15 @@ public static class HistoricBacktester
     private const int MaxOrdersPerDay = 3;
     private const decimal TrailingActivationPct = 0.05m;
     private const decimal TrailingDistancePct = 0.03m;
-    private const int WarmupBars = 60;
+    // 85 (was 60): the price-level component mirrors the live service's
+    // 120-calendar-day lookback, which is ~82-84 trading bars. Raising the
+    // warmup shifted every backtest window's start ~25 bars later, so results
+    // from before this change are not comparable with results after it.
+    public const int WarmupBars = 85;
+
+    // Sentiment can't be reconstructed from bars - the live pipeline blends a
+    // neutral 0.5 when it's unavailable, and the backtest mirrors that.
+    private const decimal NeutralScore = 0.5m;
 
     private sealed class Position
     {
@@ -236,7 +247,7 @@ public static class HistoricBacktester
         return (null, null);
     }
 
-    private static async Task<(decimal Conviction, SetupType Setup, decimal Rsi)?> ScoreAsync(
+    internal static async Task<(decimal Conviction, SetupType Setup, decimal Rsi)?> ScoreAsync(
         IndicatorService indicators, HistoricConfig cfg,
         IReadOnlyDictionary<string, DailyBar[]> bars, Dictionary<string, Dictionary<DateTime, int>> index,
         string symbol, DateTime today)
@@ -260,15 +271,51 @@ public static class HistoricBacktester
             ? q
             : ConvictionScorer.ScoreSetupQuality(setup);
 
+        // Relative strength: this symbol's 5d return vs its sector ETF's, via
+        // the SAME shared calculator + SectorEtfMap the live scorer uses. Null
+        // (ETF bars missing for this window) blends neutral, mirroring live.
+        var rsScore = ComputeRelativeStrengthScore(bars, index, symbol, history, today);
+
+        // Price level: support/resistance from this symbol's own warmup bars
+        // (<= today only - no lookahead), same shared calculator as live.
+        // InsufficientData scores 0.5, exactly the live blend behaviour.
+        var priceBars = history.Select(b => new PriceBar(b.High, b.Low, b.Close, b.Volume)).ToList();
+        var priceLevel = PriceLevelCalculator.Compute(priceBars, history[^1].Close, PriceLevelDefaults);
+
         var conviction = ConvictionScorer.Calculate(
             cfg.Weights,
             ConvictionScorer.ScoreRsi(ind.Rsi14),
             ConvictionScorer.ScoreMacd(ind.MacdHistogram, prev.Histogram),
             ConvictionScorer.ScoreVolume(ind.VolumeRatio),
-            sentimentScore: 0.5m, // not reconstructible historically
-            setupScore);
+            sentimentScore: NeutralScore, // not reconstructible historically
+            setupScore,
+            relativeStrengthScore: rsScore ?? NeutralScore,
+            priceLevelScore: priceLevel.Score);
 
         return (conviction, setup, ind.Rsi14.Value);
+    }
+
+    // Production defaults (PriceLevelConfig class defaults) - the backtest
+    // deliberately does not read appsettings overrides so results are
+    // reproducible across environments.
+    private static readonly Infrastructure.Configuration.PriceLevelConfig PriceLevelDefaults = new();
+
+    internal static decimal? ComputeRelativeStrengthScore(
+        IReadOnlyDictionary<string, DailyBar[]> bars, Dictionary<string, Dictionary<DateTime, int>> index,
+        string symbol, DailyBar[] history, DateTime today)
+    {
+        var etf = SectorEtfMap.GetEtf(symbol);
+        if (!bars.TryGetValue(etf, out var etfBars) ||
+            !index.TryGetValue(etf, out var etfDates) ||
+            !etfDates.TryGetValue(today, out var etfIdx) ||
+            etfIdx < RelativeStrengthCalculator.WindowDays - 1)
+            return null;
+
+        var window = RelativeStrengthCalculator.WindowDays;
+        var stockCloses = history[^window..].Select(b => b.Close).ToList();
+        var etfCloses = etfBars[(etfIdx - window + 1)..(etfIdx + 1)].Select(b => b.Close).ToList();
+
+        return RelativeStrengthCalculator.Compute(stockCloses, etfCloses)?.Score;
     }
 
     // Mirror of ResearchPipeline.DetectSetup (private there) - keep in sync.
@@ -310,7 +357,10 @@ public static class HistoricBacktester
         var ranked = new List<(string Symbol, decimal AbsChange)>();
         foreach (var (symbol, series) in bars)
         {
-            if (symbol.Equals("SPY", StringComparison.OrdinalIgnoreCase)) continue;
+            // SPY and the sector ETFs are in the bar set only as regime/RS
+            // benchmarks - never as trade candidates.
+            if (symbol.Equals("SPY", StringComparison.OrdinalIgnoreCase) ||
+                SectorEtfMap.AllEtfs().Contains(symbol, StringComparer.OrdinalIgnoreCase)) continue;
             if (!index[symbol].TryGetValue(asOf, out var i) || i < 21) continue;
 
             var bar = series[i];

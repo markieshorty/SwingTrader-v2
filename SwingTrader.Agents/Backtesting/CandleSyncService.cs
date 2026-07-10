@@ -44,7 +44,12 @@ public class CandleSyncService(
                 "Platform Tiingo key not configured — historic market data cannot sync.");
         }
 
-        var symbols = (await universe.GetUniverseAsync(ct)).Prepend("SPY")
+        // SPY anchors the trading calendar; the sector ETFs feed the
+        // backtester's relative-strength component (same SectorEtfMap the live
+        // scorer uses - a stock's RS is its 5d return vs its sector ETF's).
+        var symbols = (await universe.GetUniverseAsync(ct))
+            .Prepend("SPY")
+            .Concat(SectorEtfMap.AllEtfs())
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         var latestDates = await candleRepo.GetLatestDatesAsync(ct);
         var earliestDates = await candleRepo.GetEarliestDatesAsync(ct);

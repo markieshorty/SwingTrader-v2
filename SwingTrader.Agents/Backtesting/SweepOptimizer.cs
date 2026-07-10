@@ -61,14 +61,15 @@ public static class SweepOptimizer
 
     // Weight-array indices, matching HistoricBacktestWeights field order.
     // "Live" components are the ones the historic engine reconstructs from
-    // price/volume bars; the "dead" four (Sentiment, Relative strength, Price
-    // level, Fundamental momentum) score a fixed neutral 0.5 in a backtest.
-    private static readonly int[] LiveIndices = [0, 1, 2, 4];   // RSI, MACD, Volume, Setup quality
-    private static readonly int[] DeadIndices = [3, 5, 6, 7];   // Sentiment, RelStrength, PriceLevel, FundMomentum
+    // price/volume bars - since the engine gained relative strength (vs stored
+    // sector-ETF bars) and price level (support/resistance), only Sentiment
+    // and Fundamental momentum remain "dead" (fixed neutral 0.5).
+    private static readonly int[] LiveIndices = [0, 1, 2, 4, 5, 6]; // RSI, MACD, Volume, Setup, RelStrength, PriceLevel
+    private static readonly int[] DeadIndices = [3, 7];             // Sentiment, FundMomentum
 
     // Deterministic candidate generation: production baseline + variations
     // that redistribute weight ONLY among the live components, holding the
-    // dead four at their production values. Shifting weight into/out of a
+    // dead two at their production values. Shifting weight into/out of a
     // dead component just dilutes conviction scores toward the neutral
     // midpoint - a candidate could "win" purely because sentiment is dead in
     // the backtest, a conclusion that wouldn't transfer to production where
@@ -131,11 +132,14 @@ public static class SweepOptimizer
         // each spreads/concentrates the same live budget differently, dead
         // dials untouched. Each also gets an autopause-flipped twin so the
         // sweep can spot interactions between the mix and the regime filter.
+        // Proportions follow LiveIndices order: RSI, MACD, Volume, Setup
+        // quality, Relative strength, Price level.
         var structural = new (string Label, decimal[] Proportions)[]
         {
-            ("Equal live weights", [0.25m, 0.25m, 0.25m, 0.25m]),
-            ("Momentum tilt (MACD/Volume heavy)", [0.15m, 0.35m, 0.35m, 0.15m]),
-            ("Pattern tilt (RSI/Setup heavy)", [0.35m, 0.10m, 0.15m, 0.40m]),
+            ("Equal live weights", [1m / 6, 1m / 6, 1m / 6, 1m / 6, 1m / 6, 1m / 6]),
+            ("Momentum tilt (MACD/Volume heavy)", [0.10m, 0.28m, 0.28m, 0.10m, 0.14m, 0.10m]),
+            ("Pattern tilt (RSI/Setup heavy)", [0.26m, 0.08m, 0.10m, 0.30m, 0.08m, 0.18m]),
+            ("Structure tilt (RelStrength/PriceLevel heavy)", [0.12m, 0.10m, 0.12m, 0.16m, 0.25m, 0.25m]),
         };
         foreach (var (label, proportions) in structural)
         {

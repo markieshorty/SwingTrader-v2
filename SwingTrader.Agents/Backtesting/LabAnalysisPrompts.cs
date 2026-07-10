@@ -52,7 +52,7 @@ public static class LabAnalysisPrompts
         sb.AppendLine(DescribeBuckets("By conviction score (floored)", r.ByConviction));
         sb.AppendLine(DescribeBuckets("By exit reason", r.ByExitReason));
         sb.AppendLine("Caveats baked into this backtest: survivorship-biased universe (today's index membership), " +
-                      "no AI stock selection, sentiment fixed neutral — results are for comparing configs, not predicting returns.");
+                      "no AI stock selection, sentiment and fundamental momentum fixed neutral — results are for comparing configs, not predicting returns.");
         sb.AppendLine("Analyse this run and, if the data justifies it, suggest ONE next configuration worth testing.");
         return sb.ToString();
     }
@@ -98,7 +98,7 @@ public static class LabAnalysisPrompts
             sb.AppendLine(DescribeBuckets("By exit reason", r.ByExitReason));
         }
         sb.AppendLine("Caveats baked into this backtest: survivorship-biased universe, no AI stock selection, sentiment " +
-                      "fixed neutral — results compare configs, they don't predict returns.");
+                      "and fundamental momentum fixed neutral — results compare configs, they don't predict returns.");
         sb.AppendLine("Compare the runs: where do the outcomes actually differ (which setups/exits drive the gap), is the " +
                       "difference large enough to matter given the trade counts, and — if the data justifies it — suggest " +
                       "ONE next configuration worth testing.");

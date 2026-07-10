@@ -402,8 +402,9 @@
           The optimizer tries ~200 dial variations around your current production settings against the historic dataset —
           single-dial nudges, pair shifts between every signal, Buy-threshold variants, structurally different mixes,
           bear-autopause toggles, and a dense random sweep of the joint weights + threshold space. It only redistributes
-          weight among the four components historic data exists for (<strong>RSI, MACD, Volume, Setup quality</strong>);
-          the other four are held at your production values, because the backtest scores them neutral and "tuning" them
+          weight among the six components historic data exists for (<strong>RSI, MACD, Volume, Setup quality, Relative
+          strength, Price level</strong>); the other two (News sentiment, Fundamental momentum) are held at your
+          production values, because the backtest scores them neutral and "tuning" them
           would only produce conclusions that don't carry over to live trading. To guard against flukes, it tunes on the
           <strong>earlier ~70%</strong> of the window, then re-tests the best configuration on the <strong>held-out
           remainder it never saw</strong> — with 200 candidates tried, out-of-sample validation matters more than ever,

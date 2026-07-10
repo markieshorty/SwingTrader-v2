@@ -1,6 +1,24 @@
 # Phase 1 — Relative Strength + Price Level in the Backtester
 
-**Status: Planned**
+**Status: Built 10 Jul 2026 — awaiting user verification (510 tests green).**
+Notes from the build: WarmupBars is now `HistoricBacktester.WarmupBars = 85`
+(single public constant, referenced by BacktestConsumerFunction and the console
+BacktestEngine — the stale 60 copies are gone); the console engine was ported to
+the shared calculators (RS neutral when sector-ETF CSVs absent from its data
+dir); SPY + sector ETFs are excluded from backtest watchlists (benchmarks, not
+trade candidates).
+
+## ⚠ VERIFY results (resolved)
+
+- ✅ Tiingo returns full daily bars incl. adjClose for all 6 ETFs (XLK, SMH, XLV,
+  XLF, XLY, XLP) — verified with real API calls against the production key.
+- ✅ Live stock candles store ADJUSTED values (`ResearchPipeline.cs:238-242` maps
+  AdjOpen/High/Low/Close/Volume into StockCandle), matching `HistoricalCandle`
+  (also adj per `CandleSyncService`). Both sides adjusted → parity holds.
+- ✅ Decision: `HistoricBacktester.WarmupBars` raised 60 → 85 (live PriceLevel's
+  120-calendar-day window ≈ 82–84 trading bars). Backtest windows start ~25 bars
+  later than before; all previous absolute results are superseded — re-baseline
+  after ship.
 
 **Objective:** take `HistoricBacktester` from 4/8 to 6/8 live conviction components
 by implementing Relative Strength and Price Level historically, with proven parity

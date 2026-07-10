@@ -42,24 +42,23 @@ public class SweepOptimizerTests
     [Fact]
     public void GenerateCandidates_NeverMovesDeadComponentWeights()
     {
-        // The historic engine scores Sentiment/RelStrength/PriceLevel/
-        // FundamentalMomentum at a fixed neutral 0.5, so shifting weight
-        // into/out of them only dilutes conviction toward the midpoint - a
-        // candidate could win for reasons that don't transfer to production.
-        // Every candidate must therefore hold the dead four at baseline.
+        // The historic engine scores Sentiment/FundamentalMomentum at a fixed
+        // neutral 0.5 (the only two not reconstructable from bars), so
+        // shifting weight into/out of them only dilutes conviction toward the
+        // midpoint - a candidate could win for reasons that don't transfer to
+        // production. Every candidate must hold the dead two at baseline.
         var candidates = SweepOptimizer.GenerateCandidates(Baseline());
 
         candidates.Should().AllSatisfy(c =>
         {
             c.Weights.Sentiment.Should().Be(ProdWeights.Sentiment);
-            c.Weights.RelativeStrength.Should().Be(ProdWeights.RelativeStrength);
-            c.Weights.PriceLevel.Should().Be(ProdWeights.PriceLevel);
             c.Weights.FundamentalMomentum.Should().Be(ProdWeights.FundamentalMomentum);
         });
 
-        // And the live dials must actually vary across candidates - the sweep
-        // still needs something real to search over.
-        candidates.Select(c => (c.Weights.Rsi, c.Weights.Macd, c.Weights.Volume, c.Weights.SetupQuality))
+        // And the live dials (now including RelStrength/PriceLevel, computed
+        // from stored bars) must actually vary across candidates.
+        candidates.Select(c => (c.Weights.Rsi, c.Weights.Macd, c.Weights.Volume,
+                c.Weights.SetupQuality, c.Weights.RelativeStrength, c.Weights.PriceLevel))
             .Distinct().Count().Should().BeGreaterThan(10);
     }
 
@@ -74,9 +73,9 @@ public class SweepOptimizerTests
         toggle.AutopauseDuringBear.Should().BeFalse();
         toggle.Weights.Should().Be(ProdWeights); // toggle-only candidate, weights untouched
 
-        // Plus the three structural mixes get autopause-flipped twins, so the
+        // Plus the four structural mixes get autopause-flipped twins, so the
         // sweep can spot mix/regime-filter interactions.
-        candidates.Count(c => !c.AutopauseDuringBear).Should().Be(4);
+        candidates.Count(c => !c.AutopauseDuringBear).Should().Be(5);
     }
 
     [Fact]

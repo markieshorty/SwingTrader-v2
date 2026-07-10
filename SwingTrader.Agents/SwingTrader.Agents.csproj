@@ -12,6 +12,10 @@
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.9" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="SwingTrader.Tests" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
