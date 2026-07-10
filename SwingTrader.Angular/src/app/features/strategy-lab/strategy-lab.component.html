@@ -117,19 +117,36 @@
       </div>
 
       <div class="bucket-tables">
-        @for (bucket of [{ title: 'By setup', rows: h.bySetup }, { title: 'By conviction', rows: h.byConviction }, { title: 'By exit', rows: h.byExitReason }]; track bucket.title) {
+        @for (bucket of [
+          { title: 'By setup', rows: h.bySetup, hint: 'How trades broke down by the chart pattern that triggered them, and how each group performed on average.' },
+          { title: 'By conviction', rows: h.byConviction, hint: 'How trades broke down by their conviction score (0-10, rounded), and how each score band performed on average.' },
+          { title: 'By exit', rows: h.byExitReason, hint: 'How trades broke down by why they closed (stop-loss, target hit, time limit, trailing stop), and how each group performed on average.' },
+        ]; track bucket.title) {
           <div class="bucket">
-            <h4>{{ bucket.title }}</h4>
+            <h4 [matTooltip]="bucket.hint">{{ bucket.title }}</h4>
+            <div class="bucket-row bucket-head muted small">
+              <span></span>
+              <span matTooltip="Number of trades in this group, out of {{ h.trades }} total">trades</span>
+              <span matTooltip="Average raw return per trade in this group (price change alone — not compared against SPY)">avg return</span>
+            </div>
             @for (row of bucket.rows; track row.key) {
               <div class="bucket-row">
                 <span>{{ row.key }}</span>
-                <span class="muted small">n={{ row.count }}</span>
-                <span class="num" [class.good]="row.avgReturnPct > 0" [class.bad]="row.avgReturnPct < 0">{{ row.avgReturnPct | number: '1.2-2' }}%</span>
+                <span class="muted small" [matTooltip]="row.count + ' of ' + h.trades + ' trades were this type'">{{ row.count }} trades</span>
+                <span class="num" [class.good]="row.avgReturnPct > 0" [class.bad]="row.avgReturnPct < 0"
+                  [matTooltip]="'Averaged ' + (row.avgReturnPct | number: '1.2-2') + '% raw return per trade'">{{ row.avgReturnPct | number: '1.2-2' }}%</span>
               </div>
             }
           </div>
         }
       </div>
+      <p class="muted small bucket-explainer">
+        <strong>How to read this:</strong> each row shows how many of your {{ h.trades }} trades fell into that group, and
+        what they returned <em>on average</em> — this is the trade's own price return (entry to exit), not compared against
+        SPY. The overall total return above <em>is</em> compared against SPY buy-and-hold ({{ h.spyReturnPct | number: '1.1-1' }}%);
+        these per-group breakdowns are just to spot which setups, conviction levels or exit reasons are pulling that number up
+        or down.
+      </p>
 
       <div class="apply-row">
         <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applyToProduction()">

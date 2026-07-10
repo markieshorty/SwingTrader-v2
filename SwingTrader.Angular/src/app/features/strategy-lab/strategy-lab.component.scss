@@ -237,6 +237,9 @@
     margin: 0 0 6px;
     font-size: 0.85rem;
     color: var(--st-muted, #888);
+    cursor: help;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
   }
   .bucket-row {
     display: grid;
@@ -245,11 +248,27 @@
     padding: 3px 0;
     font-size: 0.85rem;
     border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+
+    &.bucket-head {
+      border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+      text-transform: uppercase;
+      font-size: 0.7rem;
+      letter-spacing: 0.02em;
+
+      span {
+        cursor: help;
+      }
+    }
   }
   .num {
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
+}
+
+.bucket-explainer {
+  margin-top: 4px;
+  line-height: 1.4;
 }
 
 .good {
