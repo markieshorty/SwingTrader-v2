@@ -75,6 +75,9 @@ export class WatchlistsComponent {
   });
 
   enabledCount = () => this.watchlists().filter((w) => w.isEnabled).length;
+  // Deduplicated - what Research actually scans (a symbol on two enabled
+  // watchlists is researched once). This is the number that matters for the
+  // MAX_TOTAL_ENABLED_SYMBOLS cap.
   totalEnabledSymbolCount = () => {
     const symbols = new Set<string>();
     for (const w of this.watchlists()) {
@@ -82,6 +85,15 @@ export class WatchlistsComponent {
     }
     return symbols.size;
   };
+  // Raw sum of every enabled watchlist's item count, duplicates included -
+  // shown alongside the deduplicated count so "89 vs 92 total items" isn't
+  // mistaken for missing/hidden symbols (e.g. top movers) when it's really
+  // just the same symbol counted twice across two enabled watchlists.
+  rawEnabledSymbolCount = () =>
+    this.watchlists()
+      .filter((w) => w.isEnabled)
+      .reduce((sum, w) => sum + w.items.length, 0);
+  hasDuplicateEnabledSymbols = () => this.rawEnabledSymbolCount() !== this.totalEnabledSymbolCount();
   maxEnabled = MAX_ENABLED_WATCHLISTS;
   maxSymbols = MAX_SYMBOLS_PER_WATCHLIST;
   maxTotalSymbols = MAX_TOTAL_ENABLED_SYMBOLS;

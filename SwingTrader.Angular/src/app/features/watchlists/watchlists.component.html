@@ -4,9 +4,18 @@
       <div class="tab-body">
   <div class="page-header">
     <p class="muted small">
-      {{ enabledCount() }} of {{ maxEnabled }} watchlists enabled — {{ totalEnabledSymbolCount() }} of
-      {{ maxTotalSymbols }} symbols. The Research Agent scans the combined, deduplicated symbols of every
-      enabled watchlist.
+      {{ enabledCount() }} of {{ maxEnabled }} watchlists enabled —
+      <span
+        [matTooltip]="hasDuplicateEnabledSymbols()
+          ? 'A symbol counts once here even if it appears on more than one enabled watchlist — the Research Agent only scans it once.'
+          : 'No symbol appears on more than one enabled watchlist right now.'"
+      >{{ totalEnabledSymbolCount() }} of {{ maxTotalSymbols }} symbols</span>
+      @if (hasDuplicateEnabledSymbols()) {
+        <span class="muted small">
+          ({{ rawEnabledSymbolCount() }} including duplicates — some symbols appear on more than one enabled watchlist)
+        </span>
+      }
+      . The Research Agent scans the combined, deduplicated symbols of every enabled watchlist.
     </p>
     <button mat-raised-button color="primary" [disabled]="!isOwner()" (click)="showCreateForm.set(!showCreateForm())">
       <mat-icon>add</mat-icon>
