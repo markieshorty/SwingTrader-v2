@@ -1,36 +1,76 @@
 # Strategy Lab: Weight Optimization — Plan
 
 Three features, all building on the existing Strategy Lab (own-data + historic modes,
-suggestion search, apply-to-production flow). Written up for pickup once available —
-not started.
+suggestion search, apply-to-production flow). Written up for later pickup — not
+started.
+
+## UI structure: Strategy Lab becomes two tabs
+
+The Lab page splits into two tabs (same pattern as the Watchlists page's
+Configuration / Stock Universe tabs):
+
+1. **Optimizer** — the full-sweep idea (Feature 1). "Find me better weights": run the
+   sweep, review the winner (diff table + stats + plain-English explanation), apply
+   if convinced.
+2. **A/B Testing** — the manual-experiment idea (Feature 2, with Feature 3's Claude
+   analysis attached). "Test my idea": fiddle the dials, run them head-to-head
+   against the current production config, read the comparison, optionally ask Claude
+   what to try next.
+
+Shared elements (data-source dropdown, dial form, data-status line) live once and are
+used by both tabs. Today's single-page layout is essentially the A/B tab minus the
+side-by-side comparison, so the split is mostly moving existing pieces, not
+rebuilding them.
 
 ## Standing requirement: clarity over raw output
 
-Applies to all three features below, not just the newly written parts. This came out
-of real confusion while using the existing Lab: the historic result's `n=` counts and
-percentages meant nothing without a footnote explaining they're raw returns, not
-market-adjusted (see the bucket-table fix already shipped — [`strategy-lab.component.html`](../SwingTrader.Angular/src/app/features/strategy-lab/strategy-lab.component.html)
-— as the reference pattern for "how much explanation is enough").
+Applies to everything below. This came out of real confusion while using the existing
+Lab: the historic result's `n=` counts and percentages meant nothing without a
+footnote explaining they're raw returns, not market-adjusted (see the bucket-table
+fix already shipped in
+[`strategy-lab.component.html`](../SwingTrader.Angular/src/app/features/strategy-lab/strategy-lab.component.html)
+as the reference pattern for "how much explanation is enough").
 
 Any new number, stat, or result surfaced by these features needs a nearby,
 plain-English explanation of what it means — not buried in a tooltip only, and not
-assumed obvious. Concretely, for anything new built from this plan:
+assumed obvious:
 
 - A stat with no unit or context (a bare count, a bare percentage) needs a label that
   says what's being counted/averaged, not just the number.
 - Anywhere a metric could be misread (raw vs. market-adjusted, per-trade vs.
   cumulative, "better" meaning different things for different metrics) needs a short
-  explanatory line near the number, not left to the reader to infer from a
-  half-remembered convention.
-- A one-line summary sentence near the top of a result (like the historic result
-  card's existing summary paragraph) is the right place for "what does this mean"
-  in plain terms — put a similar sentence anywhere a new result type is introduced.
-- When Claude is generating text (Features 1 and 3), the same bar applies to its
-  output: plain language, no jargon that isn't explained, and it should say what a
-  number means in the same breath as stating it, not assume the reader already knows.
+  explanatory line near the number.
+- A one-line plain-terms summary sentence near the top of a result (like the historic
+  result card's existing summary paragraph) — put a similar sentence anywhere a new
+  result type is introduced.
+- Claude-generated text is held to the same bar: plain language, no unexplained
+  jargon, say what a number means in the same breath as stating it. And **honest**
+  language — see the explanation constraints under Feature 1.
 
 Treat "is this understandable to someone who didn't build the backtester" as a
 review gate before any of these features ship, the same way build/test passing is.
+
+## Standing requirement: out-of-sample validation (anti-overfitting)
+
+The single biggest risk in this whole plan. An optimizer that evaluates dozens to
+thousands of candidate weight sets against one fixed dataset **will** find a config
+that looks great on that history by chance — 8 free parameters against a few hundred
+trades guarantees it. Without a guard, Feature 1 is a machine for manufacturing
+convincing-looking bad ideas that feed straight into an Apply button.
+
+Hard requirement for any optimizer/sweep result (not a nice-to-have):
+
+- **Split the data.** Optimize on the earlier portion of the window (e.g. Oct 2023 –
+  mid 2025) and validate the winning config on the held-out remainder it never saw.
+- **Show both numbers in the UI**, clearly labelled ("found on", "held up on") with a
+  plain-English line explaining why the second number is the one to trust.
+- **Suppress or prominently flag** a winner whose held-out performance collapses
+  relative to its in-sample performance. A config that only wins on the data it was
+  tuned on is noise, and the UI must say so rather than present it as a discovery.
+- Same idea, smaller scale, for the mechanical suggestion search that already exists
+  if it's ever made more aggressive.
+
+## Context: what exists today
 
 - **Own-data mode** (`StrategyLabService.RunOwnDataAsync`): in-memory replay against
   the user's own closed trades. Cheap — sub-second.
@@ -41,161 +81,168 @@ review gate before any of these features ship, the same way build/test passing i
   search — ±5% on one weight at a time (renormalized), a few Buy-threshold shifts,
   and the Breakout toggle. Top 3 candidates that beat the baseline by >0.05%. Not
   exhaustive, not available in historic mode, never auto-applies.
-- **Diff table** (just shipped): each suggestion shows old vs. new weight per dial in
-  an expandable panel.
+- **Diff table** (shipped): each suggestion shows old vs. new weight per dial in an
+  expandable panel.
 - **Apply flow**: always a manual, confirmed action (`applyToProduction()`) — owner
-  only, confirm dialog, pushes weights + Buy threshold to `AccountRiskProfile`/prod
-  weights. This should not change for either feature below — auto-optimization must
-  still land on a human-reviewed "Apply" click.
+  only, confirm dialog, pushes weights + Buy threshold to production. This must not
+  change for any feature below — optimization output always lands on a
+  human-reviewed "Apply" click.
 
-## Feature 1: Full weight-sweep optimizer
+## Feature 1: Weight-sweep optimizer (the "Optimizer" tab)
 
-**Goal:** instead of "nudge one weight ±5%, keep top 3," search more broadly for a
-better weight combination and surface the best one as an "optimum" the user reviews
-and applies.
+**Goal:** search more broadly than the current one-dial nudge for a better weight
+combination, and surface the best *validated* one for review and manual apply.
 
-**Why not a brute-force grid:** 8 weights summing to 1.0 makes a real grid search
-combinatorially infeasible, especially for historic mode where each evaluation costs
-minutes. A smarter search is needed:
+**Historic mode is the real optimizer.** Each historic evaluation generates its
+trades fresh from the full engine (screener → scoring → entries → exits), so a config
+is judged on what it would actually have *done*, not on how it re-filters a fixed
+pile. This is the honest evaluation and the one worth investing in.
 
-- **Own-data mode** (cheap, in-memory): can afford a genuinely large search —
-  e.g. iterated coordinate ascent (repeat the existing nudge-search to convergence,
-  not just one pass) or ~500–2000 random weight vectors on the simplex (Dirichlet
-  sampling so they sum to 1) evaluated in memory, keep the best by a chosen metric
-  (expectancy, profit factor, or a blended score — needs a decision, see "Open
-  questions").
-- **Historic mode** (expensive, ~1M bars per run): must run as a background job like
-  today's single backtest, but evaluating dozens/hundreds of candidates serially
-  would take hours. Options, in order of effort:
-  1. Cap it — evaluate a small fixed set of candidates (e.g. 20–30 promising ones,
-     maybe seeded from the own-data optimizer's result) rather than a true sweep.
-  2. Parallelize across multiple Function invocations / Service Bus messages, one
-     candidate per message, then aggregate — bigger infra change (fan-out/fan-in),
-     probably a phase-2 item.
-  3. Accept a much longer async job (tens of minutes) with clear UI progress and no
-     parallelism, as a v1.
+**Own-data mode is deliberately kept timid.** Two structural problems cap how
+ambitious it can be:
 
-**Recommended v1 scope:** own-data mode gets the real optimizer (cheap, safe to be
-ambitious). Historic mode gets a capped sweep (~20–30 candidates) reusing the existing
-async job pattern — same "Queued → Running → Completed" UI, just evaluating multiple
-weight sets per job instead of one, returning the winner (plus maybe top 3) instead of
-a single result.
+- *Censored data:* own-data mode can only re-filter trades that were actually taken —
+  and they were taken because the **production** weights scored them above threshold.
+  Configs that would have selected different trades can't be evaluated at all, so an
+  own-data "optimum" is really "the best cherry-pick of this specific pile."
+- *Sample size:* an aggressive search (hundreds+ of candidates on the simplex) over a
+  few hundred censored outcomes is the overfitting scenario above in its worst form.
+  The existing nudge search is tolerable *because* it's timid.
 
-**UI:** a new "Find optimum weights" action alongside "Run Simulation" (not
-replacing it — a user should still be able to test one specific config manually).
-Result: the winning weight set shown via the diff table pattern already built
-(old = whatever's currently in the dials or production, new = optimizer's pick),
-plus its simulated stats, plus the existing owner-gated Apply button. No
-auto-apply — same guardrail as today's suggestions.
+So: own-data mode gets at most an iterated version of the existing nudge search
+(repeat to convergence instead of one pass), clearly labelled as "small refinements
+to how your history would have been filtered" — not presented as an optimizer. The
+Optimizer tab's headline feature runs on historic data.
 
-**Open question to resolve before building:** what should the optimizer maximize?
-Raw expectancy could favor a high-return/high-variance corner; profit factor could
-favor low trade-count corners that got lucky. Likely need a floor (e.g. `minKept`
-trade count, same guard the existing `Search()` uses) plus probably optimize on
-expectancy with profit factor and max-drawdown as tie-breakers/guardrails rather than
-a single scalar. Worth deciding explicitly rather than picking one silently.
+**Why not a brute-force grid:** 8 weights summing to 1.0 makes a real grid
+combinatorially infeasible, and each historic evaluation costs minutes. v1 shape:
 
-**Human-readable explanation of the result (not just numbers):** the mechanical
-suggestions today just show a description string like "Increase Volume weight to 24%
-(others rebalanced)" plus the diff table — accurate, but it doesn't say *why* that
-direction won or what it means. Once the optimizer has picked a winner (from
-potentially dozens/hundreds of evaluated candidates), it should also produce a plain
-paragraph: which weights moved and in which direction, and what in the underlying
-data justifies it — e.g. "Volume weight increased from 21% to 28%, mostly reallocated
-from Sentiment (16% → 9%). Across the candidates tried, higher-volume-weighted
-configs consistently reduced StopLoss-exit frequency without giving up much win rate,
-suggesting volume confirmation is doing more useful filtering here than sentiment is."
+- **Capped candidate set** (~20–30 configs) evaluated in one background job — reuse
+  the existing `BacktestConsumerFunction` async pattern, same "Queued → Running →
+  Completed" UI, just N evaluations per job instead of one, returning the winner
+  (plus top 3) instead of a single result. Candidates are seeded from **production
+  weights plus structured perturbations** (single-dial shifts, a few two-dial trades,
+  a few Dirichlet-sampled points for diversity). Do **not** seed from an own-data
+  optimizer result — that would pipe the overfit-prone path into the honest one.
+- Fan-out across parallel Function invocations (one candidate per Service Bus
+  message, aggregate at the end) is the phase-2 upgrade if 20–30 serial evaluations
+  proves too slow in practice.
 
-This is naturally a second job for Claude (same mechanism as Feature 3's analysis,
-reused rather than duplicated): after the sweep/optimizer finishes, feed it the
-winning config, the baseline it beat, and — ideally — a summary of the candidates
-tried (not just the winner) so it can describe *why* this direction won relative to
-the alternatives, not just describe the winning numbers in prose. Keep the same
-guardrail as Feature 3: this text is explanatory, not a new source of truth — the
-actual "should I apply this" decision still rests on the simulated stats and the
-human's judgment, not on how convincing the paragraph reads. Worth being deliberate
-that the writeup doesn't overstate confidence beyond what the backtest sample size
-actually supports (e.g. call out low trade counts in a bucket if that's driving the
-result, rather than writing confidently past it).
+**Objective metric — decided, not deferred:** maximize **market-adjusted expectancy
+per trade** (raw expectancy minus SPY's return over the same holding periods, so a
+config isn't rewarded merely for being long during a bull market), subject to two
+hard constraints: a **minimum trade count** (same spirit as the existing `minKept`
+guard — a config that wins on 12 trades is noise) and a **max-drawdown ceiling**
+(reject candidates whose drawdown exceeds, say, 1.25× the baseline's). Profit factor
+is reported but not optimized. If implementation finds market-adjusted expectancy
+impractical to compute in the historic engine, raw expectancy with the same
+constraints is the fallback — but flag that choice visibly rather than making it
+silently.
 
-## Feature 2: Manual A/B — new dials vs. current dials
+**Validation:** per the standing requirement — optimize on the earlier split,
+validate the winner out-of-sample, show both, suppress/flag winners that don't hold
+up.
 
-**Goal:** run the dials currently in the form *and* a baseline (production weights,
-or whatever was last applied) side by side, so the user sees both results at once
-instead of running one, remembering the numbers, then running the other.
+**UI (Optimizer tab):** a "Find optimum weights" action. Result: the winning weight
+set shown via the existing diff table pattern (old = production, new = optimizer's
+pick), in-sample and held-out stats side by side, the plain-English explanation
+below, and the existing owner-gated Apply button. No auto-apply.
 
-**Own-data mode:** cheap — trivial to fire both evaluations from one "Run" click and
-render two result cards (or a single card with two columns / a delta row per stat:
-expectancy, profit factor, win rate, total return, drawdown). No async complexity.
+**Human-readable explanation of the result:** once the sweep picks a winner, produce
+a plain paragraph via Claude (same endpoint as Feature 3, richer payload: winner +
+baseline + a summary of all candidates tried + both validation numbers). Constraints
+on that text, beyond the general clarity bar:
 
-**Historic mode:** doubles the cost of an already multi-minute job. Recommend this be
-**opt-in**, not automatic — e.g. a checkbox "Also compare against production" next to
-Run Simulation, only shown/enabled in historic mode. When checked, queue two
-`BacktestRun` rows (or extend `BacktestJobMessage` to carry a second weight set) and
-render both once both complete.
+- Describe **what** changed and **what was observed** across candidates. Any "why"
+  is conjecture and must be worded as such ("this pattern is consistent with…",
+  "one possible reading…") — with ~25 configs that each differ in several weights at
+  once after renormalization, the sweep cannot establish *why* a direction won, and
+  the writeup must not manufacture a causal story that happens to sound convincing.
+- Call out fragility explicitly: low trade counts driving a bucket, a winner whose
+  edge concentrated in a few trades, in-sample vs. held-out gaps.
+- The text is explanatory, not a new source of truth — the apply decision rests on
+  the validated stats and the human, not on how persuasive the paragraph reads.
 
-**UI:** results panel gets a "vs. production" comparison strip when a baseline is
-available — reuse the stat-grid layout already in the historic result card, just
-duplicated per side with a delta column (or arrow + color) showing which one's
-better for each metric.
+## Feature 2: Manual A/B — new dials vs. current dials (the "A/B Testing" tab)
+
+**Goal:** run the dials currently in the form *and* the production baseline together,
+so the user sees both results side by side instead of running one, remembering the
+numbers, then running the other.
+
+**Own-data mode:** cheap — fire both evaluations from one "Run" click, render a
+side-by-side stat comparison (expectancy, profit factor, win rate, total return,
+drawdown) with a delta indicator per metric and a one-line plain-English verdict
+("Your dials beat production on expectancy but with a deeper worst drawdown").
+
+**Historic mode:** doubles the cost of an already multi-minute job, so **opt-in** —
+a checkbox "Also compare against production" shown in historic mode. When checked,
+the job evaluates both configs (extend `BacktestJobMessage` to carry the second
+weight set — an A/B is just a sweep of 2, so this shares Feature 1's multi-candidate
+plumbing).
+
+**Snapshot the baseline at queue time.** Production weights can change while a
+multi-minute job runs (or between queue and read). Store the baseline weight values
+on the `BacktestRun` row when the job is queued and label the comparison with what
+was actually evaluated — never re-read "current production" at render time.
+
+**UI (A/B Testing tab):** essentially today's Lab layout plus the comparison strip —
+dial form, Run, side-by-side results, the existing mechanical suggestions, and
+Feature 3's "Analyse this run" action.
 
 ## Feature 3: Claude-assisted "what to try next" (analysis only, no auto-apply)
 
-**Goal:** after any run (own-data or historic), send the result to Claude — headline
-stats, the by-setup/conviction/exit breakdowns, and the weights/threshold/breakout
-config that produced it — and ask for a short written analysis plus a *suggested next
-config to try*. Purely advisory: no run, no apply, no simulation triggered by Claude
-itself. The user reads the suggestion, then manually loads those dials (reusing the
-existing `tryDials()` mechanism the mechanical suggestions already use) and clicks Run
-Simulation themselves if they want to test it.
+**Goal:** after any run, send the result to Claude — headline stats, the
+by-setup/conviction/exit breakdowns, and the config that produced it — and get back a
+short written analysis plus a *suggested next config to try*. Purely advisory: no
+run, no apply, nothing triggered by Claude itself. The user reads the suggestion,
+loads the dials via the existing `tryDials()` mechanism, and clicks Run Simulation
+themselves.
 
-**Why this is worth it alongside Feature 1's mechanical optimizer:** the nudge-search
-in `Search()` is mechanical — it only tries fixed ±5% single-dial deltas and keeps
-whatever clears a small bar. It can't reason about *why* a config underperformed. A
-model looking at the full breakdown could notice things a fixed search can't, e.g.
-"StopLoss exits account for 47% of trades and average -5.5%, more than double the
-frequency of Target exits, which suggests tightening entry-quality weights rather than
-this bucket being unavoidable" or "the 7-conviction bucket is inversely predictive
-here too, consistent with prior data — the model's own confidence isn't reliable
-above 6." Cross-signal reasoning like that is exactly what a fixed nudge-search
-misses.
+**Why this is worth having alongside the mechanical optimizer:** the nudge-search is
+mechanical — fixed ±5% single-dial deltas. It can't reason about *why* a config
+underperformed. A model reading the full breakdown can cross-reference signals a
+fixed search can't: e.g. "StopLoss exits are 47% of trades at −5.5% average, double
+the frequency of Target exits — worth testing higher entry-quality weighting" or
+"the 7-conviction bucket underperforms the 6s again, consistent with earlier
+backtests — worth testing a lower Buy threshold rather than trusting high conviction."
 
 **Important framing:** a Claude suggestion is a hypothesis, not a verified result —
-unlike the mechanical suggestions (which only appear because they already
-back-tested better), this hasn't been simulated. It must flow through the normal
-Run Simulation step before anyone treats the numbers as real. Should be presented
-as "worth trying" language, not a result.
+unlike the mechanical suggestions (which only appear because they already back-tested
+better), it hasn't been simulated. Present it in "worth trying" language, and it must
+flow through a normal Run Simulation before its numbers are treated as real. The same
+honesty constraints as Feature 1's explanation apply: observations stated as
+observations, causal readings marked as conjecture, fragility (small samples) called
+out.
 
-**Implementation shape:** a small new endpoint (e.g.
-`POST /strategy-lab/analyse`) that takes the just-completed result (own-data
-`LabResultDto` or historic `HistoricResultDto`) plus the weights/threshold that
-produced it, builds a prompt summarizing the stats + bucket breakdowns, calls Claude,
-and returns free text (analysis paragraph) plus optionally a structured suggested
-`LabWeightsDto`/threshold/breakout the UI can feed straight into `tryDials()`. Cheap
-to build — no new job/queue infra, just one Claude call per "Analyse this run" click
-(user-triggered, not automatic on every run, to control cost). This same
-endpoint/prompt-building code is reused by Feature 1's "explain the sweep result"
-writeup below — build this one first and Feature 1 just calls it with a richer
-payload (winner + baseline + candidate summary) instead of a single run's result.
+**Implementation shape:** one new endpoint (e.g. `POST /strategy-lab/analyse`) that
+takes the just-completed result (own-data `LabResultDto` or historic
+`HistoricResultDto`) plus the config that produced it, builds a prompt summarizing
+stats + bucket breakdowns, calls Claude, and returns analysis text plus an optional
+structured suggested config the UI feeds into `tryDials()`. User-triggered per click
+(not automatic on every run) to control cost. No new job/queue infra. Feature 1's
+sweep explanation reuses this endpoint with a richer payload — build this first and
+Feature 1 calls it with winner + baseline + candidate summary instead of a single
+run's result.
 
 ## Suggested build order
 
-1. Feature 3, own-data mode first (cheapest — one Claude call, no job/queue infra,
-   no optimizer math to get right; also the fastest way to validate whether the
-   analysis is actually useful before investing in Feature 1's optimizer).
-2. Own-data mode optimizer (Feature 1, cheap, no infra changes — biggest mechanical
-   bang for effort).
-3. Own-data mode manual A/B (Feature 2, also cheap, reuses existing evaluate path).
-4. Feature 3 extended to historic mode (same endpoint, just fed `HistoricResultDto`
-   instead — trivial once the own-data version exists).
-5. Historic mode capped sweep (Feature 1 extension) — reuse `BacktestConsumerFunction`
-   pattern, extend `HistoricBacktestRequest`/`BacktestJobMessage` to carry multiple
-   candidate weight sets, return winner + top-N.
-6. Historic mode opt-in A/B (Feature 2 extension) — smallest incremental change once
-   #5's multi-candidate job plumbing exists (an A/B is just a sweep of 2).
+1. **Feature 3, own-data mode** — cheapest (one Claude call, no infra), and the
+   fastest way to validate whether AI-assisted dial analysis is useful at all before
+   the pricier investments.
+2. **Two-tab UI restructure + own-data A/B** (Feature 2) — moving existing pieces
+   into tabs plus a second in-memory evaluation per run; no async complexity. Gives
+   the A/B Testing tab its full shape early.
+3. **Feature 3 extended to historic mode** — same endpoint, fed `HistoricResultDto`;
+   trivial once the own-data version exists.
+4. **Historic capped sweep with validation split** (Feature 1 proper) — the
+   multi-candidate background job, objective metric + constraints, out-of-sample
+   validation, diff table + explanation on the Optimizer tab.
+5. **Historic opt-in A/B** (Feature 2 extension) — an A/B is a sweep of 2; smallest
+   incremental change once #4's multi-candidate plumbing exists.
+6. **Own-data iterated nudge** (Feature 1's deliberately-timid sibling) — lowest
+   value, last; may reasonably be cut if the historic optimizer proves out.
 
-Steps 5–6 share a lot of the "run N weight sets as one background job" plumbing, so
-sequencing the historic-mode optimizer before historic A/B avoids building the same
-multi-candidate job infrastructure twice. Feature 3 is deliberately first because it's
-the cheapest signal on whether this whole direction (more automated dial-tuning
-assistance) is worth the later, pricier investments.
+Feature 3 stays first as the cheapest signal on whether this whole direction is worth
+it. The old plan's "own-data optimizer first" ordering is dropped on purpose: the
+own-data path is structurally the weakest evaluation (censored, small sample), so it
+shouldn't be the flagship — the historic sweep is.
