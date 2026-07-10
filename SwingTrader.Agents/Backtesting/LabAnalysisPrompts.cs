@@ -81,7 +81,7 @@ public static class LabAnalysisPrompts
     {
         var sb = new StringBuilder();
         sb.AppendLine("An optimizer sweep just completed: multiple dial configurations were evaluated on a TRAIN window " +
-                      "(the earlier ~70% of a 3-year historic backtest), and the best one was then validated on the " +
+                      "(the earlier ~70% of a multi-year historic backtest), and the best one was then validated on the " +
                       "HELD-OUT remainder it was never tuned on.");
         sb.AppendLine($"Baseline (current production): {DescribeConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout)} — " +
                       $"train window: {baseline.Trades} trades, {baseline.AdjustedExpectancyPct:F2}% market-adjusted expectancy/trade, " +

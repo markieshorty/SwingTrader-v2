@@ -163,7 +163,7 @@ export class StrategyLabComponent {
     this.syncing.set(true);
     this.api.syncLabData().subscribe({
       next: () => {
-        this.snackbar.open('Candle sync queued — the initial 3-year load takes ~15 minutes. Check back shortly.', 'Dismiss', { duration: 6000 });
+        this.snackbar.open('Candle sync queued — a full 5-year load takes ~25 minutes. Check back shortly.', 'Dismiss', { duration: 6000 });
         this.syncing.set(false);
       },
       error: (err) => {
@@ -221,7 +221,7 @@ export class StrategyLabComponent {
       this.api.runStrategyLabHistoric(request).subscribe({
         next: (r) => {
           this.lastHistoricRunId = r.backtestRunId;
-          this.pollRun(r.backtestRunId, 'Running — replaying 3 years of market data through your dials…',
+          this.pollRun(r.backtestRunId, 'Running — replaying the historic market data through your dials…',
             this.historicStatus, (result) => {
               if (result && 'mode' in result && result.mode === 'ab') this.abResult.set(result);
               else this.historicResult.set(result as HistoricResultDto);
@@ -256,7 +256,7 @@ export class StrategyLabComponent {
     this.api.runStrategyLabOptimize().subscribe({
       next: (r) => this.pollRun(
         r.backtestRunId,
-        'Running — evaluating ~25 dial variations on the training window, then validating the best on held-out data. This takes a while…',
+        'Running — evaluating ~30 dial variations on the training window, then validating the best on held-out data. This takes a while…',
         this.sweepStatus,
         (result) => {
           if (result && 'mode' in result && result.mode === 'sweep') this.sweepResult.set(result);

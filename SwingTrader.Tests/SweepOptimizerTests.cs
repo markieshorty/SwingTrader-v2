@@ -32,7 +32,7 @@ public class SweepOptimizerTests
         var first = SweepOptimizer.GenerateCandidates(Baseline());
         var second = SweepOptimizer.GenerateCandidates(Baseline());
 
-        first.Count.Should().BeGreaterThan(15).And.BeLessThan(30);
+        first.Count.Should().BeGreaterThan(25).And.BeLessThan(40);
         first.Should().AllSatisfy(c => Sum(c.Weights).Should().BeApproximately(1.0m, 0.005m));
         first.Select(c => c.Label).Should().Equal(second.Select(c => c.Label));
         first.Select(c => c.Weights).Should().Equal(second.Select(c => c.Weights));

@@ -17,7 +17,7 @@
             <mat-select [ngModel]="dataSource()" (ngModelChange)="dataSource.set($event)">
               <mat-option value="own">Backtest against your own trade history</mat-option>
               <mat-option value="historic" [disabled]="!historicAvailable()">
-                Backtest against 3 years of market data{{ historicAvailable() ? '' : ' (no data synced yet)' }}
+                Backtest against up to 5 years of market data{{ historicAvailable() ? '' : ' (no data synced yet)' }}
               </mat-option>
             </mat-select>
           </mat-form-field>
@@ -31,7 +31,7 @@
           } @else {
             <p class="muted small">
               Historic mode replays the full strategy — screener, scoring, entries and exits — over the S&amp;P 1500
-              across 3 years of daily bars. It runs server-side and takes a few minutes. Caveats: no Claude selection,
+              across up to 5 years of daily bars. It runs server-side and takes a few minutes. Caveats: no Claude selection,
               sentiment neutral, today's index membership — use it to <em>compare</em> dial settings, not predict returns.
             </p>
           }
@@ -80,7 +80,7 @@
 
           @if (dataSource() === 'historic') {
             <mat-checkbox [checked]="compareBaselineHistoric()" (change)="compareBaselineHistoric.set($event.checked)"
-              matTooltip="Also runs the current production dials over the same 3 years so you see both side by side. Doubles the wait — the job runs two full simulations.">
+              matTooltip="Also runs the current production dials over the same historic window so you see both side by side. Doubles the wait — the job runs two full simulations.">
               Also compare against production
             </mat-checkbox>
           }
@@ -134,7 +134,7 @@
       <!-- Historic A/B result: your dials vs production, same window -->
       @if (abResult(); as ab) {
         <mat-card class="panel results">
-          <h3>Head-to-head — your dials vs production, same 3 years</h3>
+          <h3>Head-to-head — your dials vs production, same historic window</h3>
           <p class="summary">
             Both configurations were replayed over the identical historic window. The production column shows the dials
             that were live when this job was queued. Higher expectancy = more per trade on average; lower drawdown = a
@@ -339,19 +339,20 @@
       <mat-card class="panel controls">
         <h3>Find optimum weights</h3>
         <p class="muted small">
-          The optimizer tries ~25 dial variations around your current production settings against the historic dataset.
-          To guard against flukes, it tunes on the <strong>earlier ~70%</strong> of the 3-year window, then re-tests the
-          best configuration on the <strong>held-out remainder it never saw</strong>. A config that only wins on the
-          data it was tuned on is noise — the result tells you plainly whether the winner held up. Candidates are judged
-          on <em>market-adjusted</em> expectancy (each trade's return minus SPY's move over the same days), with
-          guardrails: at least {{ 40 }} trades, and a max drawdown no worse than 1.25× the baseline's.
+          The optimizer tries ~30 dial variations around your current production settings against the historic dataset —
+          small nudges, bigger single-signal shifts, and structurally different mixes (equal weights, technical-heavy,
+          sentiment-heavy). To guard against flukes, it tunes on the <strong>earlier ~70%</strong> of the window, then
+          re-tests the best configuration on the <strong>held-out remainder it never saw</strong>. A config that only
+          wins on the data it was tuned on is noise — the result tells you plainly whether the winner held up.
+          Candidates are judged on <em>market-adjusted</em> expectancy (each trade's return minus SPY's move over the
+          same days), with guardrails: at least {{ 40 }} trades, and a max drawdown no worse than 1.25× the baseline's.
         </p>
         <div class="meta-row">
           <button mat-raised-button color="primary" [disabled]="optimizing() || !historicAvailable()" (click)="runOptimizer()">
             @if (optimizing()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>auto_awesome</mat-icon> }
             Find optimum weights
           </button>
-          <span class="muted small">Runs ~25 full simulations server-side — expect 10–20 minutes.</span>
+          <span class="muted small">Runs ~30 full simulations server-side — expect 15–25 minutes.</span>
         </div>
       </mat-card>
 

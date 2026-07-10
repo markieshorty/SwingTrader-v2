@@ -88,11 +88,52 @@ public static class SweepOptimizer
         }
 
         // Buy-threshold variants on the baseline mix.
-        foreach (var t in new[] { -0.5m, 0.5m })
+        foreach (var t in new[] { -1.0m, -0.5m, 0.5m, 1.0m })
         {
             var nt = Math.Clamp(baseline.BuyThreshold + t, 3.0m, 9.0m);
-            if (nt != baseline.BuyThreshold)
+            if (nt != baseline.BuyThreshold && candidates.All(c => c.BuyThreshold != nt || c.Weights != baseline.Weights))
                 candidates.Add(baseline with { Label = $"Buy threshold {nt:0.0}", BuyThreshold = nt });
+        }
+
+        // Structural variants: small nudges rarely separate from noise on a
+        // finite trade sample, so also try mixes that are genuinely different -
+        // a real edge, if one exists, shows up loudest in these.
+        candidates.Add(baseline with
+        {
+            Label = "Equal weights",
+            Weights = new HistoricBacktestWeights(0.125m, 0.125m, 0.125m, 0.125m, 0.125m, 0.125m, 0.125m, 0.125m),
+        });
+        candidates.Add(baseline with
+        {
+            // Indices: rsi, macd, volume, sentiment, setupQuality, relStrength, priceLevel, fundMomentum
+            Label = "Technical tilt (price action heavy)",
+            Weights = new HistoricBacktestWeights(0.22m, 0.14m, 0.24m, 0.04m, 0.18m, 0.08m, 0.06m, 0.04m),
+        });
+        candidates.Add(baseline with
+        {
+            Label = "Context tilt (sentiment/fundamentals heavy)",
+            Weights = new HistoricBacktestWeights(0.08m, 0.05m, 0.10m, 0.24m, 0.08m, 0.18m, 0.07m, 0.20m),
+        });
+
+        // Pair trades: shift a meaningful chunk (8pp) from one dial to another.
+        // Curated pairs rather than all 56 permutations - each tests a
+        // distinct "this signal matters more than that one" hypothesis.
+        var pairs = new (int From, int To, string Desc)[]
+        {
+            (3, 2, "Sentiment → Volume"),
+            (3, 4, "Sentiment → Setup quality"),
+            (0, 5, "RSI → Relative strength"),
+            (7, 0, "Fundamental momentum → RSI"),
+        };
+        foreach (var (from, to, desc) in pairs)
+        {
+            var arr = (decimal[])baseArr.Clone();
+            var shift = Math.Min(0.08m, arr[from] - 0.02m);
+            if (shift <= 0m || arr[to] + shift > 0.45m) continue;
+            arr[from] -= shift;
+            arr[to] += shift;
+            Renormalise(arr);
+            candidates.Add(baseline with { Label = $"Shift 8pp: {desc}", Weights = FromArray(arr) });
         }
 
         // A few deterministic pseudo-random mixes for diversity (fixed seed so

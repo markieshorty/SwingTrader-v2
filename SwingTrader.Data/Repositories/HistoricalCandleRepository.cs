@@ -12,6 +12,12 @@ public class HistoricalCandleRepository(SwingTraderDbContext db) : IHistoricalCa
             .Select(g => new { Symbol = g.Key, Max = g.Max(c => c.Date) })
             .ToDictionaryAsync(x => x.Symbol, x => x.Max, StringComparer.OrdinalIgnoreCase, ct);
 
+    public async Task<Dictionary<string, DateOnly>> GetEarliestDatesAsync(CancellationToken ct = default) =>
+        await db.HistoricalCandles
+            .GroupBy(c => c.Symbol)
+            .Select(g => new { Symbol = g.Key, Min = g.Min(c => c.Date) })
+            .ToDictionaryAsync(x => x.Symbol, x => x.Min, StringComparer.OrdinalIgnoreCase, ct);
+
     public async Task AddRangeAsync(IEnumerable<HistoricalCandle> candles, CancellationToken ct = default)
     {
         db.HistoricalCandles.AddRange(candles);
