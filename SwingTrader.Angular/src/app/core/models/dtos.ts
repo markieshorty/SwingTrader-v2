@@ -513,6 +513,17 @@ export interface LabWeightsDto {
   fundamentalMomentum: number;
 }
 
+// Historic-mode experiment overrides of the trading RULES. Null field = the
+// account's live risk-profile value. Applied to "Your dials" only — the
+// production baseline always replays with live rules. Never touches settings.
+export interface LabTradingRulesDto {
+  excludedSetups: string[] | null; // SetupType names, e.g. ['Breakout','VolumeSpike']
+  maxHoldDays: number | null;
+  maxOpenPositions: number | null;
+  trailingActivationPct: number | null; // fraction: 0.05 = arm at +5%
+  trailingDistancePct: number | null;   // fraction: 0.03 = trail 3% below
+}
+
 export interface StrategyLabRequestDto {
   dataSource: 'own' | 'historic';
   weights: LabWeightsDto;
@@ -520,6 +531,7 @@ export interface StrategyLabRequestDto {
   excludeBreakout: boolean;
   compareBaseline?: boolean; // A/B: also evaluate production dials over the same data
   autopauseDuringBear?: boolean; // historic: skip entries while SPY < 200dma (mirrors live autopause)
+  rules?: LabTradingRulesDto | null; // historic: trading-rule experiment overrides
 }
 
 export interface LabResultDto {

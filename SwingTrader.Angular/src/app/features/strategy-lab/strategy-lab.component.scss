@@ -466,3 +466,24 @@ h3 .bad {
 .small {
   font-size: 0.8rem;
 }
+
+// Trading rules (experiment) panel
+.rules-panel {
+  margin-top: 12px;
+
+  .rules-badge {
+    margin-left: 8px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    background: var(--mat-sys-tertiary-container, #ffe0b2);
+    color: var(--mat-sys-on-tertiary-container, #7a4f01);
+  }
+
+  .rules-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 12px;
+    margin: 8px 0 12px;
+  }
+}

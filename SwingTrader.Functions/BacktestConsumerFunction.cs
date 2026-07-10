@@ -106,7 +106,8 @@ public class BacktestConsumerFunction(
     }
 
     private static HistoricConfig ToConfig(
-        HistoricBacktestWeights w, decimal buyThreshold, bool excludeBreakout, bool autopauseDuringBear, AccountRiskProfile profile) =>
+        HistoricBacktestWeights w, decimal buyThreshold, bool excludeBreakout, bool autopauseDuringBear,
+        AccountRiskProfile profile, HistoricTradingRules? rules = null) =>
         new(new StrategyWeights
         {
             RsiWeight = w.Rsi, MacdWeight = w.Macd, VolumeWeight = w.Volume, SentimentWeight = w.Sentiment,
@@ -117,15 +118,33 @@ public class BacktestConsumerFunction(
         // Per-request/candidate (a Lab dial), not the profile setting - the
         // baseline candidate snapshots the profile value at queue time.
         RegimeFilter: autopauseDuringBear,
-        MaxOpenPositions: profile.MaxOpenPositions,
-        MaxHoldDays: profile.MaxHoldDays);
+        // Trading rules: explicit Lab overrides win; otherwise the account's
+        // live risk profile - including the trailing shape, which previously
+        // sat as hardcoded 5%/3% constants in the engine and silently
+        // diverged from live whenever the profile differed.
+        MaxOpenPositions: rules?.MaxOpenPositions ?? profile.MaxOpenPositions,
+        MaxHoldDays: rules?.MaxHoldDays ?? profile.MaxHoldDays,
+        ExcludedSetups: ParseSetups(rules?.ExcludedSetups),
+        TrailingActivationPct: rules?.TrailingActivationPct ?? (decimal)profile.TrailingActivationPct,
+        TrailingDistancePct: rules?.TrailingDistancePct ?? (decimal)profile.TrailingDistancePct);
+
+    // Unknown names are ignored rather than failing the run - the list comes
+    // from the UI, but the request JSON is stored and could be replayed after
+    // an enum rename.
+    private static IReadOnlyCollection<SwingTrader.Core.Enums.SetupType>? ParseSetups(List<string>? names) =>
+        names is null
+            ? null
+            : names.Select(n => Enum.TryParse<SwingTrader.Core.Enums.SetupType>(n, ignoreCase: true, out var s) ? s : (SwingTrader.Core.Enums.SetupType?)null)
+                .Where(s => s.HasValue)
+                .Select(s => s!.Value)
+                .ToList();
 
     private static async Task<string> RunSingleAsync(
         HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, AccountRiskProfile profile,
         IReadOnlyDictionary<string, string>? sectorEtfs, CancellationToken ct)
     {
         var result = await HistoricBacktester.RunAsync(
-            bars, ToConfig(request.Weights, request.BuyThreshold, request.ExcludeBreakout, request.AutopauseDuringBear, profile), sectorEtfs, ct);
+            bars, ToConfig(request.Weights, request.BuyThreshold, request.ExcludeBreakout, request.AutopauseDuringBear, profile, request.Rules), sectorEtfs, ct);
         // Trade log stays out of the stored JSON - it can be thousands of
         // rows; the headline stats + buckets are what the UI shows.
         return JsonSerializer.Serialize(result with { TradeLog = [] }, CamelCase);
@@ -143,7 +162,7 @@ public class BacktestConsumerFunction(
         var results = new List<object>();
         foreach (var c in candidates)
         {
-            var r = await HistoricBacktester.RunAsync(bars, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile), sectorEtfs, ct);
+            var r = await HistoricBacktester.RunAsync(bars, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile, c.Rules), sectorEtfs, ct);
             results.Add(new
             {
                 label = c.Label,

@@ -59,7 +59,11 @@ public static class StrategyLabEndpoints
                         Mode: "ab",
                         Candidates:
                         [
-                            new HistoricBacktestCandidate("Your dials", userWeights, req.BuyThreshold, req.ExcludeBreakout, req.AutopauseDuringBear),
+                            // Rule overrides apply to the user's side only —
+                            // the baseline replays with the account's live
+                            // risk-profile rules, so the comparison isolates
+                            // exactly what the user changed.
+                            new HistoricBacktestCandidate("Your dials", userWeights, req.BuyThreshold, req.ExcludeBreakout, req.AutopauseDuringBear, req.Rules),
                             baseline,
                         ]);
                 }
@@ -67,7 +71,8 @@ public static class StrategyLabEndpoints
                 {
                     historicRequest = new HistoricBacktestRequest(
                         userWeights, req.BuyThreshold, req.ExcludeBreakout,
-                        AutopauseDuringBear: req.AutopauseDuringBear);
+                        AutopauseDuringBear: req.AutopauseDuringBear,
+                        Rules: req.Rules);
                 }
 
                 var run = await runs.AddAsync(new BacktestRun

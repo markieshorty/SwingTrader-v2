@@ -119,6 +119,54 @@
               matTooltip="Also runs the current production dials over the same historic window so you see both side by side. Doubles the wait — the job runs two full simulations.">
               Also compare against production
             </mat-checkbox>
+
+            <mat-expansion-panel class="rules-panel">
+              <mat-expansion-panel-header>
+                <mat-panel-title>
+                  Trading rules (experiment) @if (rulesTouched()) { <span class="rules-badge">modified</span> }
+                </mat-panel-title>
+              </mat-expansion-panel-header>
+              <p class="muted small">
+                These override the trading <em>rules</em> — not the scoring dials — for this run only.
+                They apply to <strong>your</strong> side of an A/B; the production baseline always replays with your
+                live risk-profile rules, so the comparison isolates exactly what you changed. Nothing here touches
+                production — rule changes you decide to keep are made on the Settings page.
+              </p>
+              <div class="rules-grid">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Also exclude setups</mat-label>
+                  <mat-select multiple [value]="rulesExtraExcludedSetups()"
+                    (selectionChange)="rulesExtraExcludedSetups.set($event.value)">
+                    @for (s of excludableSetups; track s) {
+                      <mat-option [value]="s">{{ s }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Max hold days (trading days)</mat-label>
+                  <input matInput type="number" min="2" max="30" [ngModel]="rulesMaxHoldDays()"
+                    (ngModelChange)="rulesMaxHoldDays.set($event)" />
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Max open positions</mat-label>
+                  <input matInput type="number" min="1" max="10" [ngModel]="rulesMaxOpenPositions()"
+                    (ngModelChange)="rulesMaxOpenPositions.set($event)" />
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Trailing stop arms at (+%)</mat-label>
+                  <input matInput type="number" min="1" max="20" step="0.5" [ngModel]="rulesTrailingActivation()"
+                    (ngModelChange)="rulesTrailingActivation.set($event)" />
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Trailing distance (%)</mat-label>
+                  <input matInput type="number" min="1" max="10" step="0.5" [ngModel]="rulesTrailingDistance()"
+                    (ngModelChange)="rulesTrailingDistance.set($event)" />
+                </mat-form-field>
+              </div>
+              <button mat-stroked-button (click)="resetRules()" [disabled]="!rulesTouched()">
+                <mat-icon>restart_alt</mat-icon> Reset rules to my live settings
+              </button>
+            </mat-expansion-panel>
           }
 
           <button mat-stroked-button [disabled]="running() || !productionWeights()" (click)="resetToProduction()"

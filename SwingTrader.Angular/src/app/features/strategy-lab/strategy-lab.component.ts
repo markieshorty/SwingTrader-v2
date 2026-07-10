@@ -8,6 +8,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSliderModule } from '@angular/material/slider';
@@ -56,6 +57,7 @@ interface DiffRow {
     MatCheckboxModule,
     MatFormFieldModule,
     MatIconModule,
+    MatInputModule,
     MatSelectModule,
     MatSliderModule,
     MatSlideToggleModule,
@@ -121,6 +123,33 @@ export class StrategyLabComponent {
   // so flipping it is a legitimate experiment.
   autopauseBear = signal(true);
   private productionAutopauseBear = true;
+
+  // ── Trading rules (experiment, historic mode only) ─────────────────────────
+  // Overrides ride the request and apply to "Your dials" only; the production
+  // baseline always replays with the live risk-profile rules. Numeric fields
+  // are prefilled from the profile so an untouched Run simulates production.
+  readonly excludableSetups = ['OversoldRecovery', 'MomentumContinuation', 'VolumeSpike', 'TrendFollowing', 'Unknown'];
+  rulesExtraExcludedSetups = signal<string[]>([]);
+  rulesMaxHoldDays = signal(10);
+  rulesMaxOpenPositions = signal(3);
+  rulesTrailingActivation = signal(5); // percent, converted to fraction on send
+  rulesTrailingDistance = signal(3);
+  private profileRules = { maxHoldDays: 10, maxOpenPositions: 3, trailingActivation: 5, trailingDistance: 3 };
+
+  rulesTouched = computed(() =>
+    this.rulesExtraExcludedSetups().length > 0
+    || this.rulesMaxHoldDays() !== this.profileRules.maxHoldDays
+    || this.rulesMaxOpenPositions() !== this.profileRules.maxOpenPositions
+    || this.rulesTrailingActivation() !== this.profileRules.trailingActivation
+    || this.rulesTrailingDistance() !== this.profileRules.trailingDistance);
+
+  resetRules(): void {
+    this.rulesExtraExcludedSetups.set([]);
+    this.rulesMaxHoldDays.set(this.profileRules.maxHoldDays);
+    this.rulesMaxOpenPositions.set(this.profileRules.maxOpenPositions);
+    this.rulesTrailingActivation.set(this.profileRules.trailingActivation);
+    this.rulesTrailingDistance.set(this.profileRules.trailingDistance);
+  }
 
   running = signal(false);
   response = signal<StrategyLabResponseDto | null>(null);
@@ -195,6 +224,14 @@ export class StrategyLabComponent {
       next: (p) => {
         this.productionAutopauseBear = p.autopauseDuringBear;
         this.autopauseBear.set(p.autopauseDuringBear);
+        // Trading-rules defaults mirror the live profile (percent for display).
+        this.profileRules = {
+          maxHoldDays: p.maxHoldDays,
+          maxOpenPositions: p.maxOpenPositions,
+          trailingActivation: Math.round(p.trailingActivationPct * 100),
+          trailingDistance: Math.round(p.trailingDistancePct * 100),
+        };
+        this.resetRules();
       },
       error: () => {},
     });
@@ -282,6 +319,21 @@ export class StrategyLabComponent {
       // doubles a multi-minute job, so it follows the checkbox.
       compareBaseline: historic ? this.compareBaselineHistoric() : true,
       autopauseDuringBear: this.autopauseBear(),
+      // Trading-rule overrides only ride historic runs, and only when
+      // something was actually changed - an untouched panel sends nothing so
+      // the engine uses the live risk profile exactly as before.
+      rules: historic && this.rulesTouched()
+        ? {
+            excludedSetups: [
+              ...(this.excludeBreakout() ? ['Breakout'] : []),
+              ...this.rulesExtraExcludedSetups(),
+            ],
+            maxHoldDays: this.rulesMaxHoldDays(),
+            maxOpenPositions: this.rulesMaxOpenPositions(),
+            trailingActivationPct: this.rulesTrailingActivation() / 100,
+            trailingDistancePct: this.rulesTrailingDistance() / 100,
+          }
+        : null,
     };
     this.ranWeights = request.weights;
     this.ranThreshold = request.buyThreshold;

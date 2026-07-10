@@ -40,7 +40,16 @@ public sealed record HistoricConfig(
     decimal MinDollarVolume = 10_000_000m,
     // Trading-day hold cap, mirrored from the account risk profile so the Lab
     // tests the strategy the account actually runs (was a hardcoded 10).
-    int MaxHoldDays = 10);
+    int MaxHoldDays = 10,
+    // Setups whose signals are never entered. Null = derive from
+    // ExcludeBreakout (the original single-toggle behaviour); the Lab's
+    // trading-rules panel can exclude any set.
+    IReadOnlyCollection<SetupType>? ExcludedSetups = null,
+    // Trailing stop shape - mirrored from the risk profile (or a Lab rules
+    // override). Previously hardcoded 5%/3% constants, which silently
+    // diverged from live whenever the profile's values differed.
+    decimal TrailingActivationPct = 0.05m,
+    decimal TrailingDistancePct = 0.03m);
 
 public sealed record HistoricTrade(
     string Symbol, DateTime EntryDate, DateTime ExitDate, decimal EntryPrice, decimal ExitPrice,
@@ -62,8 +71,6 @@ public static class HistoricBacktester
     private const decimal CostPerSide = 0.0025m;
     private const int WatchlistSize = 25;
     private const int MaxOrdersPerDay = 3;
-    private const decimal TrailingActivationPct = 0.05m;
-    private const decimal TrailingDistancePct = 0.03m;
     // 85 (was 60): the price-level component mirrors the live service's
     // 120-calendar-day lookback, which is ~82-84 trading bars. Raising the
     // warmup shifted every backtest window's start ~25 bars later, so results
@@ -142,9 +149,9 @@ public static class HistoricBacktester
                         pos.Setup, pos.Conviction, reason!, Math.Round((proceeds - cost) / cost * 100m, 2)));
                     open.Remove(pos);
                 }
-                else if (bar.Close >= pos.EntryPrice * (1 + TrailingActivationPct))
+                else if (bar.Close >= pos.EntryPrice * (1 + cfg.TrailingActivationPct))
                 {
-                    var newTrail = bar.Close * (1 - TrailingDistancePct);
+                    var newTrail = bar.Close * (1 - cfg.TrailingDistancePct);
                     if (pos.TrailingStop is null || newTrail > pos.TrailingStop) pos.TrailingStop = newTrail;
                 }
             }
@@ -153,13 +160,17 @@ public static class HistoricBacktester
             var regimeOk = !cfg.RegimeFilter || SpyAboveSma200(spy, d);
             if (open.Count < cfg.MaxOpenPositions && regimeOk)
             {
+                // Explicit exclusion set wins; otherwise the original
+                // single-toggle behaviour (ExcludeBreakout) applies.
+                var excludedSetups = cfg.ExcludedSetups
+                    ?? (cfg.ExcludeBreakout ? [SetupType.Breakout] : Array.Empty<SetupType>());
                 var candidates = new List<(string Symbol, decimal Conviction, SetupType Setup)>();
                 foreach (var symbol in watchlist)
                 {
                     if (open.Any(p => p.Symbol.Equals(symbol, StringComparison.OrdinalIgnoreCase))) continue;
                     var scored = await ScoreAsync(indicators, cfg, bars, index, symbol, today, sectorEtfBySymbol);
                     if (scored is { } s && s.Conviction >= cfg.BuyThreshold && s.Rsi <= 75m
-                        && !(cfg.ExcludeBreakout && s.Setup == SetupType.Breakout))
+                        && !excludedSetups.Contains(s.Setup))
                         candidates.Add((symbol, s.Conviction, s.Setup));
                 }
 

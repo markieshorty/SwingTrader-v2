@@ -25,7 +25,12 @@ public record StrategyLabRequest(
     // Historic mode only: skip new entries while SPY is below its 200-day
     // average, approximating the live bear autopause. Unlike sentiment etc.,
     // this IS reconstructable from bars, so it's a legitimate dial to test.
-    bool AutopauseDuringBear = true);
+    bool AutopauseDuringBear = true,
+    // Historic mode only: experiment overrides of the trading RULES (setup
+    // exclusions, hold/position caps, trailing shape). Applied to the user's
+    // candidate only - the production baseline always replays with the
+    // account's live risk-profile rules. Never touches live settings.
+    Core.Models.HistoricTradingRules? Rules = null);
 
 public record LabTradeOutcome(
     string Symbol, DateTime OpenedAt, decimal Conviction, string Setup, decimal ReturnPct, bool WouldTake);
