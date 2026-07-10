@@ -8,6 +8,7 @@ namespace SwingTrader.Infrastructure.Market;
 public class RelativeStrengthService(
     ICandleRepository candleRepo,
     IMemoryCache cache,
+    IMarketUniverseService universe,
     ILogger<RelativeStrengthService> logger) : IRelativeStrengthService
 {
     // Null = "couldn't compute" (see IRelativeStrengthService) - previously a
@@ -28,7 +29,20 @@ public class RelativeStrengthService(
                 return null;
             }
 
-            var etf = SectorEtfMap.GetEtf(symbol);
+            // GICS-sector-driven benchmark (all 11 SPDR sector ETFs) via the
+            // cached universe; a universe outage degrades to the legacy
+            // override-or-SPY map rather than failing the RS score.
+            string etf;
+            try
+            {
+                var etfBySymbol = await universe.GetSectorEtfMapAsync(ct);
+                etf = etfBySymbol.TryGetValue(symbol, out var mapped) ? mapped : SectorEtfMap.GetEtf(symbol);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Sector-ETF lookup failed for {Symbol} — using legacy fallback map", symbol);
+                etf = SectorEtfMap.GetEtf(symbol);
+            }
 
             // Date in the key so the cached window can never lag a day behind
             // the fresh stock candles it's compared against - a 24h TTL alone

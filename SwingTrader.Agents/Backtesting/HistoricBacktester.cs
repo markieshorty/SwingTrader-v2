@@ -93,7 +93,13 @@ public static class HistoricBacktester
     }
 
     public static async Task<HistoricResult> RunAsync(
-        IReadOnlyDictionary<string, DailyBar[]> bars, HistoricConfig cfg, CancellationToken ct = default)
+        IReadOnlyDictionary<string, DailyBar[]> bars, HistoricConfig cfg,
+        // Symbol -> sector-ETF benchmark for the RS component (built from the
+        // universe's GICS sectors by the caller so backtest and live use the
+        // SAME mapping). Null / missing symbols use the legacy override-or-SPY
+        // fallback, matching live's degraded path.
+        IReadOnlyDictionary<string, string>? sectorEtfBySymbol = null,
+        CancellationToken ct = default)
     {
         if (!bars.TryGetValue("SPY", out var spy) || spy.Length <= WarmupBars)
             throw new InvalidOperationException("SPY bars are required as the trading-calendar anchor (with warmup history).");
@@ -151,7 +157,7 @@ public static class HistoricBacktester
                 foreach (var symbol in watchlist)
                 {
                     if (open.Any(p => p.Symbol.Equals(symbol, StringComparison.OrdinalIgnoreCase))) continue;
-                    var scored = await ScoreAsync(indicators, cfg, bars, index, symbol, today);
+                    var scored = await ScoreAsync(indicators, cfg, bars, index, symbol, today, sectorEtfBySymbol);
                     if (scored is { } s && s.Conviction >= cfg.BuyThreshold && s.Rsi <= 75m
                         && !(cfg.ExcludeBreakout && s.Setup == SetupType.Breakout))
                         candidates.Add((symbol, s.Conviction, s.Setup));
@@ -250,7 +256,8 @@ public static class HistoricBacktester
     internal static async Task<(decimal Conviction, SetupType Setup, decimal Rsi)?> ScoreAsync(
         IndicatorService indicators, HistoricConfig cfg,
         IReadOnlyDictionary<string, DailyBar[]> bars, Dictionary<string, Dictionary<DateTime, int>> index,
-        string symbol, DateTime today)
+        string symbol, DateTime today,
+        IReadOnlyDictionary<string, string>? sectorEtfBySymbol = null)
     {
         if (!index.TryGetValue(symbol, out var dates) || !dates.TryGetValue(today, out var i) || i < WarmupBars)
             return null;
@@ -274,7 +281,7 @@ public static class HistoricBacktester
         // Relative strength: this symbol's 5d return vs its sector ETF's, via
         // the SAME shared calculator + SectorEtfMap the live scorer uses. Null
         // (ETF bars missing for this window) blends neutral, mirroring live.
-        var rsScore = ComputeRelativeStrengthScore(bars, index, symbol, history, today);
+        var rsScore = ComputeRelativeStrengthScore(bars, index, symbol, history, today, sectorEtfBySymbol);
 
         // Price level: support/resistance from this symbol's own warmup bars
         // (<= today only - no lookahead), same shared calculator as live.
@@ -302,9 +309,12 @@ public static class HistoricBacktester
 
     internal static decimal? ComputeRelativeStrengthScore(
         IReadOnlyDictionary<string, DailyBar[]> bars, Dictionary<string, Dictionary<DateTime, int>> index,
-        string symbol, DailyBar[] history, DateTime today)
+        string symbol, DailyBar[] history, DateTime today,
+        IReadOnlyDictionary<string, string>? sectorEtfBySymbol = null)
     {
-        var etf = SectorEtfMap.GetEtf(symbol);
+        var etf = sectorEtfBySymbol is not null && sectorEtfBySymbol.TryGetValue(symbol, out var mapped)
+            ? mapped
+            : SectorEtfMap.GetEtf(symbol);
         if (!bars.TryGetValue(etf, out var etfBars) ||
             !index.TryGetValue(etf, out var etfDates) ||
             !etfDates.TryGetValue(today, out var etfIdx) ||

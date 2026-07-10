@@ -42,7 +42,7 @@ public class WikipediaIndexClient(HttpClient http) : IWikipediaIndexClient
             var headerCells = table.SelectNodes(".//tr[1]/th");
             if (headerCells is null) continue;
 
-            int tickerColumnIndex = -1, nameColumnIndex = -1;
+            int tickerColumnIndex = -1, nameColumnIndex = -1, sectorColumnIndex = -1;
             for (var i = 0; i < headerCells.Count; i++)
             {
                 var headerText = headerCells[i].InnerText.Trim();
@@ -54,6 +54,9 @@ public class WikipediaIndexClient(HttpClient http) : IWikipediaIndexClient
                     && (headerText.Equals("Security", StringComparison.OrdinalIgnoreCase)
                         || headerText.Equals("Company", StringComparison.OrdinalIgnoreCase)))
                     nameColumnIndex = i;
+                else if (sectorColumnIndex < 0
+                    && headerText.Equals("GICS Sector", StringComparison.OrdinalIgnoreCase))
+                    sectorColumnIndex = i;
             }
             if (tickerColumnIndex < 0) continue;
 
@@ -73,7 +76,13 @@ public class WikipediaIndexClient(HttpClient http) : IWikipediaIndexClient
                     ? HtmlEntity.DeEntitize(cells[nameColumnIndex].InnerText).Trim()
                     : string.Empty;
 
-                constituents.Add(new UniverseSymbol(symbol, name));
+                // GICS sector feeds SectorEtfMap.Resolve; null when the table
+                // has no sector column (Nasdaq-100) or the cell is empty.
+                var sector = sectorColumnIndex >= 0 && cells.Count > sectorColumnIndex
+                    ? HtmlEntity.DeEntitize(cells[sectorColumnIndex].InnerText).Trim()
+                    : null;
+
+                constituents.Add(new UniverseSymbol(symbol, name, string.IsNullOrEmpty(sector) ? null : sector));
             }
 
             if (constituents.Count > 0) return constituents;

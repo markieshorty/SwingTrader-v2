@@ -17,4 +17,13 @@ public interface IMarketUniverseService
     /// Shares the same cache.
     /// </summary>
     Task<List<UniverseSymbol>> GetUniverseWithNamesAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Symbol -> sector-ETF benchmark map for the whole universe, built from
+    /// the constituents' GICS sectors via <see cref="SectorEtfMap.Resolve"/>.
+    /// Shares the universe cache. Symbols absent from the map (or the whole
+    /// map when the universe fetch failed) resolve to
+    /// <see cref="SectorEtfMap.GetEtf"/>'s override-or-SPY fallback.
+    /// </summary>
+    Task<IReadOnlyDictionary<string, string>> GetSectorEtfMapAsync(CancellationToken ct = default);
 }

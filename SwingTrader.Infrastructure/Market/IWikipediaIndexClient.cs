@@ -1,8 +1,10 @@
 namespace SwingTrader.Infrastructure.Market;
 
-// One constituent: ticker plus its company name (the Wikipedia tables carry
-// both, in "Symbol" and "Security"/"Company" columns).
-public record UniverseSymbol(string Symbol, string CompanyName);
+// One constituent: ticker, company name, and GICS sector (the S&P 500/400/600
+// tables all carry a "GICS Sector" column - verified 10 Jul 2026; the
+// Nasdaq-100 table may not, so Sector is nullable and unmapped symbols fall
+// back to SPY in SectorEtfMap).
+public record UniverseSymbol(string Symbol, string CompanyName, string? Sector = null);
 
 // Free, no-API-key alternative to Finnhub's /index/constituents (which
 // requires a paid plan tier - see MarketUniverseService). Wikipedia's

@@ -57,6 +57,15 @@ public class MarketUniverseService(
         return result;
     }
 
+    public async Task<IReadOnlyDictionary<string, string>> GetSectorEtfMapAsync(CancellationToken ct = default)
+    {
+        var universe = await GetUniverseWithNamesAsync(ct);
+        return universe.ToDictionary(
+            u => u.Symbol,
+            u => SectorEtfMap.Resolve(u.Symbol, u.Sector),
+            StringComparer.OrdinalIgnoreCase);
+    }
+
     private async Task TryAddConstituentsAsync(
         Dictionary<string, UniverseSymbol> bySymbol, string indexName,
         Func<CancellationToken, Task<List<UniverseSymbol>>> fetch, CancellationToken ct)

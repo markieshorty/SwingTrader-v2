@@ -19,8 +19,8 @@ public class WikipediaIndexClientTests
         <html><body>
         <table class="wikitable sortable">
         <tr><th>Symbol</th><th>Security</th><th>GICS Sector</th></tr>
-        <tr><td>AAPL</td><td>Apple Inc.</td><td>Technology</td></tr>
-        <tr><td>MSFT</td><td>Microsoft Corporation</td><td>Technology</td></tr>
+        <tr><td>AAPL</td><td>Apple Inc.</td><td>Information Technology</td></tr>
+        <tr><td>MSFT</td><td>Microsoft Corporation</td><td>Information Technology</td></tr>
         </table>
         </body></html>
         """;
@@ -47,6 +47,18 @@ public class WikipediaIndexClientTests
         var result = await sut.GetSp500ConstituentsAsync();
 
         result.Select(r => r.Symbol).Should().BeEquivalentTo(["AAPL", "MSFT"]);
+        // The GICS Sector column feeds SectorEtfMap.Resolve.
+        result.Should().AllSatisfy(r => r.Sector.Should().Be("Information Technology"));
+    }
+
+    [Fact]
+    public async Task GetNasdaq100ConstituentsAsync_NoGicsSectorColumn_SectorIsNull()
+    {
+        var sut = CreateSut(Nasdaq100StyleHtml); // "ICB Industry" header, not "GICS Sector"
+
+        var result = await sut.GetNasdaq100ConstituentsAsync();
+
+        result.Should().AllSatisfy(r => r.Sector.Should().BeNull());
     }
 
     [Fact]
@@ -122,7 +134,7 @@ public class WikipediaIndexClientTests
 
         var result = await sut.GetSp500ConstituentsAsync();
 
-        result.Should().ContainEquivalentOf(new UniverseSymbol("AAPL", "Apple Inc."));
-        result.Should().ContainEquivalentOf(new UniverseSymbol("MSFT", "Microsoft Corporation"));
+        result.Should().ContainEquivalentOf(new UniverseSymbol("AAPL", "Apple Inc.", "Information Technology"));
+        result.Should().ContainEquivalentOf(new UniverseSymbol("MSFT", "Microsoft Corporation", "Information Technology"));
     }
 }

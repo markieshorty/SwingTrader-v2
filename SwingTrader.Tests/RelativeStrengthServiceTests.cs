@@ -15,9 +15,18 @@ public class RelativeStrengthServiceTests
 {
     private readonly ICandleRepository _candleRepo = Substitute.For<ICandleRepository>();
     private readonly ITiingoClient _tiingo = Substitute.For<ITiingoClient>();
+    // Empty sector map: every symbol falls through to the legacy
+    // override-or-SPY path, preserving these tests' original expectations
+    // (AAPL -> XLK via override, XYZQ -> SPY).
+    private readonly IMarketUniverseService _universe = Substitute.For<IMarketUniverseService>();
 
-    private RelativeStrengthService CreateSut(IMemoryCache? cache = null) =>
-        new(_candleRepo, cache ?? new MemoryCache(new MemoryCacheOptions()), NullLogger<RelativeStrengthService>.Instance);
+    private RelativeStrengthService CreateSut(IMemoryCache? cache = null)
+    {
+        _universe.GetSectorEtfMapAsync(Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+        return new(_candleRepo, cache ?? new MemoryCache(new MemoryCacheOptions()), _universe,
+            NullLogger<RelativeStrengthService>.Instance);
+    }
 
     private static List<StockCandle> FlatCandles(int count, decimal close) =>
         Enumerable.Range(0, count)
@@ -95,6 +104,38 @@ public class RelativeStrengthServiceTests
 
         result.Should().NotBeNull();
         result!.SectorEtf.Should().Be("SPY");
+    }
+
+    [Fact]
+    public async Task CalculateAsync_SectorMapDrivesEtf_ForNonOverrideSymbols()
+    {
+        // XOM has no symbol override; with the GICS-driven map present it
+        // benchmarks against XLE instead of the old SPY fallback.
+        _candleRepo.GetCandlesAsync("XOM", "D", Arg.Any<DateTime>(), Arg.Any<DateTime>()).Returns(FlatCandles(10, 100m));
+        _tiingo.GetDailyPricesAsync("XLE", Arg.Any<string>(), Arg.Any<string>()).Returns(FlatEtfPrices(10, 100m));
+        var sut = CreateSut();
+        _universe.GetSectorEtfMapAsync(Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["XOM"] = "XLE" });
+
+        var result = await sut.CalculateAsync(_tiingo, "XOM", CancellationToken.None);
+
+        result.Should().NotBeNull();
+        result!.SectorEtf.Should().Be("XLE");
+    }
+
+    [Fact]
+    public async Task CalculateAsync_UniverseLookupThrows_DegradesToLegacyMap()
+    {
+        _candleRepo.GetCandlesAsync("AAPL", "D", Arg.Any<DateTime>(), Arg.Any<DateTime>()).Returns(FlatCandles(10, 100m));
+        _tiingo.GetDailyPricesAsync("XLK", Arg.Any<string>(), Arg.Any<string>()).Returns(FlatEtfPrices(10, 100m));
+        var sut = CreateSut();
+        _universe.GetSectorEtfMapAsync(Arg.Any<CancellationToken>())
+            .Returns<Task<IReadOnlyDictionary<string, string>>>(_ => throw new InvalidOperationException("wiki down"));
+
+        var result = await sut.CalculateAsync(_tiingo, "AAPL", CancellationToken.None);
+
+        result.Should().NotBeNull();
+        result!.SectorEtf.Should().Be("XLK"); // legacy override still wins
     }
 
     [Fact]
