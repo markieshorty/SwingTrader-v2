@@ -1,6 +1,23 @@
 # Phase 3 — Intraday Entry Confirmation (IEX)
 
-**Status: Planned**
+**Status: Built 10 Jul 2026 — awaiting user verification (528 tests green).**
+Build notes / resolved ⚠ checks:
+- Real IEX calls (2026-07-10, Power key): full 78-bar session for AAPL AND the
+  small-cap HALO; unknown tickers return `{"detail":"Not found."}` (object, not
+  array) → deserialization throws → Unavailable → fail open. Intra-session
+  latency could not be observed (market was closed) — that check moves to the
+  Demo acceptance run.
+- **Design amendment (volume baseline):** the spec compared IEX session volume
+  against the consolidated 20-day average from daily candles. IEX volume is
+  only ~2–4% of consolidated (AAPL: ~1.5M IEX vs ~50M consolidated), so that
+  gate would have rejected every entry. The baseline is now SAME-SOURCE: one
+  60-minute IEX call over 30 days, summed per day, averaged over the last 20
+  trading days (the endpoint rejects resampleFreq=1day). No candle-repo
+  dependency.
+- Full-path ExecutionService integration (rejected ⇒ no Pending row) is
+  covered by code ordering + the pure-gate tests, not an integration test —
+  the placement path always sleeps 15s+ before its first broker call, the
+  same reason existing execution tests stop at the eligibility steps.
 
 **Objective:** stop buying setups that died between scoring and fill. Signals are
 scored pre-market; orders place from 9:20 ET. A stock can gap far past its setup, or

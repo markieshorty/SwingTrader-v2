@@ -148,6 +148,7 @@ builder.Services.AddScoped<ITierEvaluationService, TierEvaluationService>();
 builder.Services.AddScoped<IReadinessAssessmentService, ReadinessAssessmentService>();
 builder.Services.AddScoped<IPositionSizingService, PositionSizingService>();
 builder.Services.AddScoped<IExecutionService, ExecutionService>();
+builder.Services.AddScoped<IEntryConfirmationService, EntryConfirmationService>();
 
 // Managed-identity Service Bus client (ServiceBusConnection__fullyQualifiedNamespace
 // env var, set by Bicep) - the Scheduler sends via this; each Consumer's

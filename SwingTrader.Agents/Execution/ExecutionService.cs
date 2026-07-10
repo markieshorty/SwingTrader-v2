@@ -26,6 +26,8 @@ public class ExecutionService(
     IEmailService emailService,
     IMemoryCache cache,
     IForexService forex,
+    IEntryConfirmationService entryConfirmation,
+    IActivityLogRepository activityLog,
     IMarketRegimeService marketRegimeService,
     IFinnhubRateLimiter rateLimiter,
     IOptions<ExecutionConfig> executionConfig,
@@ -194,6 +196,9 @@ public class ExecutionService(
         // Step 4 — execute signals
         int placed = 0, failed = 0, skipped = 0;
         var placedSymbols = new List<string>();
+        // Intraday-confirmation skips with reasons, surfaced in the execution
+        // email so a silent gate can never quietly eat the day's entries.
+        var entrySkips = new List<string>();
         // GBP deployed by THIS run's placements - added to the broker's
         // openPositionsValue for the cumulative active-capital check, since the
         // broker total won't reflect just-placed orders yet.
@@ -273,6 +278,38 @@ public class ExecutionService(
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Could not refresh entry levels for {Symbol} (account {AccountId}) — using Report's precomputed levels", signal.Symbol, accountId);
+            }
+
+            // ── Intraday entry confirmation (flagged, default off) ───────────
+            // Runs BEFORE the intent-first persist: a rejected entry leaves no
+            // Pending row and does NOT claim the signal (WasExecuted stays
+            // false), so a later same-day re-run can still buy if conditions
+            // normalise - gaps fade. Unavailable data fails OPEN: buy exactly
+            // as if the gate didn't exist.
+            if (_execution.IntradayConfirmationEnabled)
+            {
+                var confirmation = await entryConfirmation.ConfirmAsync(
+                    tiingo, signal.Symbol, signal.CurrentPrice, stopLossPrice, ct);
+                if (confirmation.Verdict == EntryConfirmationVerdict.Rejected)
+                {
+                    logger.LogInformation("Entry skipped for {Symbol} (account {AccountId}) — {Reason}",
+                        signal.Symbol, accountId, confirmation.Reason);
+                    try
+                    {
+                        await activityLog.LogAsync(accountId, "TradeEvent", "Entry skipped", "Skipped",
+                            $"{signal.Symbol}: {confirmation.Reason}", ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "Could not write entry-skip activity log for {Symbol}", signal.Symbol);
+                    }
+                    entrySkips.Add($"{signal.Symbol} — {confirmation.Reason}");
+                    skipped++;
+                    continue;
+                }
+                if (confirmation.Verdict == EntryConfirmationVerdict.Unavailable)
+                    logger.LogInformation("Entry confirmation unavailable for {Symbol} (account {AccountId}) — proceeding (fail open)",
+                        signal.Symbol, accountId);
             }
 
             // ── Intent-first placement ────────────────────────────────────────
@@ -393,7 +430,7 @@ public class ExecutionService(
         // Step 6 — send notification email if anything happened
         var symbolList = placedSymbols.Count > 0 ? $" ({string.Join(", ", placedSymbols)})" : "";
         var summary = $"{placed} placed{symbolList}, {failed} failed, {skipped} skipped";
-        if (placed > 0 || failed > 0)
+        if (placed > 0 || failed > 0 || entrySkips.Count > 0)
         {
             try
             {
@@ -409,6 +446,12 @@ public class ExecutionService(
                     string.Empty,
                     $"Cash remaining: **£{availableCash:F2}**"
                 };
+                if (entrySkips.Count > 0)
+                {
+                    mdLines.Add(string.Empty);
+                    mdLines.Add("**Entries skipped by the intraday check:**");
+                    mdLines.AddRange(entrySkips.Select(s => $"- {s}"));
+                }
 
                 var toAddresses = (await recipients.ListAsync(accountId))
                     .Where(r => r.Categories.HasFlag(NotificationCategory.Execution))

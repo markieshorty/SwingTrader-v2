@@ -40,10 +40,13 @@ public class ExecutionServiceTests
     private readonly ITiingoClient _tiingo = Substitute.For<ITiingoClient>();
     private readonly ITrading212Client _t212 = Substitute.For<ITrading212Client>();
 
+    private readonly IEntryConfirmationService _entryConfirmation = Substitute.For<IEntryConfirmationService>();
+    private readonly IActivityLogRepository _activityLog = Substitute.For<IActivityLogRepository>();
+
     private ExecutionService CreateSut() => new(
         _signalRepo, _tradeRepo, _portfolioRepo, _approvalRepo, _accountRepo, _sizing, _riskProfileRepo,
-        _recipients, _email, new MemoryCache(new MemoryCacheOptions()), _forex, _regime, _rateLimiter,
-        Options.Create(new ExecutionConfig()), NullLogger<ExecutionService>.Instance);
+        _recipients, _email, new MemoryCache(new MemoryCacheOptions()), _forex, _entryConfirmation, _activityLog,
+        _regime, _rateLimiter, Options.Create(new ExecutionConfig()), NullLogger<ExecutionService>.Instance);
 
     private void SetupAccount(bool approvalRequired, TradingMode mode = TradingMode.Demo) =>
         _accountRepo.GetAsync(1, Arg.Any<CancellationToken>())
