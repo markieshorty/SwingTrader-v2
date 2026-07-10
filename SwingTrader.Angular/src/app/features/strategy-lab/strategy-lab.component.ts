@@ -142,6 +142,9 @@ export class StrategyLabComponent {
   analysing = signal(false);
   analysis = signal<LabAnalyseResponseDto | null>(null);
 
+  // Programmatic tab control (the "Test winner in A/B" shortcut jumps tabs).
+  labTabIndex = signal(0);
+
   // ── Optimizer tab state ────────────────────────────────────────────────────
   optimizing = signal(false);
   sweepStatus = signal<string | null>(null);
@@ -469,6 +472,24 @@ export class StrategyLabComponent {
     this.buyThreshold.set(s.buyThreshold);
     this.excludeBreakout.set(s.excludeBreakout);
     this.snackbar.open('Dials loaded — hit Run Simulation to see the full result.', 'Dismiss', { duration: 3000 });
+  }
+
+  // Shortcut from the optimizer results: load the winner's full configuration
+  // into the A/B tab (historic mode, compare-against-production pre-ticked)
+  // for a head-to-head over the FULL window with setup/exit breakdowns - the
+  // human sanity-check step before Apply. Deliberately does NOT start the
+  // run: the user still presses Run.
+  testWinnerInAb(sweep: SweepResultDto): void {
+    this.weights.set({ ...sweep.winner.weights });
+    this.buyThreshold.set(sweep.winner.buyThreshold);
+    this.excludeBreakout.set(sweep.winner.excludeBreakout);
+    this.autopauseBear.set(sweep.winner.autopauseDuringBear);
+    this.dataSource.set('historic');
+    this.compareBaselineHistoric.set(true);
+    this.labTabIndex.set(0);
+    this.snackbar.open(
+      `Winner's dials ("${sweep.winner.label}") loaded — hit Run Simulation for the full-window head-to-head vs production.`,
+      'Dismiss', { duration: 6000 });
   }
 
   // ── Apply flows (always confirmed, owner-only) ─────────────────────────────

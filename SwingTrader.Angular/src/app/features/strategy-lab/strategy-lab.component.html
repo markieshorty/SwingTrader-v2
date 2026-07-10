@@ -7,7 +7,7 @@
     </p>
   </div>
 
-  <mat-tab-group>
+  <mat-tab-group [selectedIndex]="labTabIndex()" (selectedIndexChange)="labTabIndex.set($event)">
     <!-- ══════════════════════════ A/B TESTING TAB ══════════════════════════ -->
     <mat-tab label="A/B Testing">
       <mat-card class="panel controls">
@@ -500,6 +500,10 @@
           </mat-expansion-panel>
 
           <div class="apply-row">
+            <button mat-stroked-button color="primary" (click)="testWinnerInAb(sw)"
+              matTooltip="Loads the winner's dials into the A/B tab (historic mode, compared against production) so you can see the full-window setup and exit breakdowns before applying. You still press Run.">
+              <mat-icon>compare_arrows</mat-icon> Test winner in A/B
+            </button>
             <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applySweepWinner(sw)">
               <mat-icon>rocket_launch</mat-icon> Apply winning dials to production
             </button>
