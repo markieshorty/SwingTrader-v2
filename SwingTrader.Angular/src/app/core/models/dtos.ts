@@ -355,6 +355,12 @@ export interface AdminStatsDto {
   totalAccounts: number;
 }
 
+export interface SentimentArchiveStatsDto {
+  scoreCount: number;
+  articleCount: number;
+  oldestScoreDate: string | null;
+}
+
 export interface AdminUserSummaryDto {
   userId: string;
   email: string;

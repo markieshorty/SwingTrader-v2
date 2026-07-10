@@ -212,6 +212,7 @@ builder.Services.AddScoped<StrategyLabAnalysisService>();
 builder.Services.Configure<ClaudeConfig>(builder.Configuration.GetSection(ClaudeConfig.SectionName));
 builder.Services.AddScoped<SwingTrader.Agents.Refinement.ITradeReplayService, SwingTrader.Agents.Refinement.TradeReplayService>();
 builder.Services.AddScoped<IHistoricalCandleRepository, HistoricalCandleRepository>();
+builder.Services.AddScoped<ISentimentArchiveRepository, SentimentArchiveRepository>();
 builder.Services.AddScoped<IBacktestRunRepository, BacktestRunRepository>();
 builder.Services.AddScoped<IMarketRegimeService, MarketRegimeService>();
 

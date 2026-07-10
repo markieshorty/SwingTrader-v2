@@ -141,6 +141,7 @@ builder.Services.AddScoped<IComponentCorrelationService, ComponentCorrelationSer
 builder.Services.AddScoped<IRefinementService, RefinementService>();
 builder.Services.AddScoped<ITradeReplayService, TradeReplayService>();
 builder.Services.AddScoped<IHistoricalCandleRepository, HistoricalCandleRepository>();
+builder.Services.AddScoped<ISentimentArchiveRepository, SentimentArchiveRepository>();
 builder.Services.AddScoped<IBacktestRunRepository, BacktestRunRepository>();
 builder.Services.AddScoped<SwingTrader.Agents.Backtesting.ICandleSyncService, SwingTrader.Agents.Backtesting.CandleSyncService>();
 builder.Services.AddScoped<IApplyRefinementService, ApplyRefinementService>();

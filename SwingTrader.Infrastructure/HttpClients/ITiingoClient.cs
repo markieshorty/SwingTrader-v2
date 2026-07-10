@@ -17,6 +17,16 @@ public interface ITiingoClient
     // volume baselines are built by summing 60min bars per day. An unknown
     // ticker returns {"detail":"Not found."} (an object, not an array), which
     // fails deserialization - callers treat any exception as "unavailable".
+    // Ticker-tagged news (Power plan). Newest-first; default page size is 100,
+    // limit + startDate both honoured (verified with real calls 2026-07-10).
+    // History is capped at ~3 months on Power - fine for the 3-day sentiment
+    // lookback; the long-term archive is our own table, not this endpoint.
+    [Get("/tiingo/news")]
+    Task<List<TiingoNewsItem>> GetNewsAsync(
+        [AliasAs("tickers")] string tickers,
+        [AliasAs("startDate")] string startDate,
+        [AliasAs("limit")] int limit = 20);
+
     [Get("/iex/{ticker}/prices")]
     Task<List<TiingoIexPrice>> GetIexIntradayAsync(
         string ticker,

@@ -10,7 +10,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { ApiService } from '../../core/services/api.service';
-import { AdminActionLogDto, AdminJobFailureDto, AdminStatsDto, AdminUserSummaryDto } from '../../core/models/dtos';
+import { AdminActionLogDto, AdminJobFailureDto, AdminStatsDto, AdminUserSummaryDto, SentimentArchiveStatsDto } from '../../core/models/dtos';
 import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 import { MonitoringComponent } from './monitoring/monitoring.component';
@@ -33,6 +33,7 @@ export class AdminComponent {
   private titleService = inject(Title);
 
   stats = signal<AdminStatsDto | null>(null);
+  sentimentArchive = signal<SentimentArchiveStatsDto | null>(null);
   users = signal<AdminUserSummaryDto[]>([]);
   jobFailures = signal<AdminJobFailureDto[]>([]);
   logs = signal<AdminActionLogDto[]>([]);
@@ -57,6 +58,7 @@ export class AdminComponent {
 
   private loadStats(): void {
     this.api.getAdminStats().subscribe({ next: (stats) => this.stats.set(stats) });
+    this.api.getSentimentArchiveStats().subscribe({ next: (s) => this.sentimentArchive.set(s) });
   }
 
   private loadUsers(): void {

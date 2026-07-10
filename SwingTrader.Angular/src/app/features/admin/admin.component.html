@@ -35,6 +35,13 @@
             <span class="stat-value">{{ s.totalJobFailuresLast24h }}</span>
             <span class="stat-label">Job Failures (24h)</span>
           </mat-card>
+          @if (sentimentArchive(); as sa) {
+            <mat-card class="stat-card"
+              [title]="sa.oldestScoreDate ? 'Oldest score: ' + (sa.oldestScoreDate | date: 'dd MMM yyyy') : 'No scores archived yet'">
+              <span class="stat-value">{{ sa.scoreCount }} / {{ sa.articleCount }}</span>
+              <span class="stat-label">Sentiment Scores / Articles</span>
+            </mat-card>
+          }
         </div>
       } @else {
         <p class="muted">Loading stats...</p>

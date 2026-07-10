@@ -32,6 +32,8 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
     public DbSet<HistoricalCandle> HistoricalCandles => Set<HistoricalCandle>();
     public DbSet<BacktestRun> BacktestRuns => Set<BacktestRun>();
+    public DbSet<SentimentArticle> SentimentArticles => Set<SentimentArticle>();
+    public DbSet<SentimentDailyScore> SentimentDailyScores => Set<SentimentDailyScore>();
 
     // The 'system' Account created by the AddMultiTenancy migration - all
     // pre-existing (pre-Phase-10c) data defaults to this AccountId.
@@ -340,6 +342,30 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.EncryptedDek).IsRequired();
             e.Property(x => x.LastTestResult).HasMaxLength(500);
             e.HasIndex(x => new { x.AccountId, x.Provider }).IsUnique();
+        });
+
+        // Sentiment archive (edge-plan Phase 4). Account-agnostic; the unique
+        // score index is what makes multi-account same-day research idempotent.
+        modelBuilder.Entity<SentimentArticle>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Symbol).IsRequired().HasMaxLength(10);
+            e.Property(x => x.Source).IsRequired().HasMaxLength(20);
+            e.Property(x => x.Title).IsRequired().HasMaxLength(500);
+            e.Property(x => x.Url).HasMaxLength(2000);
+            e.Property(x => x.Description).HasMaxLength(1000);
+            e.HasIndex(x => new { x.Symbol, x.Date });
+            e.HasIndex(x => x.Date); // pruning scans by age alone
+        });
+
+        modelBuilder.Entity<SentimentDailyScore>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Symbol).IsRequired().HasMaxLength(10);
+            e.Property(x => x.Model).HasMaxLength(100);
+            e.Property(x => x.Score).HasPrecision(5, 4);
+            // One score per symbol per day, however many accounts researched it.
+            e.HasIndex(x => new { x.Symbol, x.Date }).IsUnique();
         });
 
         modelBuilder.Entity<HistoricalCandle>(e =>

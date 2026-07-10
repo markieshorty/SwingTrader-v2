@@ -40,6 +40,7 @@ public class ResearchPipeline(
     IOptions<ClaudeConfig> claudeConfig,
     IOptions<ResearchConfig> researchConfig,
     IOptions<EarningsConfig> earningsConfig,
+    ISentimentArchiveRepository sentimentArchive,
     ILogger<ResearchPipeline> logger) : IResearchPipeline
 {
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
@@ -89,7 +90,7 @@ public class ResearchPipeline(
 
         var (weights, regime) = await GetWeightsAndRegimeAsync(accountId, tiingo, finnhub, symbol, ct);
         var ind = await CalculateIndicatorsAsync(candles);
-        var (sentimentScore, newsSummary) = await FetchAndScoreSentimentAsync(finnhub, claude, symbol, ct);
+        var (sentimentScore, newsSummary) = await FetchAndScoreSentimentAsync(finnhub, tiingo, claude, symbol, ct);
         var setupType = DetectSetup(ind, candles);
 
         // MACD's "rising" distinction needs yesterday's histogram — recompute MACD on the
@@ -263,34 +264,60 @@ public class ResearchPipeline(
     // genuine 0.0 neutral so the stored component score stays honest for the
     // Refinement agent's correlations. "No news" IS a genuine neutral.
     private async Task<(decimal? score, string summary)> FetchAndScoreSentimentAsync(
-        IFinnhubClient finnhub, IClaudeClient claude, string symbol, CancellationToken ct)
+        IFinnhubClient finnhub, ITiingoClient tiingo, IClaudeClient claude, string symbol, CancellationToken ct)
     {
         var cfg = researchConfig.Value;
         var from = DateTime.UtcNow.AddDays(-cfg.NewsLookbackDays);
         var to = DateTime.UtcNow;
 
-        List<FinnhubNewsItem> news;
+        // Two sources, each allowed to fail independently - sentiment degrades
+        // to whichever feed answered, and only BOTH failing yields the null
+        // "unavailable" score (unchanged contract).
+        var finnhubOk = true;
+        List<NewsArticle> finnhubArticles = [];
         try
         {
             await finnhubRateLimiter.WaitAsync(ct);
-            news = await finnhub.GetCompanyNewsAsync(
+            var news = await finnhub.GetCompanyNewsAsync(
                 symbol, from.ToString("yyyy-MM-dd"), to.ToString("yyyy-MM-dd"));
+            finnhubArticles = news.Select(n => new NewsArticle(
+                "Finnhub", n.Headline, n.Summary,
+                DateTimeOffset.FromUnixTimeSeconds(n.Datetime).UtcDateTime, n.Url)).ToList();
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to fetch news for {Symbol}", symbol);
-            return (null, "News fetch failed.");
+            finnhubOk = false;
+            logger.LogWarning(ex, "Finnhub news fetch failed for {Symbol}", symbol);
         }
 
-        if (news.Count == 0)
+        var tiingoOk = cfg.TiingoNewsEnabled;
+        List<NewsArticle> tiingoArticles = [];
+        if (cfg.TiingoNewsEnabled)
+        {
+            try
+            {
+                await tiingoRateLimiter.WaitAsync(ct);
+                var news = await tiingo.GetNewsAsync(
+                    symbol.ToLowerInvariant(), from.ToString("yyyy-MM-dd"), cfg.MaxNewsArticles * 2);
+                tiingoArticles = news.Select(n => new NewsArticle(
+                    "Tiingo", n.Title, n.Description, n.PublishedDate, n.Url)).ToList();
+            }
+            catch (Exception ex)
+            {
+                tiingoOk = false;
+                logger.LogWarning(ex, "Tiingo news fetch failed for {Symbol} — degrading to Finnhub only", symbol);
+            }
+        }
+
+        if (!finnhubOk && !tiingoOk)
+            return (null, "News fetch failed.");
+
+        var articles = NewsBlender.Blend(finnhubArticles.Concat(tiingoArticles), cfg.MaxNewsArticles);
+        if (articles.Count == 0)
             return (0.0m, "No recent news found.");
 
-        var articles = news.OrderByDescending(n => n.Datetime)
-                           .Take(cfg.MaxNewsArticles)
-                           .ToList();
-
         var articlesText = string.Join("\n---\n", articles.Select(n =>
-            $"Headline: {n.Headline}\nSummary: {n.Summary}"));
+            $"[{n.Source}] Headline: {n.Title}\nSummary: {n.Summary}"));
 
         var systemPrompt =
             "You are a financial sentiment analyst. " +
@@ -329,12 +356,54 @@ public class ResearchPipeline(
             if (parsed is null)
                 throw new JsonException("null result");
 
-            return ((decimal)parsed.SentimentScore, parsed.Summary);
+            var score = (decimal)parsed.SentimentScore;
+            await ArchiveSentimentAsync(symbol, score, articles, ct);
+
+            // Per-source counts in the stored summary so the blend is
+            // auditable from the signal itself.
+            var finnhubCount = articles.Count(a => a.Source == "Finnhub");
+            var tiingoCount = articles.Count(a => a.Source == "Tiingo");
+            return (score, $"{parsed.Summary} (Sources: {finnhubCount} Finnhub, {tiingoCount} Tiingo.)");
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Claude sentiment analysis failed for {Symbol} — treating as unavailable", symbol);
             return (null, "Sentiment analysis unavailable.");
+        }
+    }
+
+    // The proprietary sentiment archive (edge-plan Phase 4): daily score +
+    // the article metadata behind it. Strictly best-effort - an archive
+    // failure logs and never fails the research run; the unique (Symbol,
+    // Date) index makes a second account's same-day run a no-op.
+    private async Task ArchiveSentimentAsync(
+        string symbol, decimal score, IReadOnlyList<NewsArticle> articles, CancellationToken ct)
+    {
+        try
+        {
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            await sentimentArchive.SaveDailyScoreAsync(new SentimentDailyScore
+            {
+                Symbol = symbol,
+                Date = today,
+                Score = score,
+                ArticleCount = articles.Count,
+                Model = claudeConfig.Value.Model,
+            }, ct);
+            await sentimentArchive.SaveArticlesAsync(articles.Select(a => new SentimentArticle
+            {
+                Symbol = symbol,
+                Date = today,
+                Source = a.Source,
+                Title = a.Title.Length > 500 ? a.Title[..500] : a.Title,
+                Url = a.Url is { Length: > 2000 } ? a.Url[..2000] : a.Url,
+                PublishedAtUtc = a.PublishedAtUtc,
+                Description = a.Summary is { Length: > 1000 } ? a.Summary[..1000] : a.Summary,
+            }).ToList(), ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Sentiment archive write failed for {Symbol} — research continues", symbol);
         }
     }
 

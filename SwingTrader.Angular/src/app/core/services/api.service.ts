@@ -24,6 +24,7 @@ import {
   RegimeDto,
   RiskProfileDto,
   RunResultDto,
+  SentimentArchiveStatsDto,
   SignalGroupDto,
   StatusDto,
   BacktestRunStatusDto,
@@ -128,6 +129,10 @@ export class ApiService {
 
   getAdminStats(): Observable<AdminStatsDto> {
     return this.http.get<AdminStatsDto>(`${this.baseUrl}/api/admin/stats`);
+  }
+
+  getSentimentArchiveStats(): Observable<SentimentArchiveStatsDto> {
+    return this.http.get<SentimentArchiveStatsDto>(`${this.baseUrl}/api/admin/sentiment-archive`);
   }
 
   getAdminUsers(): Observable<AdminUserSummaryDto[]> {

@@ -8,7 +8,16 @@ public class ResearchConfig
     public int MaxConcurrentSymbols { get; set; } = 1;
     public int CandleHistoryDays { get; set; } = 60;
     public int NewsLookbackDays { get; set; } = 3;
-    public int MaxNewsArticles { get; set; } = 5;
+    // Raised 5 -> 10 with the second news source (Tiingo) - one Claude call
+    // either way, the articles block just gets richer.
+    public int MaxNewsArticles { get; set; } = 10;
+    // Blends Tiingo's ticker-tagged news feed into the sentiment prompt
+    // alongside Finnhub. Either source failing degrades to the other.
+    public bool TiingoNewsEnabled { get; set; } = true;
+    // Sentiment archive: article METADATA is pruned after this many months
+    // (piggybacked on the weekly candle-sync job); daily SCORES are kept
+    // forever - they're tiny and they're the dataset this exists to build.
+    public int ArchiveRetentionMonths { get; set; } = 24;
     public decimal MinConvictionForBuy { get; set; } = 6.0m;
     public decimal MinConvictionForWatch { get; set; } = 5.0m;
 

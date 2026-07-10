@@ -32,6 +32,11 @@ public static class AdminEndpoints
             return Results.Ok(stats with { UsersNotOnboarded = notOnboarded });
         });
 
+        // Sentiment archive growth (edge-plan Phase 4): the archive only pays
+        // off if it's actually accruing - this makes that visible.
+        adminGroup.MapGet("/sentiment-archive", async (ISentimentArchiveRepository archive, CancellationToken ct) =>
+            Results.Ok(await archive.GetStatsAsync(ct)));
+
         adminGroup.MapGet("/users", async (IAdminRepository admin, IUserKeyService keys, CancellationToken ct) =>
         {
             var users = await admin.GetUsersAsync(ct);

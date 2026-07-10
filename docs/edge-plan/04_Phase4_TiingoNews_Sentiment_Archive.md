@@ -1,6 +1,27 @@
 # Phase 4 — Tiingo News + Proprietary Sentiment Archive
 
-**Status: Planned**
+**Status: Built 10 Jul 2026 — awaiting user verification (539 tests green).**
+Build notes / resolved ⚠ checks:
+- Endpoint is `/tiingo/news?tickers=...&startDate=...&limit=...` — real calls
+  confirmed default page 100, `limit` and `startDate` honoured, newest-first,
+  `description` often null, tickers array can repeat, NO sentiment field.
+- Dedup key (from the captured sample): exact URL first, then normalised title
+  (lowercase alphanumeric only) — syndicated copies of one PR differ in URL,
+  case, punctuation and spacing but not in title content.
+- Two tables as preferred: `SentimentArticles` (pruned at
+  Research:ArchiveRetentionMonths=24, piggybacked on the weekly CandleSync
+  job) and `SentimentDailyScores` (unique (Symbol, Date), kept forever).
+  Both account-agnostic; the repo swallows unique-index races so a second
+  account's same-day run is a no-op. Migration `AddSentimentArchive`.
+- MaxNewsArticles default raised 5 → 10 (spec's "10 → 15" assumed a config
+  value of 10; the real default was 5).
+- Blend degradation matrix is enforced in FetchAndScoreSentimentAsync (each
+  source try/caught independently; both failing → null) — unit coverage is on
+  the pure NewsBlender + archive repo; the pipeline method stays untested
+  directly, consistent with existing conventions (no ResearchPipeline unit
+  fixture exists).
+- Admin Overview gains a "Sentiment Scores / Articles" card
+  (/api/admin/sentiment-archive) so archive growth is visible.
 
 **Objective:** two things. (a) Improve the live sentiment component's inputs by
 adding Tiingo's ticker-tagged news feed alongside Finnhub. (b) Start the clock on a
