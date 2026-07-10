@@ -1,6 +1,9 @@
 .lab-page {
   padding: 16px;
-  max-width: 1100px;
+  // No max-width cap - matches Settings, which uses the full available layout
+  // width. The Lab's grids (dials, bucket tables, A/B columns) were
+  // overflowing their own 1100px cage and forcing a horizontal scrollbar even
+  // though the actual page layout has much more room to give them.
 }
 
 // Tab bodies get breathing room below the tab bar.
