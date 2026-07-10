@@ -29,6 +29,9 @@ public static class BacktestEngine
     {
         public required string Symbol;
         public required DateTime EntryDate;
+        // Bars are trading days, so (currentIndex - EntryBarIndex) is trading
+        // days held - matches the live PositionMonitorService time-exit.
+        public required int EntryBarIndex;
         public required decimal EntryPrice;
         public required decimal Quantity;
         public required decimal StopLoss;
@@ -113,7 +116,7 @@ public static class BacktestEngine
                 var bar = GetBar(bars, index, pos.Symbol, today);
                 if (bar is null) continue;
 
-                var (exitPrice, reason) = CheckExit(pos, bar, today);
+                var (exitPrice, reason) = CheckExit(pos, bar, d);
                 if (exitPrice.HasValue)
                 {
                     var proceeds = exitPrice.Value * pos.Quantity * (1 - CostPerSide);
@@ -171,7 +174,7 @@ public static class BacktestEngine
                     cash -= entryBar.Open * qty * (1 + CostPerSide);
                     open.Add(new Position
                     {
-                        Symbol = c.Symbol, EntryDate = calendar[d + 1], EntryPrice = entryBar.Open,
+                        Symbol = c.Symbol, EntryDate = calendar[d + 1], EntryBarIndex = d + 1, EntryPrice = entryBar.Open,
                         Quantity = qty, StopLoss = stop, Target = target, Setup = c.Setup, Conviction = c.Conviction,
                     });
                 }
@@ -194,7 +197,7 @@ public static class BacktestEngine
         return spy[i].Close > sma / 200m;
     }
 
-    private static (decimal? ExitPrice, string? Reason) CheckExit(Position pos, Bar bar, DateTime today)
+    private static (decimal? ExitPrice, string? Reason) CheckExit(Position pos, Bar bar, int currentBarIndex)
     {
         // Priority mirrors PositionMonitorService: stop, target, trailing, time.
         // Gap-aware: an open through the level fills at the open, not the level.
@@ -207,7 +210,8 @@ public static class BacktestEngine
             if (bar.Open <= trail) return (bar.Open, "Trailing(gap)");
             if (bar.Low <= trail) return (trail, "Trailing");
         }
-        if ((today - pos.EntryDate).TotalDays > MaxHoldDays) return (bar.Close, "TimeExit");
+        // Trading days held = bar-index difference (bars are trading days).
+        if (currentBarIndex - pos.EntryBarIndex > MaxHoldDays) return (bar.Close, "TimeExit");
         return (null, null);
     }
 
