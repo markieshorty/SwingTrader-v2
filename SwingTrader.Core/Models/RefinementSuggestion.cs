@@ -38,6 +38,17 @@ public class RefinementSuggestion : BaseEntity
     public decimal MarketAdjustedWinRate { get; set; }
     public bool UnusualMarketConditions { get; set; }
     public string? MarketConditionWarning { get; set; }
+
+    // Replay check: correlation only proposes a *direction* per component - it
+    // never verifies what the whole suggested config would have done. Before a
+    // suggestion is offered, the same trades are replayed under current vs
+    // suggested weights (the Strategy Lab's evaluator); a suggestion whose
+    // replay is WORSE than current gets confidence forced to Low and this flag
+    // set false so the UI can warn. Null on suggestions predating the check.
+    public decimal? ReplayCurrentAvgReturnPct { get; set; }
+    public decimal? ReplaySuggestedAvgReturnPct { get; set; }
+    public int? ReplayTradesKept { get; set; }
+    public bool? ReplayCheckPassed { get; set; }
 }
 
 // Serialized (as part of RegimeBreakdownJson) — not a mapped entity.

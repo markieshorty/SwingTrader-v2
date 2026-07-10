@@ -1,15 +1,14 @@
+using SwingTrader.Agents.Refinement;
 using SwingTrader.Api.Contracts;
-using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
 
 namespace SwingTrader.Api.Services;
 
 // "Own data" strategy simulation: replays the account's closed trades under a
-// candidate dial configuration. Each trade's signal persisted its 8 component
-// scores at research time, so conviction under ANY weight mix is exact - the
-// simulation asks "which of the trades I actually took would these dials have
-// taken, and how did that subset actually perform?"
+// candidate dial configuration via the shared TradeReplay spine (the same
+// loader, filters and market-adjusted outcome metric RefinementService uses,
+// so the Lab and the Refinement page always agree about the history).
 //
 // Honest scope limit (surfaced in the UI): it can only evaluate trades that
 // WERE taken. Dials that would have taken different/extra trades can't be
@@ -17,29 +16,24 @@ namespace SwingTrader.Api.Services;
 // for. Own-data suggestions are therefore filters ("drop these kinds of
 // trades"), never expansions.
 public class StrategyLabService(
-    ITradeRepository tradeRepo,
-    ISignalRepository signalRepo,
+    ITradeReplayService tradeReplay,
     IAccountRepository accountRepo)
 {
-    private sealed record ReplayTrade(
-        string Symbol, DateTime OpenedAt, SetupType Setup, decimal ReturnPct,
-        decimal Rsi, decimal Macd, decimal Volume, decimal Sentiment,
-        decimal SetupQuality, decimal RelativeStrength, decimal PriceLevel, decimal Fundamental);
-
     public async Task<StrategyLabResponse?> RunOwnDataAsync(int accountId, StrategyLabRequest req, CancellationToken ct)
     {
         var account = await accountRepo.GetAsync(accountId, ct);
         if (account is null) return null;
 
-        var replayable = await LoadReplayableTradesAsync(accountId, account.TradingMode, ct);
+        var replayable = await tradeReplay.LoadAsync(accountId, account.TradingMode, DateTime.UtcNow.AddYears(-2), DateTime.UtcNow, ct);
 
-        var result = Evaluate(replayable, req.Weights, req.BuyThreshold, req.ExcludeBreakout);
+        var weights = ToWeights(req.Weights);
+        var result = Evaluate(replayable, weights, req.BuyThreshold, req.ExcludeBreakout);
         var suggestions = Search(replayable, req, result);
         var trades = replayable
             .Select(t => new LabTradeOutcome(
-                t.Symbol, t.OpenedAt,
-                Conviction(t, req.Weights), t.Setup.ToString(), Math.Round(t.ReturnPct, 2),
-                WouldTake(t, req.Weights, req.BuyThreshold, req.ExcludeBreakout)))
+                t.Trade.Symbol, t.Trade.OpenedAt,
+                ReplayEvaluator.Conviction(t.Signal, weights), t.Signal.SetupType.ToString(), Math.Round(t.ReturnPct, 2),
+                ReplayEvaluator.WouldTake(t, weights, req.BuyThreshold, req.ExcludeBreakout)))
             .OrderByDescending(t => t.OpenedAt)
             .ToList();
 
@@ -53,72 +47,34 @@ public class StrategyLabService(
         return new StrategyLabResponse(result, suggestions, trades, warning);
     }
 
-    private async Task<List<ReplayTrade>> LoadReplayableTradesAsync(int accountId, TradingMode mode, CancellationToken ct)
+    private static StrategyWeights ToWeights(LabWeights w) => new()
     {
-        var history = await tradeRepo.GetTradeHistoryAsync(accountId, mode, DateTime.UtcNow.AddYears(-2), DateTime.UtcNow);
-        var replayable = new List<ReplayTrade>();
+        RsiWeight = w.Rsi, MacdWeight = w.Macd, VolumeWeight = w.Volume, SentimentWeight = w.Sentiment,
+        SetupQualityWeight = w.SetupQuality, RelativeStrengthWeight = w.RelativeStrength,
+        PriceLevelWeight = w.PriceLevel, FundamentalMomentumWeight = w.FundamentalMomentum,
+    };
 
-        foreach (var trade in history.Where(t =>
-                     t.Status is not (TradeStatus.Open or TradeStatus.Pending or TradeStatus.Cancelled)
-                     && t.RealizedPnl.HasValue && t.SignalId.HasValue && t.EntryPrice > 0 && t.Quantity > 0))
-        {
-            var signal = await signalRepo.GetByIdAsync(accountId, trade.SignalId!.Value);
-            if (signal?.RsiScore is null) continue; // pre-component-score era signal
-
-            var cost = trade.EntryPrice * trade.Quantity;
-            replayable.Add(new ReplayTrade(
-                trade.Symbol, trade.OpenedAt, signal.SetupType,
-                trade.RealizedPnl!.Value / cost * 100m,
-                signal.RsiScore ?? 0.5m, signal.MacdScore ?? 0.5m, signal.VolumeScore ?? 0.5m,
-                signal.SentimentComponentScore ?? 0.5m, signal.SetupQualityScore ?? 0.5m,
-                signal.RelativeStrengthScore ?? 0.5m, signal.PriceLevelScore ?? 0.5m,
-                signal.FundamentalMomentumScore ?? 0.5m));
-        }
-
-        return replayable;
-    }
-
-    private static decimal Conviction(ReplayTrade t, LabWeights w)
+    private static LabResult Evaluate(List<ReplayableTrade> trades, StrategyWeights w, decimal threshold, bool excludeBreakout)
     {
-        var raw =
-            w.Rsi * t.Rsi + w.Macd * t.Macd + w.Volume * t.Volume + w.Sentiment * t.Sentiment +
-            w.SetupQuality * t.SetupQuality + w.RelativeStrength * t.RelativeStrength +
-            w.PriceLevel * t.PriceLevel + w.FundamentalMomentum * t.Fundamental;
-        return Math.Round(Math.Clamp(raw * 10m, 0m, 10m), 1);
-    }
-
-    private static bool WouldTake(ReplayTrade t, LabWeights w, decimal buyThreshold, bool excludeBreakout) =>
-        (!excludeBreakout || t.Setup != SetupType.Breakout) && Conviction(t, w) >= buyThreshold;
-
-    private static LabResult Evaluate(List<ReplayTrade> trades, LabWeights w, decimal threshold, bool excludeBreakout)
-    {
-        var kept = trades.Where(t => WouldTake(t, w, threshold, excludeBreakout)).ToList();
-        var dropped = trades.Count - kept.Count;
-        var droppedTrades = trades.Where(t => !WouldTake(t, w, threshold, excludeBreakout)).ToList();
-
-        decimal AvgReturn(List<ReplayTrade> set) => set.Count > 0 ? Math.Round(set.Average(t => t.ReturnPct), 2) : 0m;
-        decimal WinRate(List<ReplayTrade> set) => set.Count > 0 ? Math.Round((decimal)set.Count(t => t.ReturnPct > 0) / set.Count, 4) : 0m;
-
-        var actualAvg = AvgReturn(trades);
-        var simAvg = AvgReturn(kept);
+        var o = ReplayEvaluator.Evaluate(trades, w, threshold, excludeBreakout);
 
         var summary = trades.Count == 0
             ? "Nothing to simulate yet."
-            : $"Of your {trades.Count} closed trades, these dials would have taken {kept.Count} and skipped {dropped}. " +
-              $"The skipped set contained {droppedTrades.Count(t => t.ReturnPct > 0)} winner(s) and {droppedTrades.Count(t => t.ReturnPct <= 0)} loser(s). " +
-              (kept.Count == 0
+            : $"Of your {o.Total} closed trades, these dials would have taken {o.Kept} and skipped {o.Total - o.Kept}. " +
+              $"The skipped set contained {o.DroppedWinners} winner(s) and {o.DroppedLosers} loser(s). " +
+              (o.Kept == 0
                   ? "These dials would have filtered out every trade you took."
-                  : simAvg > actualAvg
-                      ? $"Average return per trade improves from {actualAvg:F2}% to {simAvg:F2}% — the dials filter more losers than winners."
-                      : simAvg < actualAvg
-                          ? $"Average return per trade drops from {actualAvg:F2}% to {simAvg:F2}% — the dials filter out more winners than losers."
-                          : "Average return per trade is unchanged.");
+                  : o.KeptAvgReturnPct > o.ActualAvgReturnPct
+                      ? $"Average market-adjusted return per trade improves from {o.ActualAvgReturnPct:F2}% to {o.KeptAvgReturnPct:F2}% — the dials filter more losers than winners."
+                      : o.KeptAvgReturnPct < o.ActualAvgReturnPct
+                          ? $"Average market-adjusted return per trade drops from {o.ActualAvgReturnPct:F2}% to {o.KeptAvgReturnPct:F2}% — the dials filter out more winners than losers."
+                          : "Average market-adjusted return per trade is unchanged.");
 
         return new LabResult(
-            trades.Count, kept.Count, dropped,
-            droppedTrades.Count(t => t.ReturnPct > 0), droppedTrades.Count(t => t.ReturnPct <= 0),
-            actualAvg, simAvg, WinRate(trades), WinRate(kept),
-            Math.Round(trades.Sum(t => t.ReturnPct), 2), Math.Round(kept.Sum(t => t.ReturnPct), 2),
+            o.Total, o.Kept, o.Total - o.Kept,
+            o.DroppedWinners, o.DroppedLosers,
+            o.ActualAvgReturnPct, o.KeptAvgReturnPct, o.ActualWinRate, o.KeptWinRate,
+            o.ActualTotalReturnPct, o.KeptTotalReturnPct,
             summary);
     }
 
@@ -127,7 +83,7 @@ public class StrategyLabService(
     // 1.0), and the breakout toggle. Suggestions must keep a floor of the
     // sample (avoid "perfect" configs that cherry-pick 3 trades) and beat the
     // user's run on average return.
-    private static List<LabSuggestion> Search(List<ReplayTrade> trades, StrategyLabRequest req, LabResult baseline)
+    private static List<LabSuggestion> Search(List<ReplayableTrade> trades, StrategyLabRequest req, LabResult baseline)
     {
         if (trades.Count == 0) return [];
 
@@ -136,7 +92,7 @@ public class StrategyLabService(
 
         void Try(string description, LabWeights w, decimal threshold, bool excludeBreakout)
         {
-            var r = Evaluate(trades, w, threshold, excludeBreakout);
+            var r = Evaluate(trades, ToWeights(w), threshold, excludeBreakout);
             if (r.TradesKept < minKept) return;
             var improvement = r.SimAvgReturnPct - baseline.SimAvgReturnPct;
             if (improvement <= 0.05m) return; // must be a real improvement

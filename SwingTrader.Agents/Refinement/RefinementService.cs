@@ -13,8 +13,7 @@ using SwingTrader.Infrastructure.Services;
 namespace SwingTrader.Agents.Refinement;
 
 public class RefinementService(
-    ITradeRepository tradeRepo,
-    ISignalRepository signalRepo,
+    ITradeReplayService tradeReplay,
     IStrategyWeightsRepository weightsRepo,
     IRefinementSuggestionRepository suggestionRepo,
     IAccountRepository accountRepo,
@@ -39,40 +38,21 @@ public class RefinementService(
         logger.LogInformation("{Prefix}Refinement analysis starting for account {AccountId} (period {From:yyyy-MM-dd} to {To:yyyy-MM-dd})",
             prefix, accountId, from, now);
 
-        var history = await tradeRepo.GetTradeHistoryAsync(accountId, account.TradingMode, from, now);
-        var closed = history
-            .Where(t => t.Status != TradeStatus.Open && t.ClosedAt.HasValue && t.RealizedPnl.HasValue && t.RealizedPnl != 0m)
-            .ToList();
+        // Shared data spine (TradeReplayService): same joins, filters, and
+        // market-adjusted outcome metric as the Strategy Lab, so the two
+        // engines can never disagree about what the history says.
+        var replayable = await tradeReplay.LoadAsync(accountId, account.TradingMode, from, now, ct);
 
-        if (closed.Count < cfg.MinTradesRequired)
+        if (replayable.Count < cfg.MinTradesRequired)
         {
             logger.LogInformation(
-                "{Prefix}Refinement skipped for account {AccountId} — only {Count} closed trades, need {Min}",
-                prefix, accountId, closed.Count, cfg.MinTradesRequired);
+                "{Prefix}Refinement skipped for account {AccountId} — only {Count} replayable closed trades, need {Min}",
+                prefix, accountId, replayable.Count, cfg.MinTradesRequired);
             return null;
         }
 
-        // Join trades to the signals that generated them, so component scores can be correlated.
-        var matched = new List<(Trade Trade, StockSignal Signal, bool IsWinner)>();
-        foreach (var trade in closed)
-        {
-            if (trade.SignalId is null) continue;
-            var signal = await signalRepo.GetByIdAsync(accountId, trade.SignalId.Value);
-            if (signal is null) continue;
-            matched.Add((trade, signal, trade.RealizedPnl > 0m));
-        }
-
-        // Outcome = market-adjusted return % (falls back to raw P&L% for
-        // trades that predate SPY-return capture) - see IComponentCorrelationService.
-        var scoredTrades = matched.Select(m =>
-        {
-            var cost = m.Trade.EntryPrice * m.Trade.Quantity;
-            var rawPct = cost == 0m ? 0m : m.Trade.RealizedPnl!.Value / cost * 100m;
-            var returnPct = m.Trade.SpyReturnDuringTrade.HasValue
-                ? rawPct - m.Trade.SpyReturnDuringTrade.Value
-                : rawPct;
-            return (m.Signal, ReturnPct: returnPct);
-        }).ToList();
+        var matched = replayable.Select(r => (r.Trade, r.Signal, IsWinner: r.Trade.RealizedPnl > 0m)).ToList();
+        var scoredTrades = replayable.Select(r => (r.Signal, r.ReturnPct)).ToList();
 
         if (scoredTrades.Count < cfg.MinCorrelationSampleSize)
         {
@@ -87,9 +67,9 @@ public class RefinementService(
 
         var analysis = correlationService.Analyse(scoredTrades, currentWeights, cfg.MaxWeightAdjustmentPerCycle);
 
-        var winnerCount = closed.Count(t => t.RealizedPnl > 0m);
-        var loserCount = closed.Count - winnerCount;
-        var winRate = closed.Count > 0 ? (decimal)winnerCount / closed.Count : 0m;
+        var winnerCount = matched.Count(m => m.IsWinner);
+        var loserCount = matched.Count - winnerCount;
+        var winRate = matched.Count > 0 ? (decimal)winnerCount / matched.Count : 0m;
 
         var confidence = scoredTrades.Count switch
         {
@@ -97,6 +77,23 @@ public class RefinementService(
             >= 60 => RefinementConfidenceLevel.Medium,
             _ => RefinementConfidenceLevel.Low
         };
+
+        // Replay check: correlation proposes a direction per component but
+        // never verifies the whole config. Replay the same trades under
+        // current vs suggested weights (production gate: current Buy
+        // threshold, Breakouts excluded) - a suggestion that would have
+        // performed WORSE on the very history it was derived from is forced
+        // to Low confidence and flagged so the UI warns before Apply.
+        var replayCurrent = ReplayEvaluator.Evaluate(replayable, currentWeights, currentWeights.BuyThreshold, excludeBreakout: true);
+        var replaySuggested = ReplayEvaluator.Evaluate(replayable, analysis.SuggestedWeights, currentWeights.BuyThreshold, excludeBreakout: true);
+        var replayPassed = replaySuggested.KeptAvgReturnPct >= replayCurrent.KeptAvgReturnPct;
+        if (!replayPassed)
+        {
+            confidence = RefinementConfidenceLevel.Low;
+            logger.LogWarning(
+                "{Prefix}Refinement replay check FAILED for account {AccountId}: suggested weights average {Suggested:F2}%/trade vs current {Current:F2}% on the same history — confidence forced to Low",
+                prefix, accountId, replaySuggested.KeptAvgReturnPct, replayCurrent.KeptAvgReturnPct);
+        }
 
         // Regime-split analysis, off by default (Refinement:RegimeAnalysisEnabled).
         RegimeCorrelationResult? regimeResult = null;
@@ -133,7 +130,11 @@ public class RefinementService(
                 ? null : JsonSerializer.Serialize(regimeResult.SuggestedRegimeWeights),
             MarketAdjustedWinRate = regimeResult is null ? 0m : Math.Round(regimeResult.MarketAdjustedWinRate, 4),
             UnusualMarketConditions = regimeResult?.UnusualMarketConditions ?? false,
-            MarketConditionWarning = regimeResult?.MarketConditionWarning
+            MarketConditionWarning = regimeResult?.MarketConditionWarning,
+            ReplayCurrentAvgReturnPct = replayCurrent.KeptAvgReturnPct,
+            ReplaySuggestedAvgReturnPct = replaySuggested.KeptAvgReturnPct,
+            ReplayTradesKept = replaySuggested.Kept,
+            ReplayCheckPassed = replayPassed,
         };
 
         var saved = await suggestionRepo.AddAsync(suggestion);
@@ -235,7 +236,12 @@ public class RefinementService(
                 $"- Period: {suggestion.AnalysisPeriodStart} to {suggestion.AnalysisPeriodEnd}\n" +
                 $"- Trades analysed: {suggestion.TradeCountAnalysed} (winners {suggestion.WinnerCount}, losers {suggestion.LoserCount})\n" +
                 $"- Win rate: {suggestion.OverallWinRate:P1}\n" +
-                $"- Confidence: {suggestion.ConfidenceLevel}\n\n" +
+                $"- Confidence: {suggestion.ConfidenceLevel}\n" +
+                (suggestion.ReplayCheckPassed is null ? string.Empty :
+                    $"- Replay check: suggested weights would have averaged {suggestion.ReplaySuggestedAvgReturnPct:F2}%/trade " +
+                    $"vs {suggestion.ReplayCurrentAvgReturnPct:F2}% under current weights on the same history — " +
+                    (suggestion.ReplayCheckPassed.Value ? "PASSED ✓" : "FAILED — apply with caution") + "\n") +
+                "\n" +
                 $"## Component findings\n\n{findingsMd}\n\n" +
                 regimeMd +
                 (suggestion.AssessmentSummary is not null ? $"## Assessment\n\n{suggestion.AssessmentSummary}\n\n" : string.Empty) +

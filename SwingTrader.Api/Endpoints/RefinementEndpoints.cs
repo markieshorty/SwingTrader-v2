@@ -143,6 +143,10 @@ public static class RefinementEndpoints
             marketAdjustedWinRate = s.MarketAdjustedWinRate,
             unusualMarketConditions = s.UnusualMarketConditions,
             marketConditionWarning = s.MarketConditionWarning,
+            replayCurrentAvgReturnPct = s.ReplayCurrentAvgReturnPct,
+            replaySuggestedAvgReturnPct = s.ReplaySuggestedAvgReturnPct,
+            replayTradesKept = s.ReplayTradesKept,
+            replayCheckPassed = s.ReplayCheckPassed,
         };
     }
 }

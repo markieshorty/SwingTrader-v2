@@ -134,6 +134,7 @@ builder.Services.AddScoped<IPositionExitService, PositionExitService>();
 builder.Services.AddScoped<IMonitorService, MonitorService>();
 builder.Services.AddScoped<IComponentCorrelationService, ComponentCorrelationService>();
 builder.Services.AddScoped<IRefinementService, RefinementService>();
+builder.Services.AddScoped<ITradeReplayService, TradeReplayService>();
 builder.Services.AddScoped<IApplyRefinementService, ApplyRefinementService>();
 builder.Services.AddScoped<ITierEvaluationService, TierEvaluationService>();
 builder.Services.AddScoped<IReadinessAssessmentService, ReadinessAssessmentService>();

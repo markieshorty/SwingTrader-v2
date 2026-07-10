@@ -21,6 +21,8 @@ public static class StrategyWeightsEndpoints
         api.MapPut("/strategy-weights", async (
             UpdateStrategyWeightsRequest req,
             IStrategyWeightsRepository weightsRepo,
+            IRefinementSuggestionRepository suggestionRepo,
+            IAccountRepository accounts,
             IAccountContext ctx) =>
         {
             if (ctx.Role != AccountRole.Owner)
@@ -32,6 +34,16 @@ public static class StrategyWeightsEndpoints
                     req.RsiWeight, req.MacdWeight, req.VolumeWeight, req.SentimentWeight,
                     req.SetupQualityWeight, req.RelativeStrengthWeight, req.PriceLevelWeight,
                     req.FundamentalMomentumWeight, req.BuyThreshold, req.WatchThreshold, req.StopLossPctDefault));
+
+                // Any weights change (Settings sliders, Strategy Lab apply)
+                // invalidates a pending refinement suggestion: it was computed
+                // against the OLD baseline, so applying it later would silently
+                // blend back toward obsolete weights. Supersede rather than
+                // leave a stale Apply button armed.
+                var account = await accounts.GetAsync(ctx.AccountId);
+                if (account is not null)
+                    await suggestionRepo.SupersedeAllPendingAsync(ctx.AccountId, account.TradingMode);
+
                 return Results.Ok();
             }
             catch (InvalidOperationException ex)

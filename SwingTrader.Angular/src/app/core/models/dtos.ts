@@ -187,6 +187,10 @@ export interface RefinementSuggestionDto {
   marketAdjustedWinRate: number;
   unusualMarketConditions: boolean;
   marketConditionWarning: string | null;
+  replayCurrentAvgReturnPct: number | null;
+  replaySuggestedAvgReturnPct: number | null;
+  replayTradesKept: number | null;
+  replayCheckPassed: boolean | null;
 }
 
 export interface RefinementStatusDto {

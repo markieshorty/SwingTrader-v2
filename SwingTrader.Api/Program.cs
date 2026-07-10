@@ -207,6 +207,7 @@ builder.Services.Configure<RiskManagementConfig>(builder.Configuration.GetSectio
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<AccountViewService>();
 builder.Services.AddScoped<StrategyLabService>();
+builder.Services.AddScoped<SwingTrader.Agents.Refinement.ITradeReplayService, SwingTrader.Agents.Refinement.TradeReplayService>();
 builder.Services.AddScoped<IMarketRegimeService, MarketRegimeService>();
 
 // Screening universe (S&P 1500 + Nasdaq-100 via Wikipedia) for the /watchlists

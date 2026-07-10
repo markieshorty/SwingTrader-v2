@@ -1,5 +1,6 @@
 using FluentAssertions;
 using NSubstitute;
+using SwingTrader.Agents.Refinement;
 using SwingTrader.Api.Contracts;
 using SwingTrader.Api.Services;
 using SwingTrader.Core.Enums;
@@ -10,55 +11,49 @@ using Xunit;
 namespace SwingTrader.Tests;
 
 // Strategy Lab own-data replay: re-scores the account's closed trades under
-// candidate dials using each signal's persisted component scores.
+// candidate dials via the shared TradeReplay spine.
 public class StrategyLabServiceTests
 {
-    private readonly ITradeRepository _trades = Substitute.For<ITradeRepository>();
-    private readonly ISignalRepository _signals = Substitute.For<ISignalRepository>();
+    private readonly ITradeReplayService _replay = Substitute.For<ITradeReplayService>();
     private readonly IAccountRepository _accounts = Substitute.For<IAccountRepository>();
+    private readonly List<ReplayableTrade> _trades = [];
 
-    private StrategyLabService CreateSut() => new(_trades, _signals, _accounts);
+    private StrategyLabService CreateSut() => new(_replay, _accounts);
 
     private static LabWeights EqualWeights() => new(0.125m, 0.125m, 0.125m, 0.125m, 0.125m, 0.125m, 0.125m, 0.125m);
 
     private int _nextId = 1;
 
-    private void AddTrade(decimal pnl, decimal allComponentScores, SetupType setup = SetupType.MomentumContinuation)
+    private void AddTrade(decimal returnPct, decimal allComponentScores, SetupType setup = SetupType.MomentumContinuation)
     {
         var id = _nextId++;
-        var trade = new Trade
-        {
-            Id = id, AccountId = 1, Symbol = $"SYM{id}", Status = TradeStatus.Closed,
-            EntryPrice = 100m, Quantity = 1m, RealizedPnl = pnl, SignalId = id,
-            OpenedAt = DateTime.UtcNow.AddDays(-id), ClosedAt = DateTime.UtcNow,
-        };
-        _existing.Add(trade);
-        _trades.GetTradeHistoryAsync(1, TradingMode.Demo, Arg.Any<DateTime>(), Arg.Any<DateTime>())
-            .Returns(_existing.ToList());
-        _signals.GetByIdAsync(1, id).Returns(new StockSignal
-        {
-            Id = id, SetupType = setup,
-            RsiScore = allComponentScores, MacdScore = allComponentScores, VolumeScore = allComponentScores,
-            SentimentComponentScore = allComponentScores, SetupQualityScore = allComponentScores,
-            RelativeStrengthScore = allComponentScores, PriceLevelScore = allComponentScores,
-            FundamentalMomentumScore = allComponentScores,
-        });
+        _trades.Add(new ReplayableTrade(
+            new Trade { Id = id, Symbol = $"SYM{id}", OpenedAt = DateTime.UtcNow.AddDays(-id) },
+            new StockSignal
+            {
+                Id = id, SetupType = setup,
+                RsiScore = allComponentScores, MacdScore = allComponentScores, VolumeScore = allComponentScores,
+                SentimentComponentScore = allComponentScores, SetupQualityScore = allComponentScores,
+                RelativeStrengthScore = allComponentScores, PriceLevelScore = allComponentScores,
+                FundamentalMomentumScore = allComponentScores,
+            },
+            returnPct));
     }
-
-    private readonly List<Trade> _existing = [];
 
     public StrategyLabServiceTests()
     {
         _accounts.GetAsync(1, Arg.Any<CancellationToken>())
             .Returns(new Account { Id = 1, TradingMode = TradingMode.Demo });
+        _replay.LoadAsync(1, TradingMode.Demo, Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(_ => _trades.ToList());
     }
 
     [Fact]
     public async Task Run_ThresholdFiltersLowConvictionTrades()
     {
         // Uniform component scores of 0.9 -> conviction 9.0; 0.4 -> 4.0.
-        AddTrade(pnl: 10m, allComponentScores: 0.9m);  // kept at threshold 6
-        AddTrade(pnl: -10m, allComponentScores: 0.4m); // dropped at threshold 6
+        AddTrade(returnPct: 10m, allComponentScores: 0.9m);  // kept at threshold 6
+        AddTrade(returnPct: -10m, allComponentScores: 0.4m); // dropped at threshold 6
 
         var response = await CreateSut().RunOwnDataAsync(1,
             new StrategyLabRequest("own", EqualWeights(), BuyThreshold: 6.0m, ExcludeBreakout: false), default);
@@ -73,8 +68,8 @@ public class StrategyLabServiceTests
     [Fact]
     public async Task Run_ExcludeBreakout_DropsBreakoutTradesRegardlessOfConviction()
     {
-        AddTrade(pnl: 5m, allComponentScores: 0.9m, setup: SetupType.Breakout);
-        AddTrade(pnl: 5m, allComponentScores: 0.9m, setup: SetupType.OversoldRecovery);
+        AddTrade(returnPct: 5m, allComponentScores: 0.9m, setup: SetupType.Breakout);
+        AddTrade(returnPct: 5m, allComponentScores: 0.9m, setup: SetupType.OversoldRecovery);
 
         var response = await CreateSut().RunOwnDataAsync(1,
             new StrategyLabRequest("own", EqualWeights(), 6.0m, ExcludeBreakout: true), default);
@@ -88,15 +83,13 @@ public class StrategyLabServiceTests
     {
         // 10 trades: high-conviction ones lose, low-conviction ones win - so
         // any suggestion that raises the threshold cherry-picks losers and must
-        // NOT be offered; lowering can't add trades (all already kept at 4.0).
-        for (var i = 0; i < 5; i++) AddTrade(pnl: -5m, allComponentScores: 0.9m);
-        for (var i = 0; i < 5; i++) AddTrade(pnl: 5m, allComponentScores: 0.55m);
+        // NOT be offered.
+        for (var i = 0; i < 5; i++) AddTrade(returnPct: -5m, allComponentScores: 0.9m);
+        for (var i = 0; i < 5; i++) AddTrade(returnPct: 5m, allComponentScores: 0.55m);
 
         var response = await CreateSut().RunOwnDataAsync(1,
             new StrategyLabRequest("own", EqualWeights(), 4.0m, ExcludeBreakout: false), default);
 
-        // Raising the threshold keeps only the 0.9-score losers -> worse, so no
-        // threshold-raise suggestion may appear.
         response!.Suggestions.Should().NotContain(s => s.BuyThreshold > 4.0m && s.SimAvgReturnPct <= response.Result.SimAvgReturnPct);
         response.Suggestions.Should().OnlyContain(s => s.ImprovementPct > 0);
     }
@@ -104,9 +97,6 @@ public class StrategyLabServiceTests
     [Fact]
     public async Task Run_NoReplayableTrades_ReturnsWarningNotError()
     {
-        _trades.GetTradeHistoryAsync(1, TradingMode.Demo, Arg.Any<DateTime>(), Arg.Any<DateTime>())
-            .Returns(new List<Trade>());
-
         var response = await CreateSut().RunOwnDataAsync(1,
             new StrategyLabRequest("own", EqualWeights(), 6.0m, false), default);
 

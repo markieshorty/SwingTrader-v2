@@ -32,6 +32,24 @@ import { RefinementSuggestionDto } from '../../../core/models/dtos';
         <p class="warning">⚠️ {{ suggestion().marketConditionWarning }}</p>
       }
 
+      @if (suggestion().replayCheckPassed !== null && suggestion().replayCheckPassed !== undefined) {
+        @if (suggestion().replayCheckPassed) {
+          <p class="replay-check pass">
+            ✓ Replay check passed — on the same trade history, the suggested weights would have averaged
+            {{ suggestion().replaySuggestedAvgReturnPct | number: '1.2-2' }}%/trade vs
+            {{ suggestion().replayCurrentAvgReturnPct | number: '1.2-2' }}% under current weights
+            ({{ suggestion().replayTradesKept }} trades kept).
+          </p>
+        } @else {
+          <p class="warning">
+            ⚠️ Replay check FAILED — replaying your own history, these suggested weights would have averaged
+            {{ suggestion().replaySuggestedAvgReturnPct | number: '1.2-2' }}%/trade vs
+            {{ suggestion().replayCurrentAvgReturnPct | number: '1.2-2' }}% under current weights. The correlation
+            points one way but the outcome points the other — applying is not recommended.
+          </p>
+        }
+      }
+
       @if (suggestion().assessmentSummary) {
         <p class="assessment">{{ suggestion().assessmentSummary }}</p>
       }
@@ -85,6 +103,10 @@ import { RefinementSuggestionDto } from '../../../core/models/dtos';
       }
       .warning {
         color: var(--st-amber);
+      }
+      .replay-check.pass {
+        color: var(--st-green, #2e9b57);
+        font-size: 13px;
       }
       .assessment {
         font-style: italic;
