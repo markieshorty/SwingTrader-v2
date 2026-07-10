@@ -1,0 +1,146 @@
+<div class="lab-page">
+  <div class="page-header">
+    <h2>Strategy Lab</h2>
+    <p class="muted small">
+      Experiment with the strategy's dials against real outcomes — nothing here touches production until you
+      explicitly apply it.
+    </p>
+  </div>
+
+  <mat-card class="panel controls">
+    <div class="source-row">
+      <mat-select [ngModel]="dataSource()" (ngModelChange)="dataSource.set($event)" class="source-select">
+        <mat-option value="own">Backtest against your own trade history</mat-option>
+        <mat-option value="historic" disabled>Backtest against 3 years of market data (coming soon — runs via the local backtester today)</mat-option>
+      </mat-select>
+      <p class="muted small">
+        Own-data mode re-scores every closed trade you've made using the dials below, and shows which of those
+        trades these settings would have taken — and how that subset actually performed. It can only <em>filter</em>
+        your history, not invent trades you never took.
+      </p>
+    </div>
+
+    <div class="dials-grid">
+      @for (dial of dials; track dial.key) {
+        <div class="dial">
+          <div class="dial-label">
+            <span [matTooltip]="dial.hint">{{ dial.label }}</span>
+            <span class="value">{{ weights()[dial.key] | percent: '1.0-0' }}</span>
+          </div>
+          <mat-slider min="0" max="0.45" step="0.01" discrete>
+            <input matSliderThumb [ngModel]="weights()[dial.key]" (ngModelChange)="setWeight(dial.key, $event)" />
+          </mat-slider>
+        </div>
+      }
+    </div>
+
+    <div class="meta-row">
+      <span class="sum" [class.bad]="!sumOk()">Weights sum: {{ weightSum() | number: '1.2-2' }} {{ sumOk() ? '✓' : '— must equal 1.00' }}</span>
+
+      <div class="dial threshold">
+        <div class="dial-label">
+          <span matTooltip="A signal must score at least this conviction (0-10) to become a Buy">Buy threshold</span>
+          <span class="value">{{ buyThreshold() | number: '1.1-1' }}</span>
+        </div>
+        <mat-slider min="3" max="9" step="0.1" discrete>
+          <input matSliderThumb [ngModel]="buyThreshold()" (ngModelChange)="buyThreshold.set($event)" />
+        </mat-slider>
+      </div>
+
+      <mat-slide-toggle [checked]="excludeBreakout()" (change)="excludeBreakout.set($event.checked)"
+        matTooltip="Backtested: Breakout setups averaged -1.2%/trade; production currently excludes them">
+        Exclude Breakout setups
+      </mat-slide-toggle>
+
+      <button mat-raised-button color="primary" [disabled]="running() || !sumOk()" (click)="run()">
+        @if (running()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>science</mat-icon> }
+        Run Simulation
+      </button>
+    </div>
+  </mat-card>
+
+  @if (response(); as r) {
+    @if (r.warning) {
+      <mat-card class="panel warning-card"><mat-icon>warning</mat-icon> {{ r.warning }}</mat-card>
+    }
+
+    <mat-card class="panel results">
+      <h3>What would have happened</h3>
+      <p class="summary">{{ r.result.summary }}</p>
+
+      <div class="stat-grid">
+        <div class="stat">
+          <span class="stat-value">{{ r.result.tradesKept }} / {{ r.result.totalClosedTrades }}</span>
+          <span class="stat-label">trades these dials would have taken</span>
+        </div>
+        <div class="stat" [class.good]="r.result.simAvgReturnPct > r.result.actualAvgReturnPct"
+             [class.bad]="r.result.simAvgReturnPct < r.result.actualAvgReturnPct">
+          <span class="stat-value">{{ r.result.simAvgReturnPct | number: '1.2-2' }}%</span>
+          <span class="stat-label">avg return/trade (actual: {{ r.result.actualAvgReturnPct | number: '1.2-2' }}%)</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value">{{ r.result.simWinRate | percent: '1.0-1' }}</span>
+          <span class="stat-label">win rate (actual: {{ r.result.actualWinRate | percent: '1.0-1' }})</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value">{{ r.result.droppedLosers }} / {{ r.result.droppedWinners }}</span>
+          <span class="stat-label">losers avoided vs winners missed</span>
+        </div>
+      </div>
+
+      <div class="apply-row">
+        <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applyToProduction()">
+          <mat-icon>rocket_launch</mat-icon> Apply these dials to production
+        </button>
+        <span class="muted small">Sets your live strategy weights + Buy threshold. Owner only.</span>
+      </div>
+    </mat-card>
+
+    @if (r.suggestions.length > 0) {
+      <mat-card class="panel suggestions">
+        <h3>Suggested adjustments</h3>
+        <p class="muted small">
+          The Lab tested nearby dial settings against the same history. These beat your current run — load one,
+          re-run to inspect it, then apply if you like it.
+        </p>
+        @for (s of r.suggestions; track s.description) {
+          <div class="suggestion-row">
+            <div class="suggestion-info">
+              <span class="desc">{{ s.description }}</span>
+              <span class="muted small">
+                avg return {{ s.simAvgReturnPct | number: '1.2-2' }}%/trade (+{{ s.improvementPct | number: '1.2-2' }} vs your run)
+                · win {{ s.simWinRate | percent: '1.0-0' }} · keeps {{ s.tradesKept }} trades
+              </span>
+            </div>
+            <button mat-stroked-button (click)="tryDials(s)"><mat-icon>tune</mat-icon> Load these dials</button>
+          </div>
+        }
+      </mat-card>
+    } @else {
+      <mat-card class="panel">
+        <p class="muted">No nearby dial change beat your current settings on this history — that's a good sign for the dials you ran.</p>
+      </mat-card>
+    }
+
+    @if (r.trades.length > 0) {
+      <mat-card class="panel trades">
+        <h3>Trade-by-trade</h3>
+        <div class="trade-list">
+          <div class="trade-head">
+            <span>Symbol</span><span>Opened</span><span>Setup</span><span class="num">Conviction</span><span class="num">Return</span><span>Verdict</span>
+          </div>
+          @for (t of r.trades; track t.symbol + t.openedAt) {
+            <div class="trade-row" [class.dropped]="!t.wouldTake">
+              <span class="sym">{{ t.symbol }}</span>
+              <span class="muted small">{{ t.openedAt | date: 'dd/MM/yy' }}</span>
+              <span class="muted small">{{ t.setup }}</span>
+              <span class="num">{{ t.conviction | number: '1.1-1' }}</span>
+              <span class="num" [class.good]="t.returnPct > 0" [class.bad]="t.returnPct < 0">{{ t.returnPct | number: '1.2-2' }}%</span>
+              <span class="verdict">{{ t.wouldTake ? 'kept' : 'skipped' }}</span>
+            </div>
+          }
+        </div>
+      </mat-card>
+    }
+  }
+</div>

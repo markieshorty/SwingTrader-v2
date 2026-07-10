@@ -487,6 +487,67 @@ export interface UniverseSymbolDto {
   companyName: string;
 }
 
+// ── Strategy Lab ──────────────────────────────────────────────────────────
+export interface LabWeightsDto {
+  rsi: number;
+  macd: number;
+  volume: number;
+  sentiment: number;
+  setupQuality: number;
+  relativeStrength: number;
+  priceLevel: number;
+  fundamentalMomentum: number;
+}
+
+export interface StrategyLabRequestDto {
+  dataSource: 'own' | 'historic';
+  weights: LabWeightsDto;
+  buyThreshold: number;
+  excludeBreakout: boolean;
+}
+
+export interface LabResultDto {
+  totalClosedTrades: number;
+  tradesKept: number;
+  tradesDropped: number;
+  droppedWinners: number;
+  droppedLosers: number;
+  actualAvgReturnPct: number;
+  simAvgReturnPct: number;
+  actualWinRate: number;
+  simWinRate: number;
+  actualTotalPnl: number;
+  simTotalPnl: number;
+  summary: string;
+}
+
+export interface LabSuggestionDto {
+  description: string;
+  weights: LabWeightsDto;
+  buyThreshold: number;
+  excludeBreakout: boolean;
+  simAvgReturnPct: number;
+  simWinRate: number;
+  tradesKept: number;
+  improvementPct: number;
+}
+
+export interface LabTradeOutcomeDto {
+  symbol: string;
+  openedAt: string;
+  conviction: number;
+  setup: string;
+  returnPct: number;
+  wouldTake: boolean;
+}
+
+export interface StrategyLabResponseDto {
+  result: LabResultDto;
+  suggestions: LabSuggestionDto[];
+  trades: LabTradeOutcomeDto[];
+  warning: string | null;
+}
+
 export type WatchlistType = 'AiManaged' | 'Manual' | 'Mixed';
 
 export interface WatchlistItemDto {

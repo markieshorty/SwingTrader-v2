@@ -26,6 +26,8 @@ import {
   RunResultDto,
   SignalGroupDto,
   StatusDto,
+  StrategyLabRequestDto,
+  StrategyLabResponseDto,
   StrategyWeightsDto,
   TradeApprovalDto,
   TradeDto,
@@ -160,6 +162,10 @@ export class ApiService {
 
   getAdminLogs(): Observable<AdminActionLogDto[]> {
     return this.http.get<AdminActionLogDto[]>(`${this.baseUrl}/api/admin/logs`);
+  }
+
+  runStrategyLab(request: StrategyLabRequestDto): Observable<StrategyLabResponseDto> {
+    return this.http.post<StrategyLabResponseDto>(`${this.baseUrl}/api/strategy-lab/run`, request);
   }
 
   getMonitoringDashboard(): Observable<MonitoringDashboardDto> {

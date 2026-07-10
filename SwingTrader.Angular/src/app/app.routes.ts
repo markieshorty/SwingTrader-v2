@@ -59,6 +59,13 @@ export const routes: Routes = [
     title: 'Refinement',
   },
   {
+    path: 'strategy-lab',
+    canActivate: [authGuard, approvalGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./features/strategy-lab/strategy-lab.component').then((m) => m.StrategyLabComponent),
+    title: 'Strategy Lab',
+  },
+  {
     path: 'readiness',
     canActivate: [authGuard, approvalGuard, onboardingGuard],
     loadComponent: () =>
