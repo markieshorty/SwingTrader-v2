@@ -1,6 +1,7 @@
 using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Infrastructure.HttpClients;
+using SwingTrader.Infrastructure.Market;
 
 namespace SwingTrader.Api.Services;
 
@@ -16,6 +17,7 @@ public class AccountViewService(
     ISignalRepository signals,
     IWatchlistRepository watchlist,
     IAccountRepository accounts,
+    IMarketCalendarService marketCalendar,
     IUserHttpClientFactory clientFactory)
 {
     // Portfolio summary card (totals + today P&L + 30-day win rate). Null when
@@ -115,7 +117,12 @@ public class AccountViewService(
 
             var unrealisedPnl = (currentPrice - trade.EntryPrice) * trade.Quantity;
             var unrealisedPnlPercent = trade.EntryPrice > 0 ? (currentPrice - trade.EntryPrice) / trade.EntryPrice * 100m : 0m;
-            var daysHeld = Math.Max(0, (int)(DateTime.UtcNow - trade.OpenedAt).TotalDays);
+            // Trading days held (weekends/holidays excluded) so the displayed
+            // "Day N" lines up with the trading-day-based probation and
+            // time-exit schedule - a calendar count would show "Day 3" while
+            // the probation check still sees it as day 1.
+            var daysHeld = marketCalendar.TradingDaysBetween(
+                DateOnly.FromDateTime(trade.OpenedAt), DateOnly.FromDateTime(DateTime.UtcNow));
 
             var signal = trade.SignalId.HasValue ? await signals.GetByIdAsync(accountId, trade.SignalId.Value) : null;
 

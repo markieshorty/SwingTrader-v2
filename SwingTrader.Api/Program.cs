@@ -205,6 +205,7 @@ builder.Services.AddScoped<IApplyRefinementService, ApplyRefinementService>();
 builder.Services.Configure<RefinementConfig>(builder.Configuration.GetSection(RefinementConfig.SectionName));
 builder.Services.Configure<RiskManagementConfig>(builder.Configuration.GetSection(RiskManagementConfig.SectionName));
 builder.Services.AddMemoryCache();
+builder.Services.AddScoped<IMarketCalendarService, MarketCalendarService>();
 builder.Services.AddScoped<AccountViewService>();
 builder.Services.AddScoped<StrategyLabService>();
 builder.Services.AddScoped<StrategyLabAnalysisService>();
