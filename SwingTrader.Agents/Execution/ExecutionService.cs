@@ -290,6 +290,7 @@ public class ExecutionService(
                 AccountId = accountId,
                 TradingMode = account.TradingMode,
                 Symbol = signal.Symbol,
+                BrokerTicker = ticker,
                 CompanyName = signal.CompanyName,
                 Direction = TradeDirection.Long,
                 EntryPrice = signal.CurrentPrice,

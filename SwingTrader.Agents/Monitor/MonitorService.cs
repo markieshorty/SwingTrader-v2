@@ -382,7 +382,7 @@ public class MonitorService(
         foreach (var trade in settled)
         {
 
-            var match = brokerHeld.FirstOrDefault(p => TickerMatchesSymbol(p.Ticker, trade.Symbol));
+            var match = brokerHeld.FirstOrDefault(p => TickerMatchesTrade(p.Ticker, trade));
             if (match is null)
             {
                 await LogPositionDriftAsync(accountId,
@@ -400,8 +400,8 @@ public class MonitorService(
         //    broker, so an untracked holding is genuinely anomalous.
         foreach (var pos in brokerHeld)
         {
-            var tracked = openTrades.Any(t => TickerMatchesSymbol(pos.Ticker, t.Symbol))
-                || pendingTrades.Any(t => TickerMatchesSymbol(pos.Ticker, t.Symbol));
+            var tracked = openTrades.Any(t => TickerMatchesTrade(pos.Ticker, t))
+                || pendingTrades.Any(t => TickerMatchesTrade(pos.Ticker, t));
             if (!tracked)
             {
                 await LogPositionDriftAsync(accountId,
@@ -523,10 +523,36 @@ public class MonitorService(
         }
     }
 
-    // T212 equity tickers carry a suffix, e.g. "AAPL_US_EQ" for symbol "AAPL".
-    private static bool TickerMatchesSymbol(string ticker, string symbol) =>
-        ticker.Equals(symbol, StringComparison.OrdinalIgnoreCase)
-        || ticker.StartsWith(symbol + "_", StringComparison.OrdinalIgnoreCase);
+    // Matches a broker holding's T212 ticker to a local trade. Prefers the
+    // exact ticker persisted at placement (BrokerTicker) - T212 tickers carry
+    // listing disambiguators the Symbol can't reproduce (e.g. "HAL1a_EQ" for
+    // symbol "HAL"), and some instruments resolve by Name rather than ticker
+    // prefix, so symbol-prefix matching alone produces false drift alerts.
+    // Falls back to the symbol heuristic only for legacy trades placed before
+    // BrokerTicker was captured.
+    private static bool TickerMatchesTrade(string ticker, Trade trade) =>
+        !string.IsNullOrEmpty(trade.BrokerTicker)
+            ? ticker.Equals(trade.BrokerTicker, StringComparison.OrdinalIgnoreCase)
+            : TickerMatchesSymbol(ticker, trade.Symbol);
+
+    // T212 equity tickers carry a suffix, e.g. "AAPL_US_EQ" for symbol "AAPL",
+    // and may insert a listing disambiguator between the base symbol and the
+    // suffix, e.g. "HAL1a_EQ" for symbol "HAL". The base token (before the
+    // first "_") therefore either equals the symbol or is the symbol followed
+    // by a disambiguator made of digits/lowercase letters. Requiring the
+    // remainder to be lowercase/digits avoids matching a genuinely different
+    // symbol like "HALO" against "HAL".
+    private static bool TickerMatchesSymbol(string ticker, string symbol)
+    {
+        if (ticker.Equals(symbol, StringComparison.OrdinalIgnoreCase)) return true;
+
+        var baseToken = ticker.Split('_', 2)[0];
+        if (baseToken.Equals(symbol, StringComparison.OrdinalIgnoreCase)) return true;
+        if (!baseToken.StartsWith(symbol, StringComparison.OrdinalIgnoreCase)) return false;
+
+        var disambiguator = baseToken[symbol.Length..];
+        return disambiguator.Length > 0 && disambiguator.All(c => char.IsDigit(c) || char.IsLower(c));
+    }
 
     private async Task ReconcileOrderFillsAsync(int accountId, TradingMode tradingMode, ITrading212Client t212, CancellationToken ct)
     {

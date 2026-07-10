@@ -449,6 +449,58 @@ public class MonitorServiceFillReconciliationTests
     }
 
     [Fact]
+    public async Task RunCycleAsync_BrokerTickerHasListingDisambiguator_MatchesStoredTicker_NoDrift()
+    {
+        // Regression: T212 tickers can carry a listing disambiguator the Symbol
+        // can't reproduce, e.g. "HAL1a_EQ" for symbol "HAL". Before the fix this
+        // produced BOTH a phantom ("open locally, not at broker") and an
+        // untracked ("held at broker, no local record") alert every cycle for a
+        // position that was actually fine. With the exact broker ticker stored
+        // at placement, the match is unambiguous.
+        SetupNoOpenPositions();
+        var hal = ConfirmedOpen("HAL", 3.936m);
+        hal.BrokerTicker = "HAL1a_EQ";
+        _tradeRepo.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade> { hal });
+        _t212.GetPortfolioAsync().Returns(new List<PortfolioPositionResponse> { BrokerPosition("HAL1a_EQ", 3.936m) });
+
+        await CreateSut().RunCycleAsync(1, _finnhub, _t212);
+
+        await _activityLog.DidNotReceive().LogAsync(1, "SystemEvent", "Position Drift", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunCycleAsync_LegacyTradeNoBrokerTicker_DisambiguatorHeuristicStillMatches_NoDrift()
+    {
+        // Trades placed before BrokerTicker existed have it null. The fallback
+        // symbol heuristic must still tolerate the "HAL1a_EQ" disambiguator so
+        // the currently-open position stops alerting even without a stored
+        // ticker - but must not match a genuinely different symbol.
+        SetupNoOpenPositions();
+        _tradeRepo.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade> { ConfirmedOpen("HAL", 3.936m) });
+        _t212.GetPortfolioAsync().Returns(new List<PortfolioPositionResponse> { BrokerPosition("HAL1a_EQ", 3.936m) });
+
+        await CreateSut().RunCycleAsync(1, _finnhub, _t212);
+
+        await _activityLog.DidNotReceive().LogAsync(1, "SystemEvent", "Position Drift", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunCycleAsync_DifferentSymbolSharingPrefix_StillFlagsDrift()
+    {
+        // Guard against the disambiguator tolerance being too loose: "HALO"
+        // starts with "HAL" but is a different company (uppercase remainder),
+        // so a broker HALO holding with only a local HAL trade IS drift.
+        SetupNoOpenPositions();
+        _tradeRepo.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade> { ConfirmedOpen("HAL", 3.936m) });
+        _t212.GetPortfolioAsync().Returns(new List<PortfolioPositionResponse> { BrokerPosition("HALO_US_EQ", 3.936m) });
+
+        await CreateSut().RunCycleAsync(1, _finnhub, _t212);
+
+        // Local HAL phantom + untracked HALO holding = drift flagged.
+        await _activityLog.Received().LogAsync(1, "SystemEvent", "Position Drift", "Warning", Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task RunCycleAsync_FreshUnsettledPosition_NotFlaggedAsPhantom()
     {
         // A position opened moments ago (within the grace window) may not be in

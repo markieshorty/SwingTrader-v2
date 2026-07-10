@@ -22,6 +22,15 @@ public class Trade : BaseEntity
     public string? EntryOrderId { get; set; }
     public string? ExitOrderId { get; set; }
 
+    // The exact T212 instrument ticker this trade was placed against, e.g.
+    // "AAPL_US_EQ" or "HAL1a_EQ". Symbol resolution isn't reversible - T212
+    // inserts listing disambiguators ("HAL1a") and some instruments resolve by
+    // Name rather than ticker prefix, so the ticker can't be reconstructed
+    // from Symbol alone. Position-drift reconciliation matches broker holdings
+    // against this stored ticker exactly. Null for trades placed before this
+    // field existed (reconciliation falls back to symbol-prefix heuristics).
+    public string? BrokerTicker { get; set; }
+
     // Null while EntryOrderId/ExitOrderId is set but T212 hasn't confirmed a
     // fill yet - EntryPrice/ExitPrice are set optimistically to the quoted
     // price at order-placement time, which for a market order can differ
