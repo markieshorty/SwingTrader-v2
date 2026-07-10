@@ -24,12 +24,20 @@ public sealed record HistoricConfig(
     StrategyWeights Weights,
     decimal BuyThreshold = 6.0m,
     bool ExcludeBreakout = true,           // production policy since 2026-07-10
+    // Approximates production's bear-market autopause (on by default there):
+    // entries are skipped while SPY is below its 200-day average. Coarser than
+    // the live classifier (which also wants a falling MA / deep breach / death
+    // cross), but far closer to live behaviour than trading straight through a
+    // bear. Wired from the account's AutopauseDuringBear setting.
     bool RegimeFilter = false,
     decimal? BreakoutQualityOverride = null,
     bool ConvictionSizing = false,
     decimal PositionFraction = 0.10m,
     int MaxOpenPositions = 3,
-    decimal MinDollarVolume = 10_000_000m);
+    decimal MinDollarVolume = 10_000_000m,
+    // Trading-day hold cap, mirrored from the account risk profile so the Lab
+    // tests the strategy the account actually runs (was a hardcoded 10).
+    int MaxHoldDays = 10);
 
 public sealed record HistoricTrade(
     string Symbol, DateTime EntryDate, DateTime ExitDate, decimal EntryPrice, decimal ExitPrice,
@@ -51,7 +59,6 @@ public static class HistoricBacktester
     private const decimal CostPerSide = 0.0025m;
     private const int WatchlistSize = 25;
     private const int MaxOrdersPerDay = 3;
-    private const int MaxHoldDays = 10;
     private const decimal TrailingActivationPct = 0.05m;
     private const decimal TrailingDistancePct = 0.03m;
     private const int WarmupBars = 60;
@@ -108,7 +115,7 @@ public static class HistoricBacktester
                 var bar = GetBar(bars, index, pos.Symbol, today);
                 if (bar is null) continue;
 
-                var (exitPrice, reason) = CheckExit(pos, bar, d);
+                var (exitPrice, reason) = CheckExit(pos, bar, d, cfg.MaxHoldDays);
                 if (exitPrice.HasValue)
                 {
                     var proceeds = exitPrice.Value * pos.Quantity * (1 - CostPerSide);
@@ -212,7 +219,7 @@ public static class HistoricBacktester
             closed);
     }
 
-    private static (decimal? ExitPrice, string? Reason) CheckExit(Position pos, DailyBar bar, int currentBarIndex)
+    private static (decimal? ExitPrice, string? Reason) CheckExit(Position pos, DailyBar bar, int currentBarIndex, int maxHoldDays)
     {
         if (bar.Open <= pos.StopLoss) return (bar.Open, "StopLoss(gap)");
         if (bar.Low <= pos.StopLoss) return (pos.StopLoss, "StopLoss");
@@ -225,7 +232,7 @@ public static class HistoricBacktester
         }
         // Trading days held = bar-index difference (bars are trading days),
         // matching the live PositionMonitorService time-exit accounting.
-        if (currentBarIndex - pos.EntryBarIndex > MaxHoldDays) return (bar.Close, "TimeExit");
+        if (currentBarIndex - pos.EntryBarIndex > maxHoldDays) return (bar.Close, "TimeExit");
         return (null, null);
     }
 

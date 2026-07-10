@@ -138,6 +138,25 @@ public class SweepOptimizerTests
     }
 
     [Fact]
+    public void BuildValidation_NegativeHoldoutExpectancy_NeverHeldUp_EvenIfItBeatsBaseline()
+    {
+        // "Less bad than production" is not a recommendation. A winner whose
+        // held-out expectancy is negative must be flagged even when it retains
+        // its train edge and beats the baseline on the same held-out window.
+        var d = new DateTime(2024, 1, 2);
+        var spy = new[] { new DailyBar(d, 100m, 100m, 100m, 100m, 1m) };
+        HistoricTrade T(decimal ret) => new("X", d, d, 100m, 100m + ret, Core.Enums.SetupType.Unknown, 6m, "Target", ret);
+
+        var winnerTrain = Result(50, -0.1m, 5m, [T(-0.1m)]);
+        var winnerHoldout = Result(20, -0.04m, 5m, [T(-0.04m)]);   // retains edge, still negative
+        var baselineHoldout = Result(20, -0.3m, 5m, [T(-0.3m)]);   // baseline even worse
+
+        var v = SweepOptimizer.BuildValidation(winnerTrain, winnerHoldout, baselineHoldout, spy, spy);
+
+        v.HeldUp.Should().BeFalse();
+    }
+
+    [Fact]
     public void BuildValidation_RetainedHoldout_BeatingBaseline_HoldsUp()
     {
         var d = new DateTime(2024, 1, 2);

@@ -22,6 +22,7 @@ namespace SwingTrader.Functions;
 public class BacktestConsumerFunction(
     IBacktestRunRepository runs,
     IHistoricalCandleRepository candles,
+    IAccountRiskProfileRepository riskProfileRepo,
     IUserHttpClientFactory clientFactory,
     IOptions<ClaudeConfig> claudeConfig,
     ILogger<BacktestConsumerFunction> logger)
@@ -65,11 +66,16 @@ public class BacktestConsumerFunction(
                     c.Date.ToDateTime(TimeOnly.MinValue), c.Open, c.High, c.Low, c.Close, c.Volume)).ToArray(),
                 StringComparer.OrdinalIgnoreCase);
 
+            // The engine mirrors the account's live risk settings (hold cap,
+            // position slots, bear-market entry pause) so the Lab tests the
+            // strategy the account actually runs, not a hardcoded variant.
+            var profile = await riskProfileRepo.GetAsync(message.AccountId, ct);
+
             run.ResultJson = request.Mode switch
             {
-                "ab" => await RunAbAsync(request, bars, ct),
-                "sweep" => await RunSweepAsync(message.AccountId, request, bars, ct),
-                _ => await RunSingleAsync(request, bars, ct),
+                "ab" => await RunAbAsync(request, bars, profile, ct),
+                "sweep" => await RunSweepAsync(message.AccountId, request, bars, profile, ct),
+                _ => await RunSingleAsync(request, bars, profile, ct),
             };
             run.Status = "Completed";
             run.CompletedAt = DateTime.UtcNow;
@@ -86,19 +92,24 @@ public class BacktestConsumerFunction(
         }
     }
 
-    private static HistoricConfig ToConfig(HistoricBacktestWeights w, decimal buyThreshold, bool excludeBreakout) =>
+    private static HistoricConfig ToConfig(
+        HistoricBacktestWeights w, decimal buyThreshold, bool excludeBreakout, AccountRiskProfile profile) =>
         new(new StrategyWeights
         {
             RsiWeight = w.Rsi, MacdWeight = w.Macd, VolumeWeight = w.Volume, SentimentWeight = w.Sentiment,
             SetupQualityWeight = w.SetupQuality, RelativeStrengthWeight = w.RelativeStrength,
             PriceLevelWeight = w.PriceLevel, FundamentalMomentumWeight = w.FundamentalMomentum,
-        }, buyThreshold, excludeBreakout);
+        }, buyThreshold, excludeBreakout,
+        // SPY-below-200dma entry pause approximates the live bear autopause.
+        RegimeFilter: profile.AutopauseDuringBear,
+        MaxOpenPositions: profile.MaxOpenPositions,
+        MaxHoldDays: profile.MaxHoldDays);
 
     private static async Task<string> RunSingleAsync(
-        HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, CancellationToken ct)
+        HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, AccountRiskProfile profile, CancellationToken ct)
     {
         var result = await HistoricBacktester.RunAsync(
-            bars, ToConfig(request.Weights, request.BuyThreshold, request.ExcludeBreakout), ct);
+            bars, ToConfig(request.Weights, request.BuyThreshold, request.ExcludeBreakout, profile), ct);
         // Trade log stays out of the stored JSON - it can be thousands of
         // rows; the headline stats + buckets are what the UI shows.
         return JsonSerializer.Serialize(result with { TradeLog = [] }, CamelCase);
@@ -107,7 +118,7 @@ public class BacktestConsumerFunction(
     // A/B: both configs over the identical full window. Candidates carry their
     // labels ("Your dials" / "Production baseline") from queue time.
     private static async Task<string> RunAbAsync(
-        HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, CancellationToken ct)
+        HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, AccountRiskProfile profile, CancellationToken ct)
     {
         var candidates = request.Candidates
             ?? throw new InvalidOperationException("A/B request carries no candidates.");
@@ -115,7 +126,7 @@ public class BacktestConsumerFunction(
         var results = new List<object>();
         foreach (var c in candidates)
         {
-            var r = await HistoricBacktester.RunAsync(bars, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout), ct);
+            var r = await HistoricBacktester.RunAsync(bars, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, profile), ct);
             results.Add(new
             {
                 label = c.Label,
@@ -133,7 +144,7 @@ public class BacktestConsumerFunction(
     // remainder it never saw. Claude explanation is best-effort - a missing
     // writeup never fails the sweep.
     private async Task<string> RunSweepAsync(
-        int accountId, HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, CancellationToken ct)
+        int accountId, HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, AccountRiskProfile profile, CancellationToken ct)
     {
         var baseline = request.Candidates?.FirstOrDefault()
             ?? throw new InvalidOperationException("Sweep request carries no baseline candidate.");
@@ -145,7 +156,7 @@ public class BacktestConsumerFunction(
 
         // Baseline first - its drawdown sets the ceiling for everyone else.
         var baselineTrain = await HistoricBacktester.RunAsync(
-            train, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout), ct);
+            train, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, profile), ct);
         var baselineSummary = SweepOptimizer.Summarise(candidates[0], baselineTrain, trainSpy, baselineTrain.MaxDrawdownPct);
 
         var summaries = new List<SweepCandidateResult> { baselineSummary };
@@ -153,7 +164,7 @@ public class BacktestConsumerFunction(
         foreach (var c in candidates.Skip(1))
         {
             ct.ThrowIfCancellationRequested();
-            var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout), ct);
+            var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, profile), ct);
             summaries.Add(SweepOptimizer.Summarise(c, r, trainSpy, baselineTrain.MaxDrawdownPct));
             trainResults[c.Label] = r;
             logger.LogInformation("Sweep candidate '{Label}': {Trades} trades, {Adj}% adjusted expectancy", c.Label, r.Trades, summaries[^1].AdjustedExpectancyPct);
@@ -167,11 +178,11 @@ public class BacktestConsumerFunction(
 
         // Out-of-sample validation: winner and baseline on the held-out window.
         var winnerHoldout = await HistoricBacktester.RunAsync(
-            holdout, ToConfig(winnerSummary.Weights, winnerSummary.BuyThreshold, winnerSummary.ExcludeBreakout), ct);
+            holdout, ToConfig(winnerSummary.Weights, winnerSummary.BuyThreshold, winnerSummary.ExcludeBreakout, profile), ct);
         var baselineHoldout = winnerSummary.Label == baselineSummary.Label
             ? winnerHoldout
             : await HistoricBacktester.RunAsync(
-                holdout, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout), ct);
+                holdout, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, profile), ct);
 
         var validation = SweepOptimizer.BuildValidation(
             trainResults[winnerSummary.Label], winnerHoldout, baselineHoldout, trainSpy, holdoutSpy);

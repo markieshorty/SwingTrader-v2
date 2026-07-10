@@ -146,7 +146,9 @@ export class StrategyLabComponent {
   syncing = signal(false);
   productionWeights = signal<StrategyWeightsDto | null>(null);
   isOwner = signal(false);
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  // One poll handle per job kind: an A/B run and an optimizer sweep can be in
+  // flight at the same time, and starting one must not kill the other's poll.
+  private pollHandles = new Map<'ab' | 'sweep', ReturnType<typeof setInterval>>();
 
   weightSum = computed(() => {
     const w = this.weights();
@@ -268,7 +270,7 @@ export class StrategyLabComponent {
       this.api.runStrategyLabHistoric(request).subscribe({
         next: (r) => {
           this.lastHistoricRunId = r.backtestRunId;
-          this.pollRun(r.backtestRunId, 'Running — replaying the historic market data through your dials…',
+          this.pollRun('ab', r.backtestRunId, 'Running — replaying the historic market data through your dials…',
             this.historicStatus, (result) => {
               if (result && 'mode' in result && result.mode === 'ab') this.abResult.set(result);
               else this.historicResult.set(result as HistoricResultDto);
@@ -302,8 +304,9 @@ export class StrategyLabComponent {
     this.sweepResult.set(null);
     this.api.runStrategyLabOptimize().subscribe({
       next: (r) => this.pollRun(
+        'sweep',
         r.backtestRunId,
-        'Running — evaluating ~30 dial variations on the training window, then validating the best on held-out data. This takes a while…',
+        'Running — evaluating ~25 dial variations on the training window, then validating the best on held-out data. This takes a while…',
         this.sweepStatus,
         (result) => {
           if (result && 'mode' in result && result.mode === 'sweep') this.sweepResult.set(result);
@@ -318,35 +321,39 @@ export class StrategyLabComponent {
   }
 
   // Server-side jobs are polled until the run row completes; the caller
-  // decides how to interpret the stored result.
+  // decides how to interpret the stored result. Restarting a job of the same
+  // kind replaces its own poll; the other kind's poll is left running.
   private pollRun(
+    kind: 'ab' | 'sweep',
     runId: number,
     runningText: string,
     status: ReturnType<typeof signal<string | null>>,
     onDone: (result: BacktestResultDto | null) => void,
   ): void {
     status.set('Queued — the job runs server-side…');
-    if (this.pollTimer) clearInterval(this.pollTimer);
-    this.pollTimer = setInterval(() => {
+    const existing = this.pollHandles.get(kind);
+    if (existing) clearInterval(existing);
+    const timer = setInterval(() => {
       this.api.getBacktestRun(runId).subscribe({
         next: (r) => {
           if (r.status === 'Running') status.set(runningText);
           if (r.status === 'Completed' || r.status === 'Failed') {
-            if (this.pollTimer) clearInterval(this.pollTimer);
-            this.pollTimer = null;
+            clearInterval(timer);
+            this.pollHandles.delete(kind);
             status.set(null);
             if (r.status === 'Completed') onDone(r.result);
             else {
               this.snackbar.open(`Job failed: ${r.error}`, 'Dismiss', { duration: 8000 });
               onDone(null);
-              this.running.set(false);
-              this.optimizing.set(false);
+              if (kind === 'ab') this.running.set(false);
+              else this.optimizing.set(false);
             }
           }
         },
         error: () => {}, // transient poll failure - keep polling
       });
     }, 5000);
+    this.pollHandles.set(kind, timer);
   }
 
   // ── Claude analysis ────────────────────────────────────────────────────────

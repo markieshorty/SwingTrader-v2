@@ -240,7 +240,13 @@ public static class SweepOptimizer
         var holdoutAdj = AdjustedExpectancy(winnerHoldout, holdoutSpy);
         var baselineAdj = AdjustedExpectancy(baselineHoldout, holdoutSpy);
 
-        var heldUp = holdoutAdj >= trainAdj * HoldupRetentionFactor && holdoutAdj >= baselineAdj;
+        // Three bars to clear: keep at least half the tuning-window edge on
+        // held-out data, beat the baseline on that same held-out data, and be
+        // POSITIVE outright - "less bad than production" is not a config worth
+        // recommending, however well it retains its (negative) train number.
+        var heldUp = holdoutAdj > 0m
+            && holdoutAdj >= trainAdj * HoldupRetentionFactor
+            && holdoutAdj >= baselineAdj;
 
         var verdict = heldUp
             ? $"Held up out-of-sample: the winning dials kept a market-adjusted expectancy of {holdoutAdj:F2}%/trade " +
