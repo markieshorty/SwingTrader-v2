@@ -59,6 +59,7 @@ public static class BacktestEngine
         decimal BuyThreshold = 6.0m,                    // StrategyWeights default
         bool RegimeFilter = false,                      // only enter when SPY > its 200d SMA
         HashSet<SetupType>? ExcludedSetups = null,
+        decimal? BreakoutQualityOverride = null,        // penalize (production: 0.9) instead of excluding
         string Label = "baseline");
 
     public static async Task<int> RunAsync(string dataDir, Options opts, CancellationToken ct)
@@ -140,7 +141,7 @@ public static class BacktestEngine
                 foreach (var symbol in watchlist)
                 {
                     if (open.Any(p => p.Symbol.Equals(symbol, StringComparison.OrdinalIgnoreCase))) continue;
-                    var scored = await ScoreAsync(indicators, weights, bars, index, symbol, today);
+                    var scored = await ScoreAsync(indicators, weights, bars, index, symbol, today, opts);
                     if (scored is { } s && s.Conviction >= opts.BuyThreshold && s.Rsi <= 75m
                         && opts.ExcludedSetups?.Contains(s.Setup) != true)
                         candidates.Add((symbol, s.Conviction, s.Setup));
@@ -205,7 +206,7 @@ public static class BacktestEngine
     private static async Task<(decimal Conviction, SetupType Setup, decimal Rsi)?> ScoreAsync(
         IndicatorService indicators, StrategyWeights weights,
         Dictionary<string, Bar[]> bars, Dictionary<string, Dictionary<DateTime, int>> index,
-        string symbol, DateTime today)
+        string symbol, DateTime today, Options opts)
     {
         if (!index.TryGetValue(symbol, out var dates) || !dates.TryGetValue(today, out var i) || i < WarmupBars)
             return null;
@@ -223,13 +224,17 @@ public static class BacktestEngine
 
         var setup = DetectSetup(ind, candles);
 
+        var setupScore = setup == SetupType.Breakout && opts.BreakoutQualityOverride is { } q
+            ? q
+            : ConvictionScorer.ScoreSetupQuality(setup);
+
         var conviction = ConvictionScorer.Calculate(
             weights,
             ConvictionScorer.ScoreRsi(ind.Rsi14),
             ConvictionScorer.ScoreMacd(ind.MacdHistogram, prev.Histogram),
             ConvictionScorer.ScoreVolume(ind.VolumeRatio),
             sentimentScore: 0.5m, // not reconstructible historically
-            ConvictionScorer.ScoreSetupQuality(setup));
+            setupScore);
 
         return (conviction, setup, ind.Rsi14.Value);
     }

@@ -149,7 +149,7 @@ public class ResearchPipeline(
 
         conviction = ApplyEarningsAdjustment(conviction, earningsCtx, out var earningsReasoning);
 
-        var recommendation = await DetermineRecommendationAsync(accountId, account.TradingMode, symbol, ind, conviction, weights);
+        var recommendation = await DetermineRecommendationAsync(accountId, account.TradingMode, symbol, ind, conviction, weights, setupType);
 
         return await PersistSignalAsync(accountId, symbol, companyName, candles[^1], ind, sentimentScore,
             newsSummary, setupType, conviction, recommendation, componentScores, regime, earningsCtx, rs, priceLevel,
@@ -415,7 +415,8 @@ public class ResearchPipeline(
     }
 
     private async Task<Recommendation> DetermineRecommendationAsync(
-        int accountId, TradingMode tradingMode, string symbol, IndicatorResult ind, decimal conviction, StrategyWeights weights)
+        int accountId, TradingMode tradingMode, string symbol, IndicatorResult ind, decimal conviction, StrategyWeights weights,
+        SetupType setupType)
     {
         var openTrades = await tradeRepo.GetOpenTradesAsync(accountId, tradingMode);
         if (openTrades.Any(t => t.Symbol == symbol))
@@ -423,6 +424,18 @@ public class ResearchPipeline(
 
         if (ind.Rsi14 > 75)
             return Recommendation.Avoid;
+
+        // Breakout setups are capped at Watch - never Buy. Backtested Oct 2023 -
+        // Jul 2026 (446-trade baseline): Breakout trades averaged -1.20% (37%
+        // win rate) and were the single drag flipping the whole system negative;
+        // excluding them turned -5.2% into +14.1% (PF 0.96 -> 1.12). A penalty
+        // sweep showed the effect is dose-responsive and that the breakouts
+        // strong enough to survive a conviction penalty did even WORSE (-3.4%)
+        // - the pattern is buying exhaustion, and its "best" instances are the
+        // most stretched. The signal still gets classified/persisted as
+        // Breakout so dashboards and refinement keep learning from it.
+        if (setupType == SetupType.Breakout && conviction >= weights.WatchThreshold)
+            return Recommendation.Watch;
 
         if (conviction >= weights.BuyThreshold) return Recommendation.Buy;
         if (conviction >= weights.WatchThreshold) return Recommendation.Watch;

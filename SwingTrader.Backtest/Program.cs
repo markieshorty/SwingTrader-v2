@@ -37,10 +37,12 @@ switch (command)
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(Enum.Parse<SwingTrader.Core.Enums.SetupType>)
             .ToHashSet();
+        var bq = Arg("--breakout-quality", "");
         var opts = new BacktestEngine.Options(
             BuyThreshold: decimal.Parse(Arg("--threshold", "6.0")),
             RegimeFilter: args.Contains("--regime"),
             ExcludedSetups: excluded.Count > 0 ? excluded : null,
+            BreakoutQualityOverride: bq.Length > 0 ? decimal.Parse(bq) : null,
             Label: Arg("--label", "baseline"));
         return await BacktestEngine.RunAsync(dataDir, opts, cts.Token);
     }
