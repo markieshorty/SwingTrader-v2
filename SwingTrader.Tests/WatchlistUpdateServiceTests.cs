@@ -108,4 +108,34 @@ public class WatchlistUpdateServiceTests
         result.Added.Should().Be(2);
         result.SkippedForCapacity.Should().HaveCount(8);
     }
+
+    [Fact]
+    public async Task UpdateAsync_SymbolAlreadyOnCustomEnabledWatchlist_IsNotAlsoAddedToDefaultWatchlist()
+    {
+        // Regression for the design flaw: a symbol manually tracked on a
+        // custom enabled watchlist must not be double-tracked by also landing
+        // in the AI-managed default watchlist when Claude selects it.
+        await using var db = CreateDb();
+        var watchlistRepo = new WatchlistRepository(db);
+        await watchlistRepo.SeedDefaultAsync(1); // default AiManaged watchlist w/ 10 starters
+        var manual = await watchlistRepo.CreateWatchlistAsync(1, "My Manual List", WatchlistType.Manual, null);
+        await watchlistRepo.EnableWatchlistAsync(1, manual.Id);
+        await watchlistRepo.AddSymbolAsync(1, manual.Id, "ZZZZ", "Zzz Corp", "Other");
+
+        _trades.GetOpenTradesAsync(1, TradingMode.Demo).Returns([]);
+        var sut = new WatchlistUpdateService(watchlistRepo, _history, _trades, _accountRepo, NullLogger<WatchlistUpdateService>.Instance);
+
+        // Claude's selection (hypothetically) includes ZZZZ alongside a fresh pick.
+        await sut.UpdateAsync(1, [
+            new WatchlistSelection("ZZZZ", "Zzz Corp", "Other", "Selected by agent"),
+            new WatchlistSelection("NEWSYM", "New Co", "Tech", "Selected by agent"),
+        ]);
+
+        var defaultActive = await watchlistRepo.GetActiveAsync(1);
+        defaultActive.Should().NotContain(s => s.Symbol == "ZZZZ");
+        defaultActive.Should().Contain(s => s.Symbol == "NEWSYM");
+
+        var manualSymbols = await watchlistRepo.GetSymbolsAsync(1, manual.Id);
+        manualSymbols.Should().ContainSingle(s => s.Symbol == "ZZZZ"); // still only tracked once, on the manual list
+    }
 }

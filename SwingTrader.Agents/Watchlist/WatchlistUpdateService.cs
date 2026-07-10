@@ -21,9 +21,19 @@ public class WatchlistUpdateService(
         var weekStarting = NextMonday();
         var newSymbols = selections.Select(s => s.Symbol).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // Step 1 — current active list
+        // Step 1 — current active list (default AI-managed watchlist only -
+        // this is the list actually being refreshed; removals/kept-count are
+        // scoped to it).
         var currentActive = (await watchlist.GetActiveAsync(accountId)).ToList();
         var currentSymbols = currentActive.Select(w => w.Symbol).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Every symbol already tracked on ANY enabled watchlist (including
+        // custom ones) must not be re-added here - StockScreener already
+        // excludes these from candidates, but a belt-and-braces check here
+        // stops a symbol added to a custom watchlist mid-week (after
+        // screening ran) from still landing in the AI-managed list too.
+        var allEnabledSymbols = (await watchlist.GetAllEnabledSymbolsAsync(accountId, ct))
+            .Select(i => i.Symbol).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // Step 7 — protect open positions from removal
         var openTradeSymbols = (await trades.GetOpenTradesAsync(accountId, account.TradingMode))
@@ -35,7 +45,8 @@ public class WatchlistUpdateService(
             .ToList();
         var toAddCandidates = selections
             .Select(s => s.Symbol)
-            .Where(s => !currentSymbols.Contains(s, StringComparer.OrdinalIgnoreCase))
+            .Where(s => !currentSymbols.Contains(s, StringComparer.OrdinalIgnoreCase)
+                && !allEnabledSymbols.Contains(s, StringComparer.OrdinalIgnoreCase))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 

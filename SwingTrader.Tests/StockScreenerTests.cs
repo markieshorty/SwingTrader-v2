@@ -26,7 +26,7 @@ public class StockScreenerTests
 
     private StockScreener CreateSut(WatchlistConfig cfg, bool topMoversEnabled = false)
     {
-        _watchlist.GetActiveAsync(1).Returns(new List<WatchlistItem>());
+        _watchlist.GetAllEnabledSymbolsAsync(1, Arg.Any<CancellationToken>()).Returns(new List<WatchlistItem>());
         _watchlist.IsTopMoversEnabledAsync(1, Arg.Any<CancellationToken>()).Returns(topMoversEnabled);
         _accountRepo.GetAsync(1, Arg.Any<CancellationToken>()).Returns(new Account { Id = 1, TradingMode = TradingMode.Demo });
         _trades.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade>());
@@ -119,11 +119,30 @@ public class StockScreenerTests
         _finnhub.GetTopLosersAsync().Returns(new List<MarketMoverItem>());
         _finnhub.GetMostActiveAsync().Returns(new List<MarketMoverItem>());
         var sut = CreateSut(cfg, topMoversEnabled: true);
-        _watchlist.GetActiveAsync(1).Returns(new List<WatchlistItem> { new() { Symbol = "ZZZ" } });
+        _watchlist.GetAllEnabledSymbolsAsync(1, Arg.Any<CancellationToken>()).Returns(new List<WatchlistItem> { new() { Symbol = "ZZZ" } });
 
         var results = await sut.ScreenAsync(1, _finnhub);
 
         results.Candidates.Should().NotContain(c => c.Symbol == "ZZZ");
+    }
+
+    [Fact]
+    public async Task ScreenAsync_SymbolOnCustomEnabledWatchlist_ExcludedEvenIfNotOnDefaultWatchlist()
+    {
+        // The design flaw this guards against: a symbol added to a custom
+        // (non-default) enabled watchlist must still be excluded from
+        // screening for the default AI-managed list - otherwise it gets
+        // double-tracked across two watchlists.
+        var cfg = DefaultConfig();
+        SetupUniverse("AAA", "BBB");
+        var sut = CreateSut(cfg);
+        _watchlist.GetAllEnabledSymbolsAsync(1, Arg.Any<CancellationToken>())
+            .Returns(new List<WatchlistItem> { new() { Symbol = "AAA" } }); // on a custom watchlist, not the default
+
+        var results = await sut.ScreenAsync(1, _finnhub);
+
+        results.Candidates.Should().NotContain(c => c.Symbol == "AAA");
+        results.Candidates.Should().Contain(c => c.Symbol == "BBB");
     }
 
     [Fact]

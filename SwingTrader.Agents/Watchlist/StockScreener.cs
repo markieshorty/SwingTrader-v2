@@ -36,7 +36,13 @@ public class StockScreener(
             return new ScreenResult([], 0, 0);
         }
 
-        var activeSymbols = (await watchlist.GetActiveAsync(accountId))
+        // Exclude symbols already tracked on ANY enabled watchlist, not just
+        // the default AI-managed one - otherwise a stock manually added to a
+        // custom watchlist could still be screened, selected, and added a
+        // second time into the AI-managed list (design flaw: the same symbol
+        // ends up double-tracked across two watchlists with two separate
+        // add reasons/history entries).
+        var activeSymbols = (await watchlist.GetAllEnabledSymbolsAsync(accountId, ct))
             .Select(w => w.Symbol).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var openTradeSymbols = (await trades.GetOpenTradesAsync(accountId, account.TradingMode))
