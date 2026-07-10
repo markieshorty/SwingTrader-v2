@@ -69,6 +69,29 @@ trade count, same guard the existing `Search()` uses) plus probably optimize on
 expectancy with profit factor and max-drawdown as tie-breakers/guardrails rather than
 a single scalar. Worth deciding explicitly rather than picking one silently.
 
+**Human-readable explanation of the result (not just numbers):** the mechanical
+suggestions today just show a description string like "Increase Volume weight to 24%
+(others rebalanced)" plus the diff table — accurate, but it doesn't say *why* that
+direction won or what it means. Once the optimizer has picked a winner (from
+potentially dozens/hundreds of evaluated candidates), it should also produce a plain
+paragraph: which weights moved and in which direction, and what in the underlying
+data justifies it — e.g. "Volume weight increased from 21% to 28%, mostly reallocated
+from Sentiment (16% → 9%). Across the candidates tried, higher-volume-weighted
+configs consistently reduced StopLoss-exit frequency without giving up much win rate,
+suggesting volume confirmation is doing more useful filtering here than sentiment is."
+
+This is naturally a second job for Claude (same mechanism as Feature 3's analysis,
+reused rather than duplicated): after the sweep/optimizer finishes, feed it the
+winning config, the baseline it beat, and — ideally — a summary of the candidates
+tried (not just the winner) so it can describe *why* this direction won relative to
+the alternatives, not just describe the winning numbers in prose. Keep the same
+guardrail as Feature 3: this text is explanatory, not a new source of truth — the
+actual "should I apply this" decision still rests on the simulated stats and the
+human's judgment, not on how convincing the paragraph reads. Worth being deliberate
+that the writeup doesn't overstate confidence beyond what the backtest sample size
+actually supports (e.g. call out low trade counts in a bucket if that's driving the
+result, rather than writing confidently past it).
+
 ## Feature 2: Manual A/B — new dials vs. current dials
 
 **Goal:** run the dials currently in the form *and* a baseline (production weights,
@@ -124,7 +147,10 @@ produced it, builds a prompt summarizing the stats + bucket breakdowns, calls Cl
 and returns free text (analysis paragraph) plus optionally a structured suggested
 `LabWeightsDto`/threshold/breakout the UI can feed straight into `tryDials()`. Cheap
 to build — no new job/queue infra, just one Claude call per "Analyse this run" click
-(user-triggered, not automatic on every run, to control cost).
+(user-triggered, not automatic on every run, to control cost). This same
+endpoint/prompt-building code is reused by Feature 1's "explain the sweep result"
+writeup below — build this one first and Feature 1 just calls it with a richer
+payload (winner + baseline + candidate summary) instead of a single run's result.
 
 ## Suggested build order
 
