@@ -145,6 +145,35 @@ h3 .bad {
   }
 }
 
+.source-select-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.source-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.no-data-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  line-height: 1.4;
+  margin: 4px 0 10px;
+
+  mat-icon {
+    flex-shrink: 0;
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    color: var(--st-amber, #f0ad4e);
+  }
+}
+
 .dials-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
@@ -154,15 +183,36 @@ h3 .bad {
 .dial {
   .dial-label {
     display: flex;
-    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
     font-size: 0.85rem;
     span:first-child {
       cursor: help;
       border-bottom: 1px dotted rgba(128, 128, 128, 0.5);
     }
+    .no-data-flag {
+      font-size: 15px;
+      width: 15px;
+      height: 15px;
+      cursor: help;
+      color: var(--st-amber, #f0ad4e);
+    }
     .value {
+      margin-left: auto; // keep the % hard-right even with the flag icon present
       font-weight: 600;
       font-variant-numeric: tabular-nums;
+    }
+  }
+
+  // Historic mode: dials with no reconstructable data are visually muted +
+  // amber so it's obvious they're inert for this run.
+  &.no-historic-data {
+    .dial-label span:first-child {
+      color: var(--st-amber, #f0ad4e);
+      border-bottom-color: var(--st-amber, #f0ad4e);
+    }
+    mat-slider {
+      opacity: 0.55;
     }
   }
   mat-slider {

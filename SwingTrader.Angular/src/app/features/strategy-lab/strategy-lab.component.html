@@ -12,15 +12,24 @@
     <mat-tab label="A/B Testing">
       <mat-card class="panel controls">
         <div class="source-row">
-          <mat-form-field appearance="outline" class="source-select" subscriptSizing="dynamic">
-            <mat-label>Data source</mat-label>
-            <mat-select [ngModel]="dataSource()" (ngModelChange)="dataSource.set($event)">
-              <mat-option value="own">Backtest against your own trade history</mat-option>
-              <mat-option value="historic" [disabled]="!historicAvailable()">
-                Backtest against up to 5 years of market data{{ historicAvailable() ? '' : ' (no data synced yet)' }}
-              </mat-option>
-            </mat-select>
-          </mat-form-field>
+          <div class="source-select-row">
+            <mat-form-field appearance="outline" class="source-select" subscriptSizing="dynamic">
+              <mat-label>Data source</mat-label>
+              <mat-select [ngModel]="dataSource()" (ngModelChange)="dataSource.set($event)">
+                <mat-option value="own">Backtest against your own trade history</mat-option>
+                <mat-option value="historic" [disabled]="dataStatusLoading() || !historicAvailable()">
+                  Backtest against up to 5 years of market data{{
+                    dataStatusLoading() ? ' (checking…)' : (historicAvailable() ? '' : ' (no data synced yet)')
+                  }}
+                </mat-option>
+              </mat-select>
+            </mat-form-field>
+            @if (dataStatusLoading()) {
+              <span class="source-loading muted small" matTooltip="Checking how much historic market data is available — the historic option will enable once this finishes.">
+                <mat-spinner diameter="16"></mat-spinner> Checking historic data…
+              </span>
+            }
+          </div>
           @if (dataSource() === 'own') {
             <p class="muted small">
               Own-data mode re-scores every closed trade you've made using the dials below, and shows which of those
@@ -46,11 +55,24 @@
           }
         </div>
 
+        @if (dataSource() === 'historic') {
+          <p class="muted small no-data-note">
+            <mat-icon>info</mat-icon>
+            Historic mode can't reconstruct <strong>{{ noHistoricDataLabels() }}</strong> from price/volume bars alone —
+            those four are held neutral during a historic run, so changing their weights (marked below) won't
+            meaningfully move the result. Tune them in <em>own-data</em> mode instead.
+          </p>
+        }
+
         <div class="dials-grid">
           @for (dial of dials; track dial.key) {
-            <div class="dial">
+            <div class="dial" [class.no-historic-data]="lacksHistoricData(dial.key)">
               <div class="dial-label">
                 <span [matTooltip]="dial.hint">{{ dial.label }}</span>
+                @if (lacksHistoricData(dial.key)) {
+                  <mat-icon class="no-data-flag"
+                    matTooltip="No historic data — this component is held neutral in a historic backtest, so its weight has little effect on the result.">warning</mat-icon>
+                }
                 <span class="value">{{ weights()[dial.key] | percent: '1.0-0' }}</span>
               </div>
               <mat-slider min="0" max="0.45" step="0.01" discrete>
@@ -62,6 +84,11 @@
 
         <div class="meta-row">
           <span class="sum" [class.bad]="!sumOk()">Weights sum: {{ weightSum() | number: '1.2-2' }} {{ sumOk() ? '✓' : '— must equal 1.00' }}</span>
+          @if (!sumOk()) {
+            <button mat-button (click)="normaliseWeights()" matTooltip="Scale every weight proportionally so they add up to exactly 1.00">
+              <mat-icon>balance</mat-icon> Normalise to 100%
+            </button>
+          }
 
           <div class="dial threshold">
             <div class="dial-label">

@@ -84,6 +84,22 @@ export class StrategyLabComponent {
     { key: 'fundamentalMomentum', label: 'Fundamental momentum', hint: 'Earnings/revenue trajectory score' },
   ];
 
+  // Components the historic backtester cannot reconstruct from price/volume
+  // bars alone — they're held at a neutral 0.5 during a historic run, so
+  // changing their weight barely moves the result. Flagged in the UI when
+  // historic mode is selected so the user isn't misled into tuning them.
+  private readonly noHistoricDataKeys: ReadonlySet<keyof LabWeightsDto> = new Set([
+    'sentiment', 'relativeStrength', 'priceLevel', 'fundamentalMomentum',
+  ]);
+
+  lacksHistoricData(key: keyof LabWeightsDto): boolean {
+    return this.dataSource() === 'historic' && this.noHistoricDataKeys.has(key);
+  }
+
+  noHistoricDataLabels(): string {
+    return this.dials.filter((d) => this.noHistoricDataKeys.has(d.key)).map((d) => d.label).join(', ');
+  }
+
   // ── A/B Testing tab state ──────────────────────────────────────────────────
   dataSource = signal<'own' | 'historic'>('own');
   weights = signal<LabWeightsDto>({
@@ -122,6 +138,7 @@ export class StrategyLabComponent {
 
   // ── Shared state ───────────────────────────────────────────────────────────
   dataStatus = signal<LabDataStatusDto | null>(null);
+  dataStatusLoading = signal(true); // true until the first data-status fetch resolves
   syncing = signal(false);
   productionWeights = signal<StrategyWeightsDto | null>(null);
   isOwner = signal(false);
@@ -150,8 +167,11 @@ export class StrategyLabComponent {
       error: () => {},
     });
     this.api.getLabDataStatus().subscribe({
-      next: (d) => this.dataStatus.set(d),
-      error: () => {},
+      next: (d) => {
+        this.dataStatus.set(d);
+        this.dataStatusLoading.set(false);
+      },
+      error: () => this.dataStatusLoading.set(false),
     });
   }
 
@@ -175,6 +195,22 @@ export class StrategyLabComponent {
 
   setWeight(key: keyof LabWeightsDto, value: number): void {
     this.weights.set({ ...this.weights(), [key]: value });
+  }
+
+  // Scale all weights so they sum to exactly 1.0 - saves the user hand-tuning
+  // dials to hit the sum-to-one requirement the Run button enforces.
+  normaliseWeights(): void {
+    const w = this.weights();
+    const total = this.dials.reduce((s, d) => s + w[d.key], 0);
+    if (total <= 0) return;
+    const scaled = {} as LabWeightsDto;
+    for (const d of this.dials) scaled[d.key] = Math.round((w[d.key] / total) * 100) / 100;
+    // Rounding can leave the sum a hair off 1.00; drop any residue on the
+    // largest weight so it lands exactly.
+    const residue = 1 - this.dials.reduce((s, d) => s + scaled[d.key], 0);
+    const largest = this.dials.reduce((a, b) => (scaled[a.key] >= scaled[b.key] ? a : b));
+    scaled[largest.key] = Math.round((scaled[largest.key] + residue) * 100) / 100;
+    this.weights.set(scaled);
   }
 
   // Snap the dial form back to the current production configuration.
