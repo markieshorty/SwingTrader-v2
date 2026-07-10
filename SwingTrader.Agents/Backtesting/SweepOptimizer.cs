@@ -58,19 +58,35 @@ public static class SweepOptimizer
     // half its train value AND beats the baseline on the same held-out window.
     public const decimal HoldupRetentionFactor = 0.5m;
 
-    // Deterministic candidate generation: production baseline + single-dial
-    // nudges (renormalised) + threshold variants + a few seeded random mixes
-    // for diversity. Deliberately NOT seeded from own-data optimizer output -
-    // own-data evaluation is censored (only trades production weights took)
-    // and would pipe its overfit into this, the honest pipeline.
+    // Weight-array indices, matching HistoricBacktestWeights field order.
+    // "Live" components are the ones the historic engine reconstructs from
+    // price/volume bars; the "dead" four (Sentiment, Relative strength, Price
+    // level, Fundamental momentum) score a fixed neutral 0.5 in a backtest.
+    private static readonly int[] LiveIndices = [0, 1, 2, 4];   // RSI, MACD, Volume, Setup quality
+    private static readonly int[] DeadIndices = [3, 5, 6, 7];   // Sentiment, RelStrength, PriceLevel, FundMomentum
+
+    // Deterministic candidate generation: production baseline + variations
+    // that redistribute weight ONLY among the live components, holding the
+    // dead four at their production values. Shifting weight into/out of a
+    // dead component just dilutes conviction scores toward the neutral
+    // midpoint - a candidate could "win" purely because sentiment is dead in
+    // the backtest, a conclusion that wouldn't transfer to production where
+    // sentiment has real data. Same reasoning as the locked dials in the A/B
+    // tab's historic mode. Also deliberately NOT seeded from own-data
+    // optimizer output - own-data evaluation is censored (only trades
+    // production weights took) and would pipe its overfit into this, the
+    // honest pipeline.
     public static List<HistoricBacktestCandidate> GenerateCandidates(HistoricBacktestCandidate baseline)
     {
         var candidates = new List<HistoricBacktestCandidate> { baseline with { Label = "Production baseline" } };
         var names = new[] { "RSI", "MACD", "Volume", "Sentiment", "Setup quality", "Relative strength", "Price level", "Fundamental momentum" };
         var baseArr = ToArray(baseline.Weights);
+        var liveBudget = LiveIndices.Sum(i => baseArr[i]); // what the live dials must always sum to
 
-        // Single-dial nudges: ±0.05 on each weight, others renormalised.
-        for (var i = 0; i < 8; i++)
+        // Single-dial nudges: ±0.05 on each LIVE weight, other live weights
+        // renormalised to keep the live total (and therefore the overall sum)
+        // unchanged.
+        foreach (var i in LiveIndices)
         {
             foreach (var delta in new[] { 0.05m, -0.05m })
             {
@@ -78,7 +94,7 @@ public static class SweepOptimizer
                 var nv = arr[i] + delta;
                 if (nv < 0.02m || nv > 0.45m) continue;
                 arr[i] = nv;
-                Renormalise(arr);
+                RenormaliseLive(arr, liveBudget);
                 candidates.Add(baseline with
                 {
                     Label = $"{names[i]} {(delta > 0 ? "+" : "−")}5pp",
@@ -96,34 +112,22 @@ public static class SweepOptimizer
         }
 
         // Structural variants: small nudges rarely separate from noise on a
-        // finite trade sample, so also try mixes that are genuinely different -
-        // a real edge, if one exists, shows up loudest in these.
-        candidates.Add(baseline with
-        {
-            Label = "Equal weights",
-            Weights = new HistoricBacktestWeights(0.125m, 0.125m, 0.125m, 0.125m, 0.125m, 0.125m, 0.125m, 0.125m),
-        });
-        candidates.Add(baseline with
-        {
-            // Indices: rsi, macd, volume, sentiment, setupQuality, relStrength, priceLevel, fundMomentum
-            Label = "Technical tilt (price action heavy)",
-            Weights = new HistoricBacktestWeights(0.22m, 0.14m, 0.24m, 0.04m, 0.18m, 0.08m, 0.06m, 0.04m),
-        });
-        candidates.Add(baseline with
-        {
-            Label = "Context tilt (sentiment/fundamentals heavy)",
-            Weights = new HistoricBacktestWeights(0.08m, 0.05m, 0.10m, 0.24m, 0.08m, 0.18m, 0.07m, 0.20m),
-        });
+        // finite trade sample, so also try genuinely different LIVE mixes -
+        // each spreads/concentrates the same live budget differently, dead
+        // dials untouched.
+        candidates.Add(MakeLiveMix(baseline, baseArr, liveBudget, "Equal live weights", [0.25m, 0.25m, 0.25m, 0.25m]));
+        candidates.Add(MakeLiveMix(baseline, baseArr, liveBudget, "Momentum tilt (MACD/Volume heavy)", [0.15m, 0.35m, 0.35m, 0.15m]));
+        candidates.Add(MakeLiveMix(baseline, baseArr, liveBudget, "Pattern tilt (RSI/Setup heavy)", [0.35m, 0.10m, 0.15m, 0.40m]));
 
-        // Pair trades: shift a meaningful chunk (8pp) from one dial to another.
-        // Curated pairs rather than all 56 permutations - each tests a
-        // distinct "this signal matters more than that one" hypothesis.
+        // Pair trades among live components: shift a meaningful chunk (8pp)
+        // from one live dial to another - each tests a distinct "this signal
+        // matters more than that one" hypothesis.
         var pairs = new (int From, int To, string Desc)[]
         {
-            (3, 2, "Sentiment → Volume"),
-            (3, 4, "Sentiment → Setup quality"),
-            (0, 5, "RSI → Relative strength"),
-            (7, 0, "Fundamental momentum → RSI"),
+            (0, 2, "RSI → Volume"),
+            (2, 4, "Volume → Setup quality"),
+            (1, 0, "MACD → RSI"),
+            (4, 1, "Setup quality → MACD"),
         };
         foreach (var (from, to, desc) in pairs)
         {
@@ -132,23 +136,34 @@ public static class SweepOptimizer
             if (shift <= 0m || arr[to] + shift > 0.45m) continue;
             arr[from] -= shift;
             arr[to] += shift;
-            Renormalise(arr);
             candidates.Add(baseline with { Label = $"Shift 8pp: {desc}", Weights = FromArray(arr) });
         }
 
-        // A few deterministic pseudo-random mixes for diversity (fixed seed so
-        // repeated sweeps on the same data give the same answer).
+        // A few deterministic pseudo-random LIVE mixes for diversity (fixed
+        // seed so repeated sweeps on the same data give the same answer).
         var rng = new Random(20260710);
         for (var k = 0; k < 5; k++)
         {
-            var arr = new decimal[8];
-            for (var i = 0; i < 8; i++)
+            var arr = (decimal[])baseArr.Clone();
+            foreach (var i in LiveIndices)
                 arr[i] = Math.Max(0.02m, baseArr[i] + (decimal)(rng.NextDouble() - 0.5) * 0.16m);
-            Renormalise(arr);
-            candidates.Add(baseline with { Label = $"Random mix {k + 1}", Weights = FromArray(arr) });
+            RenormaliseLive(arr, liveBudget);
+            candidates.Add(baseline with { Label = $"Random live mix {k + 1}", Weights = FromArray(arr) });
         }
 
         return candidates;
+    }
+
+    // A candidate whose live dials follow the given proportions of the live
+    // budget, dead dials kept at baseline.
+    private static HistoricBacktestCandidate MakeLiveMix(
+        HistoricBacktestCandidate baseline, decimal[] baseArr, decimal liveBudget, string label, decimal[] liveProportions)
+    {
+        var arr = (decimal[])baseArr.Clone();
+        for (var k = 0; k < LiveIndices.Length; k++)
+            arr[LiveIndices[k]] = liveProportions[k] * liveBudget;
+        RenormaliseLive(arr, liveBudget); // absorb rounding so the sum is exact
+        return baseline with { Label = label, Weights = FromArray(arr) };
     }
 
     // Split each symbol's bars by the train-cutoff date derived from the SPY
@@ -251,13 +266,17 @@ public static class SweepOptimizer
     private static HistoricBacktestWeights FromArray(decimal[] a) =>
         new(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]);
 
-    private static void Renormalise(decimal[] arr)
+    // Scales only the live components so they sum to the fixed live budget
+    // (total minus the untouched dead weights) - the overall sum stays exactly
+    // 1.0 without moving any dead dial.
+    private static void RenormaliseLive(decimal[] arr, decimal liveBudget)
     {
-        var sum = arr.Sum();
-        for (var i = 0; i < arr.Length; i++) arr[i] = Math.Round(arr[i] / sum, 4);
-        // Rounding drift lands on the largest component so the sum is exactly 1.
-        var drift = 1.0m - arr.Sum();
-        var maxIdx = Array.IndexOf(arr, arr.Max());
+        var liveSum = LiveIndices.Sum(i => arr[i]);
+        if (liveSum <= 0m) return;
+        foreach (var i in LiveIndices) arr[i] = Math.Round(arr[i] / liveSum * liveBudget, 4);
+        // Rounding drift lands on the largest live component so the sum is exact.
+        var drift = liveBudget - LiveIndices.Sum(i => arr[i]);
+        var maxIdx = LiveIndices.OrderByDescending(i => arr[i]).First();
         arr[maxIdx] += drift;
     }
 }

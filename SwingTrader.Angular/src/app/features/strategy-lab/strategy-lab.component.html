@@ -370,13 +370,16 @@
       <mat-card class="panel controls">
         <h3>Find optimum weights</h3>
         <p class="muted small">
-          The optimizer tries ~30 dial variations around your current production settings against the historic dataset —
-          small nudges, bigger single-signal shifts, and structurally different mixes (equal weights, technical-heavy,
-          sentiment-heavy). To guard against flukes, it tunes on the <strong>earlier ~70%</strong> of the window, then
-          re-tests the best configuration on the <strong>held-out remainder it never saw</strong>. A config that only
-          wins on the data it was tuned on is noise — the result tells you plainly whether the winner held up.
-          Candidates are judged on <em>market-adjusted</em> expectancy (each trade's return minus SPY's move over the
-          same days), with guardrails: at least {{ 40 }} trades, and a max drawdown no worse than 1.25× the baseline's.
+          The optimizer tries ~25 dial variations around your current production settings against the historic dataset —
+          small nudges, bigger single-signal shifts, and structurally different mixes. It only redistributes weight among
+          the four components historic data exists for (<strong>RSI, MACD, Volume, Setup quality</strong>); the other four
+          are held at your production values, because the backtest scores them neutral and "tuning" them would only
+          produce conclusions that don't carry over to live trading. To guard against flukes, it tunes on the
+          <strong>earlier ~70%</strong> of the window, then re-tests the best configuration on the <strong>held-out
+          remainder it never saw</strong>. A config that only wins on the data it was tuned on is noise — the result
+          tells you plainly whether the winner held up. Candidates are judged on <em>market-adjusted</em> expectancy
+          (each trade's return minus SPY's move over the same days), with guardrails: at least {{ 40 }} trades, and a
+          max drawdown no worse than 1.25× the baseline's.
         </p>
         <div class="meta-row">
           <button mat-raised-button color="primary" [disabled]="optimizing() || !historicAvailable()" (click)="runOptimizer()">

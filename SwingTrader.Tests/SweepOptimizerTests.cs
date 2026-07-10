@@ -32,11 +32,35 @@ public class SweepOptimizerTests
         var first = SweepOptimizer.GenerateCandidates(Baseline());
         var second = SweepOptimizer.GenerateCandidates(Baseline());
 
-        first.Count.Should().BeGreaterThan(25).And.BeLessThan(40);
+        first.Count.Should().BeGreaterThan(15).And.BeLessThan(35);
         first.Should().AllSatisfy(c => Sum(c.Weights).Should().BeApproximately(1.0m, 0.005m));
         first.Select(c => c.Label).Should().Equal(second.Select(c => c.Label));
         first.Select(c => c.Weights).Should().Equal(second.Select(c => c.Weights));
         first[0].Label.Should().Be("Production baseline");
+    }
+
+    [Fact]
+    public void GenerateCandidates_NeverMovesDeadComponentWeights()
+    {
+        // The historic engine scores Sentiment/RelStrength/PriceLevel/
+        // FundamentalMomentum at a fixed neutral 0.5, so shifting weight
+        // into/out of them only dilutes conviction toward the midpoint - a
+        // candidate could win for reasons that don't transfer to production.
+        // Every candidate must therefore hold the dead four at baseline.
+        var candidates = SweepOptimizer.GenerateCandidates(Baseline());
+
+        candidates.Should().AllSatisfy(c =>
+        {
+            c.Weights.Sentiment.Should().Be(ProdWeights.Sentiment);
+            c.Weights.RelativeStrength.Should().Be(ProdWeights.RelativeStrength);
+            c.Weights.PriceLevel.Should().Be(ProdWeights.PriceLevel);
+            c.Weights.FundamentalMomentum.Should().Be(ProdWeights.FundamentalMomentum);
+        });
+
+        // And the live dials must actually vary across candidates - the sweep
+        // still needs something real to search over.
+        candidates.Select(c => (c.Weights.Rsi, c.Weights.Macd, c.Weights.Volume, c.Weights.SetupQuality))
+            .Distinct().Count().Should().BeGreaterThan(10);
     }
 
     [Fact]
