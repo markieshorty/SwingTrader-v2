@@ -18,9 +18,13 @@ public record MonitorCycleResult(
 
 public interface IMonitorService
 {
+    // tiingo is optional: it exists solely for the bear-market regime check
+    // (SPY history comes from Tiingo). When null the bear autopause/resume
+    // step is skipped; everything else in the cycle is unaffected.
     Task<MonitorCycleResult> RunCycleAsync(
         int accountId,
         IFinnhubClient finnhub,
         ITrading212Client t212,
+        ITiingoClient? tiingo = null,
         CancellationToken ct = default);
 }

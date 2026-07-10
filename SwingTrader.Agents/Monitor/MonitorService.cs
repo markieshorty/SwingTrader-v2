@@ -5,6 +5,7 @@ using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
 using SwingTrader.Infrastructure.Configuration;
 using SwingTrader.Infrastructure.HttpClients;
+using SwingTrader.Infrastructure.Market;
 using SwingTrader.Infrastructure.HttpClients.Dtos;
 using SwingTrader.Infrastructure.Services;
 
@@ -26,6 +27,7 @@ public class MonitorService(
     IEmailService emailService,
     IAccountRepository accountRepo,
     IActivityLogRepository activityLog,
+    IMarketRegimeService marketRegime,
     IOptions<ExecutionConfig> executionConfig,
     ILogger<MonitorService> logger) : IMonitorService
 {
@@ -36,6 +38,7 @@ public class MonitorService(
         int accountId,
         IFinnhubClient finnhub,
         ITrading212Client t212,
+        ITiingoClient? tiingo = null,
         CancellationToken ct = default)
     {
         // Fetch account/summary once per cycle and share it between the
@@ -118,6 +121,16 @@ public class MonitorService(
 
             return new MonitorCycleResult(openTrades.Count, 0, flagged, true);
         }
+
+        // Step 1b — bear-market autopause/auto-resume. Long-only momentum
+        // bleeds in downtrends, so while the market regime classifies
+        // Bear/Crisis (a STRUCTURAL bear - see MarketRegimeService, not a
+        // 200dma touch) new entries are paused; unlike the circuit breaker
+        // this auto-resumes the moment the regime recovers. Only pauses with
+        // reason BearMarket are ever auto-resumed - a manual or circuit-
+        // breaker pause is never touched. Skipped when no Tiingo client was
+        // supplied (regime needs SPY history) or the check itself fails.
+        await CheckBearMarketPauseAsync(account, tiingo, finnhub, ct);
 
         // Step 2 — check each position
         var riskProfile = await riskProfileRepo.GetAsync(accountId, ct);
@@ -255,6 +268,61 @@ public class MonitorService(
     // generous window makes a false "never placed" verdict effectively
     // impossible while still freeing reserved capital the same session.
     private const int PendingReconcileGraceMinutes = 30;
+
+    private async Task CheckBearMarketPauseAsync(Account account, ITiingoClient? tiingo, IFinnhubClient finnhub, CancellationToken ct)
+    {
+        if (tiingo is null) return;
+
+        try
+        {
+            var mode = account.TradingMode;
+            var bearPaused = account.IsExecutionPaused(mode)
+                && account.ExecutionPauseReasonFor(mode) == ExecutionPauseReason.BearMarket;
+            var setting = (await riskProfileRepo.GetAsync(account.Id, ct)).AutopauseDuringBear;
+
+            // Nothing to do unless the setting is on or we own an active pause.
+            if (!setting && !bearPaused) return;
+
+            var regime = await marketRegime.GetCurrentRegimeAsync(tiingo, finnhub, ct);
+            var isBear = regime.Regime is MarketRegime.Bear or MarketRegime.Crisis;
+
+            if (isBear && setting && !account.IsExecutionPaused(mode))
+            {
+                account.PauseExecution(mode, ExecutionPauseReason.BearMarket, DateTime.UtcNow);
+                await accountRepo.UpdateAsync(account, ct);
+                await activityLog.LogAsync(account.Id, "SystemEvent", "Entries Auto-Paused", "Warning",
+                    $"{mode} entries auto-paused — bear market conditions ({regime.Label}). Will auto-resume when the market recovers.");
+                await SendAlertAsync(account.Id,
+                    $"# 🐻 Bear market — new entries paused\n\n" +
+                    $"Market regime: **{regime.Label}**.\n\n" +
+                    $"New {mode} entries are paused while conditions persist; open positions are still managed " +
+                    $"(stops, targets and exits keep working). Entries resume automatically when the market recovers. " +
+                    $"You can disable this behaviour in Settings › Trading (\"Auto-pause during bear markets\").",
+                    "Acme Trading — entries paused (bear market)",
+                    NotificationCategory.CircuitBreaker);
+                logger.LogWarning("Bear-market autopause engaged for account {AccountId} ({Mode}): {Label}", account.Id, mode, regime.Label);
+            }
+            else if (bearPaused && (!isBear || !setting))
+            {
+                account.ResumeExecution(mode);
+                await accountRepo.UpdateAsync(account, ct);
+                var why = !setting ? "the autopause setting was turned off" : $"market recovered ({regime.Label})";
+                await activityLog.LogAsync(account.Id, "SystemEvent", "Entries Auto-Resumed", "Info",
+                    $"{mode} entries auto-resumed — {why}.");
+                await SendAlertAsync(account.Id,
+                    $"# ✅ Entries resumed\n\n{mode} entries have auto-resumed — {why}.",
+                    "Acme Trading — entries resumed",
+                    NotificationCategory.CircuitBreaker);
+                logger.LogInformation("Bear-market autopause released for account {AccountId} ({Mode}): {Why}", account.Id, mode, why);
+            }
+        }
+        catch (Exception ex)
+        {
+            // A regime-fetch failure must never take down the monitor cycle -
+            // the pause state simply carries over to the next 5-minute check.
+            logger.LogWarning(ex, "Bear-market pause check failed for account {AccountId} — will retry next cycle", account.Id);
+        }
+    }
 
     // A local position younger than this is exempt from the phantom/mismatch
     // checks: a just-placed order may not appear in T212's portfolio yet, and a

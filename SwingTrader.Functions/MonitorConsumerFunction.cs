@@ -30,7 +30,14 @@ public class MonitorConsumerFunction(
             var finnhub = await clientFactory.CreateFinnhubAsync<IFinnhubClient>(message.AccountId, ct);
             var t212 = await clientFactory.CreateTrading212Async<ITrading212Client>(message.AccountId, ct);
 
-            var result = await monitor.RunCycleAsync(message.AccountId, finnhub, t212, ct);
+            // Tiingo feeds the bear-market regime check (SPY history). A user
+            // without a Tiingo key just skips that step rather than failing
+            // the whole monitor cycle.
+            ITiingoClient? tiingo = null;
+            try { tiingo = await clientFactory.CreateTiingoAsync<ITiingoClient>(message.AccountId, ct); }
+            catch { /* no key - bear check skipped */ }
+
+            var result = await monitor.RunCycleAsync(message.AccountId, finnhub, t212, tiingo, ct);
 
             var executedExits = result.ExecutedExits ?? [];
             var summary = result.CircuitBreakerTriggered

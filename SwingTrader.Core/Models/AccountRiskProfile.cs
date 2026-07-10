@@ -40,6 +40,12 @@ public class AccountRiskProfile : BaseEntity
     // (more symbols = more Research/Monitor API calls per cycle).
     public int TargetWatchlistSize { get; set; } = CapitalRules.DefaultTargetWatchlistSize;
 
+    // Auto-pause new entries while the market regime classifies Bear/Crisis
+    // (see MarketRegimeService - structural bear, not a 200dma touch), and
+    // auto-resume when it recovers. Long-only momentum bleeds in downtrends;
+    // on by default. Monitor still manages exits while paused.
+    public bool AutopauseDuringBear { get; set; } = true;
+
     public string RiskLabel => LockedCapitalPct switch
     {
         >= 0.80m => "Very Conservative",

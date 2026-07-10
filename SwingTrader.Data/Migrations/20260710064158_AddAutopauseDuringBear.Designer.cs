@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SwingTrader.Data;
 
@@ -11,9 +12,11 @@ using SwingTrader.Data;
 namespace SwingTrader.Data.Migrations
 {
     [DbContext(typeof(SwingTraderDbContext))]
-    partial class SwingTraderDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260710064158_AddAutopauseDuringBear")]
+    partial class AddAutopauseDuringBear
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

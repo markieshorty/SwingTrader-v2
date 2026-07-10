@@ -634,6 +634,7 @@ export interface RiskProfileDto {
   minHoldDays: number;
   momentumHealthThreshold: number;
   targetWatchlistSize: number;
+  autopauseDuringBear: boolean;
   riskLabel: string;
   buyThreshold: number | null;
   watchThreshold: number | null;
@@ -678,6 +679,7 @@ export interface UpdateRiskProfileDto {
   minHoldDays: number;
   momentumHealthThreshold: number;
   targetWatchlistSize: number;
+  autopauseDuringBear: boolean;
 }
 
 export interface NotificationRecipientDto {

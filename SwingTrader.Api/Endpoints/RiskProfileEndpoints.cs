@@ -47,6 +47,7 @@ public static class RiskProfileEndpoints
                 profile.MinHoldDays,
                 profile.MomentumHealthThreshold,
                 profile.TargetWatchlistSize,
+                profile.AutopauseDuringBear,
                 profile.RiskLabel,
                 BuyThreshold = weights?.BuyThreshold,
                 WatchThreshold = weights?.WatchThreshold,
@@ -106,6 +107,7 @@ public static class RiskProfileEndpoints
                     MinHoldDays = req.MinHoldDays,
                     MomentumHealthThreshold = req.MomentumHealthThreshold,
                     TargetWatchlistSize = req.TargetWatchlistSize,
+                    AutopauseDuringBear = req.AutopauseDuringBear,
                 });
                 return Results.Ok();
             }

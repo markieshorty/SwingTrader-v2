@@ -49,7 +49,8 @@ public record UpdateRiskProfileRequest(
     int EarningsGateDays,
     int MinHoldDays,
     decimal MomentumHealthThreshold,
-    int TargetWatchlistSize);
+    int TargetWatchlistSize,
+    bool AutopauseDuringBear = true);
 
 public record CreateWatchlistRequest(string Name, WatchlistType Type, string? Description);
 

@@ -54,6 +54,7 @@ public class AccountRiskProfileRepository(SwingTraderDbContext db) : IAccountRis
         existing.MinHoldDays = profile.MinHoldDays;
         existing.MomentumHealthThreshold = profile.MomentumHealthThreshold;
         existing.TargetWatchlistSize = profile.TargetWatchlistSize;
+        existing.AutopauseDuringBear = profile.AutopauseDuringBear;
         existing.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync(ct);

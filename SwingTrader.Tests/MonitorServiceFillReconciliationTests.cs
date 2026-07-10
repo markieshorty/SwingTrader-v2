@@ -40,9 +40,12 @@ public class MonitorServiceFillReconciliationTests
             .Returns(new Account { Id = 1, TradingMode = TradingMode.Demo });
     }
 
+    private readonly SwingTrader.Infrastructure.Market.IMarketRegimeService _regime =
+        Substitute.For<SwingTrader.Infrastructure.Market.IMarketRegimeService>();
+
     private MonitorService CreateSut() => new(
         _tradeRepo, _portfolioRepo, _circuitBreaker, _positionMonitor, _riskProfileRepo,
-        _positionExit, _recipients, _emailService, _accountRepo, _activityLog,
+        _positionExit, _recipients, _emailService, _accountRepo, _activityLog, _regime,
         Options.Create(new ExecutionConfig { DelayBetweenOrdersSeconds = 0 }),
         NullLogger<MonitorService>.Instance);
 

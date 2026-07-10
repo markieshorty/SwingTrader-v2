@@ -75,14 +75,17 @@ public class MarketRegimeServiceTests
     }
 
     [Fact]
-    public async Task GetCurrentRegimeAsync_ModeratelyElevatedVix_ClassifiesAsBearEvenIfPriceIsFine()
+    public async Task GetCurrentRegimeAsync_ModeratelyElevatedVix_IsNeutralNotBear()
     {
+        // A VIX spike during a structurally healthy market is a correction,
+        // not a bear - the old classifier called this Bear, which would have
+        // made the bear autopause flap on routine volatility.
         SetupSpyHistory(100m);
-        SetupVix(30m); // > 25 but < 35
+        SetupVix(30m); // > 25 but < 35, price fine
 
         var result = await CreateSut().GetCurrentRegimeAsync(_tiingo, _finnhub);
 
-        result.Regime.Should().Be(MarketRegime.Bear);
+        result.Regime.Should().Be(MarketRegime.Neutral);
     }
 
     [Fact]
@@ -98,16 +101,42 @@ public class MarketRegimeServiceTests
     }
 
     [Fact]
-    public async Task GetCurrentRegimeAsync_MissingVixQuote_FallsBackToNeutralDefault()
+    public async Task GetCurrentRegimeAsync_MissingVixQuote_ClassifiesOnPriceStructureAlone()
     {
-        // CurrentPrice null on the VIX quote - service defaults to 20m rather
-        // than blowing up on a missing/degraded data point.
+        // No fabricated VIX: the old fallback invented a 20m reading, which
+        // silently steered classification. Unknown VIX now means the VIX
+        // conditions simply don't apply - healthy price structure = Bull.
         SetupSpyHistory(100m);
         _finnhub.GetQuoteAsync("VIX").Returns(new FinnhubQuoteResponse(null, null, null, null, null, null, null, 0));
 
         var result = await CreateSut().GetCurrentRegimeAsync(_tiingo, _finnhub);
 
-        result.Vix.Should().Be(20m);
+        result.Regime.Should().Be(MarketRegime.Bull);
+        result.Label.Should().Contain("VIX n/a");
+    }
+
+    [Fact]
+    public async Task GetCurrentRegimeAsync_ShallowDipBelowRising200Dma_IsNeutralNotBear()
+    {
+        // Rising history (so the 200dma is rising and the 50dma sits above the
+        // 200dma), final bar dips ~1% below the 200dma: a pullback, not a
+        // structural bear - must NOT trigger the bear autopause.
+        var prices = new List<TiingoDailyPrice>();
+        var start = DateTime.UtcNow.Date.AddDays(-320);
+        for (var i = 0; i < 219; i++)
+        {
+            var price = 90m + i * 0.1m; // steady uptrend
+            prices.Add(new TiingoDailyPrice(start.AddDays(i), price, price, price, price, 1, price, price, price, price, 1));
+        }
+        // 200dma of last 200 bars ~ around 101.8; dip just below it.
+        var dip = 101.0m;
+        prices.Add(new TiingoDailyPrice(start.AddDays(220), dip, dip, dip, dip, 1, dip, dip, dip, dip, 1));
+        _tiingo.GetDailyPricesAsync("SPY", Arg.Any<string>(), Arg.Any<string>()).Returns(prices);
+        SetupVix(18m);
+
+        var result = await CreateSut().GetCurrentRegimeAsync(_tiingo, _finnhub);
+
+        result.Regime.Should().Be(MarketRegime.Neutral);
     }
 
     [Fact]

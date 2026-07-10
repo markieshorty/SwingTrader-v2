@@ -73,6 +73,7 @@ function toUpdateRiskProfileDto(profile: RiskProfileDto): UpdateRiskProfileDto {
     minHoldDays: profile.minHoldDays,
     momentumHealthThreshold: profile.momentumHealthThreshold,
     targetWatchlistSize: profile.targetWatchlistSize,
+    autopauseDuringBear: profile.autopauseDuringBear,
   };
 }
 
@@ -259,7 +260,8 @@ export class SettingsComponent {
       original.earningsGateDays !== draft.earningsGateDays ||
       original.minHoldDays !== draft.minHoldDays ||
       original.momentumHealthThreshold !== draft.momentumHealthThreshold ||
-      original.targetWatchlistSize !== draft.targetWatchlistSize
+      original.targetWatchlistSize !== draft.targetWatchlistSize ||
+      original.autopauseDuringBear !== draft.autopauseDuringBear
     );
   });
 
@@ -307,11 +309,11 @@ export class SettingsComponent {
     });
   }
 
-  updateRiskDraftField(key: keyof UpdateRiskProfileDto, value: number): void {
+  updateRiskDraftField(key: keyof UpdateRiskProfileDto, value: number | boolean): void {
     const draft = this.riskProfileDraft();
     if (!draft) return;
 
-    if (key === 'minHoldDays' && value >= draft.maxHoldDays) {
+    if (key === 'minHoldDays' && typeof value === 'number' && value >= draft.maxHoldDays) {
       // Auto-adjust rather than reject — the user is dragging toward a valid
       // configuration either way, so nudge the other bound instead of blocking.
       this.riskProfileDraft.set({ ...draft, minHoldDays: value, maxHoldDays: value + 1 });
@@ -319,7 +321,7 @@ export class SettingsComponent {
       return;
     }
 
-    if (key === 'maxHoldDays' && value <= draft.minHoldDays) {
+    if (key === 'maxHoldDays' && typeof value === 'number' && value <= draft.minHoldDays) {
       this.riskProfileDraft.set({ ...draft, maxHoldDays: value, minHoldDays: Math.max(1, value - 1) });
       this.snackbar.open(`Probation period adjusted to ${Math.max(1, value - 1)} days to stay below maximum hold period.`, 'Dismiss', { duration: 4000 });
       return;

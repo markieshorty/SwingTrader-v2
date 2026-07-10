@@ -333,6 +333,22 @@
             (exits stalling positions sooner).
           </p>
 
+          <div class="toggle-row">
+            <mat-slide-toggle
+              [checked]="draft.autopauseDuringBear"
+              [disabled]="!isOwner()"
+              (change)="updateRiskDraftField('autopauseDuringBear', $event.checked)"
+            >
+              Auto-pause during bear markets
+            </mat-slide-toggle>
+          </div>
+          <p class="muted small">
+            When the market regime turns structurally bearish (SPY below a falling 200-day average, a deep breach,
+            or a death cross), new entries pause automatically — and resume on their own when the market recovers.
+            Open positions are still managed (stops, targets and exits keep working) while paused. Long-only momentum
+            strategies bleed in downtrends; leaving this on is recommended.
+          </p>
+
           <div class="slider-row">
             <label>Watchlist Size: {{ draft.targetWatchlistSize }} symbols</label>
             <mat-slider
