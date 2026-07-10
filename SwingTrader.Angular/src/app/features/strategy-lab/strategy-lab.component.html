@@ -185,16 +185,35 @@
           re-run to inspect it, then apply if you like it.
         </p>
         @for (s of r.suggestions; track s.description) {
-          <div class="suggestion-row">
-            <div class="suggestion-info">
-              <span class="desc">{{ s.description }}</span>
-              <span class="muted small">
+          <mat-expansion-panel class="suggestion-row">
+            <mat-expansion-panel-header>
+              <mat-panel-title class="desc">{{ s.description }}</mat-panel-title>
+              <mat-panel-description class="muted small">
                 avg return {{ s.simAvgReturnPct | number: '1.2-2' }}%/trade (+{{ s.improvementPct | number: '1.2-2' }} vs your run)
                 · win {{ s.simWinRate | percent: '1.0-0' }} · keeps {{ s.tradesKept }} trades
-              </span>
+              </mat-panel-description>
+            </mat-expansion-panel-header>
+
+            <table class="diff-table">
+              <thead>
+                <tr><th>Dial</th><th>Old weight</th><th></th><th>Suggested new weight</th></tr>
+              </thead>
+              <tbody>
+                @for (row of suggestionDiffRows(s); track row.label) {
+                  <tr [class.changed]="row.changed">
+                    <td>{{ row.label }}</td>
+                    <td>{{ row.oldVal }}</td>
+                    <td class="arrow">→</td>
+                    <td>{{ row.newVal }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+
+            <div class="suggestion-actions">
+              <button mat-stroked-button (click)="tryDials(s)"><mat-icon>tune</mat-icon> Load these dials</button>
             </div>
-            <button mat-stroked-button (click)="tryDials(s)"><mat-icon>tune</mat-icon> Load these dials</button>
-          </div>
+          </mat-expansion-panel>
         }
       </mat-card>
     } @else {

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -46,6 +47,7 @@ interface WeightDial {
     MatProgressSpinnerModule,
     MatTooltipModule,
     MatDialogModule,
+    MatExpansionModule,
   ],
   templateUrl: './strategy-lab.component.html',
   styleUrl: './strategy-lab.component.scss',
@@ -76,6 +78,13 @@ export class StrategyLabComponent {
 
   running = signal(false);
   response = signal<StrategyLabResponseDto | null>(null);
+  // Snapshot of the dials actually submitted for the run in progress/last
+  // completed - the "old" side of the suggestion diff tables. Can't just
+  // read the live `weights` signal for that: the user may have already
+  // loaded a suggestion's dials into the form (tryDials) before viewing it.
+  private ranWeights: LabWeightsDto | null = null;
+  private ranThreshold = 0;
+  private ranExcludeBreakout = false;
   historicResult = signal<HistoricResultDto | null>(null);
   historicStatus = signal<string | null>(null); // Queued/Running progress text
   dataStatus = signal<LabDataStatusDto | null>(null);
@@ -155,6 +164,9 @@ export class StrategyLabComponent {
       buyThreshold: this.buyThreshold(),
       excludeBreakout: this.excludeBreakout(),
     };
+    this.ranWeights = request.weights;
+    this.ranThreshold = request.buyThreshold;
+    this.ranExcludeBreakout = request.excludeBreakout;
 
     if (this.dataSource() === 'historic') {
       this.api.runStrategyLabHistoric(request).subscribe({
@@ -200,6 +212,35 @@ export class StrategyLabComponent {
         error: () => {}, // transient poll failure - keep polling
       });
     }, 5000);
+  }
+
+  // Old (this run's) weight vs a suggestion's proposed weight, one row per
+  // dial plus threshold/breakout. A single-dial "nudge" suggestion still
+  // renormalises all 8 weights, so every row can show a small shift even
+  // though only one was intentionally changed - `changed` flags rows that
+  // moved by more than rounding noise so the UI can highlight them.
+  suggestionDiffRows(s: LabSuggestionDto): { label: string; oldVal: string; newVal: string; changed: boolean }[] {
+    const oldW = this.ranWeights;
+    if (!oldW) return [];
+    const rows = this.dials.map((d) => ({
+      label: d.label,
+      oldVal: (oldW[d.key] * 100).toFixed(0) + '%',
+      newVal: (s.weights[d.key] * 100).toFixed(0) + '%',
+      changed: Math.abs(oldW[d.key] - s.weights[d.key]) >= 0.005,
+    }));
+    rows.push({
+      label: 'Buy threshold',
+      oldVal: this.ranThreshold.toFixed(1),
+      newVal: s.buyThreshold.toFixed(1),
+      changed: this.ranThreshold !== s.buyThreshold,
+    });
+    rows.push({
+      label: 'Exclude Breakout',
+      oldVal: this.ranExcludeBreakout ? 'Yes' : 'No',
+      newVal: s.excludeBreakout ? 'Yes' : 'No',
+      changed: this.ranExcludeBreakout !== s.excludeBreakout,
+    });
+    return rows;
   }
 
   // Load a suggestion's dials into the form (doesn't touch production).
