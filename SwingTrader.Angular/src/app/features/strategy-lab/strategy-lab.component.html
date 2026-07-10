@@ -57,10 +57,14 @@
 
         @if (dataSource() === 'historic') {
           <p class="muted small no-data-note">
-            <mat-icon>info</mat-icon>
-            Historic mode can't reconstruct <strong>{{ noHistoricDataLabels() }}</strong> from price/volume bars alone —
-            those four are held neutral during a historic run, so changing their weights (marked below) won't
-            meaningfully move the result. Tune them in <em>own-data</em> mode instead.
+            <mat-icon>lock</mat-icon>
+            <span>
+              <strong>{{ noHistoricDataLabels() }}</strong> are locked while backtesting against historic data. The
+              simulator can't reconstruct them, so they score a fixed neutral — moving their weight would only dilute
+              the components that <em>do</em> have data (dragging every conviction score toward the middle) without
+              testing anything about the component itself, and the result wouldn't carry over to production where
+              these components have real data. Switch to <em>own-data</em> mode to experiment with them.
+            </span>
           </p>
         }
 
@@ -71,11 +75,11 @@
                 <span [matTooltip]="dial.hint">{{ dial.label }}</span>
                 @if (lacksHistoricData(dial.key)) {
                   <mat-icon class="no-data-flag"
-                    matTooltip="No historic data — this component is held neutral in a historic backtest, so its weight has little effect on the result.">warning</mat-icon>
+                    matTooltip="Locked — no historic data for this component. It scores a fixed neutral in a historic backtest, so adjusting its weight would only dilute the live components without testing anything real.">lock</mat-icon>
                 }
                 <span class="value">{{ weights()[dial.key] | percent: '1.0-0' }}</span>
               </div>
-              <mat-slider min="0" max="0.45" step="0.01" discrete>
+              <mat-slider min="0" max="0.45" step="0.01" discrete [disabled]="lacksHistoricData(dial.key)">
                 <input matSliderThumb [ngModel]="weights()[dial.key]" (ngModelChange)="setWeight(dial.key, $event)" />
               </mat-slider>
             </div>

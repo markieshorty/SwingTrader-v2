@@ -85,9 +85,13 @@ export class StrategyLabComponent {
   ];
 
   // Components the historic backtester cannot reconstruct from price/volume
-  // bars alone — they're held at a neutral 0.5 during a historic run, so
-  // changing their weight barely moves the result. Flagged in the UI when
-  // historic mode is selected so the user isn't misled into tuning them.
+  // bars alone — they score a fixed neutral 0.5 during a historic run. Their
+  // weight therefore isn't ignored: it contributes weight×0.5 to every
+  // conviction score, so shifting weight onto them compresses all scores
+  // toward 5.0 and only changes selectivity vs the Buy threshold - pure
+  // dilution, measuring nothing about the component itself, and the result
+  // wouldn't transfer to production where these components have real data.
+  // The UI locks these dials while historic mode is selected.
   private readonly noHistoricDataKeys: ReadonlySet<keyof LabWeightsDto> = new Set([
     'sentiment', 'relativeStrength', 'priceLevel', 'fundamentalMomentum',
   ]);
@@ -194,21 +198,28 @@ export class StrategyLabComponent {
   }
 
   setWeight(key: keyof LabWeightsDto, value: number): void {
+    if (this.lacksHistoricData(key)) return; // locked in historic mode
     this.weights.set({ ...this.weights(), [key]: value });
   }
 
-  // Scale all weights so they sum to exactly 1.0 - saves the user hand-tuning
-  // dials to hit the sum-to-one requirement the Run button enforces.
+  // Scale weights so they sum to exactly 1.0 - saves the user hand-tuning
+  // dials to hit the sum-to-one requirement the Run button enforces. In
+  // historic mode the locked no-data dials keep their values; only the
+  // adjustable dials are scaled to fill the remainder.
   normaliseWeights(): void {
     const w = this.weights();
-    const total = this.dials.reduce((s, d) => s + w[d.key], 0);
-    if (total <= 0) return;
-    const scaled = {} as LabWeightsDto;
-    for (const d of this.dials) scaled[d.key] = Math.round((w[d.key] / total) * 100) / 100;
+    const adjustable = this.dials.filter((d) => !this.lacksHistoricData(d.key));
+    const lockedTotal = this.dials.filter((d) => this.lacksHistoricData(d.key)).reduce((s, d) => s + w[d.key], 0);
+    const adjustableTotal = adjustable.reduce((s, d) => s + w[d.key], 0);
+    const target = 1 - lockedTotal;
+    if (adjustableTotal <= 0 || target <= 0) return;
+
+    const scaled = { ...w };
+    for (const d of adjustable) scaled[d.key] = Math.round((w[d.key] / adjustableTotal) * target * 100) / 100;
     // Rounding can leave the sum a hair off 1.00; drop any residue on the
-    // largest weight so it lands exactly.
+    // largest adjustable weight so it lands exactly.
     const residue = 1 - this.dials.reduce((s, d) => s + scaled[d.key], 0);
-    const largest = this.dials.reduce((a, b) => (scaled[a.key] >= scaled[b.key] ? a : b));
+    const largest = adjustable.reduce((a, b) => (scaled[a.key] >= scaled[b.key] ? a : b));
     scaled[largest.key] = Math.round((scaled[largest.key] + residue) * 100) / 100;
     this.weights.set(scaled);
   }
