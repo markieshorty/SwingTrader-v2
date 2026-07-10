@@ -4,7 +4,33 @@ Three features, all building on the existing Strategy Lab (own-data + historic m
 suggestion search, apply-to-production flow). Written up for pickup once available —
 not started.
 
-## Context: what exists today
+## Standing requirement: clarity over raw output
+
+Applies to all three features below, not just the newly written parts. This came out
+of real confusion while using the existing Lab: the historic result's `n=` counts and
+percentages meant nothing without a footnote explaining they're raw returns, not
+market-adjusted (see the bucket-table fix already shipped — [`strategy-lab.component.html`](../SwingTrader.Angular/src/app/features/strategy-lab/strategy-lab.component.html)
+— as the reference pattern for "how much explanation is enough").
+
+Any new number, stat, or result surfaced by these features needs a nearby,
+plain-English explanation of what it means — not buried in a tooltip only, and not
+assumed obvious. Concretely, for anything new built from this plan:
+
+- A stat with no unit or context (a bare count, a bare percentage) needs a label that
+  says what's being counted/averaged, not just the number.
+- Anywhere a metric could be misread (raw vs. market-adjusted, per-trade vs.
+  cumulative, "better" meaning different things for different metrics) needs a short
+  explanatory line near the number, not left to the reader to infer from a
+  half-remembered convention.
+- A one-line summary sentence near the top of a result (like the historic result
+  card's existing summary paragraph) is the right place for "what does this mean"
+  in plain terms — put a similar sentence anywhere a new result type is introduced.
+- When Claude is generating text (Features 1 and 3), the same bar applies to its
+  output: plain language, no jargon that isn't explained, and it should say what a
+  number means in the same breath as stating it, not assume the reader already knows.
+
+Treat "is this understandable to someone who didn't build the backtester" as a
+review gate before any of these features ship, the same way build/test passing is.
 
 - **Own-data mode** (`StrategyLabService.RunOwnDataAsync`): in-memory replay against
   the user's own closed trades. Cheap — sub-second.
