@@ -107,7 +107,7 @@ public class AccountRiskProfileTests
     }
 
     [Theory]
-    [InlineData(0.49)]
+    [InlineData(0.34)] // below the 35% floor (lowered 2026-07-12 from 50%)
     [InlineData(0.81)]
     public void Validate_Tier1UnlockMinWinRateOutOfRange_Throws(decimal value)
     {

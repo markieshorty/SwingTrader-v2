@@ -277,12 +277,20 @@ export class SettingsComponent {
   riskLivePreview = computed(() => {
     const draft = this.riskProfileDraft();
     const breakdown = this.riskProfile()?.capitalBreakdown;
-    const total = breakdown?.totalCapital ?? 1000;
     if (!draft) return null;
-    const locked = total * draft.lockedCapitalPct;
-    const active = total - locked;
-    const maxPerTrade = active * draft.maxPositionPctOfActive;
-    return { total, locked, active, maxPerTrade };
+    // Active capital is set by the account's TIER (10% / 20% / 50% of the
+    // whole account at Tier 1 / 2 / 3), NOT by (total − locked). Locked
+    // capital is a protected reserve and a ceiling on max-position %; it does
+    // not shrink the tier pool that positions are actually sized from. Use the
+    // API's tier-based figures so this preview matches live sizing exactly
+    // (the old total−locked calc overstated it ~4× at Tier 1).
+    const total = breakdown?.totalCapital ?? null;
+    const active = breakdown?.activeCapital ?? null; // the tier pool
+    const tier = breakdown?.currentTier ?? null;
+    const locked = total !== null ? total * draft.lockedCapitalPct : null;
+    const activePct = total && active ? active / total : null;
+    const maxPerTrade = active !== null ? active * draft.maxPositionPctOfActive : null;
+    return { total, locked, active, activePct, tier, maxPerTrade };
   });
 
   constructor() {

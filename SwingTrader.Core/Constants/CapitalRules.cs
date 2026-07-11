@@ -19,9 +19,16 @@ public static class CapitalRules
     public const decimal MaxPositionPctOfActive = 0.40m;
     public const int MaxOpenPositions = 3;
     public const int Tier1UnlockMinTrades = 30;
-    public const decimal Tier1UnlockMinWinRate = 0.55m;
+    // Win-rate unlock bars lowered 2026-07-12 (Tier1 0.55->0.40, Tier2
+    // 0.58->0.45): this strategy's edge is expectancy, not hit rate - it wins
+    // by cutting losers early and letting winners mature, so a ~45% win rate
+    // with a profit factor >1.2 is a GOOD account that the old 55% bar kept
+    // stuck at Tier 1 forever. Downgrade is still gated on NEGATIVE avg return
+    // (DowngradeAvgReturnThreshold), so a profitable low-win-rate account is
+    // never demoted. Tier2 stays strictly above Tier1 (Validate() enforces it).
+    public const decimal Tier1UnlockMinWinRate = 0.40m;
     public const int Tier2UnlockMinTrades = 60;
-    public const decimal Tier2UnlockMinWinRate = 0.58m;
+    public const decimal Tier2UnlockMinWinRate = 0.45m;
     public const decimal DailyLossCircuitBreakerPct = 0.05m;
     public const decimal DowngradeWinRateThreshold = 0.40m;
     public const decimal DowngradeAvgReturnThreshold = -2.0m;
@@ -78,7 +85,7 @@ public static class CapitalRules
     public const int MinTier1UnlockMinTrades = 20;
     public const int MaxTier1UnlockMinTrades = 100;
     public const int MaxTier2UnlockMinTrades = 200;
-    public const decimal MinTier1UnlockMinWinRate = 0.50m;
+    public const decimal MinTier1UnlockMinWinRate = 0.35m;
     public const decimal MaxTier1UnlockMinWinRate = 0.80m;
     public const decimal MaxTier2UnlockMinWinRate = 0.85m;
 }

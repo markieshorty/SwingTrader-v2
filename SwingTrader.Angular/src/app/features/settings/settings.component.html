@@ -247,10 +247,13 @@
             </mat-slider>
           </div>
           @if (riskLivePreview(); as preview) {
-            <p class="muted small">
-              At {{ preview.total | currency: 'GBP' }}: Protected {{ preview.locked | currency: 'GBP' }}, Available to
-              trade {{ preview.active | currency: 'GBP' }}
-            </p>
+            @if (preview.total !== null) {
+              <p class="muted small">
+                Of {{ preview.total | currency: 'GBP' }}, {{ preview.locked | currency: 'GBP' }} is locked away as a
+                protected reserve — never traded, whatever your tier or signals say. Locked capital also caps how
+                large any single position can be (max position can't exceed the un-locked share of the account).
+              </p>
+            }
           }
 
           <h4>Position Sizing</h4>
@@ -266,7 +269,21 @@
             </mat-slider>
           </div>
           @if (riskLivePreview(); as preview) {
-            <p class="muted small">Max per trade: {{ preview.maxPerTrade | currency: 'GBP' }}</p>
+            @if (preview.active !== null) {
+              <p class="muted small">
+                <strong>Active capital{{ preview.tier ? ' (' + preview.tier + ')' : '' }}:
+                {{ preview.active | currency: 'GBP' }}</strong>
+                — {{ preview.activePct | percent: '1.0-0' }} of your {{ preview.total | currency: 'GBP' }} account.
+                This is the pool positions are sized from, set by your capital <em>tier</em> — not the locked slider.
+                It grows as you unlock higher tiers (Tier&nbsp;1 = 10%, Tier&nbsp;2 = 20%, Tier&nbsp;3 = 50% of the account).
+              </p>
+              <p class="muted small">
+                <strong>Max per trade: {{ preview.maxPerTrade | currency: 'GBP' }}</strong>
+                = {{ draft.maxPositionPctOfActive | percent: '1.0-0' }} of active capital.
+              </p>
+            } @else {
+              <p class="muted small">Max per trade appears once your account has its first portfolio snapshot.</p>
+            }
           }
 
           <div class="slider-row">
