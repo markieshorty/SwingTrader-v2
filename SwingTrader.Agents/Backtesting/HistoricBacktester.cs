@@ -18,8 +18,9 @@ namespace SwingTrader.Agents.Backtesting;
 // momentum score neutral 0.5 - the only two components not reconstructable
 // from bars), and the universe is today's membership (survivorship bias) -
 // results are for RELATIVE comparisons, not absolute predictions.
-// Relative strength (vs sector ETF bars) and price level (support/resistance)
-// ARE computed, via the same shared calculators the live services run.
+// Relative strength (vs sector ETF bars), price level (support/resistance)
+// and the probation momentum-health check ARE computed, via the same shared
+// calculators the live services run.
 
 public sealed record DailyBar(DateTime Date, decimal Open, decimal High, decimal Low, decimal Close, decimal Volume);
 
@@ -49,7 +50,19 @@ public sealed record HistoricConfig(
     // override). Previously hardcoded 5%/3% constants, which silently
     // diverged from live whenever the profile's values differed.
     decimal TrailingActivationPct = 0.05m,
-    decimal TrailingDistancePct = 0.03m);
+    decimal TrailingDistancePct = 0.03m,
+    // Flat stop/target overrides (fractions, e.g. 0.06 = 6%). Null = the
+    // production EntryLevelCalculator table (setup-based stops, conviction-
+    // based targets) - these exist so the Lab can test nearer/farther exits.
+    decimal? StopLossPct = null,
+    decimal? TargetPct = null,
+    // Probation (momentum-health) simulation - mirrors the live two-phase
+    // lifecycle: one check at MinHoldDays trading days, one grace day if
+    // Borderline, forced exit if the thesis isn't playing out. On by default
+    // because production always runs it.
+    bool SimulateProbation = true,
+    int MinHoldDays = 3,
+    decimal MomentumHealthThreshold = 0.5m);
 
 public sealed record HistoricTrade(
     string Symbol, DateTime EntryDate, DateTime ExitDate, decimal EntryPrice, decimal ExitPrice,
@@ -97,6 +110,12 @@ public static class HistoricBacktester
         public required SetupType Setup;
         public required decimal Conviction;
         public decimal? TrailingStop;
+        // Probation state: RSI at scoring time (the live entry signal's
+        // Rsi14), the last verdict, and whether the check cycle is finished
+        // (Confirmed, or the grace day has been used).
+        public decimal? EntryRsi;
+        public string? ProbationVerdict;
+        public bool ProbationDone;
     }
 
     public static async Task<HistoricResult> RunAsync(
@@ -140,6 +159,29 @@ public static class HistoricBacktester
                 if (bar is null) continue;
 
                 var (exitPrice, reason) = CheckExit(pos, bar, d, cfg.MaxHoldDays);
+
+                // Probation: mirrors the live two-phase lifecycle. Live runs
+                // the check during morning research and the exit fills at
+                // market during the day - approximated here as the day's
+                // close. Ordinary stop/target/trailing exits (checked above)
+                // take priority, exactly as they would intraday.
+                if (exitPrice is null && cfg.SimulateProbation && !pos.ProbationDone)
+                {
+                    var daysHeld = d - pos.EntryBarIndex;
+                    var isGraceRecheck = daysHeld == cfg.MinHoldDays + 1 && pos.ProbationVerdict == "Borderline";
+                    if (daysHeld == cfg.MinHoldDays || isGraceRecheck)
+                    {
+                        var verdict = await ProbationVerdictAsync(
+                            indicators, bars, index, pos, today, cfg.MomentumHealthThreshold, sectorEtfBySymbol);
+                        // One grace day only - a still-Borderline recheck is an Exit.
+                        if (isGraceRecheck && verdict == "Borderline") verdict = "Exit";
+                        pos.ProbationVerdict = verdict;
+                        pos.ProbationDone = verdict != "Borderline";
+                        if (verdict == "Exit")
+                            (exitPrice, reason) = (bar.Close, "Probation");
+                    }
+                }
+
                 if (exitPrice.HasValue)
                 {
                     var proceeds = exitPrice.Value * pos.Quantity * (1 - CostPerSide);
@@ -164,14 +206,14 @@ public static class HistoricBacktester
                 // single-toggle behaviour (ExcludeBreakout) applies.
                 var excludedSetups = cfg.ExcludedSetups
                     ?? (cfg.ExcludeBreakout ? [SetupType.Breakout] : Array.Empty<SetupType>());
-                var candidates = new List<(string Symbol, decimal Conviction, SetupType Setup)>();
+                var candidates = new List<(string Symbol, decimal Conviction, SetupType Setup, decimal Rsi)>();
                 foreach (var symbol in watchlist)
                 {
                     if (open.Any(p => p.Symbol.Equals(symbol, StringComparison.OrdinalIgnoreCase))) continue;
                     var scored = await ScoreAsync(indicators, cfg, bars, index, symbol, today, sectorEtfBySymbol);
                     if (scored is { } s && s.Conviction >= cfg.BuyThreshold && s.Rsi <= 75m
                         && !excludedSetups.Contains(s.Setup))
-                        candidates.Add((symbol, s.Conviction, s.Setup));
+                        candidates.Add((symbol, s.Conviction, s.Setup, s.Rsi));
                 }
 
                 foreach (var c in candidates.OrderByDescending(c => c.Conviction).Take(MaxOrdersPerDay))
@@ -192,11 +234,15 @@ public static class HistoricBacktester
                     if (qty <= 0) continue;
 
                     var (stop, target) = Core.Trading.EntryLevelCalculator.Calculate(c.Setup, c.Conviction, entryBar.Open);
+                    // Flat Lab overrides beat the production table when set.
+                    if (cfg.StopLossPct is { } sp) stop = Math.Round(entryBar.Open * (1 - sp), 2);
+                    if (cfg.TargetPct is { } tp) target = Math.Round(entryBar.Open * (1 + tp), 2);
                     cash -= entryBar.Open * qty * (1 + CostPerSide);
                     open.Add(new Position
                     {
                         Symbol = c.Symbol, EntryDate = calendar[d + 1], EntryBarIndex = d + 1, EntryPrice = entryBar.Open,
                         Quantity = qty, StopLoss = stop, Target = target, Setup = c.Setup, Conviction = c.Conviction,
+                        EntryRsi = c.Rsi,
                     });
                 }
             }
@@ -321,6 +367,12 @@ public static class HistoricBacktester
     internal static decimal? ComputeRelativeStrengthScore(
         IReadOnlyDictionary<string, DailyBar[]> bars, Dictionary<string, Dictionary<DateTime, int>> index,
         string symbol, DailyBar[] history, DateTime today,
+        IReadOnlyDictionary<string, string>? sectorEtfBySymbol = null) =>
+        ComputeRelativeStrengthOutcome(bars, index, symbol, history, today, sectorEtfBySymbol)?.Score;
+
+    internal static RelativeStrengthOutcome? ComputeRelativeStrengthOutcome(
+        IReadOnlyDictionary<string, DailyBar[]> bars, Dictionary<string, Dictionary<DateTime, int>> index,
+        string symbol, DailyBar[] history, DateTime today,
         IReadOnlyDictionary<string, string>? sectorEtfBySymbol = null)
     {
         var etf = sectorEtfBySymbol is not null && sectorEtfBySymbol.TryGetValue(symbol, out var mapped)
@@ -336,7 +388,42 @@ public static class HistoricBacktester
         var stockCloses = history[^window..].Select(b => b.Close).ToList();
         var etfCloses = etfBars[(etfIdx - window + 1)..(etfIdx + 1)].Select(b => b.Close).ToList();
 
-        return RelativeStrengthCalculator.Compute(stockCloses, etfCloses)?.Score;
+        return RelativeStrengthCalculator.Compute(stockCloses, etfCloses);
+    }
+
+    // The probation verdict from bar-reconstructable inputs: today's RSI and
+    // volume ratio (same IndicatorService the scorer uses), price vs entry,
+    // and the RS relative return - fed through the SAME shared
+    // MomentumHealthCalculator the live monitor runs. Missing data (not
+    // enough history at this index) scores neutral, mirroring live's
+    // "never exit on missing data".
+    private static async Task<string> ProbationVerdictAsync(
+        IndicatorService indicators,
+        IReadOnlyDictionary<string, DailyBar[]> bars, Dictionary<string, Dictionary<DateTime, int>> index,
+        Position pos, DateTime today, decimal threshold,
+        IReadOnlyDictionary<string, string>? sectorEtfBySymbol)
+    {
+        decimal? rsi = null, volumeRatio = null, relativeReturn = null;
+        var currentPrice = pos.EntryPrice; // neutral price component if no bar
+
+        if (index.TryGetValue(pos.Symbol, out var dates) && dates.TryGetValue(today, out var i) && i >= WarmupBars)
+        {
+            var history = bars[pos.Symbol][(i - WarmupBars + 1)..(i + 1)];
+            currentPrice = history[^1].Close;
+            var candles = history.Select(b => new StockCandle
+            {
+                Symbol = pos.Symbol, Timestamp = b.Date, Open = b.Open, High = b.High, Low = b.Low, Close = b.Close,
+                Volume = (long)b.Volume,
+            }).ToList();
+            var ind = await indicators.CalculateAllAsync(candles);
+            rsi = ind.Rsi14;
+            volumeRatio = ind.VolumeRatio;
+            relativeReturn = ComputeRelativeStrengthOutcome(
+                bars, index, pos.Symbol, history, today, sectorEtfBySymbol)?.RelativeReturn;
+        }
+
+        return Monitor.MomentumHealthCalculator.Compute(
+            rsi, pos.EntryRsi, volumeRatio, currentPrice, pos.EntryPrice, relativeReturn, threshold).Verdict;
     }
 
     // Mirror of ResearchPipeline.DetectSetup (private there) - keep in sync.

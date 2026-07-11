@@ -37,7 +37,12 @@ public record HistoricTradingRules(
     int? MaxHoldDays = null,
     int? MaxOpenPositions = null,
     decimal? TrailingActivationPct = null,    // fraction, e.g. 0.05 = arm at +5%
-    decimal? TrailingDistancePct = null);     // fraction, e.g. 0.03 = trail 3% below
+    decimal? TrailingDistancePct = null,      // fraction, e.g. 0.03 = trail 3% below
+    decimal? StopLossPct = null,              // flat stop override; null = production setup table
+    decimal? TargetPct = null,                // flat target override; null = production conviction table
+    bool? SimulateProbation = null,           // null = true (production always runs probation)
+    int? MinHoldDays = null,                  // probation check day (trading days held)
+    decimal? MomentumHealthThreshold = null); // probation pass bar, 0..1
 
 public record HistoricBacktestCandidate(
     string Label, HistoricBacktestWeights Weights, decimal BuyThreshold, bool ExcludeBreakout,

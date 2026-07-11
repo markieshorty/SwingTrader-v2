@@ -522,6 +522,11 @@ export interface LabTradingRulesDto {
   maxOpenPositions: number | null;
   trailingActivationPct: number | null; // fraction: 0.05 = arm at +5%
   trailingDistancePct: number | null;   // fraction: 0.03 = trail 3% below
+  stopLossPct: number | null;   // flat stop override; null = production setup table
+  targetPct: number | null;     // flat target override; null = production conviction table
+  simulateProbation: boolean | null; // null = true (production always runs probation)
+  minHoldDays: number | null;        // probation check day
+  momentumHealthThreshold: number | null; // probation pass bar, 0..1
 }
 
 export interface StrategyLabRequestDto {

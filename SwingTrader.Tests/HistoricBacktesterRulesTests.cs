@@ -32,8 +32,9 @@ public class HistoricBacktesterRulesTests
         };
     }
 
-    // Threshold 3 = take everything scoreable; the tests below vary RULES.
-    private static HistoricConfig Config() => new(new StrategyWeights(), BuyThreshold: 3.0m);
+    // Threshold 3 = take everything scoreable; probation off by default so
+    // each rule test isolates its own lever (the probation tests turn it on).
+    private static HistoricConfig Config() => new(new StrategyWeights(), BuyThreshold: 3.0m, SimulateProbation: false);
 
     [Fact]
     public async Task Baseline_ProducesTrades_SoRuleTestsHaveSignal()
@@ -93,6 +94,71 @@ public class HistoricBacktesterRulesTests
             Market(), Config() with { TrailingActivationPct = 0.005m, TrailingDistancePct = 0.005m });
 
         tight.TradeLog.Should().Contain(t => t.ExitReason.StartsWith("Trailing"));
+    }
+
+    [Fact]
+    public async Task TargetOverride_TightTarget_ProducesNearTargetExits()
+    {
+        // Flat +2% target on a ±10% oscillator: target exits must appear and
+        // no winning trade can bank much more than the target (gap fills at
+        // the open can exceed it slightly; costs shave both sides).
+        var tight = await HistoricBacktester.RunAsync(
+            Market(), Config() with { TargetPct = 0.02m });
+
+        tight.TradeLog.Should().Contain(t => t.ExitReason == "Target");
+        tight.TradeLog.Where(t => t.ExitReason == "Target")
+            .Should().AllSatisfy(t => t.ReturnPct.Should().BeLessThan(3m));
+    }
+
+    [Fact]
+    public async Task StopOverride_TightStop_BoundsLosses()
+    {
+        var tight = await HistoricBacktester.RunAsync(
+            Market(), Config() with { StopLossPct = 0.02m });
+
+        tight.TradeLog.Should().Contain(t => t.ExitReason == "StopLoss");
+        // Non-gap stop exits fill at the stop level: loss ≈ 2% + round-trip costs.
+        tight.TradeLog.Where(t => t.ExitReason == "StopLoss")
+            .Should().AllSatisfy(t => t.ReturnPct.Should().BeGreaterThan(-3.5m));
+    }
+
+    [Fact]
+    public async Task NullOverrides_UseProductionEntryLevelTable()
+    {
+        // With no overrides the +8/10/12% targets are far on this oscillator,
+        // so the explicit-null run must equal a run built from defaults.
+        var defaults = await HistoricBacktester.RunAsync(Market(), Config());
+        var explicitNulls = await HistoricBacktester.RunAsync(
+            Market(), Config() with { StopLossPct = null, TargetPct = null });
+
+        explicitNulls.Trades.Should().Be(defaults.Trades);
+        explicitNulls.ExpectancyPct.Should().Be(defaults.ExpectancyPct);
+    }
+
+    [Fact]
+    public async Task Probation_On_ProducesProbationExits_OffDoesNot()
+    {
+        // The oscillator guarantees some entries near a peak: three days later
+        // price is below entry with falling RSI - a legitimate Exit verdict.
+        var withProbation = await HistoricBacktester.RunAsync(
+            Market(), Config() with { SimulateProbation = true, MinHoldDays = 3 });
+        var without = await HistoricBacktester.RunAsync(Market(), Config());
+
+        withProbation.TradeLog.Should().Contain(t => t.ExitReason == "Probation");
+        without.TradeLog.Should().NotContain(t => t.ExitReason == "Probation");
+    }
+
+    [Fact]
+    public async Task Probation_ImpossibleThreshold_ExitsEverySurvivorAtCheckDay()
+    {
+        // Threshold above the max possible score (1.0): every position that
+        // reaches the check day must exit on probation - nothing survives to
+        // a time exit at MaxHoldDays 10.
+        var result = await HistoricBacktester.RunAsync(
+            Market(), Config() with { SimulateProbation = true, MinHoldDays = 3, MomentumHealthThreshold = 1.01m });
+
+        result.TradeLog.Should().NotContain(t => t.ExitReason == "TimeExit");
+        result.TradeLog.Should().Contain(t => t.ExitReason == "Probation");
     }
 
     [Fact]

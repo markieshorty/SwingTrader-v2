@@ -126,7 +126,12 @@ public class BacktestConsumerFunction(
         MaxHoldDays: rules?.MaxHoldDays ?? profile.MaxHoldDays,
         ExcludedSetups: ParseSetups(rules?.ExcludedSetups),
         TrailingActivationPct: rules?.TrailingActivationPct ?? (decimal)profile.TrailingActivationPct,
-        TrailingDistancePct: rules?.TrailingDistancePct ?? (decimal)profile.TrailingDistancePct);
+        TrailingDistancePct: rules?.TrailingDistancePct ?? (decimal)profile.TrailingDistancePct,
+        StopLossPct: rules?.StopLossPct,
+        TargetPct: rules?.TargetPct,
+        SimulateProbation: rules?.SimulateProbation ?? true,
+        MinHoldDays: rules?.MinHoldDays ?? profile.MinHoldDays,
+        MomentumHealthThreshold: rules?.MomentumHealthThreshold ?? profile.MomentumHealthThreshold);
 
     // Unknown names are ignored rather than failing the run - the list comes
     // from the UI, but the request JSON is stored and could be replayed after

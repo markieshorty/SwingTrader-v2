@@ -32,75 +32,27 @@ public class MomentumHealthService(
             ? await signalRepo.GetByIdAsync(accountId, trade.SignalId.Value)
             : null;
 
-        // ── Component 1: RSI Direction (weight 0.30) ──────────────────────
-        decimal rsiScore;
-        if (signal.Rsi14.HasValue)
-        {
-            var rsi = signal.Rsi14.Value;
-            var entryRsi = entrySignal?.Rsi14 ?? rsi;
-            var rising = rsi > entryRsi;
-
-            if (rising && rsi >= 50) rsiScore = 1.00m;
-            else if (rising) rsiScore = 0.50m;
-            else rsiScore = 0.00m;
-        }
-        else
-        {
-            rsiScore = 0.50m;
-        }
-
-        // ── Component 2: Volume Sustainability (weight 0.25) ──────────────
-        decimal volumeScore;
-        if (signal.VolumeRatio.HasValue)
-        {
-            var ratio = signal.VolumeRatio.Value;
-            if (ratio >= 0.8m) volumeScore = 1.00m;
-            else if (ratio >= 0.5m) volumeScore = 0.50m;
-            else volumeScore = 0.00m;
-        }
-        else
-        {
-            volumeScore = 0.50m;
-        }
-
-        // ── Component 3: Price vs Entry (weight 0.25) ─────────────────────
-        decimal priceScore;
-        decimal? pctFromEntry = null;
-        if (signal.CurrentPrice > 0 && trade.EntryPrice > 0)
-        {
-            pctFromEntry = (signal.CurrentPrice - trade.EntryPrice) / trade.EntryPrice * 100m;
-            if (pctFromEntry >= 1.5m) priceScore = 1.00m;
-            else if (pctFromEntry >= 0.0m) priceScore = 0.50m;
-            else priceScore = 0.00m;
-        }
-        else
-        {
-            priceScore = 0.50m;
-        }
-
-        // ── Component 4: Relative to Sector (weight 0.20) ─────────────────
-        decimal relativeScore;
-        if (signal.RelativeReturn.HasValue)
-        {
-            var rel = signal.RelativeReturn.Value;
-            if (rel > 0.5m) relativeScore = 1.00m;
-            else if (rel >= -0.5m) relativeScore = 0.50m;
-            else relativeScore = 0.00m;
-        }
-        else
-        {
-            relativeScore = 0.50m;
-        }
-
-        var score = (rsiScore * 0.30m) + (volumeScore * 0.25m) + (priceScore * 0.25m) + (relativeScore * 0.20m);
-
         var profile = await riskProfileRepo.GetAsync(accountId, ct);
-        var threshold = profile.MomentumHealthThreshold;
 
-        string verdict;
-        if (score >= threshold + 0.25m) verdict = "Confirmed";
-        else if (score >= threshold) verdict = "Borderline";
-        else verdict = "Exit";
+        // Shared algorithm (MomentumHealthCalculator) - the exact same code
+        // the historic backtester's probation simulation runs, so live and
+        // backtest verdicts can never drift apart.
+        var outcome = MomentumHealthCalculator.Compute(
+            rsiToday: signal.Rsi14,
+            rsiAtEntry: entrySignal?.Rsi14,
+            volumeRatio: signal.VolumeRatio,
+            currentPrice: signal.CurrentPrice,
+            entryPrice: trade.EntryPrice,
+            relativeReturn: signal.RelativeReturn,
+            threshold: profile.MomentumHealthThreshold);
+
+        var (score, verdict, rsiScore, volumeScore, priceScore, relativeScore) =
+            (outcome.Score, outcome.Verdict, outcome.RsiDirectionScore, outcome.VolumeScore,
+             outcome.PriceDirectionScore, outcome.RelativeStrengthScore);
+
+        decimal? pctFromEntry = signal.CurrentPrice > 0 && trade.EntryPrice > 0
+            ? (signal.CurrentPrice - trade.EntryPrice) / trade.EntryPrice * 100m
+            : null;
 
         var reasoning = BuildReasoning(verdict, rsiScore, volumeScore, priceScore, relativeScore, pctFromEntry);
 
