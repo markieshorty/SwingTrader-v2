@@ -60,6 +60,41 @@ public class CmaEsTests
     }
 
     [Fact]
+    public async Task MinimizeAsync_ParallelEvaluation_TracesTheSameSearchPathAsSequential()
+    {
+        // Offspring are sampled before any evaluation launches and fitness
+        // lands by index, so the search path must be identical whatever the
+        // parallelism - this is what lets the sweep evaluate backtests
+        // concurrently without giving up reproducibility.
+        Task<double> Evaluate(double[] x, CancellationToken ct) => Task.FromResult(x.Sum(v => (v - 1.0) * (v - 1.0)));
+
+        var sequential = await CmaEs.MinimizeAsync(5, new double[5], 1.0, 200, Evaluate, CancellationToken.None);
+        var parallel = await CmaEs.MinimizeAsync(5, new double[5], 1.0, 200, Evaluate, CancellationToken.None, maxParallelism: 4);
+
+        sequential.Select(e => e.Fitness).Should().Equal(parallel.Select(e => e.Fitness));
+    }
+
+    [Fact]
+    public async Task CmaEsSearch_PausedAndResumed_MatchesAnUninterruptedRun()
+    {
+        // Successive halving pauses a search after each stage and resumes the
+        // survivors - the state (generation counter, evolution paths, RNG)
+        // must carry across so a resumed search is indistinguishable from one
+        // that never stopped.
+        Task<double> Evaluate(double[] x, CancellationToken ct) => Task.FromResult(x.Sum(v => v * v));
+
+        var uninterrupted = new CmaEsSearch(4, new double[4], 1.0, rngSeed: 42);
+        await uninterrupted.RunGenerationsAsync(6, Evaluate, CancellationToken.None);
+
+        var resumed = new CmaEsSearch(4, new double[4], 1.0, rngSeed: 42);
+        await resumed.RunGenerationsAsync(1, Evaluate, CancellationToken.None);
+        await resumed.RunGenerationsAsync(2, Evaluate, CancellationToken.None);
+        await resumed.RunGenerationsAsync(3, Evaluate, CancellationToken.None);
+
+        uninterrupted.History.Select(e => e.Fitness).Should().Equal(resumed.History.Select(e => e.Fitness));
+    }
+
+    [Fact]
     public void PlanBudget_NeverExceedsTargetBudget()
     {
         var (lambda, generations, actualBudget) = CmaEs.PlanBudget(dimensions: 7, targetBudget: 400);

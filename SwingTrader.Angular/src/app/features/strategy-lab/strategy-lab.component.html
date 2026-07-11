@@ -580,10 +580,10 @@
           ~400 dial variations around your current production settings — single-dial nudges, pair shifts between every
           signal, Buy-threshold variants, structurally different mixes, bear-autopause toggles, and a dense random fill
           of the joint weights + threshold space. An <strong>ML-guided search</strong> then runs CMA-ES (a gradient-free
-          evolutionary optimizer) from 30 independent starting points scattered across the same space — random sampling
-          alone can never densely cover a 7-dimensional simplex in a few hundred draws, so each restart adapts its own
-          local search instead, giving far denser coverage per evaluation while still exploring broadly, not just one
-          basin. Together they try ~1,200 candidates. Both only redistribute weight among the six components historic
+          evolutionary optimizer) from 30 independent starting points scattered across the same space, with
+          <strong>successive halving</strong>: every start gets a cheap screening pass, only the most promising half
+          continue, and the final few get a deep, fully adapted search — broad where nothing is known yet, deep where
+          early evidence says it's worth it. Together they try ~1,200 candidates. Both only redistribute weight among the six components historic
           data exists for (<strong>RSI, MACD, Volume, Setup quality, Relative strength, Price level</strong>); the other
           two (News sentiment, Fundamental momentum) are held at your production values, because the backtest scores
           them neutral and "tuning" them would only produce conclusions that don't carry over to live trading. To guard

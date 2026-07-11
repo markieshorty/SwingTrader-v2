@@ -9,9 +9,10 @@ namespace SwingTrader.Tests;
 // The ML search pool: same dial-space contract as SweepOptimizer's
 // deterministic sweep (live weights sum to the baseline's live budget, dead
 // components never move, Buy threshold stays in range), plus checks specific
-// to the multi-start design - that restarts actually scatter across the
-// simplex (not all collapsing near the baseline) and that, given a peaked
-// objective, at least one of the 30 independent restarts finds it.
+// to the successive-halving multi-start design - that restarts scatter
+// across the simplex, that the halving schedule actually concentrates budget
+// on the promising starts, and that results are deterministic even when
+// evaluations run in parallel.
 public class MlSweepOptimizerTests
 {
     private static readonly HistoricBacktestWeights ProdWeights =
@@ -51,44 +52,65 @@ public class MlSweepOptimizerTests
         var baseline = Baseline();
         var liveBudget = LiveSum(baseline.Weights);
 
-        var summaries = await MlSweepOptimizer.OptimizeAsync(
+        var evaluations = await MlSweepOptimizer.OptimizeAsync(
             baseline,
             (c, ct) => Task.FromResult(Result(trades: 50, expectancy: 1.0m, maxDd: 10m)),
             FlatSpy, baselineMaxDrawdownPct: 15m, CancellationToken.None);
 
-        summaries.Should().HaveCount(MlSweepOptimizer.ActualCandidateCount);
-        summaries.Should().AllSatisfy(s =>
+        evaluations.Should().HaveCount(MlSweepOptimizer.ActualCandidateCount);
+        evaluations.Should().AllSatisfy(e =>
         {
-            LiveSum(s.Weights).Should().BeApproximately(liveBudget, 0.01m);
-            s.Weights.Sentiment.Should().Be(ProdWeights.Sentiment);
-            s.Weights.FundamentalMomentum.Should().Be(ProdWeights.FundamentalMomentum);
-            s.BuyThreshold.Should().BeInRange(3.0m, 9.0m);
+            LiveSum(e.Summary.Weights).Should().BeApproximately(liveBudget, 0.01m);
+            e.Summary.Weights.Sentiment.Should().Be(ProdWeights.Sentiment);
+            e.Summary.Weights.FundamentalMomentum.Should().Be(ProdWeights.FundamentalMomentum);
+            e.Summary.BuyThreshold.Should().BeInRange(3.0m, 9.0m);
         });
     }
 
     [Fact]
-    public async Task OptimizeAsync_IsDeterministic_SameInputsSameCandidates()
+    public async Task OptimizeAsync_IsDeterministic_EvenWithParallelEvaluation()
     {
         var baseline = Baseline();
         Task<HistoricResult> Evaluate(HistoricBacktestCandidate c, CancellationToken ct) =>
-            Task.FromResult(Result(trades: 50, expectancy: 1.0m, maxDd: 10m));
+            Task.FromResult(Result(trades: 50, expectancy: c.Weights.Rsi * 10, maxDd: 10m));
 
-        var first = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, CancellationToken.None);
-        var second = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, CancellationToken.None);
+        var sequential = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, CancellationToken.None);
+        var parallel = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, CancellationToken.None, maxParallelism: 4);
 
-        first.Select(s => s.Weights).Should().Equal(second.Select(s => s.Weights));
-        first.Select(s => s.BuyThreshold).Should().Equal(second.Select(s => s.BuyThreshold));
+        sequential.Select(e => e.Summary.Weights).Should().Equal(parallel.Select(e => e.Summary.Weights));
+        sequential.Select(e => e.Summary.Label).Should().Equal(parallel.Select(e => e.Summary.Label));
+    }
+
+    [Fact]
+    public async Task OptimizeAsync_SuccessiveHalving_ConcentratesBudgetOnSurvivors()
+    {
+        // Schedule: 30 starts x 1 gen screen, top 15 get 2 more, top 5 get 6
+        // more. Per-seed evaluation counts must therefore be exactly one of
+        // {1, 3, 9} generations x lambda, with 15 / 10 / 5 seeds respectively.
+        var baseline = Baseline();
+        var evaluations = await MlSweepOptimizer.OptimizeAsync(
+            baseline,
+            (c, ct) => Task.FromResult(Result(trades: 50, expectancy: c.Weights.Rsi * 10, maxDd: 10m)),
+            FlatSpy, 15m, CancellationToken.None);
+
+        var perSeed = evaluations
+            .GroupBy(e => e.Summary.Label.Split('.')[0]) // "ML search N"
+            .Select(g => g.Count())
+            .ToList();
+
+        perSeed.Should().HaveCount(MlSweepOptimizer.InitialSeeds);
+        perSeed.Count(c => c == 1 * MlSweepOptimizer.Lambda).Should().Be(15); // screened out after stage 1
+        perSeed.Count(c => c == 3 * MlSweepOptimizer.Lambda).Should().Be(10); // dropped after stage 2
+        perSeed.Count(c => c == 9 * MlSweepOptimizer.Lambda).Should().Be(5);  // went the distance
     }
 
     [Fact]
     public async Task OptimizeAsync_SomeRestartFindsThePeakOfAPeakedObjective()
     {
-        // A synthetic objective peaked at a specific RSI weight, scored via
-        // AdjustedExpectancy-equivalent (SPY is flat, so each trade's raw
-        // return passes straight through). With 30 independent restarts x 3
-        // generations of local adaptation each, at least one should land
-        // close to the peak - the multi-start payoff a single run can't
-        // guarantee if its one search happens to concentrate elsewhere.
+        // A synthetic objective peaked at a specific RSI weight. The halving
+        // schedule should notice which starts score well in the screening
+        // generation and give them the deep budget - at least one should
+        // land close to the peak.
         var baseline = Baseline();
         const decimal peakRsi = 0.30m;
 
@@ -99,16 +121,16 @@ public class MlSweepOptimizerTests
             return Task.FromResult(Result(trades: 50, expectancy: expectancy, maxDd: 5m));
         }
 
-        var summaries = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, CancellationToken.None);
+        var evaluations = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, CancellationToken.None);
 
-        summaries.Max(s => s.AdjustedExpectancyPct).Should().BeGreaterThan(1.5m); // peak is 2.0m
+        evaluations.Max(e => e.Summary.AdjustedExpectancyPct).Should().BeGreaterThan(1.5m); // peak is 2.0m
     }
 
     [Fact]
     public async Task OptimizeAsync_RestartsScatterAcrossTheSimplex_NotAllNearBaseline()
     {
         // The whole point of multi-start over a single centred CMA-ES run:
-        // restarts 1..29 begin from independently-seeded random points, not
+        // restarts begin from independently-seeded random logits, not
         // clustered around the baseline's ~0.17 RSI weight. A flat objective
         // (no gradient pulling the search anywhere) isolates exactly how much
         // spread the STARTING points themselves contribute.
@@ -116,28 +138,44 @@ public class MlSweepOptimizerTests
         Task<HistoricResult> Evaluate(HistoricBacktestCandidate c, CancellationToken ct) =>
             Task.FromResult(Result(trades: 50, expectancy: 1.0m, maxDd: 5m));
 
-        var summaries = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, CancellationToken.None);
+        var evaluations = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, CancellationToken.None);
 
-        var rsiValues = summaries.Select(s => s.Weights.Rsi).ToList();
+        var rsiValues = evaluations.Select(e => e.Summary.Weights.Rsi).ToList();
         (rsiValues.Max() - rsiValues.Min()).Should().BeGreaterThan(0.15m); // baseline RSI weight is 0.17
     }
 
     [Fact]
     public async Task OptimizeAsync_FirstRestartIsCentredOnTheBaseline()
     {
-        // Seed 0's starting MEAN is never randomised (unlike seeds 1..29) -
-        // guarantees the ML search always covers the exact region the
-        // deterministic sweep centres on too. Its evaluated offspring carry
-        // Gaussian noise around that mean, so check they cluster close to the
-        // baseline on average rather than expecting an exact match.
+        // Seed 1's starting logits are all zero - the softmax mapping then
+        // reproduces the baseline mix exactly at the mean, so its first
+        // generation's offspring must cluster around the baseline weights.
         var baseline = Baseline();
         Task<HistoricResult> Evaluate(HistoricBacktestCandidate c, CancellationToken ct) =>
             Task.FromResult(Result(trades: 50, expectancy: 1.0m, maxDd: 5m));
 
-        var summaries = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, CancellationToken.None);
+        var evaluations = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, CancellationToken.None);
 
-        var firstSeedBlock = summaries.Take(MlSweepOptimizer.BudgetPerSeed).ToList();
-        var avgRsi = firstSeedBlock.Average(s => s.Weights.Rsi);
+        var firstGeneration = evaluations.Take(MlSweepOptimizer.Lambda).ToList();
+        firstGeneration.Should().AllSatisfy(e => e.Summary.Label.Should().StartWith("ML search 1."));
+        var avgRsi = firstGeneration.Average(e => e.Summary.Weights.Rsi);
         avgRsi.Should().BeApproximately(baseline.Weights.Rsi, 0.10m);
+    }
+
+    [Fact]
+    public async Task OptimizeAsync_GradedPenalty_RanksNearFeasibleAboveHopeless()
+    {
+        // With every candidate infeasible (too few trades), the search still
+        // completes and every summary is marked ineligible - the graded
+        // penalty is what keeps the internal ranking meaningful, but the
+        // externally visible contract is simply: no crash, nothing eligible.
+        var baseline = Baseline();
+        Task<HistoricResult> Evaluate(HistoricBacktestCandidate c, CancellationToken ct) =>
+            Task.FromResult(Result(trades: 5, expectancy: 1.0m, maxDd: 5m));
+
+        var evaluations = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, CancellationToken.None);
+
+        evaluations.Should().HaveCount(MlSweepOptimizer.ActualCandidateCount);
+        evaluations.Should().AllSatisfy(e => e.Summary.MetConstraints.Should().BeFalse());
     }
 }

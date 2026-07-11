@@ -242,23 +242,44 @@ public class BacktestConsumerFunction(
             .FirstOrDefault();
 
         // Second search pool: the same dial space and guardrails, covered by
-        // CMA-ES instead of nudges + a random fill - see MlSweepOptimizer for
-        // why that's a denser per-evaluation search of the same simplex.
-        var mlSummaries = await MlSweepOptimizer.OptimizeAsync(
+        // successive-halving CMA-ES instead of nudges + a random fill - see
+        // MlSweepOptimizer for why that's a denser per-evaluation search of
+        // the same simplex. Offspring within a generation evaluate in
+        // parallel (the engine is stateless over the read-only bars), so the
+        // one piece of shared state - the progress row - is serialized here;
+        // labels aren't assigned until the optimizer reassembles results in
+        // deterministic order, so nothing else in this delegate needs the
+        // candidate's identity.
+        var progressGate = new SemaphoreSlim(1, 1);
+        var mlEvaluations = await MlSweepOptimizer.OptimizeAsync(
             baseline,
             async (c, token) =>
             {
                 var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile), sectorEtfs, token);
-                trainResults[c.Label] = r;
-                run.CompletedCandidates++;
-                await runs.UpdateAsync(run);
+                await progressGate.WaitAsync(token);
+                try
+                {
+                    run.CompletedCandidates++;
+                    await runs.UpdateAsync(run);
+                }
+                finally
+                {
+                    progressGate.Release();
+                }
                 return r;
             },
-            trainSpy, baselineTrain.MaxDrawdownPct, ct);
-        summaries.AddRange(mlSummaries);
-        logger.LogInformation("ML search: {Count} candidates evaluated via CMA-ES", mlSummaries.Count);
+            trainSpy, baselineTrain.MaxDrawdownPct, ct,
+            maxParallelism: Math.Clamp(Environment.ProcessorCount, 1, 4));
 
-        var bestMlSearch = mlSummaries
+        foreach (var e in mlEvaluations)
+        {
+            summaries.Add(e.Summary);
+            trainResults[e.Summary.Label] = e.Result;
+        }
+        logger.LogInformation("ML search: {Count} candidates evaluated via successive-halving CMA-ES", mlEvaluations.Count);
+
+        var bestMlSearch = mlEvaluations
+            .Select(e => e.Summary)
             .Where(s => s.MetConstraints)
             .OrderByDescending(s => s.AdjustedExpectancyPct)
             .FirstOrDefault();
