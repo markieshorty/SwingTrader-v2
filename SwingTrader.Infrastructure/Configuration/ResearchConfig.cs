@@ -26,4 +26,26 @@ public class ResearchConfig
     // worth it on a Tiingo plan fast enough to rescore the universe in
     // minutes, and it re-baselines intraday signal timestamps.
     public bool MiddayRescoreEnabled { get; set; } = false;
+
+    // Sentiment momentum: blends the DIRECTION of a symbol's sentiment (today
+    // vs its own recent archive average) into the level Claude scored today.
+    // Improving sentiment is a leading signal the ~3-day snapshot alone
+    // misses, and it costs nothing - the SentimentDailyScore archive is
+    // already accruing daily. Only applied once a symbol has MinHistory
+    // prior scores; below that the raw level passes through untouched.
+    public decimal SentimentMomentumWeight { get; set; } = 0.30m;
+    public int SentimentMomentumLookbackDays { get; set; } = 7;
+    public int SentimentMomentumMinHistory { get; set; } = 3;
+
+    // Catalyst detection: the sentiment Claude call also extracts DATED
+    // forward-looking events (guidance raises, product launches, FDA
+    // decisions, contract wins) from the same articles; a detected catalyst
+    // applies a bounded conviction adjustment, mirroring the post-earnings
+    // adjustment. Earnings dates themselves are excluded - the earnings gate
+    // owns those. Bounded so a misread catalyst can never dominate the
+    // deterministic component blend.
+    public bool CatalystDetectionEnabled { get; set; } = true;
+    public decimal MaxCatalystBoost { get; set; } = 0.5m;
+    public decimal MaxCatalystPenalty { get; set; } = 0.5m;
+    public int CatalystMaxDaysAhead { get; set; } = 30;
 }

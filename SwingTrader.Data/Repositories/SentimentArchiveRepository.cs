@@ -54,6 +54,16 @@ public class SentimentArchiveRepository(SwingTraderDbContext db) : ISentimentArc
         }
     }
 
+    public Task<List<SentimentDailyScore>> GetRecentScoresAsync(
+        string symbol, DateOnly before, int lookbackDays, CancellationToken ct = default)
+    {
+        var oldest = before.AddDays(-lookbackDays);
+        return db.SentimentDailyScores
+            .Where(s => s.Symbol == symbol && s.Date < before && s.Date >= oldest)
+            .OrderBy(s => s.Date)
+            .ToListAsync(ct);
+    }
+
     public async Task<int> PruneArticlesAsync(DateOnly olderThan, CancellationToken ct = default)
     {
         // Load-and-remove rather than ExecuteDelete: the weekly prune only

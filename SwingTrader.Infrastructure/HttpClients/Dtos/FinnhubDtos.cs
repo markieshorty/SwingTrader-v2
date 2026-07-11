@@ -79,6 +79,21 @@ public record InsiderTransactionsResponse(
     [property: JsonPropertyName("symbol")] string Symbol
 );
 
+// One month of Finnhub's aggregated insider sentiment. Mspr (Monthly Share
+// Purchase Ratio) ranges -100 (pure selling) to +100 (pure buying).
+public record InsiderSentimentEntry(
+    [property: JsonPropertyName("symbol")] string Symbol,
+    [property: JsonPropertyName("year")] int Year,
+    [property: JsonPropertyName("month")] int Month,
+    [property: JsonPropertyName("change")] long Change,
+    [property: JsonPropertyName("mspr")] decimal Mspr
+);
+
+public record InsiderSentimentResponse(
+    [property: JsonPropertyName("data")] List<InsiderSentimentEntry> Data,
+    [property: JsonPropertyName("symbol")] string Symbol
+);
+
 public record RevenueEstimate(
     [property: JsonPropertyName("period")] string Period,
     [property: JsonPropertyName("revenueAvg")] decimal RevenueAvg,

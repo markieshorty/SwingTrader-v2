@@ -111,4 +111,26 @@ public class FundamentalScoringServiceTests
 
         result.Score.Should().Be(0.5m);
     }
+
+    [Fact]
+    public async Task ScoreAsync_SurpriseAcceleration_TiltsTheEarningsSubScore_Bounded()
+    {
+        FailClaudeCall();
+        var baseSnapshot = Snapshot(AnalystTrend.Neutral, InsiderActivity.Neutral, EarningsConsistency.RecentBeater, RevenueDirection.Stable);
+
+        var flat = await CreateSut().ScoreAsync(_claude, "AAPL", baseSnapshot, CancellationToken.None);
+        // +10pp trend = half the ±20pp saturation -> half the max 0.15 tilt on
+        // the earnings sub-score, at 0.25 sub-weight = +0.075 * 0.25 ≈ +0.019.
+        var accelerating = await CreateSut().ScoreAsync(
+            _claude, "AAPL", baseSnapshot with { SurpriseTrendPct = 10m }, CancellationToken.None);
+        // A huge trend saturates at the cap rather than growing unbounded.
+        var saturated = await CreateSut().ScoreAsync(
+            _claude, "AAPL", baseSnapshot with { SurpriseTrendPct = 200m }, CancellationToken.None);
+        var shrinking = await CreateSut().ScoreAsync(
+            _claude, "AAPL", baseSnapshot with { SurpriseTrendPct = -10m }, CancellationToken.None);
+
+        accelerating.Score.Should().BeGreaterThan(flat.Score);
+        shrinking.Score.Should().BeLessThan(flat.Score);
+        saturated.Score.Should().Be(flat.Score + 0.15m * 0.25m); // full tilt x earnings sub-weight
+    }
 }

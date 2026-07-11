@@ -37,5 +37,20 @@ public record ClaudeResponse(
 public record ClaudeSentimentResult(
     [property: JsonPropertyName("sentiment_score")] float SentimentScore,
     [property: JsonPropertyName("summary")] string Summary,
-    [property: JsonPropertyName("key_factors")] List<string> KeyFactors
+    [property: JsonPropertyName("key_factors")] List<string> KeyFactors,
+    // Optional so responses from the pre-catalyst prompt (and any Claude
+    // reply that omits the block) still deserialize - null = none detected.
+    [property: JsonPropertyName("catalyst")] ClaudeCatalystResult? Catalyst = null
+);
+
+// A DATED, forward-looking event Claude spotted in the same news articles the
+// sentiment score came from - guidance raises, product launches, FDA
+// decisions, contract wins. Earnings dates are deliberately excluded by the
+// prompt (the earnings gate owns those).
+public record ClaudeCatalystResult(
+    [property: JsonPropertyName("detected")] bool Detected,
+    [property: JsonPropertyName("type")] string? Type,
+    [property: JsonPropertyName("expected_date")] string? ExpectedDate,
+    [property: JsonPropertyName("direction")] string? Direction, // "bullish" | "bearish"
+    [property: JsonPropertyName("strength")] float Strength      // 0.0 - 1.0
 );

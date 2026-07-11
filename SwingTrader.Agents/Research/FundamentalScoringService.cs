@@ -57,6 +57,16 @@ public class FundamentalScoringService(
             _ => 0.50m,
         };
 
+        // Surprise-acceleration tilt: beats getting bigger nudge the earnings
+        // sub-score up, shrinking beats nudge it down. A ±20pp trend
+        // saturates the (config-bounded) adjustment, so the trend can tilt
+        // but never override the beat-count tier. Still fully deterministic.
+        if (s.SurpriseTrendPct is { } trend)
+        {
+            var tilt = Math.Clamp(trend / 20m, -1m, 1m) * cfg.SurpriseAccelerationMaxAdjust;
+            earningsScore = Math.Clamp(earningsScore + tilt, 0m, 1m);
+        }
+
         var revenueScore = s.RevenueDirection switch
         {
             RevenueDirection.Accelerating => 1.00m,
@@ -83,9 +93,11 @@ public class FundamentalScoringService(
 
             var userPrompt =
                 $"Symbol: {symbol}\n" +
-                $"Analyst consensus: {s.AnalystTrend} ({s.AnalystCount} analysts, trend over 3 months)\n" +
-                $"Insider activity (90 days): {s.InsiderActivity} ({s.InsiderBuyerCount} buyers, {s.InsiderSellerCount} sellers)\n" +
-                $"Earnings track record (4 quarters): {s.EarningsConsistency}\n" +
+                $"Analyst consensus: {s.AnalystTrend} ({s.AnalystCount} analysts, revision velocity over 3 months)\n" +
+                $"Insider activity (90 days): {s.InsiderActivity} ({s.InsiderBuyerCount} buyers, {s.InsiderSellerCount} sellers" +
+                (s.InsiderMspr is { } mspr ? $", MSPR {mspr:+0.0;-0.0}" : "") + ")\n" +
+                $"Earnings track record (4 quarters): {s.EarningsConsistency}" +
+                (s.SurpriseTrendPct is { } trend ? $" (surprise trend {trend:+0.0;-0.0}pp)" : "") + "\n" +
                 $"Revenue estimate direction: {s.RevenueDirection}\n" +
                 $"Fundamental score: {score:F2}/1.0\n\n" +
                 "Write one sentence assessing whether this fundamental picture supports a swing trade entry right now.";

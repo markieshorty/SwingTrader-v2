@@ -50,6 +50,15 @@ public interface IFinnhubClient
     [Get("/stock/insider-transactions")]
     Task<InsiderTransactionsResponse> GetInsiderTransactionsAsync([AliasAs("symbol")] string symbol);
 
+    // Aggregated Monthly Share Purchase Ratio (-100..100) - Finnhub's own
+    // less-noisy summary of insider conviction, free tier. Dates are
+    // yyyy-MM-dd.
+    [Get("/stock/insider-sentiment")]
+    Task<InsiderSentimentResponse> GetInsiderSentimentAsync(
+        [AliasAs("symbol")] string symbol,
+        [AliasAs("from")] string from,
+        [AliasAs("to")] string to);
+
     [Get("/stock/revenue-estimate")]
     Task<RevenueEstimateResponse> GetRevenueEstimatesAsync(
         [AliasAs("symbol")] string symbol,

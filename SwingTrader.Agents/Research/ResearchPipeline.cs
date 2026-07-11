@@ -90,7 +90,7 @@ public class ResearchPipeline(
 
         var (weights, regime) = await GetWeightsAndRegimeAsync(accountId, tiingo, finnhub, symbol, ct);
         var ind = await CalculateIndicatorsAsync(candles);
-        var (sentimentScore, newsSummary) = await FetchAndScoreSentimentAsync(finnhub, tiingo, claude, symbol, ct);
+        var (sentimentScore, newsSummary, catalyst) = await FetchAndScoreSentimentAsync(finnhub, tiingo, claude, symbol, ct);
         var setupType = DetectSetup(ind, candles);
 
         // MACD's "rising" distinction needs yesterday's histogram — recompute MACD on the
@@ -149,12 +149,16 @@ public class ResearchPipeline(
             fundamentalMomentumScore: fundamental?.Score ?? 0.5m);
 
         conviction = ApplyEarningsAdjustment(conviction, earningsCtx, out var earningsReasoning);
+        conviction = ApplyCatalystAdjustment(conviction, catalyst, out var catalystReasoning);
 
         var recommendation = await DetermineRecommendationAsync(accountId, account.TradingMode, symbol, ind, conviction, weights, setupType);
 
+        // Both adjustment notes ride the same reasoning-append slot.
+        var adjustmentReasoning = (earningsReasoning ?? string.Empty) + (catalystReasoning ?? string.Empty);
+
         return await PersistSignalAsync(accountId, symbol, companyName, candles[^1], ind, sentimentScore,
             newsSummary, setupType, conviction, recommendation, componentScores, regime, earningsCtx, rs, priceLevel,
-            earningsReasoning, fundamentalSnapshot, fundamental);
+            adjustmentReasoning.Length > 0 ? adjustmentReasoning : null, fundamentalSnapshot, fundamental);
     }
 
     private async Task<(StrategyWeights Weights, MarketRegime? Regime)> GetWeightsAndRegimeAsync(
@@ -263,7 +267,8 @@ public class ResearchPipeline(
     // Null score = "couldn't assess" (fetch/Claude failure) - distinct from a
     // genuine 0.0 neutral so the stored component score stays honest for the
     // Refinement agent's correlations. "No news" IS a genuine neutral.
-    private async Task<(decimal? score, string summary)> FetchAndScoreSentimentAsync(
+    // Catalyst rides the same Claude call (null = none detected / unparsable).
+    private async Task<(decimal? score, string summary, ClaudeCatalystResult? catalyst)> FetchAndScoreSentimentAsync(
         IFinnhubClient finnhub, ITiingoClient tiingo, IClaudeClient claude, string symbol, CancellationToken ct)
     {
         var cfg = researchConfig.Value;
@@ -310,11 +315,11 @@ public class ResearchPipeline(
         }
 
         if (!finnhubOk && !tiingoOk)
-            return (null, "News fetch failed.");
+            return (null, "News fetch failed.", null);
 
         var articles = NewsBlender.Blend(finnhubArticles.Concat(tiingoArticles), cfg.MaxNewsArticles);
         if (articles.Count == 0)
-            return (0.0m, "No recent news found.");
+            return (0.0m, "No recent news found.", null);
 
         var articlesText = string.Join("\n---\n", articles.Select(n =>
             $"[{n.Source}] Headline: {n.Title}\nSummary: {n.Summary}"));
@@ -330,14 +335,25 @@ public class ResearchPipeline(
             "{\n" +
             "  \"sentiment_score\": <float between -1.0 and 1.0>,\n" +
             "  \"summary\": \"<2-3 sentence summary of key themes>\",\n" +
-            "  \"key_factors\": [\"<factor 1>\", \"<factor 2>\"]\n" +
+            "  \"key_factors\": [\"<factor 1>\", \"<factor 2>\"],\n" +
+            "  \"catalyst\": {\n" +
+            "    \"detected\": <true only if the articles mention a SPECIFIC, DATED, FORWARD-looking event>,\n" +
+            "    \"type\": \"<short label, e.g. 'guidance raise', 'product launch', 'FDA decision', 'contract win', or null>\",\n" +
+            $"    \"expected_date\": \"<YYYY-MM-DD if stated or clearly inferable, within the next {cfg.CatalystMaxDaysAhead} days, else null>\",\n" +
+            "    \"direction\": \"<bullish or bearish>\",\n" +
+            "    \"strength\": <float 0.0-1.0, how market-moving the event is likely to be>\n" +
+            "  }\n" +
             "}\n\n" +
             "sentiment_score guide:\n" +
             "-1.0 = extremely negative (fraud, bankruptcy, disaster)\n" +
             "-0.5 = moderately negative (missed earnings, downgrade)\n" +
             " 0.0 = neutral or mixed\n" +
             "+0.5 = moderately positive (beat earnings, upgrade)\n" +
-            "+1.0 = extremely positive (major acquisition, breakthrough)";
+            "+1.0 = extremely positive (major acquisition, breakthrough)\n\n" +
+            "catalyst rules: only concrete upcoming events with a date or clear timeframe count - " +
+            "vague optimism, analyst opinions, and PAST events are not catalysts. " +
+            "Earnings report dates are NOT catalysts (they are handled separately). " +
+            "If nothing qualifies, set detected to false and the other catalyst fields to null/0.";
 
         try
         {
@@ -359,16 +375,47 @@ public class ResearchPipeline(
             var score = (decimal)parsed.SentimentScore;
             await ArchiveSentimentAsync(symbol, score, articles, ct);
 
+            // Momentum tilt: the RAW level is what gets archived above (so
+            // the archive stays a clean record of what the news actually
+            // said each day); the blended value is what feeds conviction.
+            var momentum = await BlendSentimentMomentumAsync(symbol, score, ct);
+
             // Per-source counts in the stored summary so the blend is
             // auditable from the signal itself.
             var finnhubCount = articles.Count(a => a.Source == "Finnhub");
             var tiingoCount = articles.Count(a => a.Source == "Tiingo");
-            return (score, $"{parsed.Summary} (Sources: {finnhubCount} Finnhub, {tiingoCount} Tiingo.)");
+            var momentumNote = momentum.Delta is { } d
+                ? $" Sentiment momentum {d:+0.00;-0.00} vs {momentum.HistoryCount}-day archive average."
+                : string.Empty;
+            return (momentum.BlendedScore,
+                $"{parsed.Summary} (Sources: {finnhubCount} Finnhub, {tiingoCount} Tiingo.){momentumNote}",
+                cfg.CatalystDetectionEnabled ? parsed.Catalyst : null);
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Claude sentiment analysis failed for {Symbol} — treating as unavailable", symbol);
-            return (null, "Sentiment analysis unavailable.");
+            return (null, "Sentiment analysis unavailable.", null);
+        }
+    }
+
+    // Best-effort: an archive read failure just means no momentum tilt today,
+    // never a failed research run.
+    private async Task<SentimentMomentum.Result> BlendSentimentMomentumAsync(
+        string symbol, decimal level, CancellationToken ct)
+    {
+        var cfg = researchConfig.Value;
+        try
+        {
+            var prior = await sentimentArchive.GetRecentScoresAsync(
+                symbol, DateOnly.FromDateTime(DateTime.UtcNow), cfg.SentimentMomentumLookbackDays, ct);
+            return SentimentMomentum.Blend(
+                level, prior.Select(p => p.Score).ToList(),
+                cfg.SentimentMomentumWeight, cfg.SentimentMomentumMinHistory);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Sentiment momentum lookup failed for {Symbol} — using raw level", symbol);
+            return new SentimentMomentum.Result(Math.Clamp(level, -1m, 1m), null, 0);
         }
     }
 
@@ -481,6 +528,50 @@ public class ResearchPipeline(
         }
 
         return conviction;
+    }
+
+    // Bounded conviction adjustment for a Claude-detected forward catalyst,
+    // mirroring the post-earnings adjustment above. Internal static (pure)
+    // so tests can exercise the clamping and rejection rules directly. The
+    // caller passes null when detection is disabled or nothing was found.
+    internal decimal ApplyCatalystAdjustment(decimal conviction, ClaudeCatalystResult? catalyst, out string? reasoning)
+    {
+        var cfg = researchConfig.Value;
+        return ApplyCatalystAdjustment(conviction, catalyst, cfg.MaxCatalystBoost, cfg.MaxCatalystPenalty,
+            cfg.CatalystMaxDaysAhead, DateOnly.FromDateTime(DateTime.UtcNow), out reasoning);
+    }
+
+    internal static decimal ApplyCatalystAdjustment(
+        decimal conviction, ClaudeCatalystResult? catalyst,
+        decimal maxBoost, decimal maxPenalty, int maxDaysAhead, DateOnly today, out string? reasoning)
+    {
+        reasoning = null;
+        if (catalyst is not { Detected: true }) return conviction;
+
+        // Defensive rejections: earnings are the earnings gate's job however
+        // the prompt was interpreted, and a "catalyst" that is undated, in
+        // the past, or too far out isn't the near-term event this rewards.
+        if (catalyst.Type?.Contains("earnings", StringComparison.OrdinalIgnoreCase) == true) return conviction;
+        if (catalyst.ExpectedDate is not null)
+        {
+            if (!DateOnly.TryParse(catalyst.ExpectedDate, out var expected)) return conviction;
+            if (expected < today || expected > today.AddDays(maxDaysAhead)) return conviction;
+        }
+
+        var strength = Math.Clamp((decimal)catalyst.Strength, 0m, 1m);
+        if (strength == 0m) return conviction;
+
+        var dateNote = catalyst.ExpectedDate is null ? "" : $" ~{catalyst.ExpectedDate}";
+        if (string.Equals(catalyst.Direction, "bearish", StringComparison.OrdinalIgnoreCase))
+        {
+            var penalty = strength * maxPenalty;
+            reasoning = $" Bearish catalyst ({catalyst.Type}{dateNote}) reduced by {penalty:F1} pts.";
+            return Math.Max(conviction - penalty, 0.0m);
+        }
+
+        var boost = strength * maxBoost;
+        reasoning = $" Upcoming catalyst ({catalyst.Type}{dateNote}) added {boost:F1} pts.";
+        return Math.Min(conviction + boost, 10.0m);
     }
 
     private async Task<Recommendation> DetermineRecommendationAsync(
