@@ -56,8 +56,13 @@ public static class RiskProfileEndpoints
                 {
                     TotalCapital = snapshot.TotalCapital,
                     LockedCapital = snapshot.TotalCapital * profile.LockedCapitalPct,
-                    ActiveCapital = snapshot.ActiveCapital,
-                    MaxPerTrade = snapshot.ActiveCapital * profile.MaxPositionPctOfActive,
+                    // Computed from tier x total rather than read from the
+                    // snapshot: snapshot.ActiveCapital is only written by
+                    // execution runs, so an account that hasn't executed yet
+                    // showed GBP 0 "active capital" here - nonsense for a
+                    // settings preview that's explaining how sizing works.
+                    ActiveCapital = snapshot.TotalCapital * TierPct(snapshot.CurrentTier),
+                    MaxPerTrade = snapshot.TotalCapital * TierPct(snapshot.CurrentTier) * profile.MaxPositionPctOfActive,
                     CurrentTier = snapshot.CurrentTier,
                 },
                 AllowedRanges = new
@@ -136,4 +141,13 @@ public static class RiskProfileEndpoints
 
         return api;
     }
+
+    // The tier's active-capital share of the whole account - the same mapping
+    // PositionSizingService uses to budget live positions.
+    private static decimal TierPct(CapitalTier tier) => tier switch
+    {
+        CapitalTier.Tier2 => CapitalRules.Tier2CapitalPct,
+        CapitalTier.Tier3 => CapitalRules.Tier3CapitalPct,
+        _ => CapitalRules.Tier1CapitalPct,
+    };
 }
