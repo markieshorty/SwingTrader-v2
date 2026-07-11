@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Title } from '@angular/platform-browser';
@@ -15,7 +15,7 @@ import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 import { MonitoringComponent } from './monitoring/monitoring.component';
 
-const TAB_NAMES = ['overview', 'users', 'jobs', 'logs', 'health'] as const;
+const TAB_NAMES = ['overview', 'unapproved', 'users', 'jobs', 'logs', 'health'] as const;
 
 @Component({
   selector: 'app-admin',
@@ -37,6 +37,12 @@ export class AdminComponent {
   users = signal<AdminUserSummaryDto[]>([]);
   jobFailures = signal<AdminJobFailureDto[]>([]);
   logs = signal<AdminActionLogDto[]>([]);
+
+  // Friends-and-family gate: everyone starts here regardless of role, and
+  // stays blocked from the whole app until explicitly approved - separate
+  // from (and stricter than) the per-account Owner-approves-Member flow the
+  // "Users" tab's own approval status reflects.
+  unapprovedUsers = computed(() => this.users().filter((u) => !u.adminApproved));
 
   suspendReasonInput: Record<string, string> = {};
   expandedUserId = signal<string | null>(null);
@@ -96,6 +102,17 @@ export class AdminComponent {
         this.loadUsers();
         this.loadLogs();
       },
+    });
+  }
+
+  adminApprove(user: AdminUserSummaryDto): void {
+    this.api.adminApproveUser(user.userId).subscribe({
+      next: () => {
+        this.snackbar.open(`${user.displayName} approved`, 'Dismiss', { duration: 3000 });
+        this.loadUsers();
+        this.loadLogs();
+      },
+      error: () => this.snackbar.open('Failed to approve user.', 'Dismiss', { duration: 4000 }),
     });
   }
 

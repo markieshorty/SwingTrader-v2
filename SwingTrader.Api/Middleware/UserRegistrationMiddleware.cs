@@ -104,6 +104,26 @@ public class UserRegistrationMiddleware(RequestDelegate next)
                 return;
             }
 
+            // Friends-and-family gate: checked before the per-account
+            // IsApproved gate below, and blocks EVERY unapproved person
+            // regardless of role - an Owner approving their own Members
+            // (the IsApproved gate) never grants this one, so there's no
+            // "friend of a friend" path around the superadmin. Same exempt
+            // path as IsApproved below, so the frontend can still poll for
+            // status while blocked.
+            if (!user.AdminApproved && !context.Request.Path.StartsWithSegments("/api/account/approval-status"))
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    pendingApproval = true,
+                    adminApprovalRequired = true,
+                    message = "This is an invite only system for Friends and Family - Wait for approval please. " +
+                              "Note: If the owner does not recognize you, you will not be approved for entry.",
+                });
+                return;
+            }
+
             // Members who joined via an invite link start unapproved and
             // can't touch anything else on the app - not a UI-only gate,
             // enforced here so a direct API call can't route around it
@@ -189,6 +209,7 @@ public class UserRegistrationMiddleware(RequestDelegate next)
             FirstLoginAt = DateTime.UtcNow,
             LastLoginAt = DateTime.UtcNow,
             IsApproved = role == AccountRole.Owner,
+            AdminApproved = false, // every new person, Owner or Member, waits on the superadmin regardless of role
         };
 
         await users.CreateAsync(user);

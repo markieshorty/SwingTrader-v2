@@ -48,6 +48,30 @@
       }
     </mat-tab>
 
+    <mat-tab [label]="'Unapproved' + (unapprovedUsers().length > 0 ? ' (' + unapprovedUsers().length + ')' : '')">
+      <p class="muted small">
+        Friends-and-family gate: every new sign-up (Owner or Member) lands here, blocked from the entire app, until
+        approved below. This is independent of and stricter than any per-account approval an Owner grants their own
+        Members - only approve email addresses you personally recognize.
+      </p>
+      <div class="users-list">
+        @if (unapprovedUsers().length === 0) {
+          <p class="muted">Nobody is waiting on approval.</p>
+        }
+        @for (user of unapprovedUsers(); track user.userId) {
+          <mat-card class="panel user-card">
+            <div class="user-row">
+              <span class="name">{{ user.displayName }}</span>
+              <span class="email muted">{{ user.email }}</span>
+              <span class="badge" [class.owner]="user.role === 'Owner'">{{ user.role }}</span>
+              <span class="stats muted small">First seen {{ user.firstLoginAt | date: 'dd MMM yyyy, HH:mm' }}</span>
+              <button mat-flat-button color="primary" (click)="adminApprove(user)">Approve</button>
+            </div>
+          </mat-card>
+        }
+      </div>
+    </mat-tab>
+
     <mat-tab label="Users">
       <div class="users-list">
         @for (user of users(); track user.userId) {

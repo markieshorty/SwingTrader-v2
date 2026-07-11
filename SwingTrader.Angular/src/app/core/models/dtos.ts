@@ -371,6 +371,7 @@ export interface AdminUserSummaryDto {
   lastLoginAt: string;
   isOnboarded: boolean;
   isApproved: boolean;
+  adminApproved: boolean;
   isSuspended: boolean;
   suspendReason: string | null;
   tradingMode: 'Demo' | 'Live';

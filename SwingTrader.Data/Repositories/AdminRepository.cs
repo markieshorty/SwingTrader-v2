@@ -94,6 +94,7 @@ public class AdminRepository(SwingTraderDbContext db) : IAdminRepository
             user.LastLoginAt,
             user.IsOnboarded,
             user.IsApproved,
+            user.AdminApproved,
             user.IsSuspended,
             user.SuspendReason,
             account?.TradingMode ?? TradingMode.Demo,

@@ -33,4 +33,15 @@ public class AppUser : UnscopedEntity
     // approves them - a link leak/interception only gets someone as far as
     // a "pending approval" screen, not real account access.
     public bool IsApproved { get; set; } = true;
+
+    // Friends-and-family gate, independent of IsApproved above and of role:
+    // EVERY brand-new AppUser (Owner or Member) starts unapproved here and
+    // is blocked from the whole app (enforced in UserRegistrationMiddleware)
+    // until the app's superadmin explicitly approves them. This exists
+    // because IsApproved alone isn't enough - an Owner could invite and
+    // approve their own Members without the superadmin ever seeing them,
+    // which is exactly the "friend of a friend" leak this closes. Existing
+    // users are backfilled to true by the introducing migration so nobody
+    // already using the app gets locked out.
+    public bool AdminApproved { get; set; } = false;
 }

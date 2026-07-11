@@ -147,6 +147,10 @@ export class ApiService {
     return this.http.get<AdminUserSummaryDto[]>(`${this.baseUrl}/api/admin/users`);
   }
 
+  adminApproveUser(userId: string): Observable<unknown> {
+    return this.http.post(`${this.baseUrl}/api/admin/users/${userId}/admin-approve`, {});
+  }
+
   suspendUser(userId: string, reason?: string): Observable<unknown> {
     return this.http.post(`${this.baseUrl}/api/admin/users/${userId}/suspend`, { reason });
   }
@@ -251,8 +255,8 @@ export class ApiService {
     return this.http.put(`${this.baseUrl}/api/account/members/${userId}/approve`, {});
   }
 
-  getApprovalStatus(): Observable<{ isApproved: boolean }> {
-    return this.http.get<{ isApproved: boolean }>(`${this.baseUrl}/api/account/approval-status`);
+  getApprovalStatus(): Observable<{ isApproved: boolean; adminApproved: boolean }> {
+    return this.http.get<{ isApproved: boolean; adminApproved: boolean }>(`${this.baseUrl}/api/account/approval-status`);
   }
 
   getKeyStatuses(): Observable<KeyStatusesDto> {

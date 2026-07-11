@@ -22,4 +22,8 @@ public interface IUserRepository
     Task UnsuspendAsync(string userId, CancellationToken ct = default);
     Task ResetOnboardingAsync(string userId, CancellationToken ct = default);
     Task MarkOnboardedAsync(string userId, CancellationToken ct = default);
+
+    // The friends-and-family gate - superadmin-only, independent of the
+    // per-account ApproveAsync above (which an Owner uses on their own Members).
+    Task AdminApproveAsync(string userId, CancellationToken ct = default);
 }

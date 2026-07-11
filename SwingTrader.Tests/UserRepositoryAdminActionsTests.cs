@@ -84,4 +84,28 @@ public class UserRepositoryAdminActionsTests
 
         await act.Should().NotThrowAsync();
     }
+
+    [Fact]
+    public async Task AdminApproveAsync_SetsAdminApprovedTrue()
+    {
+        await using var db = await SeedUserAsync();
+        var repo = new UserRepository(db);
+        (await db.AppUsers.SingleAsync()).AdminApproved.Should().BeFalse(); // model default - friends-and-family gate
+
+        await repo.AdminApproveAsync("u1");
+
+        var user = await db.AppUsers.SingleAsync();
+        user.AdminApproved.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AdminApproveAsync_UnknownUser_DoesNotThrow()
+    {
+        await using var db = CreateDb();
+        var repo = new UserRepository(db);
+
+        var act = async () => await repo.AdminApproveAsync("nobody");
+
+        await act.Should().NotThrowAsync();
+    }
 }

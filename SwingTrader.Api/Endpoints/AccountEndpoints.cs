@@ -154,7 +154,16 @@ public static class AccountEndpoints
         api.MapGet("/account/approval-status", async (IUserRepository users, IAccountContext ctx) =>
         {
             var user = await users.FindAsync(ctx.UserId);
-            return Results.Ok(new { isApproved = user?.IsApproved ?? false });
+            return Results.Ok(new
+            {
+                // The frontend gate cares about both together (isApproved
+                // stays the overall "let them in" signal), but surfaces
+                // adminApproved separately so it can show the friends-and-
+                // family message instead of the generic "ask the owner" one
+                // when THAT'S the gate they're stuck behind.
+                isApproved = (user?.IsApproved ?? false) && (user?.AdminApproved ?? false),
+                adminApproved = user?.AdminApproved ?? false,
+            });
         });
 
         // Trading config, notifications, and account lifecycle (Phase 10d Settings page)

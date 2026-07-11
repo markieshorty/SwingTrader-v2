@@ -109,6 +109,25 @@ public static class AdminEndpoints
             });
         }).RequireRateLimiting(RateLimitPolicies.ExternalRead);
 
+        // Friends-and-family gate: everyone (Owner or Member) sits here,
+        // blocked from the entire app, until the superadmin explicitly
+        // approves them - independent of and stricter than the per-account
+        // Owner-approves-Member flow (AccountEndpoints), which alone would
+        // let an Owner's invitees in without the superadmin ever seeing them.
+        // No separate list endpoint - GetUsersAsync above already carries
+        // AdminApproved, so the Angular "Unapproved" tab filters that list.
+        adminGroup.MapPost("/users/{userId}/admin-approve", async (
+            string userId,
+            IUserRepository users,
+            IAdminLogRepository adminLog,
+            HttpContext http,
+            CancellationToken ct) =>
+        {
+            await users.AdminApproveAsync(userId, ct);
+            await adminLog.LogAsync(new AdminActionLog { AdminUserId = AdminId(http), TargetUserId = userId, Action = "AdminApprove" }, ct);
+            return Results.Ok();
+        });
+
         adminGroup.MapPost("/users/{userId}/suspend", async (
             string userId,
             SuspendUserRequest req,

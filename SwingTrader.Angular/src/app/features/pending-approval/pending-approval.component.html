@@ -2,10 +2,17 @@
   <mat-card class="pending-card">
     <mat-icon class="hourglass">hourglass_top</mat-icon>
     <h1>Awaiting Approval</h1>
-    <p>
-      Your account has been linked to an existing team, but the account owner still needs to approve you before
-      you can see or do anything here. Check back once they've had a chance to approve your access.
-    </p>
+    @if (!adminApproved()) {
+      <p>
+        This is an invite only system for Friends and Family - Wait for approval please.
+        Note: If the owner does not recognize you, you will not be approved for entry.
+      </p>
+    } @else {
+      <p>
+        Your account has been linked to an existing team, but the account owner still needs to approve you before
+        you can see or do anything here. Check back once they've had a chance to approve your access.
+      </p>
+    }
     <button mat-stroked-button (click)="auth.logout()">Log out</button>
   </mat-card>
 </div>

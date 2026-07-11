@@ -18,6 +18,7 @@ public record AdminUserSummary(
     DateTime LastLoginAt,
     bool IsOnboarded,
     bool IsApproved,
+    bool AdminApproved,
     bool IsSuspended,
     string? SuspendReason,
     TradingMode TradingMode,
