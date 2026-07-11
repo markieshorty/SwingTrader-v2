@@ -25,7 +25,12 @@ export const routes: Routes = [
   },
   {
     path: 'onboarding',
-    canActivate: [authGuard, approvalGuard, onboardingCompleteGuard],
+    // No approvalGuard here, deliberately - a brand-new, not-yet-approved
+    // user must still be able to reach this route to confirm their email
+    // (see approval.guard.ts), which is the one thing they're allowed to do
+    // while gated. The component itself redirects to /pending-approval once
+    // email is confirmed but approval still isn't granted.
+    canActivate: [authGuard, onboardingCompleteGuard],
     loadComponent: () =>
       import('./features/onboarding/onboarding.component').then((m) => m.OnboardingComponent),
     title: 'Get started',

@@ -109,9 +109,13 @@ public class UserRegistrationMiddleware(RequestDelegate next)
             // regardless of role - an Owner approving their own Members
             // (the IsApproved gate) never grants this one, so there's no
             // "friend of a friend" path around the superadmin. Same exempt
-            // path as IsApproved below, so the frontend can still poll for
-            // status while blocked.
-            if (!user.AdminApproved && !context.Request.Path.StartsWithSegments("/api/account/approval-status"))
+            // paths as IsApproved below, so the frontend can still poll for
+            // status AND let the person correct their email while blocked -
+            // without that second exemption, the Unapproved admin tab would
+            // only ever show the best-effort (possibly synthetic) email
+            // captured at first login, making it impossible to recognize
+            // who's actually asking for access.
+            if (!user.AdminApproved && !IsApprovalGateExempt(context))
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 await context.Response.WriteAsJsonAsync(new
@@ -127,10 +131,8 @@ public class UserRegistrationMiddleware(RequestDelegate next)
             // Members who joined via an invite link start unapproved and
             // can't touch anything else on the app - not a UI-only gate,
             // enforced here so a direct API call can't route around it
-            // either. GET /api/account/approval-status is the one exempt
-            // path, so the frontend has something to poll for the "waiting
-            // for approval" screen.
-            if (!user.IsApproved && !context.Request.Path.StartsWithSegments("/api/account/approval-status"))
+            // either.
+            if (!user.IsApproved && !IsApprovalGateExempt(context))
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 await context.Response.WriteAsJsonAsync(new
@@ -144,6 +146,15 @@ public class UserRegistrationMiddleware(RequestDelegate next)
 
         await next(context);
     }
+
+    // Paths a gated (AdminApproved=false or IsApproved=false) user can still
+    // reach: the status poll itself, and reading/correcting their own
+    // email - the latter matters because the email captured at first login
+    // can be a synthetic fallback for some identity providers, and the
+    // superadmin approving them in the Unapproved tab needs the real one.
+    private static bool IsApprovalGateExempt(HttpContext context) =>
+        context.Request.Path.StartsWithSegments("/api/account/approval-status") ||
+        context.Request.Path.StartsWithSegments("/api/account/me");
 
     private static async Task<AppUser> RegisterNewUserAsync(
         HttpContext context,

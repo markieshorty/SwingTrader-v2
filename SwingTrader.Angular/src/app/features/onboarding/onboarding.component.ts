@@ -130,7 +130,22 @@ export class OnboardingComponent {
 
   constructor() {
     this.api.getKeyStatuses().subscribe({ next: (s) => this.keyStatuses.set(s) });
-    this.api.getMe().subscribe({ next: (me) => this.emailConfirmed.set(me.hasConfirmedEmail) });
+    this.api.getMe().subscribe({
+      next: (me) => {
+        this.emailConfirmed.set(me.hasConfirmedEmail);
+        // A gated (not-yet-approved) user who already confirmed their email
+        // on a previous visit has nothing left to do here - the API-key
+        // steps below would just 403. Send them straight to the waiting
+        // screen instead of rendering a wizard they can't use.
+        if (me.hasConfirmedEmail) {
+          this.api.getApprovalStatus().subscribe({
+            next: (status) => {
+              if (!status.isApproved) this.router.navigate(['/pending-approval']);
+            },
+          });
+        }
+      },
+    });
     // Not pre-filled from auth.currentUser()?.email - that's frequently a
     // synthetic {objectId}@tenant fallback for identity providers that
     // don't return a real email claim, so it added no value and risked
@@ -144,8 +159,24 @@ export class OnboardingComponent {
     this.confirmingEmail.set(true);
     this.api.updateMyEmail(email).subscribe({
       next: () => {
-        this.confirmingEmail.set(false);
-        this.emailConfirmed.set(true);
+        // A brand-new sign-up sits behind the friends-and-family gate
+        // (AdminApproved) before they can do anything else - the ONLY
+        // reason they were let onto this wizard while gated was to replace
+        // the possibly-synthetic email captured at first login with a real
+        // one the superadmin can recognize in the Unapproved admin tab.
+        // Once that's saved, send them straight to the waiting screen
+        // instead of continuing into the API-key steps they can't use yet.
+        this.api.getApprovalStatus().subscribe({
+          next: (status) => {
+            this.confirmingEmail.set(false);
+            if (status.isApproved) this.emailConfirmed.set(true);
+            else this.router.navigate(['/pending-approval']);
+          },
+          error: () => {
+            this.confirmingEmail.set(false);
+            this.emailConfirmed.set(true);
+          },
+        });
       },
       error: () => {
         this.confirmingEmail.set(false);
