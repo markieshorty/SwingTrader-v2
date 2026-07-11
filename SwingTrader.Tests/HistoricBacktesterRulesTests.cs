@@ -162,6 +162,28 @@ public class HistoricBacktesterRulesTests
     }
 
     [Fact]
+    public async Task PoolSizing_BoundsExposure_TinyPoolTakesNoTradesAtAll()
+    {
+        // Live-mirroring pool sizing. Tier-1-style pool (10% of £10k equity,
+        // 33% per position => ~£330 budgets) still trades...
+        var tier1 = await HistoricBacktester.RunAsync(
+            Market(), Config() with { ActiveCapitalPct = 0.10m, MaxPositionPctOfActive = 0.33m });
+        tier1.Trades.Should().BeGreaterThan(0);
+
+        // ...but a pool so small that per-position budgets fall under the £50
+        // dust guard (1.5% pool x 33% = ~£49) must take ZERO trades - proof
+        // the pool, not free cash, is what bounds deployment.
+        var tiny = await HistoricBacktester.RunAsync(
+            Market(), Config() with { ActiveCapitalPct = 0.015m, MaxPositionPctOfActive = 0.33m });
+        tiny.Trades.Should().Be(0);
+
+        // Pool-sized trades move a small slice of equity, so the equity curve
+        // must swing far less than the flat-10% run's.
+        var flat = await HistoricBacktester.RunAsync(Market(), Config());
+        Math.Abs(tier1.TotalReturnPct).Should().BeLessThan(Math.Abs(flat.TotalReturnPct));
+    }
+
+    [Fact]
     public async Task MaxOpenPositionsOverride_CapsConcurrency()
     {
         var single = await HistoricBacktester.RunAsync(Market(), Config() with { MaxOpenPositions = 1 });

@@ -62,7 +62,18 @@ public sealed record HistoricConfig(
     // because production always runs it.
     bool SimulateProbation = true,
     int MinHoldDays = 3,
-    decimal MomentumHealthThreshold = 0.5m);
+    decimal MomentumHealthThreshold = 0.5m,
+    // Live-mirroring capital model (PositionSizingService). Null = the
+    // legacy flat PositionFraction sizing. When set, positions are budgeted
+    // exactly as live: pool = equity x ActiveCapitalPct (the capital tier),
+    // per-position cap = pool x MaxPositionPctOfActive, total deployment
+    // never exceeds the pool, and a CashBufferPct stays uninvested. NOTE the
+    // legacy default deploys up to MaxOpenPositions x 10% of equity, while a
+    // live Tier 1 account deploys at most ~10% TOTAL - flat-sized results
+    // overstate what a Tier 1 account would compound.
+    decimal? ActiveCapitalPct = null,
+    decimal MaxPositionPctOfActive = 0.33m,
+    decimal CashBufferPct = 0.02m);
 
 public sealed record HistoricTrade(
     string Symbol, DateTime EntryDate, DateTime ExitDate, decimal EntryPrice, decimal ExitPrice,
@@ -222,7 +233,24 @@ public static class HistoricBacktester
                     var entryBar = GetBar(bars, index, c.Symbol, calendar[d + 1]);
                     if (entryBar is null || entryBar.Open <= 0) continue;
 
-                    var budget = Math.Min(equity * cfg.PositionFraction, cash / (1 + CostPerSide));
+                    decimal budget;
+                    if (cfg.ActiveCapitalPct is { } activePct)
+                    {
+                        // Live-mirroring sizing (PositionSizingService): the
+                        // tier pool bounds both the per-position budget and
+                        // TOTAL deployment, and a cash buffer stays parked.
+                        var activePool = equity * activePct;
+                        var deployedValue = open.Sum(p =>
+                            (GetBar(bars, index, p.Symbol, today)?.Close ?? p.EntryPrice) * p.Quantity);
+                        var remainingPool = activePool - deployedValue;
+                        if (remainingPool <= 0) break; // pool fully deployed
+                        var spendableCash = cash / (1 + CostPerSide) - equity * cfg.CashBufferPct;
+                        budget = Math.Min(Math.Min(activePool * cfg.MaxPositionPctOfActive, spendableCash), remainingPool);
+                    }
+                    else
+                    {
+                        budget = Math.Min(equity * cfg.PositionFraction, cash / (1 + CostPerSide));
+                    }
                     if (cfg.ConvictionSizing)
                     {
                         var t = (Math.Clamp(c.Conviction, 6.0m, 9.0m) - 6.0m) / 3.0m;

@@ -193,6 +193,42 @@
                 matTooltip="Production always runs the day-N momentum-health check; turn this off to test 'what if positions just ran to their stops/targets with no probation'.">
                 Simulate probation (momentum health check)
               </mat-slide-toggle>
+
+              <h4 class="rules-subhead">Position sizing</h4>
+              <p class="muted small">
+                <strong>Flat</strong> is the simulator's long-standing model: every position gets a fixed slice of
+                equity. <strong>Live tier pool</strong> mirrors production sizing: an active-capital pool (Tier 1 =
+                10% of the account) caps <em>total</em> deployment, and each position takes at most a share of that
+                pool — expect far fewer pounds at work, which is what your live account actually does.
+              </p>
+              <div class="rules-grid">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Sizing model</mat-label>
+                  <mat-select [value]="rulesSizingMode()" (selectionChange)="rulesSizingMode.set($event.value)">
+                    <mat-option value="flat">Flat (% of equity per trade)</mat-option>
+                    <mat-option value="pool">Live tier pool</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                @if (rulesSizingMode() === 'flat') {
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>Position size (% of equity)</mat-label>
+                    <input matInput type="number" min="1" max="50" [ngModel]="rulesPositionFraction()"
+                      (ngModelChange)="rulesPositionFraction.set($event)" />
+                  </mat-form-field>
+                } @else {
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic"
+                    matTooltip="The tier's active-capital pool as % of the whole account. Tier 1 = 10, Tier 2 = 25, Tier 3 = 50.">
+                    <mat-label>Active capital pool (% of account)</mat-label>
+                    <input matInput type="number" min="5" max="100" [ngModel]="rulesActiveCapitalPct()"
+                      (ngModelChange)="rulesActiveCapitalPct.set($event)" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>Max position (% of pool)</mat-label>
+                    <input matInput type="number" min="5" max="100" [ngModel]="rulesMaxPositionPctOfActive()"
+                      (ngModelChange)="rulesMaxPositionPctOfActive.set($event)" />
+                  </mat-form-field>
+                }
+              </div>
               <button mat-stroked-button (click)="resetRules()" [disabled]="!rulesTouched()">
                 <mat-icon>restart_alt</mat-icon> Reset rules to my live settings
               </button>

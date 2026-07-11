@@ -141,9 +141,16 @@ export class StrategyLabComponent {
   rulesSimulateProbation = signal(true);
   rulesMinHoldDays = signal(3);
   rulesHealthThreshold = signal(0.5);
+  // Position sizing. Flat = the engine's long-standing model (X% of equity
+  // per trade). Pool = mirrors live PositionSizingService: a tier-sized
+  // active-capital pool caps total deployment (Tier 1 = 10% of the account).
+  rulesSizingMode = signal<'flat' | 'pool'>('flat');
+  rulesPositionFraction = signal(10);      // percent of equity per trade (flat mode)
+  rulesActiveCapitalPct = signal(10);      // percent of equity in the pool (pool mode)
+  rulesMaxPositionPctOfActive = signal(33); // percent of pool per position (pool mode)
   private profileRules = {
     maxHoldDays: 10, maxOpenPositions: 3, trailingActivation: 5, trailingDistance: 3,
-    minHoldDays: 3, healthThreshold: 0.5,
+    minHoldDays: 3, healthThreshold: 0.5, maxPositionPctOfActive: 0.33,
   };
 
   rulesTouched = computed(() =>
@@ -156,7 +163,9 @@ export class StrategyLabComponent {
     || this.rulesTargetPct() !== null
     || !this.rulesSimulateProbation()
     || this.rulesMinHoldDays() !== this.profileRules.minHoldDays
-    || this.rulesHealthThreshold() !== this.profileRules.healthThreshold);
+    || this.rulesHealthThreshold() !== this.profileRules.healthThreshold
+    || this.rulesSizingMode() !== 'flat'
+    || this.rulesPositionFraction() !== 10);
 
   resetRules(): void {
     this.rulesExtraExcludedSetups.set([]);
@@ -169,6 +178,10 @@ export class StrategyLabComponent {
     this.rulesSimulateProbation.set(true);
     this.rulesMinHoldDays.set(this.profileRules.minHoldDays);
     this.rulesHealthThreshold.set(this.profileRules.healthThreshold);
+    this.rulesSizingMode.set('flat');
+    this.rulesPositionFraction.set(10);
+    this.rulesActiveCapitalPct.set(10);
+    this.rulesMaxPositionPctOfActive.set(Math.round(this.profileRules.maxPositionPctOfActive * 100));
   }
 
   running = signal(false);
@@ -252,6 +265,7 @@ export class StrategyLabComponent {
           trailingDistance: Math.round(p.trailingDistancePct * 100),
           minHoldDays: p.minHoldDays,
           healthThreshold: p.momentumHealthThreshold,
+          maxPositionPctOfActive: p.maxPositionPctOfActive,
         };
         this.resetRules();
       },
@@ -359,6 +373,9 @@ export class StrategyLabComponent {
             simulateProbation: this.rulesSimulateProbation(),
             minHoldDays: this.rulesMinHoldDays(),
             momentumHealthThreshold: this.rulesHealthThreshold(),
+            positionFraction: this.rulesSizingMode() === 'flat' ? this.rulesPositionFraction() / 100 : null,
+            activeCapitalPct: this.rulesSizingMode() === 'pool' ? this.rulesActiveCapitalPct() / 100 : null,
+            maxPositionPctOfActive: this.rulesSizingMode() === 'pool' ? this.rulesMaxPositionPctOfActive() / 100 : null,
           }
         : null,
     };

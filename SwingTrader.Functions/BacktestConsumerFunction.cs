@@ -131,7 +131,12 @@ public class BacktestConsumerFunction(
         TargetPct: rules?.TargetPct,
         SimulateProbation: rules?.SimulateProbation ?? true,
         MinHoldDays: rules?.MinHoldDays ?? profile.MinHoldDays,
-        MomentumHealthThreshold: rules?.MomentumHealthThreshold ?? profile.MomentumHealthThreshold);
+        MomentumHealthThreshold: rules?.MomentumHealthThreshold ?? profile.MomentumHealthThreshold,
+        PositionFraction: rules?.PositionFraction ?? 0.10m,
+        // Null keeps the legacy flat sizing (the long-standing engine
+        // behaviour); setting it switches to the live tier-pool model.
+        ActiveCapitalPct: rules?.ActiveCapitalPct,
+        MaxPositionPctOfActive: rules?.MaxPositionPctOfActive ?? profile.MaxPositionPctOfActive);
 
     // Unknown names are ignored rather than failing the run - the list comes
     // from the UI, but the request JSON is stored and could be replayed after

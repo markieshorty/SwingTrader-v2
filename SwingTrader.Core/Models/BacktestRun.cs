@@ -42,7 +42,10 @@ public record HistoricTradingRules(
     decimal? TargetPct = null,                // flat target override; null = production conviction table
     bool? SimulateProbation = null,           // null = true (production always runs probation)
     int? MinHoldDays = null,                  // probation check day (trading days held)
-    decimal? MomentumHealthThreshold = null); // probation pass bar, 0..1
+    decimal? MomentumHealthThreshold = null,  // probation pass bar, 0..1
+    decimal? PositionFraction = null,         // legacy flat sizing: fraction of equity per trade (default 0.10)
+    decimal? ActiveCapitalPct = null,         // set = live-mirroring tier pool sizing (e.g. 0.10 = Tier 1)
+    decimal? MaxPositionPctOfActive = null);  // per-position share of the pool; null = risk profile's
 
 public record HistoricBacktestCandidate(
     string Label, HistoricBacktestWeights Weights, decimal BuyThreshold, bool ExcludeBreakout,
