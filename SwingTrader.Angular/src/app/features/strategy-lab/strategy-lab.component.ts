@@ -137,10 +137,10 @@ export class StrategyLabComponent {
   rulesMaxOpenPositions = signal(3);
   rulesTrailingActivation = signal(5); // percent, converted to fraction on send
   rulesTrailingDistance = signal(3);
-  // Blank = your live risk-profile stop/target settings (the old per-setup/
-  // per-conviction tables were removed); a value = override for this run.
-  rulesStopLossPct = signal<number | null>(null);
-  rulesTargetPct = signal<number | null>(null);
+  // Prefilled from the live risk profile, like every other rule field - an
+  // untouched Run simulates production's actual stop/target exactly.
+  rulesStopLossPct = signal(5);
+  rulesTargetPct = signal(8);
   rulesSimulateProbation = signal(true);
   rulesMinHoldDays = signal(3);
   rulesHealthThreshold = signal(0.5);
@@ -154,6 +154,7 @@ export class StrategyLabComponent {
   private profileRules = {
     maxHoldDays: 10, maxOpenPositions: 3, trailingActivation: 5, trailingDistance: 3,
     minHoldDays: 3, healthThreshold: 0.5, maxPositionPctOfActive: 0.33,
+    stopLossPct: 5, targetPct: 8,
   };
 
   rulesTouched = computed(() =>
@@ -162,8 +163,8 @@ export class StrategyLabComponent {
     || this.rulesMaxOpenPositions() !== this.profileRules.maxOpenPositions
     || this.rulesTrailingActivation() !== this.profileRules.trailingActivation
     || this.rulesTrailingDistance() !== this.profileRules.trailingDistance
-    || this.rulesStopLossPct() !== null
-    || this.rulesTargetPct() !== null
+    || this.rulesStopLossPct() !== this.profileRules.stopLossPct
+    || this.rulesTargetPct() !== this.profileRules.targetPct
     || !this.rulesSimulateProbation()
     || this.rulesMinHoldDays() !== this.profileRules.minHoldDays
     || this.rulesHealthThreshold() !== this.profileRules.healthThreshold
@@ -185,8 +186,8 @@ export class StrategyLabComponent {
       maxOpenPositions: this.rulesMaxOpenPositions(),
       trailingActivationPct: this.rulesTrailingActivation() / 100,
       trailingDistancePct: this.rulesTrailingDistance() / 100,
-      stopLossPct: this.rulesStopLossPct() !== null ? this.rulesStopLossPct()! / 100 : null,
-      targetPct: this.rulesTargetPct() !== null ? this.rulesTargetPct()! / 100 : null,
+      stopLossPct: this.rulesStopLossPct() / 100,
+      targetPct: this.rulesTargetPct() / 100,
       simulateProbation: this.rulesSimulateProbation(),
       minHoldDays: this.rulesMinHoldDays(),
       momentumHealthThreshold: this.rulesHealthThreshold(),
@@ -202,8 +203,8 @@ export class StrategyLabComponent {
     this.rulesMaxOpenPositions.set(this.profileRules.maxOpenPositions);
     this.rulesTrailingActivation.set(this.profileRules.trailingActivation);
     this.rulesTrailingDistance.set(this.profileRules.trailingDistance);
-    this.rulesStopLossPct.set(null);
-    this.rulesTargetPct.set(null);
+    this.rulesStopLossPct.set(this.profileRules.stopLossPct);
+    this.rulesTargetPct.set(this.profileRules.targetPct);
     this.rulesSimulateProbation.set(true);
     this.rulesMinHoldDays.set(this.profileRules.minHoldDays);
     this.rulesHealthThreshold.set(this.profileRules.healthThreshold);
@@ -305,6 +306,8 @@ export class StrategyLabComponent {
           minHoldDays: p.minHoldDays,
           healthThreshold: p.momentumHealthThreshold,
           maxPositionPctOfActive: p.maxPositionPctOfActive,
+          stopLossPct: Math.round(p.stopLossPct * 100),
+          targetPct: Math.round(p.targetPct * 100),
         };
         this.resetRules();
       },
