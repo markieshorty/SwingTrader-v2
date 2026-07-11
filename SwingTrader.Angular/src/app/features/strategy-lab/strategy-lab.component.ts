@@ -552,9 +552,16 @@ export class StrategyLabComponent {
     const autopauseNote = autopause !== undefined && autopause !== this.productionAutopauseBear
       ? ` This also turns the live bear-market autopause ${autopause ? 'ON' : 'OFF'}.`
       : '';
+    // Rule overrides are experiment-only and are NOT applied - without this
+    // warning, a run that beat production because of a rule change looks like
+    // it "didn't save" when the applied weights don't reproduce it.
+    const rulesNote = this.dataSource() === 'historic' && this.rulesTouched()
+      ? ' NOTE: your run used Trading-rules overrides (setups/holds/positions/trailing) which are NOT applied here — ' +
+        'to keep those, change them on the Settings › Trading page.'
+      : '';
     this.applyConfig(w, this.buyThreshold(),
       `This sets your LIVE strategy weights and Buy threshold (${this.buyThreshold().toFixed(1)}) to the dials currently in the form.` +
-      `${autopauseNote} The next research run will score every signal with them. Are you sure?`,
+      `${autopauseNote} The next research run will score every signal with them.${rulesNote} Are you sure?`,
       autopause, this.buildManualEvidence());
   }
 
