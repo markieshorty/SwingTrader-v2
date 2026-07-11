@@ -152,13 +152,15 @@
                   <input matInput type="number" min="1" max="10" [ngModel]="rulesMaxOpenPositions()"
                     (ngModelChange)="rulesMaxOpenPositions.set($event)" />
                 </mat-form-field>
-                <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                  <mat-label>Trailing stop arms at (+%)</mat-label>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic"
+                  matTooltip="NOT a take-profit: once the position is up this much, a trailing stop switches on and follows the price from below. The trade keeps running — this only starts protecting the gain.">
+                  <mat-label>Trailing stop switches on after gain of (%)</mat-label>
                   <input matInput type="number" min="1" max="20" step="0.5" [ngModel]="rulesTrailingActivation()"
                     (ngModelChange)="rulesTrailingActivation.set($event)" />
                 </mat-form-field>
-                <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                  <mat-label>Trailing distance (%)</mat-label>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic"
+                  matTooltip="How far below the highest price since activation the trailing stop sits — the amount of gain you give back when a runner turns.">
+                  <mat-label>Trailing stop follows price by (%)</mat-label>
                   <input matInput type="number" min="1" max="10" step="0.5" [ngModel]="rulesTrailingDistance()"
                     (ngModelChange)="rulesTrailingDistance.set($event)" />
                 </mat-form-field>
