@@ -28,6 +28,7 @@ import {
   LabTradingRulesDto,
   LabWeightsDto,
   StrategyLabResponseDto,
+  MonteCarloResultDto,
   StrategyWeightsDto,
   SweepResultDto,
   ValidateResultDto,
@@ -223,6 +224,11 @@ export class StrategyLabComponent {
   validateStatus = signal<string | null>(null);
   validateResult = signal<ValidateResultDto | null>(null);
 
+  // Monte Carlo robustness check (trade-order bootstrap) of the same config.
+  monteCarloRunning = signal(false);
+  monteCarloStatus = signal<string | null>(null);
+  monteCarloResult = signal<MonteCarloResultDto | null>(null);
+
   // Snapshot of the dials actually submitted for the run in progress/last
   // completed - the "old" side of diff tables and the config sent to the
   // analysis endpoint. Can't just read the live `weights` signal: the user
@@ -253,7 +259,7 @@ export class StrategyLabComponent {
   isOwner = signal(false);
   // One poll handle per job kind: an A/B run and an optimizer sweep can be in
   // flight at the same time, and starting one must not kill the other's poll.
-  private pollHandles = new Map<'ab' | 'sweep' | 'validate', ReturnType<typeof setInterval>>();
+  private pollHandles = new Map<'ab' | 'sweep' | 'validate' | 'montecarlo', ReturnType<typeof setInterval>>();
 
   weightSum = computed(() => {
     const w = this.weights();
@@ -463,6 +469,41 @@ export class StrategyLabComponent {
     });
   }
 
+  // Monte Carlo robustness check: one full-window run of the CURRENT form
+  // config, then thousands of bootstrap reshuffles of its own trade log.
+  // Answers a different question from Validate: not "does the edge exist
+  // outside the tuning window?" but "how much of the headline number is the
+  // lucky ORDER of trades, and what drawdown should I actually budget for?"
+  monteCarloRun(): void {
+    if (!this.sumOk()) {
+      this.snackbar.open(`Weights must sum to 1.0 (currently ${this.weightSum().toFixed(2)}).`, 'Dismiss', { duration: 4000 });
+      return;
+    }
+    this.monteCarloRunning.set(true);
+    this.monteCarloResult.set(null);
+    const request = {
+      dataSource: 'historic' as const,
+      weights: this.weights(),
+      buyThreshold: this.buyThreshold(),
+      excludeBreakout: this.excludeBreakout(),
+      autopauseDuringBear: this.autopauseBear(),
+      rules: this.buildRules(),
+    };
+    this.api.monteCarloStrategyLab(request).subscribe({
+      next: (r) => this.pollRun('montecarlo', r.backtestRunId,
+        'Running — one full-window simulation, then 2,000 reshuffled orderings of its trades…',
+        this.monteCarloStatus, (result) => {
+          if (result && 'mode' in result && result.mode === 'montecarlo') this.monteCarloResult.set(result);
+          else if (result) this.snackbar.open('Unexpected Monte Carlo result shape.', 'Dismiss', { duration: 5000 });
+          this.monteCarloRunning.set(false);
+        }),
+      error: (err) => {
+        this.snackbar.open(errorMessage(err, 'Failed to queue the Monte Carlo run.'), 'Dismiss', { duration: 5000 });
+        this.monteCarloRunning.set(false);
+      },
+    });
+  }
+
   // ── Optimizer tab ──────────────────────────────────────────────────────────
 
   runOptimizer(): void {
@@ -490,7 +531,7 @@ export class StrategyLabComponent {
   // decides how to interpret the stored result. Restarting a job of the same
   // kind replaces its own poll; the other kind's poll is left running.
   private pollRun(
-    kind: 'ab' | 'sweep' | 'validate',
+    kind: 'ab' | 'sweep' | 'validate' | 'montecarlo',
     runId: number,
     runningText: string,
     status: ReturnType<typeof signal<string | null>>,
@@ -513,6 +554,7 @@ export class StrategyLabComponent {
               onDone(null);
               if (kind === 'ab') this.running.set(false);
               else if (kind === 'validate') this.validating.set(false);
+              else if (kind === 'montecarlo') this.monteCarloRunning.set(false);
               else this.optimizing.set(false);
             }
           }

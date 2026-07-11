@@ -251,6 +251,12 @@
               @if (validating()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>fact_check</mat-icon> }
               Validate out-of-sample
             </button>
+
+            <button mat-stroked-button color="accent" [disabled]="monteCarloRunning() || !sumOk()" (click)="monteCarloRun()"
+              matTooltip="Sequence-risk check: runs this configuration once over the full window, then reshuffles its own trade log 2,000 times to see how much of the result depends on the lucky ORDER of trades. Gives the realistic drawdown range (95th percentile) and the chance a different ordering would have lost money. Complements Validate: that tests period luck, this tests order luck.">
+              @if (monteCarloRunning()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>casino</mat-icon> }
+              Monte Carlo check
+            </button>
           }
         </div>
       </mat-card>
@@ -260,6 +266,31 @@
       }
       @if (validateStatus(); as vs) {
         <mat-card class="panel loading"><mat-spinner diameter="24"></mat-spinner><span>{{ vs }}</span></mat-card>
+      }
+      @if (monteCarloStatus(); as ms) {
+        <mat-card class="panel loading"><mat-spinner diameter="24"></mat-spinner><span>{{ ms }}</span></mat-card>
+      }
+
+      @if (monteCarloResult(); as mc) {
+        <mat-card class="panel" [class.validate-pass]="mc.p5TotalReturnPct > 0" [class.validate-fail]="mc.p5TotalReturnPct <= 0">
+          <h3>
+            <mat-icon>casino</mat-icon>
+            Monte Carlo — {{ mc.resamples | number }} reshuffles of {{ mc.trades }} trades
+          </h3>
+          <p>{{ mc.verdict }}</p>
+          <div class="stat-row muted small">
+            <span>Actual path: <strong>{{ mc.actualTotalReturnPct }}%</strong> (DD {{ mc.actualMaxDrawdownPct }}%, Calmar {{ mc.actualCalmarRatio }})</span>
+            <span>Median ordering: <strong>{{ mc.medianTotalReturnPct }}%</strong></span>
+            <span>5th–95th percentile: <strong>{{ mc.p5TotalReturnPct }}% … {{ mc.p95TotalReturnPct }}%</strong></span>
+            <span>Drawdown to budget for (95th pct): <strong>{{ mc.p95MaxDrawdownPct }}%</strong></span>
+            <span>Chance of loss: <strong>{{ mc.probabilityOfLossPct }}%</strong></span>
+            <span>Chance of beating SPY ({{ mc.spyReturnPct }}%): <strong>{{ mc.probabilityBeatingSpyPct }}%</strong></span>
+          </div>
+          <p class="muted small">
+            Same trades, different order — this measures sequence risk around the edge, it does not re-test whether
+            the edge exists (that's what Validate out-of-sample is for).
+          </p>
+        </mat-card>
       }
 
       @if (validateResult(); as vr) {
@@ -683,6 +714,13 @@
       <span class="stat-value">{{ h.winRate | percent: '1.0-1' }}</span>
       <span class="stat-label">win rate (avg win {{ h.avgWinPct | number: '1.1-1' }}% / loss {{ h.avgLossPct | number: '1.1-1' }}%)</span>
     </div>
+    @if (h.calmarRatio) {
+      <div class="stat" [class.good]="h.calmarRatio > 1" [class.bad]="h.calmarRatio < 0.5"
+        matTooltip="Calmar ratio: annualised return divided by max drawdown — return per unit of worst-case pain. Above 1 is respectable, above 2 strong.">
+        <span class="stat-value">{{ h.calmarRatio | number: '1.2-2' }}</span>
+        <span class="stat-label">Calmar (annualised return / max DD)</span>
+      </div>
+    }
   </div>
 </ng-template>
 

@@ -171,6 +171,41 @@ public static class StrategyLabEndpoints
             return Results.Ok(new { backtestRunId = run.Id });
         });
 
+        // Monte Carlo robustness check: full-window run of the CURRENT form
+        // dials+rules, then bootstrap-resample its trade log to separate
+        // trade QUALITY from trade-ORDER luck. Complements /validate (which
+        // measures period luck via the train/holdout split).
+        api.MapPost("/strategy-lab/montecarlo", async (
+            StrategyLabRequest req,
+            IBacktestRunRepository runs,
+            [FromServices] ServiceBusClient? serviceBus,
+            IAccountContext ctx,
+            CancellationToken ct) =>
+        {
+            if (serviceBus is null)
+                return Results.Problem("Service Bus is not configured on this environment.", statusCode: StatusCodes.Status503ServiceUnavailable);
+
+            var userWeights = new HistoricBacktestWeights(
+                req.Weights.Rsi, req.Weights.Macd, req.Weights.Volume, req.Weights.Sentiment,
+                req.Weights.SetupQuality, req.Weights.RelativeStrength, req.Weights.PriceLevel, req.Weights.FundamentalMomentum);
+
+            var run = await runs.AddAsync(new BacktestRun
+            {
+                AccountId = ctx.AccountId,
+                RequestJson = JsonSerializer.Serialize(new HistoricBacktestRequest(
+                    userWeights, req.BuyThreshold, req.ExcludeBreakout,
+                    Mode: "montecarlo",
+                    AutopauseDuringBear: req.AutopauseDuringBear,
+                    Rules: req.Rules)),
+            });
+
+            await using var sender = serviceBus.CreateSender("backtest-jobs");
+            await sender.SendMessageAsync(new ServiceBusMessage(JsonSerializer.Serialize(
+                new BacktestJobMessage(ctx.AccountId, Guid.NewGuid().ToString("N"), run.Id))), ct);
+
+            return Results.Ok(new { backtestRunId = run.Id });
+        });
+
         // Poll a historic run. Result JSON is the shared HistoricResult shape.
         api.MapGet("/strategy-lab/backtest/{id:int}", async (
             int id, IBacktestRunRepository runs, IAccountContext ctx) =>

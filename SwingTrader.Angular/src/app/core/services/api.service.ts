@@ -135,6 +135,10 @@ export class ApiService {
     return this.http.post<{ backtestRunId: number }>(`${this.baseUrl}/api/strategy-lab/validate`, request);
   }
 
+  monteCarloStrategyLab(request: StrategyLabRequestDto): Observable<{ backtestRunId: number }> {
+    return this.http.post<{ backtestRunId: number }>(`${this.baseUrl}/api/strategy-lab/montecarlo`, request);
+  }
+
   getSentimentArchiveStats(): Observable<SentimentArchiveStatsDto> {
     return this.http.get<SentimentArchiveStatsDto>(`${this.baseUrl}/api/admin/sentiment-archive`);
   }

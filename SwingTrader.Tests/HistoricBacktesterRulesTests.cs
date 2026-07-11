@@ -45,6 +45,26 @@ public class HistoricBacktesterRulesTests
     }
 
     [Fact]
+    public async Task CalmarRatio_ComputedFromAnnualisedReturnOverDrawdown()
+    {
+        var result = await HistoricBacktester.RunAsync(Market(), Config());
+
+        if (result.MaxDrawdownPct > 0)
+        {
+            // Reconstruct: CAGR over the post-warmup window / max drawdown.
+            // Tolerance is loose because the stored return and drawdown are
+            // rounded to 1dp while the engine's Calmar uses unrounded values.
+            var years = ((result.To - result.From).TotalDays) / 365.25;
+            var cagr = (decimal)(Math.Pow(1 + (double)result.TotalReturnPct / 100, 1 / years) - 1);
+            result.CalmarRatio.Should().BeApproximately(cagr / (result.MaxDrawdownPct / 100m), 0.25m);
+        }
+        else
+        {
+            result.CalmarRatio.Should().Be(0m);
+        }
+    }
+
+    [Fact]
     public async Task ExcludedSetups_BlocksEveryEntryOfThatSetup()
     {
         var baseline = await HistoricBacktester.RunAsync(Market(), Config());

@@ -89,6 +89,7 @@ public class BacktestConsumerFunction(
                 "ab" => await RunAbAsync(request, bars, profile, sectorEtfs, ct),
                 "sweep" => await RunSweepAsync(message.AccountId, request, bars, profile, sectorEtfs, ct),
                 "validate" => await RunValidateAsync(request, bars, profile, sectorEtfs, ct),
+                "montecarlo" => await RunMonteCarloAsync(request, bars, profile, sectorEtfs, ct),
                 _ => await RunSingleAsync(request, bars, profile, sectorEtfs, ct),
             };
             run.Status = "Completed";
@@ -271,6 +272,28 @@ public class BacktestConsumerFunction(
 
         var validation = SweepOptimizer.BuildValidation(userTrain, userHoldout, baselineHoldout, trainSpy, holdoutSpy);
         return JsonSerializer.Serialize(new ValidateResult("validate", validation), CamelCase);
+    }
+
+    // Monte Carlo: one full-window run of the config, then bootstrap-resample
+    // its trade log to measure how much of the result is trade ORDER luck
+    // (sequence risk) versus trade quality - the complement to the
+    // train/holdout validate, which measures window (period) luck.
+    private static async Task<string> RunMonteCarloAsync(
+        HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, AccountRiskProfile profile,
+        IReadOnlyDictionary<string, string>? sectorEtfs, CancellationToken ct)
+    {
+        var cfg = ToConfig(request.Weights, request.BuyThreshold, request.ExcludeBreakout,
+            request.AutopauseDuringBear, profile, request.Rules);
+        var result = await HistoricBacktester.RunAsync(bars, cfg, sectorEtfs, ct);
+
+        // The equity slice each resampled trade compounds against: flat-mode
+        // fraction directly, or the pool mode's effective per-position share.
+        var fraction = cfg.ActiveCapitalPct is { } pool
+            ? pool * cfg.MaxPositionPctOfActive
+            : cfg.PositionFraction;
+
+        var mc = MonteCarloSimulator.Run(result, fraction);
+        return JsonSerializer.Serialize(mc, CamelCase);
     }
 
     private async Task<string?> TryExplainAsync(

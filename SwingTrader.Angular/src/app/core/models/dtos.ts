@@ -613,6 +613,7 @@ export interface HistoricResultDto {
   totalReturnPct: number;
   maxDrawdownPct: number;
   spyReturnPct: number;
+  calmarRatio: number; // annualised return / max drawdown (0 for pre-existing stored runs)
   bySetup: LabBucketStatDto[];
   byConviction: LabBucketStatDto[];
   byExitReason: LabBucketStatDto[];
@@ -678,7 +679,26 @@ export interface ValidateResultDto {
   validation: SweepValidationDto;
 }
 
-export type BacktestResultDto = HistoricResultDto | AbResultDto | SweepResultDto | ValidateResultDto;
+export interface MonteCarloResultDto {
+  mode: 'montecarlo';
+  resamples: number;
+  trades: number;
+  positionFraction: number;
+  actualTotalReturnPct: number;
+  actualMaxDrawdownPct: number;
+  actualCalmarRatio: number;
+  spyReturnPct: number;
+  medianTotalReturnPct: number;
+  p5TotalReturnPct: number;
+  p95TotalReturnPct: number;
+  medianMaxDrawdownPct: number;
+  p95MaxDrawdownPct: number;
+  probabilityOfLossPct: number;
+  probabilityBeatingSpyPct: number;
+  verdict: string;
+}
+
+export type BacktestResultDto = HistoricResultDto | AbResultDto | SweepResultDto | ValidateResultDto | MonteCarloResultDto;
 
 export interface BacktestRunStatusDto {
   id: number;

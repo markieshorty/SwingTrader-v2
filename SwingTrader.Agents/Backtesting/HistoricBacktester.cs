@@ -87,7 +87,12 @@ public sealed record HistoricResult(
     decimal ExpectancyPct, decimal ProfitFactor,
     decimal TotalReturnPct, decimal MaxDrawdownPct, decimal SpyReturnPct,
     List<BucketStat> BySetup, List<BucketStat> ByConviction, List<BucketStat> ByExitReason,
-    List<HistoricTrade> TradeLog);
+    List<HistoricTrade> TradeLog,
+    // Calmar ratio: annualised return / max drawdown - return per unit of
+    // worst-case pain. >1 is respectable, >2 strong. 0 when drawdown is 0
+    // (no meaningful denominator). Default keeps pre-existing stored result
+    // JSON deserializable.
+    decimal CalmarRatio = 0m);
 
 public static class HistoricBacktester
 {
@@ -293,6 +298,12 @@ public static class HistoricBacktester
             if (peak > 0) maxDd = Math.Max(maxDd, (peak - e) / peak);
         }
 
+        // Calmar = annualised (CAGR) return / max drawdown.
+        var totalReturnFrac = equityCurve.Count > 0 ? equityCurve[^1] / StartingEquity - 1m : 0m;
+        var years = Math.Max(0.25, (calendar[^1] - calendar[WarmupBars]).TotalDays / 365.25);
+        var cagr = (decimal)(Math.Pow((double)(1m + totalReturnFrac), 1.0 / years) - 1.0);
+        var calmar = maxDd > 0 ? Math.Round(cagr / maxDd, 2) : 0m;
+
         List<BucketStat> Bucket<TKey>(Func<HistoricTrade, TKey> keySelector) => closed
             .GroupBy(keySelector)
             .Select(g => new BucketStat(g.Key!.ToString()!, g.Count(),
@@ -315,7 +326,8 @@ public static class HistoricBacktester
             Bucket(t => t.Setup),
             Bucket(t => Math.Floor(t.Conviction)),
             Bucket(t => t.ExitReason.Replace("(gap)", "")),
-            closed);
+            closed,
+            calmar);
     }
 
     private static (decimal? ExitPrice, string? Reason) CheckExit(Position pos, DailyBar bar, int currentBarIndex, int maxHoldDays)
