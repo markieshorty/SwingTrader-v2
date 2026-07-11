@@ -231,6 +231,10 @@ public static class WatchlistEndpoints
             {
                 return Results.NotFound(new { message = ex.Message });
             }
+            catch (ValidationException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
         });
 
         return api;

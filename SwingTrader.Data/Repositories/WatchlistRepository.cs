@@ -207,11 +207,12 @@ public class WatchlistRepository(SwingTraderDbContext db) : IWatchlistRepository
             throw new ValidationException($"At most {WatchlistLimits.MaxEnabledWatchlists} watchlists can be enabled at once.");
 
         // Research scores the deduplicated union of every enabled watchlist's
-        // symbols (see GetAllEnabledSymbolsAsync) - enabling this one must not
-        // push that union past MaxTotalEnabledSymbols, even though the two
-        // watchlists' own symbol sets may overlap.
+        // symbols PLUS any ForceIntoFinalList item regardless of its own
+        // watchlist's enabled state (see GetAllEnabledSymbolsAsync) - the cap
+        // check must count the union the same way, or a force-listed item on
+        // a disabled watchlist silently doesn't count against the limit here.
         var currentlyEnabledSymbols = await db.WatchlistItems
-            .Where(i => i.AccountId == accountId && i.IsActive && i.Watchlist!.IsEnabled)
+            .Where(i => i.AccountId == accountId && i.IsActive && (i.Watchlist!.IsEnabled || i.ForceIntoFinalList))
             .Select(i => i.Symbol)
             .ToListAsync(ct);
 
@@ -273,13 +274,15 @@ public class WatchlistRepository(SwingTraderDbContext db) : IWatchlistRepository
 
         // Only matters if this watchlist is itself enabled - adding a symbol to
         // a disabled one doesn't touch the union Research actually scores
-        // (GetAllEnabledSymbolsAsync). A symbol already in the union from this
-        // or another enabled watchlist doesn't grow it, so only a genuinely new
-        // symbol can push the total over the cap.
+        // (GetAllEnabledSymbolsAsync) UNLESS the new item is also force-listed,
+        // which AddSymbolAsync never sets - so a plain add to a disabled
+        // watchlist is always safe to skip the check for. A symbol already in
+        // the union (enabled OR force-listed elsewhere) doesn't grow it, so
+        // only a genuinely new symbol can push the total over the cap.
         if (watchlist.IsEnabled)
         {
             var enabledSymbols = await db.WatchlistItems
-                .Where(i => i.AccountId == accountId && i.IsActive && i.Watchlist!.IsEnabled)
+                .Where(i => i.AccountId == accountId && i.IsActive && (i.Watchlist!.IsEnabled || i.ForceIntoFinalList))
                 .Select(i => i.Symbol)
                 .ToListAsync(ct);
 
@@ -357,8 +360,36 @@ public class WatchlistRepository(SwingTraderDbContext db) : IWatchlistRepository
     {
         var symbolUpper = symbol.ToUpperInvariant();
         var item = await db.WatchlistItems
+            .Include(i => i.Watchlist)
             .FirstOrDefaultAsync(i => i.AccountId == accountId && i.WatchlistId == watchlistId && i.Symbol == symbolUpper, ct)
             ?? throw new InvalidOperationException($"Symbol '{symbol}' not found on watchlist {watchlistId}.");
+
+        // Turning the flag ON is exactly as capable of growing the Research
+        // union as enabling a watchlist or adding a symbol - it was the one
+        // path that grew GetAllEnabledSymbolsAsync's union with no cap check
+        // at all, letting the account silently exceed MaxTotalEnabledSymbols.
+        // Only checked when actually turning it on for an item not already
+        // counted (already-enabled-watchlist items are already in the union).
+        if (force && !item.ForceIntoFinalList && !item.Watchlist!.IsEnabled)
+        {
+            var unionSymbols = await db.WatchlistItems
+                .Where(i => i.AccountId == accountId && i.IsActive && (i.Watchlist!.IsEnabled || i.ForceIntoFinalList))
+                .Select(i => i.Symbol)
+                .ToListAsync(ct);
+
+            if (!unionSymbols.Contains(symbolUpper, StringComparer.OrdinalIgnoreCase))
+            {
+                var projectedCount = unionSymbols
+                    .Concat([symbolUpper])
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count();
+
+                if (projectedCount > WatchlistLimits.MaxTotalEnabledSymbols)
+                    throw new ValidationException(
+                        $"Force-listing '{symbolUpper}' would bring the total across all enabled watchlists to {projectedCount} symbols, " +
+                        $"above the {WatchlistLimits.MaxTotalEnabledSymbols} limit. Remove a symbol from an enabled watchlist, or un-force another item, first.");
+            }
+        }
 
         item.ForceIntoFinalList = force;
         item.UpdatedAt = DateTime.UtcNow;

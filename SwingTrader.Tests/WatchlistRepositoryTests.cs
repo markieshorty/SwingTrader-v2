@@ -232,6 +232,36 @@ public class WatchlistRepositoryTests
     }
 
     [Fact]
+    public async Task EnableWatchlistAsync_CountsForcedItemsOnStillDisabledWatchlists()
+    {
+        // Regression: EnableWatchlistAsync's cap check must count force-listed
+        // items sitting on OTHER disabled watchlists - GetAllEnabledSymbolsAsync
+        // (what Research actually queries) already includes them, so a check
+        // that ignores ForceIntoFinalList silently undercounts the true union.
+        await using var db = CreateDb();
+        var repo = new WatchlistRepository(db);
+        await repo.SeedDefaultAsync(1); // 10 symbols, enabled
+
+        var forcedA = await repo.CreateWatchlistAsync(1, "IdeasA", WatchlistType.Manual, null);
+        var forcedB = await repo.CreateWatchlistAsync(1, "IdeasB", WatchlistType.Manual, null);
+        for (var i = 0; i < 89; i++)
+        {
+            var source = i < 50 ? forcedA : forcedB;
+            await repo.AddSymbolAsync(1, source.Id, $"FORCED{i}", "Co", "Sector");
+            await repo.SetForceIntoFinalListAsync(1, source.Id, $"FORCED{i}", true);
+        }
+        // Union is now 10 + 89 = 99, entirely via forced items on disabled watchlists.
+
+        var w2 = await repo.CreateWatchlistAsync(1, "W2", WatchlistType.Manual, null);
+        await repo.AddSymbolAsync(1, w2.Id, "OVERFLOW1", "Co", "Sector");
+        await repo.AddSymbolAsync(1, w2.Id, "OVERFLOW2", "Co", "Sector"); // disabled, no check yet
+
+        var act = async () => await repo.EnableWatchlistAsync(1, w2.Id); // would push union to 101
+
+        await act.Should().ThrowAsync<ValidationException>().WithMessage("*100*");
+    }
+
+    [Fact]
     public async Task AddSymbolAsync_SymbolAlreadyInEnabledUnion_DoesNotCountTwice()
     {
         await using var db = CreateDb();
@@ -338,6 +368,115 @@ public class WatchlistRepositoryTests
 
         var symbols = await repo.GetAllEnabledSymbolsAsync(1);
         symbols.Should().NotContain(s => s.Symbol == "FORCEME");
+    }
+
+    [Fact]
+    public async Task SetForceIntoFinalListAsync_OverTotalUnionCap_Throws()
+    {
+        await using var db = CreateDb();
+        var repo = new WatchlistRepository(db);
+        await repo.SeedDefaultAsync(1); // 10 symbols, enabled
+
+        var w2 = await repo.CreateWatchlistAsync(1, "W2", WatchlistType.Manual, null);
+        for (var i = 0; i < 50; i++)
+            await repo.AddSymbolAsync(1, w2.Id, $"SYM{i}", "Co", "Sector");
+        await repo.EnableWatchlistAsync(1, w2.Id); // union now 60
+
+        var w3 = await repo.CreateWatchlistAsync(1, "W3", WatchlistType.Manual, null);
+        for (var i = 50; i < 90; i++)
+            await repo.AddSymbolAsync(1, w3.Id, $"SYM{i}", "Co", "Sector");
+        await repo.EnableWatchlistAsync(1, w3.Id); // union now exactly 100
+
+        var disabled = await repo.CreateWatchlistAsync(1, "Ideas", WatchlistType.Manual, null);
+        await repo.AddSymbolAsync(1, disabled.Id, "FORCEME", "Co", "Sector");
+
+        var act = async () => await repo.SetForceIntoFinalListAsync(1, disabled.Id, "FORCEME", true);
+
+        await act.Should().ThrowAsync<ValidationException>().WithMessage("*100*");
+
+        var symbols = await repo.GetAllEnabledSymbolsAsync(1);
+        symbols.Should().NotContain(s => s.Symbol == "FORCEME");
+    }
+
+    [Fact]
+    public async Task SetForceIntoFinalListAsync_AtUnionCap_StillFits_DoesNotThrow()
+    {
+        await using var db = CreateDb();
+        var repo = new WatchlistRepository(db);
+        await repo.SeedDefaultAsync(1); // 10 symbols, enabled
+
+        var w2 = await repo.CreateWatchlistAsync(1, "W2", WatchlistType.Manual, null);
+        var w3 = await repo.CreateWatchlistAsync(1, "W3", WatchlistType.Manual, null);
+        for (var i = 0; i < 89; i++)
+        {
+            var target = i < 50 ? w2 : w3;
+            await repo.AddSymbolAsync(1, target.Id, $"SYM{i}", "Co", "Sector");
+        }
+        await repo.EnableWatchlistAsync(1, w2.Id);
+        await repo.EnableWatchlistAsync(1, w3.Id); // union now exactly 99
+
+        var disabled = await repo.CreateWatchlistAsync(1, "Ideas", WatchlistType.Manual, null);
+        await repo.AddSymbolAsync(1, disabled.Id, "FORCEME", "Co", "Sector");
+
+        var act = async () => await repo.SetForceIntoFinalListAsync(1, disabled.Id, "FORCEME", true); // union now exactly 100
+
+        await act.Should().NotThrowAsync();
+
+        var symbols = await repo.GetAllEnabledSymbolsAsync(1);
+        symbols.Should().Contain(s => s.Symbol == "FORCEME");
+    }
+
+    [Fact]
+    public async Task SetForceIntoFinalListAsync_SymbolAlreadyInEnabledUnion_DoesNotCountTwiceOrThrow()
+    {
+        await using var db = CreateDb();
+        var repo = new WatchlistRepository(db);
+        await repo.SeedDefaultAsync(1); // 10 symbols including AAPL, enabled
+
+        var w2 = await repo.CreateWatchlistAsync(1, "W2", WatchlistType.Manual, null);
+        var w3 = await repo.CreateWatchlistAsync(1, "W3", WatchlistType.Manual, null);
+        for (var i = 0; i < 89; i++)
+        {
+            var target = i < 50 ? w2 : w3;
+            await repo.AddSymbolAsync(1, target.Id, $"SYM{i}", "Co", "Sector");
+        }
+        await repo.EnableWatchlistAsync(1, w2.Id);
+        await repo.EnableWatchlistAsync(1, w3.Id); // union now exactly 99
+
+        var disabled = await repo.CreateWatchlistAsync(1, "Ideas", WatchlistType.Manual, null);
+        // AAPL is already in the enabled union via the default watchlist, so
+        // force-listing it here from a disabled watchlist doesn't grow the
+        // union - it must never be blocked by the total cap.
+        await repo.AddSymbolAsync(1, disabled.Id, "AAPL", "Apple", "Tech");
+
+        var act = async () => await repo.SetForceIntoFinalListAsync(1, disabled.Id, "AAPL", true);
+
+        await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task SetForceIntoFinalListAsync_ItemOnAlreadyEnabledWatchlist_IgnoresUnionCap()
+    {
+        await using var db = CreateDb();
+        var repo = new WatchlistRepository(db);
+        await repo.SeedDefaultAsync(1); // 10 symbols, enabled
+
+        var w2 = await repo.CreateWatchlistAsync(1, "W2", WatchlistType.Manual, null);
+        var w3 = await repo.CreateWatchlistAsync(1, "W3", WatchlistType.Manual, null);
+        for (var i = 0; i < 90; i++)
+        {
+            var target = i < 50 ? w2 : w3;
+            await repo.AddSymbolAsync(1, target.Id, $"SYM{i}", "Co", "Sector");
+        }
+        await repo.EnableWatchlistAsync(1, w2.Id);
+        await repo.EnableWatchlistAsync(1, w3.Id); // union now exactly 100
+
+        // SYM0 is on w2, which is already enabled - it's already counted in the
+        // union, so forcing it (a redundant no-op in terms of union growth)
+        // must never be blocked by the cap even though the union is maxed out.
+        var act = async () => await repo.SetForceIntoFinalListAsync(1, w2.Id, "SYM0", true);
+
+        await act.Should().NotThrowAsync();
     }
 
     [Fact]
