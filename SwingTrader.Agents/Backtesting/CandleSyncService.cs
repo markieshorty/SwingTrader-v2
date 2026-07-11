@@ -22,7 +22,7 @@ public interface ICandleSyncService
 // symbols per month far below the ~1,500-symbol universe, so individual users
 // could never sync it - and the data is identical for everyone anyway.
 // Incremental: only bars newer than each symbol's latest stored date are
-// fetched, so the weekly run is cheap after the initial 3-year load.
+// fetched, so the weekly run is cheap after the initial multi-year load.
 public class CandleSyncService(
     IHistoricalCandleRepository candleRepo,
     IMarketUniverseService universe,
@@ -34,9 +34,18 @@ public class CandleSyncService(
     // key's plan. 400ms default = 2.5 req/s = 9,000/hr, just inside Power's
     // 10k/hr ceiling (the previous hardcoded 350ms was ~10,300/hr - OVER it).
     private const int DefaultSyncDelayMs = 400;
-    // 5 years so the optimizer's train/holdout split has enough trades on both
-    // sides to distinguish a real edge from noise (was 3).
-    private const int HistoryYears = 5;
+    // 10 years (was 5, was 3): the first optimizer run at 5y failed
+    // out-of-sample with a classic small-sample curve-fit - a few hundred
+    // train-window trades simply can't discriminate 1,200 candidates.
+    // Doubling the window roughly doubles the trades, covers genuinely
+    // different regimes (2018 vol spike, 2020 crash, 2022 bear) on both
+    // sides of the split, and grows the holdout to ~3 years. The trade-off
+    // is amplified survivorship bias (today's universe over a longer past
+    // keeps only the winners) - fine for comparing configs against each
+    // other, which is all the Lab claims to do, but the absolute numbers
+    // inflate further. The existing backfill path below fetches the older
+    // slice automatically on the next sync.
+    private const int HistoryYears = 10;
 
     public async Task<CandleSyncResult> SyncAsync(CancellationToken ct = default)
     {
