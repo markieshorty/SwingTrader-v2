@@ -10,22 +10,19 @@ namespace SwingTrader.Core.Trading;
 // so both callers get the same distances, each applied to their own live price.
 public static class EntryLevelCalculator
 {
-    public static (decimal StopLoss, decimal Target) Calculate(SetupType setupType, decimal convictionScore, decimal price)
+    // Rewritten 2026-07-12: the old per-setup stop table (5% default / 6%
+    // Breakout / 4% VolumeSpike) and per-conviction target table (+8/10/12%)
+    // are gone - stop and target are now plain risk-profile settings
+    // (StopLossPct / TargetPct, defaults 5% / 8% ~ the old tables' common
+    // case). Two reasons: (a) the account's own data showed conviction does
+    // not rank above the buy gate, so conviction-scaled targets were unearned
+    // complexity; (b) the Lab-validated flat-exit config (7%/10%, held up
+    // out-of-sample at 1.44%/trade vs production's 0.25%) needed to be
+    // runnable live, and settings the Lab can mirror keep backtest and live
+    // in lockstep.
+    public static (decimal StopLoss, decimal Target) Calculate(
+        decimal price, decimal stopLossPct, decimal targetPct)
     {
-        var stopLoss = setupType switch
-        {
-            SetupType.Breakout => price * 0.940m,
-            SetupType.VolumeSpike => price * 0.960m,
-            _ => price * 0.950m
-        };
-
-        var target = convictionScore switch
-        {
-            >= 9.0m => price * 1.120m,
-            >= 8.0m => price * 1.100m,
-            _ => price * 1.080m
-        };
-
-        return (Math.Round(stopLoss, 2), Math.Round(target, 2));
+        return (Math.Round(price * (1 - stopLossPct), 2), Math.Round(price * (1 + targetPct), 2));
     }
 }

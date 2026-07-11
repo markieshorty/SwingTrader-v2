@@ -74,6 +74,10 @@ function toUpdateRiskProfileDto(profile: RiskProfileDto): UpdateRiskProfileDto {
     momentumHealthThreshold: profile.momentumHealthThreshold,
     targetWatchlistSize: profile.targetWatchlistSize,
     autopauseDuringBear: profile.autopauseDuringBear,
+    stopLossPct: profile.stopLossPct,
+    targetPct: profile.targetPct,
+    sizingMode: profile.sizingMode,
+    flatPositionPct: profile.flatPositionPct,
   };
 }
 
@@ -324,7 +328,7 @@ export class SettingsComponent {
     });
   }
 
-  updateRiskDraftField(key: keyof UpdateRiskProfileDto, value: number | boolean): void {
+  updateRiskDraftField(key: keyof UpdateRiskProfileDto, value: number | boolean | string): void {
     const draft = this.riskProfileDraft();
     if (!draft) return;
 

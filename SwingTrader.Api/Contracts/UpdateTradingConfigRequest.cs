@@ -50,7 +50,12 @@ public record UpdateRiskProfileRequest(
     int MinHoldDays,
     decimal MomentumHealthThreshold,
     int TargetWatchlistSize,
-    bool AutopauseDuringBear = true);
+    bool AutopauseDuringBear = true,
+    // Defaults keep older payloads (serialized without these) valid.
+    decimal StopLossPct = 0.05m,
+    decimal TargetPct = 0.08m,
+    string SizingMode = "TierLadder",
+    decimal FlatPositionPct = 0.10m);
 
 public record CreateWatchlistRequest(string Name, WatchlistType Type, string? Description);
 

@@ -257,32 +257,70 @@
           }
 
           <h4>Position Sizing</h4>
-          <div class="slider-row">
-            <label>Max Position Size: {{ draft.maxPositionPctOfActive | percent: '1.0-0' }} of active capital</label>
-            <mat-slider
-              [min]="profile.allowedRanges.maxPositionPctOfActive.min"
-              [max]="profile.allowedRanges.maxPositionPctOfActive.max"
-              step="0.01"
-              discrete
-            >
-              <input matSliderThumb [ngModel]="draft.maxPositionPctOfActive" (ngModelChange)="updateRiskDraftField('maxPositionPctOfActive', $event)" />
-            </mat-slider>
-          </div>
-          @if (riskLivePreview(); as preview) {
-            @if (preview.active !== null) {
-              <p class="muted small">
-                <strong>Active capital{{ preview.tier ? ' (' + preview.tier + ')' : '' }}:
-                {{ preview.active | currency: 'GBP' }}</strong>
-                — {{ preview.activePct | percent: '1.0-0' }} of your {{ preview.total | currency: 'GBP' }} account.
-                This is the pool positions are sized from, set by your capital <em>tier</em> — not the locked slider.
-                It grows as you unlock higher tiers (Tier&nbsp;1 = 10%, Tier&nbsp;2 = 20%, Tier&nbsp;3 = 50% of the account).
-              </p>
-              <p class="muted small">
-                <strong>Max per trade: {{ preview.maxPerTrade | currency: 'GBP' }}</strong>
-                = {{ draft.maxPositionPctOfActive | percent: '1.0-0' }} of active capital.
-              </p>
-            } @else {
-              <p class="muted small">Max per trade appears once your account has its first portfolio snapshot.</p>
+          <mat-form-field appearance="outline" subscriptSizing="dynamic" class="sizing-mode-select">
+            <mat-label>Sizing model</mat-label>
+            <mat-select [value]="draft.sizingMode" (selectionChange)="updateRiskDraftField('sizingMode', $event.value)">
+              <mat-option value="TierLadder">Tier ladder (earn size with track record)</mat-option>
+              <mat-option value="Flat">Flat (fixed % of the whole account)</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          @if (draft.sizingMode === 'Flat') {
+            <p class="muted small">
+              <strong>Flat sizing bypasses the tier ladder</strong> — every position is a fixed slice of the whole
+              account, regardless of tier. Locked capital remains a hard ceiling (flat&nbsp;% × max positions can't
+              exceed the un-locked share), and the cash buffer, position cap and daily circuit breaker all still apply.
+              Tier progress keeps being tracked; switch back anytime.
+            </p>
+            <div class="slider-row">
+              <label>Position Size: {{ draft.flatPositionPct | percent: '1.0-0' }} of the whole account</label>
+              <mat-slider
+                [min]="profile.allowedRanges.flatPositionPct.min"
+                [max]="profile.allowedRanges.flatPositionPct.max"
+                step="0.01"
+                discrete
+              >
+                <input matSliderThumb [ngModel]="draft.flatPositionPct" (ngModelChange)="updateRiskDraftField('flatPositionPct', $event)" />
+              </mat-slider>
+            </div>
+            @if (riskLivePreview(); as preview) {
+              @if (preview.total !== null) {
+                <p class="muted small">
+                  <strong>Max per trade: {{ preview.total * draft.flatPositionPct | currency: 'GBP' }}</strong>
+                  = {{ draft.flatPositionPct | percent: '1.0-0' }} of {{ preview.total | currency: 'GBP' }};
+                  up to {{ preview.total * draft.flatPositionPct * draft.maxOpenPositions | currency: 'GBP' }} deployed
+                  across {{ draft.maxOpenPositions }} positions.
+                </p>
+              }
+            }
+          } @else {
+            <div class="slider-row">
+              <label>Max Position Size: {{ draft.maxPositionPctOfActive | percent: '1.0-0' }} of active capital</label>
+              <mat-slider
+                [min]="profile.allowedRanges.maxPositionPctOfActive.min"
+                [max]="profile.allowedRanges.maxPositionPctOfActive.max"
+                step="0.01"
+                discrete
+              >
+                <input matSliderThumb [ngModel]="draft.maxPositionPctOfActive" (ngModelChange)="updateRiskDraftField('maxPositionPctOfActive', $event)" />
+              </mat-slider>
+            </div>
+            @if (riskLivePreview(); as preview) {
+              @if (preview.active !== null) {
+                <p class="muted small">
+                  <strong>Active capital{{ preview.tier ? ' (' + preview.tier + ')' : '' }}:
+                  {{ preview.active | currency: 'GBP' }}</strong>
+                  — {{ preview.activePct | percent: '1.0-0' }} of your {{ preview.total | currency: 'GBP' }} account.
+                  This is the pool positions are sized from, set by your capital <em>tier</em> — not the locked slider.
+                  It grows as you unlock higher tiers (Tier&nbsp;1 = 10%, Tier&nbsp;2 = 20%, Tier&nbsp;3 = 50% of the account).
+                </p>
+                <p class="muted small">
+                  <strong>Max per trade: {{ preview.maxPerTrade | currency: 'GBP' }}</strong>
+                  = {{ draft.maxPositionPctOfActive | percent: '1.0-0' }} of active capital.
+                </p>
+              } @else {
+                <p class="muted small">Max per trade appears once your account has its first portfolio snapshot.</p>
+              }
             }
           }
 
@@ -395,6 +433,34 @@
             How many symbols Claude picks for your AI-managed watchlist each weekly refresh. More symbols means more
             candidates to scan but more Research/Monitor API calls every cycle — keep this lower if you're hitting
             provider rate limits.
+          </p>
+
+          <div class="slider-row">
+            <label>Stop-Loss: {{ draft.stopLossPct | percent: '1.0-1' }} below entry</label>
+            <mat-slider
+              [min]="profile.allowedRanges.stopLossPct.min"
+              [max]="profile.allowedRanges.stopLossPct.max"
+              step="0.005"
+              discrete
+            >
+              <input matSliderThumb [ngModel]="draft.stopLossPct" (ngModelChange)="updateRiskDraftField('stopLossPct', $event)" />
+            </mat-slider>
+          </div>
+
+          <div class="slider-row">
+            <label>Take-Profit Target: {{ draft.targetPct | percent: '1.0-1' }} above entry</label>
+            <mat-slider
+              [min]="profile.allowedRanges.targetPct.min"
+              [max]="profile.allowedRanges.targetPct.max"
+              step="0.005"
+              discrete
+            >
+              <input matSliderThumb [ngModel]="draft.targetPct" (ngModelChange)="updateRiskDraftField('targetPct', $event)" />
+            </mat-slider>
+          </div>
+          <p class="muted small">
+            Every position's stop and take-profit, as a fixed distance from its entry price. Target must exceed the
+            stop (a risk/reward below 1 is rejected at save).
           </p>
 
           <div class="slider-row">

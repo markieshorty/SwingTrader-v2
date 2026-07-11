@@ -21,6 +21,7 @@ public class ReportGenerationService(
     IReportRepository reportRepo,
     IApprovalRepository approvalRepo,
     IAccountRepository accountRepo,
+    IAccountRiskProfileRepository riskProfileRepo,
     IForexService forex,
     IMarketCalendarService marketCalendar,
     IClaudeRateLimiter claudeRateLimiter,
@@ -79,7 +80,7 @@ public class ReportGenerationService(
         var narratives = await GenerateNarrativesAsync(claude, buys, portfolio, market, gbpUsd, ct);
 
         // Step 5
-        await CalculateEntryLevelsAsync(buys, finnhub, ct);
+        await CalculateEntryLevelsAsync(accountId, buys, finnhub, ct);
 
         // Step 6 - ApprovalRequired is a per-account setting (Settings page),
         // not a global one - ApprovalConfig now only carries the base URL and
@@ -384,8 +385,12 @@ public class ReportGenerationService(
 
     // ── Step 5 ───────────────────────────────────────────────────────────────
 
-    private async Task CalculateEntryLevelsAsync(List<StockSignal> buys, IFinnhubClient finnhub, CancellationToken ct)
+    private async Task CalculateEntryLevelsAsync(int accountId, List<StockSignal> buys, IFinnhubClient finnhub, CancellationToken ct)
     {
+        // Stop/target now come from the risk profile (plain settings, not the
+        // old per-setup/per-conviction tables) - same values Execution uses.
+        var profile = await riskProfileRepo.GetAsync(accountId, ct);
+
         foreach (var signal in buys)
         {
             var price = signal.CurrentPrice;
@@ -396,7 +401,7 @@ public class ReportGenerationService(
             }
             catch { /* use signal.CurrentPrice */ }
 
-            var (stopLoss, target) = EntryLevelCalculator.Calculate(signal.SetupType, signal.ConvictionScore ?? 0m, price);
+            var (stopLoss, target) = EntryLevelCalculator.Calculate(price, profile.StopLossPct, profile.TargetPct);
 
             var gain = target - price;
             var risk = price - stopLoss;

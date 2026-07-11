@@ -51,11 +51,11 @@ public sealed record HistoricConfig(
     // diverged from live whenever the profile's values differed.
     decimal TrailingActivationPct = 0.05m,
     decimal TrailingDistancePct = 0.03m,
-    // Flat stop/target overrides (fractions, e.g. 0.06 = 6%). Null = the
-    // production EntryLevelCalculator table (setup-based stops, conviction-
-    // based targets) - these exist so the Lab can test nearer/farther exits.
-    decimal? StopLossPct = null,
-    decimal? TargetPct = null,
+    // Flat stop/target (fractions, e.g. 0.06 = 6%). Mirrors the live risk-
+    // profile settings (the old per-setup/per-conviction tables were removed
+    // 2026-07-12); defaults match CapitalRules.DefaultStopLossPct/TargetPct.
+    decimal StopLossPct = 0.05m,
+    decimal TargetPct = 0.08m,
     // Probation (momentum-health) simulation - mirrors the live two-phase
     // lifecycle: one check at MinHoldDays trading days, one grace day if
     // Borderline, forced exit if the thesis isn't playing out. On by default
@@ -261,10 +261,7 @@ public static class HistoricBacktester
                     var qty = Math.Floor(budget / entryBar.Open * 1000m) / 1000m;
                     if (qty <= 0) continue;
 
-                    var (stop, target) = Core.Trading.EntryLevelCalculator.Calculate(c.Setup, c.Conviction, entryBar.Open);
-                    // Flat Lab overrides beat the production table when set.
-                    if (cfg.StopLossPct is { } sp) stop = Math.Round(entryBar.Open * (1 - sp), 2);
-                    if (cfg.TargetPct is { } tp) target = Math.Round(entryBar.Open * (1 + tp), 2);
+                    var (stop, target) = Core.Trading.EntryLevelCalculator.Calculate(entryBar.Open, cfg.StopLossPct, cfg.TargetPct);
                     cash -= entryBar.Open * qty * (1 + CostPerSide);
                     open.Add(new Position
                     {

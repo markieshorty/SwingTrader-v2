@@ -165,14 +165,14 @@
                     (ngModelChange)="rulesTrailingDistance.set($event)" />
                 </mat-form-field>
                 <mat-form-field appearance="outline" subscriptSizing="dynamic"
-                  matTooltip="Blank = production's setup-based stops (5%, 6% Breakout, 4% VolumeSpike). A value overrides them all with one flat stop.">
-                  <mat-label>Stop-loss % (blank = per-setup table)</mat-label>
+                  matTooltip="Blank = your live Stop-Loss setting from the Risk Management tab. A value overrides it for this run only.">
+                  <mat-label>Stop-loss % (blank = live setting)</mat-label>
                   <input matInput type="number" min="1" max="15" step="0.5" [ngModel]="rulesStopLossPct()"
                     (ngModelChange)="rulesStopLossPct.set($event === null || $event === '' ? null : +$event)" />
                 </mat-form-field>
                 <mat-form-field appearance="outline" subscriptSizing="dynamic"
-                  matTooltip="Blank = production's conviction-based targets (+8% / +10% / +12%). A value overrides them all with one flat target. Below ~4% the simulation gets optimistic about fills — treat tight-target results with caution.">
-                  <mat-label>Target % (blank = per-conviction table)</mat-label>
+                  matTooltip="Blank = your live Take-Profit Target setting from the Risk Management tab. A value overrides it for this run only. Below ~4% the simulation gets optimistic about fills — treat tight-target results with caution.">
+                  <mat-label>Target % (blank = live setting)</mat-label>
                   <input matInput type="number" min="2" max="25" step="0.5" [ngModel]="rulesTargetPct()"
                     (ngModelChange)="rulesTargetPct.set($event === null || $event === '' ? null : +$event)" />
                 </mat-form-field>

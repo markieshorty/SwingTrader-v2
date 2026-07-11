@@ -262,15 +262,16 @@ public class ExecutionService(
             // anchored regardless of how stale the signal's own price is.
             // Falls back to the signal's precomputed levels if this fails -
             // not worth blocking the trade over one quote call.
-            var stopLossPrice = signal.CalculatedStopLoss ?? signal.CurrentPrice * 0.95m;
-            var targetPrice = signal.CalculatedTarget ?? signal.CurrentPrice * 1.08m;
+            var stopLossPrice = signal.CalculatedStopLoss ?? signal.CurrentPrice * (1 - riskProfile.StopLossPct);
+            var targetPrice = signal.CalculatedTarget ?? signal.CurrentPrice * (1 + riskProfile.TargetPct);
             try
             {
                 await rateLimiter.WaitAsync(ct);
                 var freshQuote = await finnhub.GetQuoteAsync(signal.Symbol);
                 if (freshQuote.CurrentPrice is > 0)
                 {
-                    var (freshStop, freshTarget) = EntryLevelCalculator.Calculate(signal.SetupType, signal.ConvictionScore ?? 0m, freshQuote.CurrentPrice.Value);
+                    var (freshStop, freshTarget) = EntryLevelCalculator.Calculate(
+                        freshQuote.CurrentPrice.Value, riskProfile.StopLossPct, riskProfile.TargetPct);
                     stopLossPrice = freshStop;
                     targetPrice = freshTarget;
                 }

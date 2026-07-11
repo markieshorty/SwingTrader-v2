@@ -128,8 +128,10 @@ public class BacktestConsumerFunction(
         ExcludedSetups: ParseSetups(rules?.ExcludedSetups),
         TrailingActivationPct: rules?.TrailingActivationPct ?? (decimal)profile.TrailingActivationPct,
         TrailingDistancePct: rules?.TrailingDistancePct ?? (decimal)profile.TrailingDistancePct,
-        StopLossPct: rules?.StopLossPct,
-        TargetPct: rules?.TargetPct,
+        // Null rule = the live risk-profile setting (the tables are gone), so
+        // an untouched Lab run simulates exactly what production will do.
+        StopLossPct: rules?.StopLossPct ?? profile.StopLossPct,
+        TargetPct: rules?.TargetPct ?? profile.TargetPct,
         SimulateProbation: rules?.SimulateProbation ?? true,
         MinHoldDays: rules?.MinHoldDays ?? profile.MinHoldDays,
         MomentumHealthThreshold: rules?.MomentumHealthThreshold ?? profile.MomentumHealthThreshold,

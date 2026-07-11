@@ -60,6 +60,25 @@ public static class CapitalRules
     public const decimal MinMomentumHealthThreshold = 0.20m;
     public const decimal MaxMomentumHealthThreshold = 0.60m;
 
+    // Flat stop-loss / take-profit settings (replaced EntryLevelCalculator's
+    // per-setup / per-conviction tables 2026-07-12). Defaults match the old
+    // tables' common case (5% stop, +8% target); bounds keep a fat-fingered
+    // value from creating instant-stop-out or never-reachable orders.
+    public const decimal DefaultStopLossPct = 0.05m;
+    public const decimal MinStopLossPct = 0.02m;
+    public const decimal MaxStopLossPct = 0.15m;
+    public const decimal DefaultTargetPct = 0.08m;
+    public const decimal MinTargetPct = 0.03m;
+    public const decimal MaxTargetPct = 0.30m;
+
+    // Flat position sizing (the tier-ladder override). "Flat" budgets every
+    // position as FlatPositionPct of the whole portfolio, bypassing the tier
+    // pool and MaxPositionPctOfActive - but never the locked-capital ceiling:
+    // Validate() requires FlatPositionPct x MaxOpenPositions <= 1 - locked.
+    public const decimal DefaultFlatPositionPct = 0.10m;
+    public const decimal MinFlatPositionPct = 0.02m;
+    public const decimal MaxFlatPositionPct = 0.25m;
+
     // How many symbols Claude selects for the weekly AI-managed watchlist
     // refresh (WatchlistSelectionService). Bounded below by having enough
     // breadth for the screener/Research pipeline to be useful, and above by

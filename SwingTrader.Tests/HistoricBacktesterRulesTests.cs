@@ -123,16 +123,16 @@ public class HistoricBacktesterRulesTests
     }
 
     [Fact]
-    public async Task NullOverrides_UseProductionEntryLevelTable()
+    public async Task DefaultStopTarget_MatchesExplicitProfileDefaults()
     {
-        // With no overrides the +8/10/12% targets are far on this oscillator,
-        // so the explicit-null run must equal a run built from defaults.
+        // Config defaults (5%/8%) must equal spelling the same values out -
+        // pins that the engine's defaults track CapitalRules defaults.
         var defaults = await HistoricBacktester.RunAsync(Market(), Config());
-        var explicitNulls = await HistoricBacktester.RunAsync(
-            Market(), Config() with { StopLossPct = null, TargetPct = null });
+        var explicit58 = await HistoricBacktester.RunAsync(
+            Market(), Config() with { StopLossPct = 0.05m, TargetPct = 0.08m });
 
-        explicitNulls.Trades.Should().Be(defaults.Trades);
-        explicitNulls.ExpectancyPct.Should().Be(defaults.ExpectancyPct);
+        explicit58.Trades.Should().Be(defaults.Trades);
+        explicit58.ExpectancyPct.Should().Be(defaults.ExpectancyPct);
     }
 
     [Fact]

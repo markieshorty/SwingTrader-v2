@@ -11,6 +11,67 @@ public class PositionSizingServiceTests
     private static StockSignal MakeSignal(decimal price = 100m) => new() { Symbol = "AAA", CurrentPrice = price };
 
     [Fact]
+    public async Task CalculateAsync_FlatMode_BudgetsFixedSliceOfPortfolio_IgnoringTier()
+    {
+        // Flat 15% of a £10,000 account = £1,500/position - even at Tier 1,
+        // whose pool sizing would only have allowed £10,000 x 10% x 40% = £400.
+        var sut = new PositionSizingService();
+        var profile = new AccountRiskProfile
+        {
+            SizingMode = PositionSizingMode.Flat,
+            FlatPositionPct = 0.15m,
+            MaxOpenPositions = 2,
+            LockedCapitalPct = 0.60m, // 15% x 2 = 30% <= 40% un-locked
+        };
+
+        var result = await sut.CalculateAsync(MakeSignal(price: 100m), CapitalTier.Tier1, currentOpenPositions: 0,
+            availableCash: 10000m, totalPortfolioValue: 10000m, profile);
+
+        result.CanTrade.Should().BeTrue();
+        result.EstimatedCost.Should().Be(1500m);
+    }
+
+    [Fact]
+    public async Task CalculateAsync_FlatMode_CashBufferStillApplies()
+    {
+        // Only £300 cash on a £10,000 book: spendable = 300 - 200 buffer = £100,
+        // well under the £1,500 flat budget.
+        var sut = new PositionSizingService();
+        var profile = new AccountRiskProfile
+        {
+            SizingMode = PositionSizingMode.Flat,
+            FlatPositionPct = 0.15m,
+            MaxOpenPositions = 2,
+            LockedCapitalPct = 0.60m,
+        };
+
+        var result = await sut.CalculateAsync(MakeSignal(price: 10m), CapitalTier.Tier3, currentOpenPositions: 0,
+            availableCash: 300m, totalPortfolioValue: 10000m, profile);
+
+        result.CanTrade.Should().BeTrue();
+        result.EstimatedCost.Should().BeLessThanOrEqualTo(100m);
+    }
+
+    [Fact]
+    public async Task CalculateAsync_FlatMode_MaxOpenPositionsStillEnforced()
+    {
+        var sut = new PositionSizingService();
+        var profile = new AccountRiskProfile
+        {
+            SizingMode = PositionSizingMode.Flat,
+            FlatPositionPct = 0.15m,
+            MaxOpenPositions = 2,
+            LockedCapitalPct = 0.60m,
+        };
+
+        var result = await sut.CalculateAsync(MakeSignal(), CapitalTier.Tier3, currentOpenPositions: 2,
+            availableCash: 10000m, totalPortfolioValue: 10000m, profile);
+
+        result.CanTrade.Should().BeFalse();
+        result.RejectionReason.Should().Contain("Max open positions");
+    }
+
+    [Fact]
     public async Task CalculateAsync_OpenPositionsAtProfileMax_Rejects()
     {
         var sut = new PositionSizingService();

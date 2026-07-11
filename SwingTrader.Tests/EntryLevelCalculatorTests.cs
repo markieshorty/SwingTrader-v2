@@ -1,47 +1,36 @@
 using FluentAssertions;
-using SwingTrader.Core.Enums;
 using SwingTrader.Core.Trading;
 using Xunit;
 
 namespace SwingTrader.Tests;
 
-// Shared by ReportGenerationService and ExecutionService - the same
-// percentage table must produce identical distances regardless of which
-// price snapshot it's applied to (Report's ~6:30 ET quote vs. Execution's
-// own live quote right before placing the order).
+// Stop/target maths after the 2026-07-12 rewrite: the per-setup and
+// per-conviction tables are gone, replaced by the risk profile's flat
+// StopLossPct/TargetPct. The calculator is now pure percentage arithmetic
+// shared by Report (display levels), Execution (order levels) and the
+// backtester - identical distances from whatever price each caller holds.
 public class EntryLevelCalculatorTests
 {
     [Theory]
-    [InlineData(SetupType.Breakout, 0.940)]
-    [InlineData(SetupType.VolumeSpike, 0.960)]
-    [InlineData(SetupType.TrendFollowing, 0.950)]
-    public void Calculate_StopLossDistance_MatchesSetupType(SetupType setupType, double expectedFraction)
+    [InlineData(100, 0.05, 0.08, 95.00, 108.00)]   // defaults
+    [InlineData(100, 0.07, 0.10, 93.00, 110.00)]   // the Lab-validated config
+    [InlineData(55.55, 0.05, 0.08, 52.77, 59.99)]  // rounding to 2dp
+    public void Calculate_AppliesFlatPercentages(
+        double price, double stop, double target, double expectedStop, double expectedTarget)
     {
-        var (stopLoss, _) = EntryLevelCalculator.Calculate(setupType, convictionScore: 5m, price: 100m);
+        var (stopLoss, targetPrice) = EntryLevelCalculator.Calculate((decimal)price, (decimal)stop, (decimal)target);
 
-        stopLoss.Should().Be(Math.Round(100m * (decimal)expectedFraction, 2));
-    }
-
-    [Theory]
-    [InlineData(9.5, 1.120)]
-    [InlineData(9.0, 1.120)]
-    [InlineData(8.5, 1.100)]
-    [InlineData(8.0, 1.100)]
-    [InlineData(5.0, 1.080)]
-    public void Calculate_TargetDistance_MatchesConvictionTier(double convictionScore, double expectedFraction)
-    {
-        var (_, target) = EntryLevelCalculator.Calculate(SetupType.TrendFollowing, (decimal)convictionScore, price: 100m);
-
-        target.Should().Be(Math.Round(100m * (decimal)expectedFraction, 2));
+        stopLoss.Should().Be((decimal)expectedStop);
+        targetPrice.Should().Be((decimal)expectedTarget);
     }
 
     [Fact]
-    public void Calculate_SamePercentages_ScaleToWhicheverPriceIsPassedIn()
+    public void Calculate_SameDistancesRegardlessOfPriceSnapshot()
     {
-        // The whole point of extracting this - Report and Execution each
-        // supply their own live price, and must get the same distance.
-        var (reportStop, reportTarget) = EntryLevelCalculator.Calculate(SetupType.Breakout, 9.0m, price: 50m);
-        var (executionStop, executionTarget) = EntryLevelCalculator.Calculate(SetupType.Breakout, 9.0m, price: 55m);
+        // Report computes levels off its price, Execution off a fresher one -
+        // the PERCENTAGE distances must be identical either way.
+        var (reportStop, reportTarget) = EntryLevelCalculator.Calculate(50m, 0.05m, 0.08m);
+        var (executionStop, executionTarget) = EntryLevelCalculator.Calculate(55m, 0.05m, 0.08m);
 
         (reportStop / 50m).Should().Be(executionStop / 55m);
         (reportTarget / 50m).Should().Be(executionTarget / 55m);

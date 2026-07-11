@@ -136,8 +136,8 @@ export class StrategyLabComponent {
   rulesMaxOpenPositions = signal(3);
   rulesTrailingActivation = signal(5); // percent, converted to fraction on send
   rulesTrailingDistance = signal(3);
-  // Blank = production's EntryLevelCalculator table (setup-based stops,
-  // conviction-based targets); a value = flat override for the run.
+  // Blank = your live risk-profile stop/target settings (the old per-setup/
+  // per-conviction tables were removed); a value = override for this run.
   rulesStopLossPct = signal<number | null>(null);
   rulesTargetPct = signal<number | null>(null);
   rulesSimulateProbation = signal(true);
@@ -758,6 +758,10 @@ export class StrategyLabComponent {
           momentumHealthThreshold: p.momentumHealthThreshold,
           targetWatchlistSize: p.targetWatchlistSize,
           autopauseDuringBear: autopause,
+          stopLossPct: p.stopLossPct,
+          targetPct: p.targetPct,
+          sizingMode: p.sizingMode,
+          flatPositionPct: p.flatPositionPct,
         }).subscribe({
           next: () => {
             this.productionAutopauseBear = autopause;

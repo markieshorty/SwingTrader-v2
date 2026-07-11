@@ -174,7 +174,9 @@ public static class BacktestEngine
                     var qty = Math.Floor(budget / entryBar.Open * 1000m) / 1000m;
                     if (qty <= 0) continue;
 
-                    var (stop, target) = EntryLevelCalculator.Calculate(c.Setup, c.Conviction, entryBar.Open);
+                    // Fixed 5%/8% here (the console tool has no risk profile);
+                    // matches CapitalRules defaults.
+                    var (stop, target) = EntryLevelCalculator.Calculate(entryBar.Open, 0.05m, 0.08m);
                     cash -= entryBar.Open * qty * (1 + CostPerSide);
                     open.Add(new Position
                     {

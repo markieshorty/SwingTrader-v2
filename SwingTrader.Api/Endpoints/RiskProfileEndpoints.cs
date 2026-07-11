@@ -48,6 +48,10 @@ public static class RiskProfileEndpoints
                 profile.MomentumHealthThreshold,
                 profile.TargetWatchlistSize,
                 profile.AutopauseDuringBear,
+                profile.StopLossPct,
+                profile.TargetPct,
+                SizingMode = profile.SizingMode.ToString(),
+                profile.FlatPositionPct,
                 profile.RiskLabel,
                 BuyThreshold = weights?.BuyThreshold,
                 WatchThreshold = weights?.WatchThreshold,
@@ -82,6 +86,9 @@ public static class RiskProfileEndpoints
                     MinHoldDays = new { Min = CapitalRules.AbsoluteMinHoldDays, Max = profile.MaxHoldDays - 1 },
                     MomentumHealthThreshold = new { Min = CapitalRules.MinMomentumHealthThreshold, Max = CapitalRules.MaxMomentumHealthThreshold },
                     TargetWatchlistSize = new { Min = CapitalRules.MinTargetWatchlistSize, Max = CapitalRules.MaxTargetWatchlistSize },
+                    StopLossPct = new { Min = CapitalRules.MinStopLossPct, Max = CapitalRules.MaxStopLossPct },
+                    TargetPct = new { Min = CapitalRules.MinTargetPct, Max = CapitalRules.MaxTargetPct },
+                    FlatPositionPct = new { Min = CapitalRules.MinFlatPositionPct, Max = CapitalRules.MaxFlatPositionPct },
                 },
             });
         });
@@ -115,6 +122,12 @@ public static class RiskProfileEndpoints
                     MomentumHealthThreshold = req.MomentumHealthThreshold,
                     TargetWatchlistSize = req.TargetWatchlistSize,
                     AutopauseDuringBear = req.AutopauseDuringBear,
+                    StopLossPct = req.StopLossPct,
+                    TargetPct = req.TargetPct,
+                    SizingMode = Enum.TryParse<PositionSizingMode>(req.SizingMode, ignoreCase: true, out var mode)
+                        ? mode
+                        : PositionSizingMode.TierLadder,
+                    FlatPositionPct = req.FlatPositionPct,
                 });
                 return Results.Ok();
             }

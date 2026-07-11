@@ -30,6 +30,23 @@ public class PositionSizingService : IPositionSizingService
             return Task.FromResult(new PositionSizeResult(false, 0, 0,
                 $"Max open positions ({riskProfile.MaxOpenPositions}) already reached"));
 
+        // Flat mode (SizingMode override): every position is a fixed slice of
+        // the whole portfolio - the tier pool and MaxPositionPctOfActive are
+        // deliberately bypassed. The locked-capital ceiling is enforced
+        // structurally by AccountRiskProfile.Validate() (flat x maxPositions
+        // <= un-locked share); the position cap above, the cash buffer, and
+        // the daily circuit breaker all still apply.
+        if (riskProfile.SizingMode == PositionSizingMode.Flat)
+        {
+            var flatSpendable = availableCash - totalPortfolioValue * 0.02m;
+            if (flatSpendable <= 0)
+                return Task.FromResult(new PositionSizeResult(false, 0, 0,
+                    "Insufficient cash after applying 2% buffer"));
+
+            var flatBudget = Math.Min(totalPortfolioValue * riskProfile.FlatPositionPct, flatSpendable);
+            return Task.FromResult(SizeFromBudget(signal, flatBudget, priceOverride));
+        }
+
         // Step 2 — determine active capital % for the current tier (cumulative)
         var activeCapitalPct = currentTier switch
         {
@@ -69,24 +86,27 @@ public class PositionSizingService : IPositionSizingService
         // cash, and the active pool's remaining headroom (step 4b)
         var positionBudget = Math.Min(Math.Min(maxPositionBudget, spendableCash), remainingActiveCapital);
 
+        return Task.FromResult(SizeFromBudget(signal, positionBudget, priceOverride));
+    }
+
+    // Budget -> fractional quantity, shared by both sizing modes.
+    private static PositionSizeResult SizeFromBudget(StockSignal signal, decimal positionBudget, decimal? priceOverride)
+    {
         // Use the caller-supplied (GBP-converted) price when given so the budget
         // (GBP) and price are the same currency — otherwise the quantity would be
         // wrong by roughly the FX rate. Falls back to the signal's USD price.
         var price = priceOverride ?? signal.CurrentPrice;
         if (price <= 0)
-            return Task.FromResult(new PositionSizeResult(false, 0, 0,
-                "Signal price is zero or negative"));
+            return new PositionSizeResult(false, 0, 0, "Signal price is zero or negative");
 
-        // Step 7 — compute fractional quantity (3 decimal places), verify ≥ 1 share cost
+        // Fractional quantity (3 decimal places), verify ≥ 1 share cost
         var rawQuantity = positionBudget / price;
         var quantity = Math.Floor(rawQuantity * 1000m) / 1000m; // truncate to 3dp
 
         if (quantity <= 0)
-            return Task.FromResult(new PositionSizeResult(false, 0, 0,
-                $"Position budget ${positionBudget:F2} is insufficient for one share at ${price:F2}"));
+            return new PositionSizeResult(false, 0, 0,
+                $"Position budget ${positionBudget:F2} is insufficient for one share at ${price:F2}");
 
-        var estimatedCost = quantity * price;
-
-        return Task.FromResult(new PositionSizeResult(true, quantity, estimatedCost, null));
+        return new PositionSizeResult(true, quantity, quantity * price, null);
     }
 }

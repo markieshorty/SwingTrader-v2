@@ -1,4 +1,5 @@
 using SwingTrader.Core.Constants;
+using SwingTrader.Core.Enums;
 using System.ComponentModel.DataAnnotations;
 
 namespace SwingTrader.Core.Models;
@@ -33,6 +34,23 @@ public class AccountRiskProfile : BaseEntity
     // rather than being left to run untested until MaxHoldDays.
     public int MinHoldDays { get; set; } = CapitalRules.DefaultMinHoldDays;
     public decimal MomentumHealthThreshold { get; set; } = CapitalRules.DefaultMomentumHealthThreshold;
+
+    // Flat stop-loss / take-profit (fractions: 0.07 = 7% below entry, 0.10 =
+    // +10% above). These REPLACED EntryLevelCalculator's per-setup and
+    // per-conviction tables (2026-07-12); the Lab's rules panel reads them as
+    // its defaults, keeping backtest and live in lockstep.
+    public decimal StopLossPct { get; set; } = CapitalRules.DefaultStopLossPct;
+    public decimal TargetPct { get; set; } = CapitalRules.DefaultTargetPct;
+
+    // Position sizing mode. TierLadder (default) budgets from the earned
+    // tier's active-capital pool; Flat budgets every position as
+    // FlatPositionPct of the whole portfolio - the deliberate "I understand
+    // the training wheels and I'm choosing to take them off" override. Tier
+    // evaluation and readiness keep running either way; Flat only stops the
+    // tier from GATING size. Locked capital remains a hard ceiling in both
+    // modes (see Validate()).
+    public PositionSizingMode SizingMode { get; set; } = PositionSizingMode.TierLadder;
+    public decimal FlatPositionPct { get; set; } = CapitalRules.DefaultFlatPositionPct;
 
     // How many symbols Claude selects for the weekly AI-managed watchlist
     // refresh - previously a fixed WatchlistConfig value shared by every
@@ -92,6 +110,27 @@ public class AccountRiskProfile : BaseEntity
         var activePct = 1.0m - LockedCapitalPct;
         if (MaxPositionPctOfActive > activePct)
             throw new ValidationException("Max position exceeds available active capital");
+
+        if (StopLossPct < CapitalRules.MinStopLossPct || StopLossPct > CapitalRules.MaxStopLossPct)
+            throw new ValidationException(
+                $"Stop-loss must be {CapitalRules.MinStopLossPct:P0}-{CapitalRules.MaxStopLossPct:P0}");
+
+        if (TargetPct < CapitalRules.MinTargetPct || TargetPct > CapitalRules.MaxTargetPct)
+            throw new ValidationException(
+                $"Target must be {CapitalRules.MinTargetPct:P0}-{CapitalRules.MaxTargetPct:P0}");
+
+        if (TargetPct <= StopLossPct)
+            throw new ValidationException("Target must exceed the stop-loss (risk/reward below 1 is a losing structure)");
+
+        if (FlatPositionPct < CapitalRules.MinFlatPositionPct || FlatPositionPct > CapitalRules.MaxFlatPositionPct)
+            throw new ValidationException(
+                $"Flat position size must be {CapitalRules.MinFlatPositionPct:P0}-{CapitalRules.MaxFlatPositionPct:P0}");
+
+        // Flat mode bypasses the tier pool but NEVER the locked-capital
+        // ceiling: full deployment must fit inside the un-locked share.
+        if (SizingMode == PositionSizingMode.Flat && FlatPositionPct * MaxOpenPositions > activePct)
+            throw new ValidationException(
+                $"Flat sizing ({FlatPositionPct:P0} × {MaxOpenPositions} positions) exceeds the un-locked share of the account ({activePct:P0}) — lower the flat size, position count, or locked capital");
 
         if (MaxHoldDays < CapitalRules.MinMaxHoldDays || MaxHoldDays > CapitalRules.MaxMaxHoldDays)
             throw new ValidationException(

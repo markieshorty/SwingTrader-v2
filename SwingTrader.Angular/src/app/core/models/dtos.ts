@@ -788,6 +788,10 @@ export interface RiskProfileDto {
   momentumHealthThreshold: number;
   targetWatchlistSize: number;
   autopauseDuringBear: boolean;
+  stopLossPct: number;   // flat stop, fraction (0.05 = 5%) — replaced the per-setup table
+  targetPct: number;     // flat take-profit, fraction — replaced the per-conviction table
+  sizingMode: 'TierLadder' | 'Flat';
+  flatPositionPct: number; // Flat mode: fraction of the whole portfolio per position
   riskLabel: string;
   buyThreshold: number | null;
   watchThreshold: number | null;
@@ -815,6 +819,9 @@ export interface RiskProfileDto {
     minHoldDays: RiskProfileRangeDto;
     momentumHealthThreshold: RiskProfileRangeDto;
     targetWatchlistSize: RiskProfileRangeDto;
+    stopLossPct: RiskProfileRangeDto;
+    targetPct: RiskProfileRangeDto;
+    flatPositionPct: RiskProfileRangeDto;
   };
 }
 
@@ -835,6 +842,10 @@ export interface UpdateRiskProfileDto {
   momentumHealthThreshold: number;
   targetWatchlistSize: number;
   autopauseDuringBear: boolean;
+  stopLossPct: number;
+  targetPct: number;
+  sizingMode: 'TierLadder' | 'Flat';
+  flatPositionPct: number;
 }
 
 export interface NotificationRecipientDto {

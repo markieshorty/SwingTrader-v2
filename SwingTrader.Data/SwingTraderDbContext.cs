@@ -344,6 +344,18 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.HasIndex(x => new { x.AccountId, x.Provider }).IsUnique();
         });
 
+        modelBuilder.Entity<AccountRiskProfile>(e =>
+        {
+            // Fractions like 0.075 (7.5%) need 4dp - the convention default
+            // decimal(18,2) would silently truncate to whole percents. DB
+            // defaults double as the backfill for pre-existing rows, so an
+            // account created before this migration gets the same 5%/8%
+            // behaviour it effectively had under the old hardcoded tables.
+            e.Property(x => x.StopLossPct).HasPrecision(5, 4).HasDefaultValue(0.05m);
+            e.Property(x => x.TargetPct).HasPrecision(5, 4).HasDefaultValue(0.08m);
+            e.Property(x => x.FlatPositionPct).HasPrecision(5, 4).HasDefaultValue(0.10m);
+        });
+
         // Sentiment archive (edge-plan Phase 4). Account-agnostic; the unique
         // score index is what makes multi-account same-day research idempotent.
         modelBuilder.Entity<SentimentArticle>(e =>
