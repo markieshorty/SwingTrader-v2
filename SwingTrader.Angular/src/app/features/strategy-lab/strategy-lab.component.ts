@@ -524,7 +524,11 @@ export class StrategyLabComponent {
         this.sweepStatus,
         (result) => {
           if (result && 'mode' in result && result.mode === 'sweep') this.sweepResult.set(result);
-          else this.snackbar.open('Unexpected optimizer result shape.', 'Dismiss', { duration: 5000 });
+          // Only warn on a genuinely unexpected COMPLETED payload - a null
+          // here means the job failed, and pollRun already surfaced the real
+          // "Job failed: <error>" message; showing a generic shape warning
+          // would just clobber it (which is exactly what hid a SQL timeout).
+          else if (result) this.snackbar.open('Unexpected optimizer result shape.', 'Dismiss', { duration: 5000 });
           this.optimizing.set(false);
           this.sweepProgress.set(null);
         }),
