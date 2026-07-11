@@ -18,7 +18,7 @@
               <mat-select [ngModel]="dataSource()" (ngModelChange)="dataSource.set($event)">
                 <mat-option value="own">Backtest against your own trade history</mat-option>
                 <mat-option value="historic" [disabled]="dataStatusLoading() || !historicAvailable()">
-                  Backtest against up to 5 years of market data{{
+                  Backtest against up to 10 years of market data{{
                     dataStatusLoading() ? ' (checking…)' : (historicAvailable() ? '' : ' (no data synced yet)')
                   }}
                 </mat-option>
@@ -40,7 +40,7 @@
           } @else {
             <p class="muted small">
               Historic mode replays the full strategy — screener, scoring, entries and exits — over the S&amp;P 1500
-              across up to 5 years of daily bars. It runs server-side and takes a few minutes. Caveats: no Claude selection,
+              across up to 10 years of daily bars. It runs server-side and takes a few minutes. Caveats: no Claude selection,
               sentiment neutral, today's index membership — use it to <em>compare</em> dial settings, not predict returns.
             </p>
           }

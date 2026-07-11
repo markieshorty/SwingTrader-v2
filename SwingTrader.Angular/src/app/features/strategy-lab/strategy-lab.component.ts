@@ -326,7 +326,7 @@ export class StrategyLabComponent {
     this.syncing.set(true);
     this.api.syncLabData().subscribe({
       next: () => {
-        this.snackbar.open('Candle sync queued — a full 5-year load takes ~25 minutes. Check back shortly.', 'Dismiss', { duration: 6000 });
+        this.snackbar.open('Candle sync queued — the one-off backfill to the full 10-year window takes ~45 minutes; incremental runs after that are quick. Check back shortly.', 'Dismiss', { duration: 6000 });
         this.syncing.set(false);
       },
       error: (err) => {
