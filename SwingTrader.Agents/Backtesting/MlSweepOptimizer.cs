@@ -118,13 +118,29 @@ public static class MlSweepOptimizer
             };
         }
 
-        // Feasible candidates compete on market-adjusted expectancy; the
-        // infeasible are pushed behind ALL of them but still ordered by how
-        // close they came, so a generation with no feasible member still
-        // gives the search a slope back toward feasibility.
+        // Feasible candidates compete on the WORSE of their two train-window
+        // halves (split-half adjusted expectancy), not the overall number.
+        // The failure mode the final out-of-sample validation keeps catching
+        // is a candidate that won the train window by being lucky in one
+        // stretch of it - that profile scores well overall but poorly on its
+        // weak half, so ranking on the weak half cuts it at the screening
+        // stage instead of spending deep-search budget on it. Deliberately
+        // NOT the holdout: the moment survivor selection touched holdout
+        // data, the final "held up out-of-sample" verdict would be
+        // optimized-on and meaningless. Note the reported summaries still
+        // carry the full-window AdjustedExpectancyPct - this consistency
+        // score only steers the search and the halving.
+        //
+        // The infeasible are pushed behind ALL feasible candidates but still
+        // ordered by how close they came, so a generation with no feasible
+        // member still gives the search a slope back toward feasibility.
         double Fitness(SweepCandidateResult summary, HistoricResult result)
         {
-            if (summary.MetConstraints) return -(double)summary.AdjustedExpectancyPct;
+            if (summary.MetConstraints)
+            {
+                var (early, late) = SweepOptimizer.SplitHalfAdjustedExpectancy(result, trainSpy);
+                return -(double)Math.Min(early, late);
+            }
             if (result.Trades < SweepOptimizer.MinTrainTrades)
                 return InfeasiblePenalty + (SweepOptimizer.MinTrainTrades - result.Trades);
             var ceiling = baselineMaxDrawdownPct * SweepOptimizer.MaxDrawdownCeilingFactor;

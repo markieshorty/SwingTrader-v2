@@ -33,13 +33,21 @@ public class MlSweepOptimizerTests
     // move over the same days), not from the ExpectancyPct field directly -
     // so the summary's AdjustedExpectancyPct only reflects `expectancy` if
     // the trade log actually encodes it. SPY is flat here, so each trade's
-    // raw return passes through unadjusted.
+    // raw return passes through unadjusted. Trades are spread evenly across
+    // the whole window so BOTH halves of the split-half consistency score
+    // (the ML search's actual fitness) see the same expectancy - a log
+    // bunched into one half would zero the other half and flatten the
+    // fitness landscape these tests rely on.
     private static HistoricResult Result(int trades, decimal expectancy, decimal maxDd)
     {
         var log = Enumerable.Range(0, trades)
-            .Select(i => new HistoricTrade(
-                "TEST", FlatSpy[0].Date.AddDays(i), FlatSpy[0].Date.AddDays(i + 5),
-                100m, 100m * (1 + expectancy / 100m), SetupType.MomentumContinuation, 6.5m, "Target", expectancy))
+            .Select(i =>
+            {
+                var entry = FlatSpy[0].Date.AddDays(i * 350.0 / trades);
+                return new HistoricTrade(
+                    "TEST", entry, entry.AddDays(5),
+                    100m, 100m * (1 + expectancy / 100m), SetupType.MomentumContinuation, 6.5m, "Target", expectancy);
+            })
             .ToList();
         return new(new DateTime(2024, 1, 1), new DateTime(2025, 1, 1),
             trades, 0.5m, 5m, -5m, expectancy, 1.1m, 10m, maxDd, 20m,

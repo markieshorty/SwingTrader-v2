@@ -264,14 +264,34 @@ public static class SweepOptimizer
     // Market-adjusted expectancy: for each closed trade, subtract SPY's return
     // over the same holding period, then average. This stops the objective
     // rewarding configs merely for being long during a rising market.
-    public static decimal AdjustedExpectancy(HistoricResult result, DailyBar[] spy)
+    public static decimal AdjustedExpectancy(HistoricResult result, DailyBar[] spy) =>
+        AdjustedExpectancy(result.TradeLog, spy);
+
+    // Split-half consistency check: the same adjusted expectancy computed
+    // separately over the earlier and later halves of the result's own
+    // window (trades split by entry date at the calendar midpoint). Costs
+    // nothing - it re-reads the trade log the backtest already produced.
+    // A candidate that made all its money in one stretch of the tuning
+    // window scores well overall but poorly on its weak half, and that
+    // lucky-in-one-regime profile is exactly what tends to collapse
+    // out-of-sample - so the ML search ranks on the WORSE half (see
+    // MlSweepOptimizer) while the holdout stays untouched for the final
+    // verdict.
+    public static (decimal Early, decimal Late) SplitHalfAdjustedExpectancy(HistoricResult result, DailyBar[] spy)
     {
-        if (result.TradeLog.Count == 0) return 0m;
+        var midpoint = result.From + (result.To - result.From) / 2;
+        return (
+            AdjustedExpectancy(result.TradeLog.Where(t => t.EntryDate < midpoint), spy),
+            AdjustedExpectancy(result.TradeLog.Where(t => t.EntryDate >= midpoint), spy));
+    }
+
+    private static decimal AdjustedExpectancy(IEnumerable<HistoricTrade> trades, DailyBar[] spy)
+    {
         var spyByDate = spy.ToDictionary(b => b.Date, b => b.Close);
 
         decimal total = 0m;
         var counted = 0;
-        foreach (var t in result.TradeLog)
+        foreach (var t in trades)
         {
             if (!spyByDate.TryGetValue(t.EntryDate, out var spyEntry) ||
                 !spyByDate.TryGetValue(t.ExitDate, out var spyExit) || spyEntry <= 0)

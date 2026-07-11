@@ -117,6 +117,46 @@ public class SweepOptimizerTests
     }
 
     [Fact]
+    public void SplitHalfAdjustedExpectancy_SplitsTradesAtTheWindowMidpoint()
+    {
+        // Window is 2024-01-01 .. 2025-01-01 (Result helper), midpoint ~1 Jul.
+        // Two +2% trades land in the early half, one -1% trade in the late
+        // half; SPY is flat so raw returns pass through unadjusted. The ML
+        // search ranks candidates on the WORSE half, so this lopsided log
+        // must score -1, not the +1 the full-window average would show.
+        var spy = new[] { new DailyBar(new DateTime(2024, 1, 1), 100m, 100m, 100m, 100m, 1m) };
+        var log = new List<HistoricTrade>
+        {
+            new("A", new DateTime(2024, 2, 1), new DateTime(2024, 2, 10), 100m, 102m, Core.Enums.SetupType.MomentumContinuation, 6.5m, "Target", 2m),
+            new("B", new DateTime(2024, 4, 1), new DateTime(2024, 4, 10), 100m, 102m, Core.Enums.SetupType.MomentumContinuation, 6.5m, "Target", 2m),
+            new("C", new DateTime(2024, 10, 1), new DateTime(2024, 10, 10), 100m, 99m, Core.Enums.SetupType.MomentumContinuation, 6.5m, "StopLoss", -1m),
+        };
+
+        var (early, late) = SweepOptimizer.SplitHalfAdjustedExpectancy(Result(3, 1m, 5m, log), spy);
+
+        early.Should().Be(2.00m);
+        late.Should().Be(-1.00m);
+    }
+
+    [Fact]
+    public void SplitHalfAdjustedExpectancy_EmptyHalfScoresZero()
+    {
+        // A candidate whose trades all bunch into one half gets 0 for the
+        // empty half - min(expectancy, 0) then caps its consistency score,
+        // which is the intended suspicion toward one-regime candidates.
+        var spy = new[] { new DailyBar(new DateTime(2024, 1, 1), 100m, 100m, 100m, 100m, 1m) };
+        var log = new List<HistoricTrade>
+        {
+            new("A", new DateTime(2024, 2, 1), new DateTime(2024, 2, 10), 100m, 103m, Core.Enums.SetupType.MomentumContinuation, 6.5m, "Target", 3m),
+        };
+
+        var (early, late) = SweepOptimizer.SplitHalfAdjustedExpectancy(Result(1, 3m, 5m, log), spy);
+
+        early.Should().Be(3.00m);
+        late.Should().Be(0m);
+    }
+
+    [Fact]
     public void Summarise_RejectsTooFewTrades_AndExcessiveDrawdown()
     {
         var spy = new[] { new DailyBar(new DateTime(2024, 1, 1), 100m, 100m, 100m, 100m, 1m) };
