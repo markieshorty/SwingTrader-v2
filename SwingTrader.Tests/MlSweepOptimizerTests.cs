@@ -63,7 +63,7 @@ public class MlSweepOptimizerTests
         var evaluations = await MlSweepOptimizer.OptimizeAsync(
             baseline,
             (c, ct) => Task.FromResult(Result(trades: 50, expectancy: 1.0m, maxDd: 10m)),
-            FlatSpy, baselineMaxDrawdownPct: 15m, CancellationToken.None);
+            FlatSpy, baselineMaxDrawdownPct: 15m, baselineTrades: 0, CancellationToken.None);
 
         evaluations.Should().HaveCount(MlSweepOptimizer.ActualCandidateCount);
         evaluations.Should().AllSatisfy(e =>
@@ -82,8 +82,8 @@ public class MlSweepOptimizerTests
         Task<HistoricResult> Evaluate(HistoricBacktestCandidate c, CancellationToken ct) =>
             Task.FromResult(Result(trades: 50, expectancy: c.Weights.Rsi * 10, maxDd: 10m));
 
-        var sequential = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, CancellationToken.None);
-        var parallel = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, CancellationToken.None, maxParallelism: 4);
+        var sequential = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, baselineTrades: 0, CancellationToken.None);
+        var parallel = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, baselineTrades: 0, CancellationToken.None, maxParallelism: 4);
 
         sequential.Select(e => e.Summary.Weights).Should().Equal(parallel.Select(e => e.Summary.Weights));
         sequential.Select(e => e.Summary.Label).Should().Equal(parallel.Select(e => e.Summary.Label));
@@ -99,7 +99,7 @@ public class MlSweepOptimizerTests
         var evaluations = await MlSweepOptimizer.OptimizeAsync(
             baseline,
             (c, ct) => Task.FromResult(Result(trades: 50, expectancy: c.Weights.Rsi * 10, maxDd: 10m)),
-            FlatSpy, 15m, CancellationToken.None);
+            FlatSpy, 15m, baselineTrades: 0, CancellationToken.None);
 
         var perSeed = evaluations
             .GroupBy(e => e.Summary.Label.Split('.')[0]) // "ML search N"
@@ -129,7 +129,7 @@ public class MlSweepOptimizerTests
             return Task.FromResult(Result(trades: 50, expectancy: expectancy, maxDd: 5m));
         }
 
-        var evaluations = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, CancellationToken.None);
+        var evaluations = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, baselineTrades: 0, CancellationToken.None);
 
         evaluations.Max(e => e.Summary.AdjustedExpectancyPct).Should().BeGreaterThan(1.5m); // peak is 2.0m
     }
@@ -146,7 +146,7 @@ public class MlSweepOptimizerTests
         Task<HistoricResult> Evaluate(HistoricBacktestCandidate c, CancellationToken ct) =>
             Task.FromResult(Result(trades: 50, expectancy: 1.0m, maxDd: 5m));
 
-        var evaluations = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, CancellationToken.None);
+        var evaluations = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, baselineTrades: 0, CancellationToken.None);
 
         var rsiValues = evaluations.Select(e => e.Summary.Weights.Rsi).ToList();
         (rsiValues.Max() - rsiValues.Min()).Should().BeGreaterThan(0.15m); // baseline RSI weight is 0.17
@@ -162,7 +162,7 @@ public class MlSweepOptimizerTests
         Task<HistoricResult> Evaluate(HistoricBacktestCandidate c, CancellationToken ct) =>
             Task.FromResult(Result(trades: 50, expectancy: 1.0m, maxDd: 5m));
 
-        var evaluations = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, CancellationToken.None);
+        var evaluations = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, baselineTrades: 0, CancellationToken.None);
 
         var firstGeneration = evaluations.Take(MlSweepOptimizer.Lambda).ToList();
         firstGeneration.Should().AllSatisfy(e => e.Summary.Label.Should().StartWith("ML search 1."));
@@ -181,7 +181,7 @@ public class MlSweepOptimizerTests
         Task<HistoricResult> Evaluate(HistoricBacktestCandidate c, CancellationToken ct) =>
             Task.FromResult(Result(trades: 5, expectancy: 1.0m, maxDd: 5m));
 
-        var evaluations = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, CancellationToken.None);
+        var evaluations = await MlSweepOptimizer.OptimizeAsync(baseline, Evaluate, FlatSpy, 15m, baselineTrades: 0, CancellationToken.None);
 
         evaluations.Should().HaveCount(MlSweepOptimizer.ActualCandidateCount);
         evaluations.Should().AllSatisfy(e => e.Summary.MetConstraints.Should().BeFalse());

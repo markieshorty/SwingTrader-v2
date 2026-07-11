@@ -175,6 +175,56 @@ public class SweepOptimizerTests
     }
 
     [Fact]
+    public void Summarise_TradeRateFloor_RejectsInactiveCandidateWhenBaselineTradesKnown()
+    {
+        var spy = new[] { new DailyBar(new DateTime(2024, 1, 1), 100m, 100m, 100m, 100m, 1m) };
+
+        // Baseline took 200 trades -> floor is max(40, 100) = 100. A 60-trade
+        // candidate clears the fixed 40-trade minimum but is far too inactive
+        // relative to the baseline - it's a different strategy, not a tuned
+        // one - so with baselineTrades known it's rejected...
+        var inactive = SweepOptimizer.Summarise(Baseline(), Result(60, 1m, 5m), spy, 10m, baselineTrades: 200);
+        inactive.MetConstraints.Should().BeFalse();
+        inactive.RejectionReason.Should().Contain("inactive");
+
+        // ...but the SAME candidate passes when the reference count isn't
+        // known (baselineTrades: 0 disables the rate floor, fixed 40 minimum).
+        var noFloor = SweepOptimizer.Summarise(Baseline(), Result(60, 1m, 5m), spy, 10m, baselineTrades: 0);
+        noFloor.MetConstraints.Should().BeTrue();
+
+        // A candidate trading at a comparable rate (>= 50% of baseline) passes.
+        var active = SweepOptimizer.Summarise(Baseline(), Result(120, 1m, 5m), spy, 10m, baselineTrades: 200);
+        active.MetConstraints.Should().BeTrue();
+    }
+
+    [Fact]
+    public void MinTradesFor_RaisesFloorToHalfBaseline_ButNeverBelowTheFixedMinimum()
+    {
+        SweepOptimizer.MinTradesFor(0).Should().Be(SweepOptimizer.MinTrainTrades);   // unknown -> fixed floor
+        SweepOptimizer.MinTradesFor(50).Should().Be(SweepOptimizer.MinTrainTrades);  // 25 < 40, floor wins
+        SweepOptimizer.MinTradesFor(200).Should().Be(100);                            // 50% of 200
+    }
+
+    [Fact]
+    public void LowerBoundExpectancy_DiscountsHighVarianceSmallSamples_BelowSteadyLargerOnes()
+    {
+        // A "lucky" sample: high mean, wild spread, few trades.
+        var lucky = new[] { 20m, -15m, 22m, -10m, 25m }; // mean 8.4%, big SE
+        // A "steady" sample: lower mean, tight spread, many trades.
+        var steady = Enumerable.Repeat(1.2m, 60).ToList();
+
+        var luckyLcb = SweepOptimizer.LowerBoundExpectancy(lucky);
+        var steadyLcb = SweepOptimizer.LowerBoundExpectancy(steady);
+
+        // On the raw mean the lucky sample wins (8.4 vs 1.2); after the
+        // standard-error discount the steady one does - exactly the reversal
+        // the ranking change exists to produce.
+        lucky.Average().Should().BeGreaterThan(steady.Average());
+        steadyLcb.Should().BeGreaterThan(luckyLcb);
+        steadyLcb.Should().BeApproximately(1.2m, 0.01m); // zero variance -> LCB == mean
+    }
+
+    [Fact]
     public void BuildValidation_CollapsedHoldout_IsFlaggedNotRecommended()
     {
         var d = new DateTime(2024, 1, 2);

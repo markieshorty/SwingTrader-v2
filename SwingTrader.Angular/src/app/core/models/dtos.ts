@@ -653,6 +653,10 @@ export interface SweepCandidateDto {
   totalReturnPct: number;
   metConstraints: boolean;
   rejectionReason: string | null;
+  // The score the candidate was actually ranked on: worse train-window
+  // half, discounted to a lower confidence bound. More pessimistic than
+  // adjustedExpectancyPct by design.
+  robustScorePct: number;
 }
 
 export interface SweepValidationDto {

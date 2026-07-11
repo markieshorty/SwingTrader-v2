@@ -637,7 +637,12 @@
           @if (sw.bestTraditional || sw.bestMlSearch) {
             <table class="diff-table">
               <thead>
-                <tr><th>Search pool</th><th>Best candidate</th><th>Adjusted expectancy / trade</th></tr>
+                <tr>
+                  <th>Search pool</th>
+                  <th>Best candidate</th>
+                  <th matTooltip="Headline market-adjusted expectancy per trade over the whole tuning window">Adjusted / trade</th>
+                  <th matTooltip="What candidates are actually ranked on: the worse of the two tuning-window halves, discounted for sample size. More pessimistic by design.">Robust score</th>
+                </tr>
               </thead>
               <tbody>
                 @if (sw.bestTraditional) {
@@ -645,6 +650,7 @@
                     <td>Traditional sweep</td>
                     <td>{{ sw.bestTraditional.label }}</td>
                     <td>{{ sw.bestTraditional.adjustedExpectancyPct | number: '1.2-2' }}%</td>
+                    <td>{{ sw.bestTraditional.robustScorePct | number: '1.2-2' }}%</td>
                   </tr>
                 }
                 @if (sw.bestMlSearch) {
@@ -652,10 +658,16 @@
                     <td>ML search (CMA-ES)</td>
                     <td>{{ sw.bestMlSearch.label }}</td>
                     <td>{{ sw.bestMlSearch.adjustedExpectancyPct | number: '1.2-2' }}%</td>
+                    <td>{{ sw.bestMlSearch.robustScorePct | number: '1.2-2' }}%</td>
                   </tr>
                 }
               </tbody>
             </table>
+            <p class="muted small">
+              Winner picked on the <strong>robust score</strong> — the worse of the two tuning-window halves, discounted
+              for how few trades it rests on — not the headline expectancy, so a big average from a small or one-regime
+              sample can't win on luck.
+            </p>
           }
 
           <h4>Best configuration found: {{ sw.winner.label }}</h4>

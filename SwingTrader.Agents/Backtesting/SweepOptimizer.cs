@@ -24,7 +24,14 @@ public sealed record SweepCandidateResult(
     decimal MaxDrawdownPct,
     decimal TotalReturnPct,
     bool MetConstraints,
-    string? RejectionReason);            // why this candidate couldn't win (null if eligible)
+    string? RejectionReason,             // why this candidate couldn't win (null if eligible)
+    // The score every eligible candidate is actually RANKED on (across both
+    // search pools and for the final winner): the worse of the two
+    // train-window halves, each discounted to a lower confidence bound. It's
+    // deliberately more pessimistic than AdjustedExpectancyPct so a big mean
+    // from a small/one-regime sample can't win on luck; the headline
+    // AdjustedExpectancyPct is kept alongside it for display.
+    decimal RobustScorePct = 0m);
 
 public sealed record SweepValidation(
     HistoricResult Train,                // winner's full result on the train window
@@ -70,6 +77,22 @@ public static class SweepOptimizer
     // better strategy, just a riskier one.
     public const int MinTrainTrades = 40;
     public const decimal MaxDrawdownCeilingFactor = 1.25m;
+
+    // The first optimizer run's winner sat EXACTLY on MinTrainTrades - 40
+    // trades where the baseline took 195 - and collapsed out-of-sample. A
+    // fixed floor is a boundary the search learns to ride: fewer trades
+    // makes a lucky high average easier. So candidates must also trade at a
+    // comparable rate to the baseline - a config trading 5x less isn't a
+    // tuned version of the strategy, it's a different (nearly inactive) one.
+    public const decimal MinTradeRateVsBaselineFactor = 0.5m;
+
+    // Candidates are RANKED on a lower confidence bound - mean adjusted
+    // expectancy minus this many standard errors - rather than the raw mean,
+    // so a big average from a small, noisy sample is discounted by its own
+    // uncertainty instead of winning on luck. ~1.5 SE is roughly a one-sided
+    // 93% bound: harsh enough to kill 40-lucky-trades candidates, loose
+    // enough not to bury genuinely better configs with normal variance.
+    public const decimal LcbStdErrMultiplier = 1.5m;
 
     // A winner "holds up" if its held-out adjusted expectancy keeps at least
     // half its train value AND beats the baseline on the same held-out window.
@@ -285,42 +308,93 @@ public static class SweepOptimizer
             AdjustedExpectancy(result.TradeLog.Where(t => t.EntryDate >= midpoint), spy));
     }
 
+    // The split-half check with the LCB discount applied to each half - the
+    // ML search's actual fitness combines both suspicions in one number:
+    // "your worse stretch of the window, discounted for how few trades that
+    // judgement rests on".
+    public static (decimal Early, decimal Late) SplitHalfLowerBoundExpectancy(HistoricResult result, DailyBar[] spy)
+    {
+        var midpoint = result.From + (result.To - result.From) / 2;
+        return (
+            LowerBoundExpectancy(AdjustedTradeReturns(result.TradeLog.Where(t => t.EntryDate < midpoint), spy)),
+            LowerBoundExpectancy(AdjustedTradeReturns(result.TradeLog.Where(t => t.EntryDate >= midpoint), spy)));
+    }
+
+    // Mean minus LcbStdErrMultiplier standard errors: the same average, but
+    // discounted by its own sampling uncertainty. A 1.6% mean over 40 trades
+    // (huge SE) can rank below a 0.8% mean over 190 trades (tiny SE), which
+    // is exactly the ordering a raw mean gets wrong.
+    public static decimal LowerBoundExpectancy(IReadOnlyList<decimal> returns)
+    {
+        if (returns.Count == 0) return 0m;
+        var mean = returns.Average();
+        if (returns.Count < 2) return Math.Round(mean, 2); // no variance estimate - the trade floors handle tiny samples
+        var variance = returns.Sum(r => (r - mean) * (r - mean)) / (returns.Count - 1);
+        var standardError = (decimal)Math.Sqrt((double)variance / returns.Count);
+        return Math.Round(mean - LcbStdErrMultiplier * standardError, 2);
+    }
+
     private static decimal AdjustedExpectancy(IEnumerable<HistoricTrade> trades, DailyBar[] spy)
+    {
+        var returns = AdjustedTradeReturns(trades, spy);
+        return returns.Count > 0 ? Math.Round(returns.Average(), 2) : 0m;
+    }
+
+    private static List<decimal> AdjustedTradeReturns(IEnumerable<HistoricTrade> trades, DailyBar[] spy)
     {
         var spyByDate = spy.ToDictionary(b => b.Date, b => b.Close);
 
-        decimal total = 0m;
-        var counted = 0;
+        var returns = new List<decimal>();
         foreach (var t in trades)
         {
             if (!spyByDate.TryGetValue(t.EntryDate, out var spyEntry) ||
                 !spyByDate.TryGetValue(t.ExitDate, out var spyExit) || spyEntry <= 0)
             {
-                total += t.ReturnPct; // no SPY bar to adjust against - use raw
-                counted++;
+                returns.Add(t.ReturnPct); // no SPY bar to adjust against - use raw
                 continue;
             }
-            total += t.ReturnPct - (spyExit / spyEntry - 1m) * 100m;
-            counted++;
+            returns.Add(t.ReturnPct - (spyExit / spyEntry - 1m) * 100m);
         }
-        return counted > 0 ? Math.Round(total / counted, 2) : 0m;
+        return returns;
     }
 
+    // baselineTrades enables the trade-rate floor: a candidate trading far
+    // less than the baseline is a different (nearly inactive) strategy, not a
+    // tuned version of it, and its high average is easy to hit by luck.
+    // Passed as 0 (floor disabled) for the baseline candidate itself and
+    // anywhere the reference count isn't known yet.
+    // The effective train-trade floor: the fixed minimum, raised to a share
+    // of the baseline's own trade count when that's known. Shared so the ML
+    // search's infeasibility penalty slope points at the same threshold
+    // Summarise rejects on.
+    public static int MinTradesFor(int baselineTrades) =>
+        baselineTrades > 0
+            ? Math.Max(MinTrainTrades, (int)Math.Ceiling(baselineTrades * MinTradeRateVsBaselineFactor))
+            : MinTrainTrades;
+
     public static SweepCandidateResult Summarise(
-        HistoricBacktestCandidate candidate, HistoricResult result, DailyBar[] spy, decimal baselineMaxDrawdownPct)
+        HistoricBacktestCandidate candidate, HistoricResult result, DailyBar[] spy, decimal baselineMaxDrawdownPct,
+        int baselineTrades = 0)
     {
         var adjusted = AdjustedExpectancy(result, spy);
+        var minTrades = MinTradesFor(baselineTrades);
+
         string? rejection = null;
-        if (result.Trades < MinTrainTrades)
-            rejection = $"only {result.Trades} trades on the train window (minimum {MinTrainTrades}) — too few to trust";
+        if (result.Trades < minTrades)
+            rejection = baselineTrades > 0 && minTrades > MinTrainTrades
+                ? $"only {result.Trades} trades on the train window (minimum {minTrades}, ≥{MinTradeRateVsBaselineFactor:P0} of the baseline's {baselineTrades}) — too inactive to be a tuned version of the strategy"
+                : $"only {result.Trades} trades on the train window (minimum {minTrades}) — too few to trust";
         else if (baselineMaxDrawdownPct > 0 && result.MaxDrawdownPct > baselineMaxDrawdownPct * MaxDrawdownCeilingFactor)
             rejection = $"max drawdown {result.MaxDrawdownPct:F1}% exceeds the ceiling ({baselineMaxDrawdownPct * MaxDrawdownCeilingFactor:F1}%, 1.25× baseline)";
+
+        var (earlyLcb, lateLcb) = SplitHalfLowerBoundExpectancy(result, spy);
 
         return new SweepCandidateResult(
             candidate.Label, candidate.Weights, candidate.BuyThreshold, candidate.ExcludeBreakout, candidate.AutopauseDuringBear,
             result.Trades, result.WinRate, result.ExpectancyPct, adjusted,
             result.ProfitFactor, result.MaxDrawdownPct, result.TotalReturnPct,
-            rejection is null, rejection);
+            rejection is null, rejection,
+            RobustScorePct: Math.Min(earlyLcb, lateLcb));
     }
 
     public static SweepValidation BuildValidation(

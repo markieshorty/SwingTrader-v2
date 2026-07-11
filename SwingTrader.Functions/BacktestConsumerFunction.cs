@@ -228,7 +228,7 @@ public class BacktestConsumerFunction(
         {
             ct.ThrowIfCancellationRequested();
             var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile), sectorEtfs, ct);
-            summaries.Add(SweepOptimizer.Summarise(c, r, trainSpy, baselineTrain.MaxDrawdownPct));
+            summaries.Add(SweepOptimizer.Summarise(c, r, trainSpy, baselineTrain.MaxDrawdownPct, baselineTrain.Trades));
             trainResults[c.Label] = r;
             logger.LogInformation("Sweep candidate '{Label}': {Trades} trades, {Adj}% adjusted expectancy", c.Label, r.Trades, summaries[^1].AdjustedExpectancyPct);
 
@@ -236,9 +236,13 @@ public class BacktestConsumerFunction(
             await runs.UpdateAsync(run);
         }
 
+        // Everyone is ranked on RobustScorePct (worse train-window half,
+        // LCB-discounted), NOT the raw AdjustedExpectancyPct - so a big mean
+        // from a small or one-regime sample can't win on luck at any of the
+        // three selection points (best-of-pool x2, and the overall winner).
         var bestTraditional = summaries
             .Where(s => s.MetConstraints)
-            .OrderByDescending(s => s.AdjustedExpectancyPct)
+            .OrderByDescending(s => s.RobustScorePct)
             .FirstOrDefault();
 
         // Second search pool: the same dial space and guardrails, covered by
@@ -268,7 +272,7 @@ public class BacktestConsumerFunction(
                 }
                 return r;
             },
-            trainSpy, baselineTrain.MaxDrawdownPct, ct,
+            trainSpy, baselineTrain.MaxDrawdownPct, baselineTrain.Trades, ct,
             maxParallelism: Math.Clamp(Environment.ProcessorCount, 1, 4));
 
         foreach (var e in mlEvaluations)
@@ -281,12 +285,12 @@ public class BacktestConsumerFunction(
         var bestMlSearch = mlEvaluations
             .Select(e => e.Summary)
             .Where(s => s.MetConstraints)
-            .OrderByDescending(s => s.AdjustedExpectancyPct)
+            .OrderByDescending(s => s.RobustScorePct)
             .FirstOrDefault();
 
         var winnerSummary = summaries
             .Where(s => s.MetConstraints)
-            .OrderByDescending(s => s.AdjustedExpectancyPct)
+            .OrderByDescending(s => s.RobustScorePct)
             .FirstOrDefault()
             ?? baselineSummary; // nothing eligible - baseline "wins" by default
 

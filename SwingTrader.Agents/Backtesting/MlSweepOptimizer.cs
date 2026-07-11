@@ -73,9 +73,10 @@ public static class MlSweepOptimizer
     public static async Task<List<MlEvaluation>> OptimizeAsync(
         HistoricBacktestCandidate baseline,
         Func<HistoricBacktestCandidate, CancellationToken, Task<HistoricResult>> runBacktest,
-        DailyBar[] trainSpy, decimal baselineMaxDrawdownPct, CancellationToken ct,
+        DailyBar[] trainSpy, decimal baselineMaxDrawdownPct, int baselineTrades, CancellationToken ct,
         int maxParallelism = 1)
     {
+        var minTrades = SweepOptimizer.MinTradesFor(baselineTrades);
         var baseArr = SweepOptimizer.ToArray(baseline.Weights);
         var liveBudget = SweepOptimizer.LiveIndices.Sum(i => baseArr[i]);
 
@@ -119,30 +120,32 @@ public static class MlSweepOptimizer
         }
 
         // Feasible candidates compete on the WORSE of their two train-window
-        // halves (split-half adjusted expectancy), not the overall number.
-        // The failure mode the final out-of-sample validation keeps catching
-        // is a candidate that won the train window by being lucky in one
-        // stretch of it - that profile scores well overall but poorly on its
-        // weak half, so ranking on the weak half cuts it at the screening
-        // stage instead of spending deep-search budget on it. Deliberately
-        // NOT the holdout: the moment survivor selection touched holdout
-        // data, the final "held up out-of-sample" verdict would be
-        // optimized-on and meaningless. Note the reported summaries still
-        // carry the full-window AdjustedExpectancyPct - this consistency
-        // score only steers the search and the halving.
+        // halves, each half discounted to a lower confidence bound (mean
+        // minus ~1.5 standard errors). Two suspicions folded into one number:
+        // "your weaker stretch of the window" catches configs lucky in one
+        // regime (the split-half half), and "discounted for how few trades
+        // that judgement rests on" catches configs whose high average is a
+        // small-sample fluke (the LCB half). The previous winner - 40 trades
+        // riding the feasibility floor, collapsed out-of-sample - loses on
+        // both counts. Deliberately NOT the holdout: the moment survivor
+        // selection touched holdout data the final verdict would be
+        // optimized-on and meaningless. Reported summaries still carry the
+        // full-window AdjustedExpectancyPct; this score only steers the
+        // search and the halving.
         //
         // The infeasible are pushed behind ALL feasible candidates but still
-        // ordered by how close they came, so a generation with no feasible
-        // member still gives the search a slope back toward feasibility.
+        // ordered by how close they came (to the effective trade floor, which
+        // may be raised above the fixed minimum by the trade-rate rule, then
+        // the drawdown ceiling), so a generation with no feasible member
+        // still gives the search a slope back toward feasibility.
         double Fitness(SweepCandidateResult summary, HistoricResult result)
         {
-            if (summary.MetConstraints)
-            {
-                var (early, late) = SweepOptimizer.SplitHalfAdjustedExpectancy(result, trainSpy);
-                return -(double)Math.Min(early, late);
-            }
-            if (result.Trades < SweepOptimizer.MinTrainTrades)
-                return InfeasiblePenalty + (SweepOptimizer.MinTrainTrades - result.Trades);
+            // Summarise already computed the robustness score (worse
+            // train-window half, LCB-discounted) every candidate is ranked
+            // on - the ML search just minimises its negative.
+            if (summary.MetConstraints) return -(double)summary.RobustScorePct;
+            if (result.Trades < minTrades)
+                return InfeasiblePenalty + (minTrades - result.Trades);
             var ceiling = baselineMaxDrawdownPct * SweepOptimizer.MaxDrawdownCeilingFactor;
             return InfeasiblePenalty + (double)Math.Max(0m, result.MaxDrawdownPct - ceiling);
         }
@@ -151,7 +154,7 @@ public static class MlSweepOptimizer
         {
             var candidate = MapToCandidate(x);
             var result = await runBacktest(candidate, token);
-            var summary = SweepOptimizer.Summarise(candidate, result, trainSpy, baselineMaxDrawdownPct);
+            var summary = SweepOptimizer.Summarise(candidate, result, trainSpy, baselineMaxDrawdownPct, baselineTrades);
             evaluated[x] = new MlEvaluation(summary, result);
             return Fitness(summary, result);
         }
