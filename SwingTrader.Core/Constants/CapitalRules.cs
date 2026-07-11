@@ -84,8 +84,13 @@ public static class CapitalRules
     public const decimal MaxDailyLossCircuitBreakerPct = 0.15m;
     public const int MinTier1UnlockMinTrades = 20;
     public const int MaxTier1UnlockMinTrades = 100;
+    // Tier 2 slider floors. The binding constraint (tier2 > tier1) is enforced
+    // relationally in Validate() and by the slider's dynamic min in the UI;
+    // these are just the absolute rail ends.
+    public const int MinTier2UnlockMinTrades = 30;
     public const int MaxTier2UnlockMinTrades = 200;
     public const decimal MinTier1UnlockMinWinRate = 0.35m;
     public const decimal MaxTier1UnlockMinWinRate = 0.80m;
+    public const decimal MinTier2UnlockMinWinRate = 0.36m;
     public const decimal MaxTier2UnlockMinWinRate = 0.85m;
 }

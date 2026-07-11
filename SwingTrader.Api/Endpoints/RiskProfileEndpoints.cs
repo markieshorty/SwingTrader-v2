@@ -68,6 +68,8 @@ public static class RiskProfileEndpoints
                     DailyLossCircuitBreakerPct = new { Min = CapitalRules.MinDailyLossCircuitBreakerPct, Max = CapitalRules.MaxDailyLossCircuitBreakerPct },
                     Tier1UnlockMinTrades = new { Min = CapitalRules.MinTier1UnlockMinTrades, Max = CapitalRules.MaxTier1UnlockMinTrades },
                     Tier1UnlockMinWinRate = new { Min = CapitalRules.MinTier1UnlockMinWinRate, Max = CapitalRules.MaxTier1UnlockMinWinRate },
+                    Tier2UnlockMinTrades = new { Min = CapitalRules.MinTier2UnlockMinTrades, Max = CapitalRules.MaxTier2UnlockMinTrades },
+                    Tier2UnlockMinWinRate = new { Min = CapitalRules.MinTier2UnlockMinWinRate, Max = CapitalRules.MaxTier2UnlockMinWinRate },
                     MaxHoldDays = new { Min = CapitalRules.MinMaxHoldDays, Max = CapitalRules.MaxMaxHoldDays },
                     TrailingActivationPct = new { Min = CapitalRules.MinTrailingActivationPct, Max = CapitalRules.MaxTrailingActivationPct },
                     TrailingDistancePct = new { Min = CapitalRules.MinTrailingDistancePct, Max = CapitalRules.MaxTrailingDistancePct },

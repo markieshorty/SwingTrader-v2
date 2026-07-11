@@ -459,25 +459,29 @@
                 <input matSliderThumb [ngModel]="draft.tier1UnlockMinWinRate" (ngModelChange)="updateRiskDraftField('tier1UnlockMinWinRate', $event)" />
               </mat-slider>
             </div>
-            <mat-form-field appearance="outline" class="weight-field">
-              <mat-label>Tier 2 → 3: Min Trades</mat-label>
-              <input
-                matInput
-                type="number"
-                [ngModel]="draft.tier2UnlockMinTrades"
-                (ngModelChange)="updateRiskDraftField('tier2UnlockMinTrades', $event)"
-              />
-            </mat-form-field>
-            <mat-form-field appearance="outline" class="weight-field">
-              <mat-label>Tier 2 → 3: Min Win Rate</mat-label>
-              <input
-                matInput
-                type="number"
+            <div class="slider-row">
+              <label>Tier 2 → 3: Min Trades: {{ draft.tier2UnlockMinTrades }}</label>
+              <mat-slider
+                [min]="max(draft.tier1UnlockMinTrades + 1, profile.allowedRanges.tier2UnlockMinTrades.min)"
+                [max]="profile.allowedRanges.tier2UnlockMinTrades.max"
+                step="1"
+                discrete
+              >
+                <input matSliderThumb [ngModel]="draft.tier2UnlockMinTrades" (ngModelChange)="updateRiskDraftField('tier2UnlockMinTrades', $event)" />
+              </mat-slider>
+            </div>
+            <div class="slider-row">
+              <label>Tier 2 → 3: Min Win Rate: {{ draft.tier2UnlockMinWinRate | percent: '1.0-0' }}</label>
+              <mat-slider
+                [min]="max(draft.tier1UnlockMinWinRate + 0.01, profile.allowedRanges.tier2UnlockMinWinRate.min)"
+                [max]="profile.allowedRanges.tier2UnlockMinWinRate.max"
                 step="0.01"
-                [ngModel]="draft.tier2UnlockMinWinRate"
-                (ngModelChange)="updateRiskDraftField('tier2UnlockMinWinRate', $event)"
-              />
-            </mat-form-field>
+                discrete
+              >
+                <input matSliderThumb [ngModel]="draft.tier2UnlockMinWinRate" (ngModelChange)="updateRiskDraftField('tier2UnlockMinWinRate', $event)" />
+              </mat-slider>
+            </div>
+            <p class="muted small">Tier 2 → 3 must be a higher bar than Tier 1 → 2 (both criteria).</p>
           </details>
 
           <div class="button-row">

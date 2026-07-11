@@ -806,6 +806,8 @@ export interface RiskProfileDto {
     dailyLossCircuitBreakerPct: RiskProfileRangeDto;
     tier1UnlockMinTrades: RiskProfileRangeDto;
     tier1UnlockMinWinRate: RiskProfileRangeDto;
+    tier2UnlockMinTrades: RiskProfileRangeDto;
+    tier2UnlockMinWinRate: RiskProfileRangeDto;
     maxHoldDays: RiskProfileRangeDto;
     trailingActivationPct: RiskProfileRangeDto;
     trailingDistancePct: RiskProfileRangeDto;

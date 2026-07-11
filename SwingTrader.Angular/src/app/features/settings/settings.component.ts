@@ -274,6 +274,13 @@ export class SettingsComponent {
     return draft.maxHoldDays - draft.minHoldDays < 2;
   });
 
+  // Template helper (Math isn't accessible in Angular templates): the Tier 2
+  // sliders use this to keep their min above the current Tier 1 draft value,
+  // enforcing the "Tier 2 must exceed Tier 1" rule visually, not just at save.
+  max(a: number, b: number): number {
+    return Math.max(a, b);
+  }
+
   riskLivePreview = computed(() => {
     const draft = this.riskProfileDraft();
     const breakdown = this.riskProfile()?.capitalBreakdown;
