@@ -92,12 +92,13 @@ public static class StrategyLabEndpoints
             return response is null ? Results.NotFound() : Results.Ok(response);
         });
 
-        // Optimizer sweep: evaluates a capped set of dial candidates (see
-        // SweepOptimizer.TargetCandidateCount) around the production baseline
-        // on a train window, validates the winner on the held-out remainder.
-        // Long job - queued like any historic run and polled via the same
-        // endpoint, which also reports CompletedCandidates/TotalCandidates
-        // for a progress bar.
+        // Optimizer sweep: evaluates TWO candidate pools around the production
+        // baseline on a train window - a deterministic/random sweep (see
+        // SweepOptimizer.TargetCandidateCount) plus a multi-start CMA-ES
+        // search (see MlSweepOptimizer) - then validates the overall winner
+        // on the held-out remainder. Long job (~1.5-2 hours) - queued like
+        // any historic run and polled via the same endpoint, which also
+        // reports CompletedCandidates/TotalCandidates for a progress bar.
         api.MapPost("/strategy-lab/optimize", async (
             IBacktestRunRepository runs,
             IStrategyWeightsRepository weightsRepo,

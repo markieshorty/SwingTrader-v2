@@ -51,7 +51,14 @@ public sealed record SweepResult(
     SweepCandidateResult Winner,
     SweepValidation Validation,
     List<SweepCandidateResult> Candidates,
-    string? Explanation);                // Claude writeup (null if unavailable)
+    string? Explanation,                 // Claude writeup (null if unavailable)
+    // Head-to-head: the best eligible candidate found by each search method,
+    // and which one actually produced the overall Winner above - so the UI
+    // can show whether the deterministic/random sweep or the CMA-ES-guided
+    // search found the better config, not just report the winner in isolation.
+    SweepCandidateResult? BestTraditional = null,
+    SweepCandidateResult? BestMlSearch = null,
+    string? WinnerSource = null);
 
 public static class SweepOptimizer
 {
@@ -73,7 +80,9 @@ public static class SweepOptimizer
     // price/volume bars - since the engine gained relative strength (vs stored
     // sector-ETF bars) and price level (support/resistance), only Sentiment
     // and Fundamental momentum remain "dead" (fixed neutral 0.5).
-    private static readonly int[] LiveIndices = [0, 1, 2, 4, 5, 6]; // RSI, MACD, Volume, Setup, RelStrength, PriceLevel
+    // Internal (not private) so MlSweepOptimizer's CMA-ES search shares the
+    // exact same live/dead split and renormalisation as the deterministic sweep.
+    internal static readonly int[] LiveIndices = [0, 1, 2, 4, 5, 6]; // RSI, MACD, Volume, Setup, RelStrength, PriceLevel
     private static readonly int[] DeadIndices = [3, 7];             // Sentiment, FundMomentum
 
     // Deterministic candidate generation: production baseline + variations
@@ -328,16 +337,16 @@ public static class SweepOptimizer
             baselineAdj, heldUp, verdict);
     }
 
-    private static decimal[] ToArray(HistoricBacktestWeights w) =>
+    internal static decimal[] ToArray(HistoricBacktestWeights w) =>
         [w.Rsi, w.Macd, w.Volume, w.Sentiment, w.SetupQuality, w.RelativeStrength, w.PriceLevel, w.FundamentalMomentum];
 
-    private static HistoricBacktestWeights FromArray(decimal[] a) =>
+    internal static HistoricBacktestWeights FromArray(decimal[] a) =>
         new(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]);
 
     // Scales only the live components so they sum to the fixed live budget
     // (total minus the untouched dead weights) - the overall sum stays exactly
     // 1.0 without moving any dead dial.
-    private static void RenormaliseLive(decimal[] arr, decimal liveBudget)
+    internal static void RenormaliseLive(decimal[] arr, decimal liveBudget)
     {
         var liveSum = LiveIndices.Sum(i => arr[i]);
         if (liveSum <= 0m) return;

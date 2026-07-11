@@ -672,6 +672,11 @@ export interface SweepResultDto {
   validation: SweepValidationDto;
   candidates: SweepCandidateDto[];
   explanation: string | null;
+  // Head-to-head: the best eligible candidate each search pool found, and
+  // which one actually produced the winner above.
+  bestTraditional: SweepCandidateDto | null;
+  bestMlSearch: SweepCandidateDto | null;
+  winnerSource: string | null;
 }
 
 export interface ValidateResultDto {

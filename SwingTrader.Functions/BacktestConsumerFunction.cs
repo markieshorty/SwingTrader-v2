@@ -203,10 +203,11 @@ public class BacktestConsumerFunction(
 
         var candidates = SweepOptimizer.GenerateCandidates(baseline);
 
-        // Progress the UI polls: total is fixed once the list is generated,
-        // completed ticks up per candidate below so a determinate progress
-        // bar can render instead of a static "expect N minutes" spinner.
-        run.TotalCandidates = candidates.Count;
+        // Progress the UI polls: total covers BOTH search pools (traditional
+        // sweep + ML search) up front, completed ticks up per candidate below
+        // so a determinate progress bar can render instead of a static
+        // "expect N minutes" spinner.
+        run.TotalCandidates = candidates.Count + MlSweepOptimizer.ActualCandidateCount;
         run.CompletedCandidates = 0;
         await runs.UpdateAsync(run);
 
@@ -235,11 +236,44 @@ public class BacktestConsumerFunction(
             await runs.UpdateAsync(run);
         }
 
+        var bestTraditional = summaries
+            .Where(s => s.MetConstraints)
+            .OrderByDescending(s => s.AdjustedExpectancyPct)
+            .FirstOrDefault();
+
+        // Second search pool: the same dial space and guardrails, covered by
+        // CMA-ES instead of nudges + a random fill - see MlSweepOptimizer for
+        // why that's a denser per-evaluation search of the same simplex.
+        var mlSummaries = await MlSweepOptimizer.OptimizeAsync(
+            baseline,
+            async (c, token) =>
+            {
+                var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile), sectorEtfs, token);
+                trainResults[c.Label] = r;
+                run.CompletedCandidates++;
+                await runs.UpdateAsync(run);
+                return r;
+            },
+            trainSpy, baselineTrain.MaxDrawdownPct, ct);
+        summaries.AddRange(mlSummaries);
+        logger.LogInformation("ML search: {Count} candidates evaluated via CMA-ES", mlSummaries.Count);
+
+        var bestMlSearch = mlSummaries
+            .Where(s => s.MetConstraints)
+            .OrderByDescending(s => s.AdjustedExpectancyPct)
+            .FirstOrDefault();
+
         var winnerSummary = summaries
             .Where(s => s.MetConstraints)
             .OrderByDescending(s => s.AdjustedExpectancyPct)
             .FirstOrDefault()
             ?? baselineSummary; // nothing eligible - baseline "wins" by default
+
+        var winnerSource = winnerSummary.Label == baselineSummary.Label
+            ? "Baseline (no candidate improved on it)"
+            : bestMlSearch is not null && winnerSummary.Label == bestMlSearch.Label
+                ? "ML search (CMA-ES)"
+                : "Traditional sweep";
 
         // Out-of-sample validation: winner and baseline on the held-out window.
         var winnerHoldout = await HistoricBacktester.RunAsync(
@@ -254,7 +288,9 @@ public class BacktestConsumerFunction(
 
         var explanation = await TryExplainAsync(accountId, baselineSummary, winnerSummary, validation, summaries, ct);
 
-        var sweep = new SweepResult("sweep", baselineSummary, winnerSummary, validation, summaries, explanation);
+        var sweep = new SweepResult(
+            "sweep", baselineSummary, winnerSummary, validation, summaries, explanation,
+            bestTraditional, bestMlSearch, winnerSource);
         return JsonSerializer.Serialize(sweep, CamelCase);
     }
 
