@@ -576,7 +576,7 @@
       <mat-card class="panel controls">
         <h3>Find optimum weights</h3>
         <p class="muted small">
-          The optimizer tries ~200 dial variations around your current production settings against the historic dataset —
+          The optimizer tries ~400 dial variations around your current production settings against the historic dataset —
           single-dial nudges, pair shifts between every signal, Buy-threshold variants, structurally different mixes,
           bear-autopause toggles, and a dense random sweep of the joint weights + threshold space. It only redistributes
           weight among the six components historic data exists for (<strong>RSI, MACD, Volume, Setup quality, Relative
@@ -584,8 +584,8 @@
           production values, because the backtest scores them neutral and "tuning" them
           would only produce conclusions that don't carry over to live trading. To guard against flukes, it tunes on the
           <strong>earlier ~70%</strong> of the window, then re-tests the best configuration on the <strong>held-out
-          remainder it never saw</strong> — with 200 candidates tried, out-of-sample validation matters more than ever,
-          since the best of 200 on one window is almost guaranteed to look good by chance. Candidates are judged on
+          remainder it never saw</strong> — with 400 candidates tried, out-of-sample validation matters more than ever,
+          since the best of 400 on one window is almost guaranteed to look good by chance. Candidates are judged on
           <em>market-adjusted</em> expectancy (each trade's return minus SPY's move over the same days), with guardrails:
           at least {{ 40 }} trades, and a max drawdown no worse than 1.25× the baseline's.
         </p>
@@ -594,12 +594,23 @@
             @if (optimizing()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>auto_awesome</mat-icon> }
             Find optimum weights
           </button>
-          <span class="muted small">Runs ~200 full simulations server-side — expect 10–20 minutes.</span>
+          <span class="muted small">Runs ~400 full simulations server-side — expect 20–40 minutes.</span>
         </div>
       </mat-card>
 
       @if (sweepStatus(); as ss) {
-        <mat-card class="panel loading"><mat-spinner diameter="24"></mat-spinner><span>{{ ss }}</span></mat-card>
+        <mat-card class="panel loading with-progress">
+          <div class="loading-row">
+            <mat-spinner diameter="24"></mat-spinner>
+            <span>{{ ss }}</span>
+          </div>
+          @if (sweepProgress(); as p) {
+            <mat-progress-bar mode="determinate" [value]="(p.completed / p.total) * 100"></mat-progress-bar>
+            <span class="muted small progress-count">{{ p.completed }} / {{ p.total }} candidates evaluated</span>
+          } @else {
+            <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+          }
+        </mat-card>
       }
 
       @if (sweepResult(); as sw) {

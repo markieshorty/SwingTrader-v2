@@ -92,10 +92,12 @@ public static class StrategyLabEndpoints
             return response is null ? Results.NotFound() : Results.Ok(response);
         });
 
-        // Optimizer sweep: evaluates a capped set of dial candidates around the
-        // production baseline on a train window, validates the winner on the
-        // held-out remainder. Long job (roughly 25 engine runs) - queued like
-        // any historic run and polled via the same endpoint.
+        // Optimizer sweep: evaluates a capped set of dial candidates (see
+        // SweepOptimizer.TargetCandidateCount) around the production baseline
+        // on a train window, validates the winner on the held-out remainder.
+        // Long job - queued like any historic run and polled via the same
+        // endpoint, which also reports CompletedCandidates/TotalCandidates
+        // for a progress bar.
         api.MapPost("/strategy-lab/optimize", async (
             IBacktestRunRepository runs,
             IStrategyWeightsRepository weightsRepo,
@@ -220,6 +222,8 @@ public static class StrategyLabEndpoints
                     run.Error,
                     run.StartedAt,
                     run.CompletedAt,
+                    run.TotalCandidates,
+                    run.CompletedCandidates,
                     result = run.ResultJson is null ? (JsonElement?)null : JsonSerializer.Deserialize<JsonElement>(run.ResultJson),
                 });
         });

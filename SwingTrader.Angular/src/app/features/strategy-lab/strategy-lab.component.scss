@@ -387,6 +387,25 @@ h3 .bad {
   display: flex;
   align-items: center;
   gap: 12px;
+
+  &.with-progress {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .loading-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  mat-progress-bar {
+    width: 100%;
+  }
+
+  .progress-count {
+    align-self: flex-end;
+  }
 }
 
 .data-status {

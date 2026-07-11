@@ -706,6 +706,8 @@ export interface BacktestRunStatusDto {
   error: string | null;
   startedAt: string | null;
   completedAt: string | null;
+  totalCandidates: number | null;
+  completedCandidates: number | null;
   result: BacktestResultDto | null;
 }
 

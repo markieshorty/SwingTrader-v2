@@ -12,6 +12,13 @@ public class BacktestRun : BaseEntity
     public string? Error { get; set; }
     public DateTime? StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
+
+    // Sweep-only progress: null for every other mode. Set once the candidate
+    // list is generated, then CompletedCandidates ticks up as each one
+    // finishes so the UI can render a determinate progress bar instead of a
+    // fixed "expect 10-20 minutes" spinner.
+    public int? TotalCandidates { get; set; }
+    public int? CompletedCandidates { get; set; }
 }
 
 // Shared request shape serialized into BacktestRun.RequestJson by the Strategy

@@ -87,7 +87,7 @@ public class BacktestConsumerFunction(
             run.ResultJson = request.Mode switch
             {
                 "ab" => await RunAbAsync(request, bars, profile, sectorEtfs, ct),
-                "sweep" => await RunSweepAsync(message.AccountId, request, bars, profile, sectorEtfs, ct),
+                "sweep" => await RunSweepAsync(message.AccountId, run, request, bars, profile, sectorEtfs, ct),
                 "validate" => await RunValidateAsync(request, bars, profile, sectorEtfs, ct),
                 "montecarlo" => await RunMonteCarloAsync(request, bars, profile, sectorEtfs, ct),
                 _ => await RunSingleAsync(request, bars, profile, sectorEtfs, ct),
@@ -195,13 +195,21 @@ public class BacktestConsumerFunction(
     // remainder it never saw. Claude explanation is best-effort - a missing
     // writeup never fails the sweep.
     private async Task<string> RunSweepAsync(
-        int accountId, HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, AccountRiskProfile profile,
+        int accountId, BacktestRun run, HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, AccountRiskProfile profile,
         IReadOnlyDictionary<string, string>? sectorEtfs, CancellationToken ct)
     {
         var baseline = request.Candidates?.FirstOrDefault()
             ?? throw new InvalidOperationException("Sweep request carries no baseline candidate.");
 
         var candidates = SweepOptimizer.GenerateCandidates(baseline);
+
+        // Progress the UI polls: total is fixed once the list is generated,
+        // completed ticks up per candidate below so a determinate progress
+        // bar can render instead of a static "expect N minutes" spinner.
+        run.TotalCandidates = candidates.Count;
+        run.CompletedCandidates = 0;
+        await runs.UpdateAsync(run);
+
         var (train, holdout) = SweepOptimizer.SplitBars(bars, HistoricBacktester.WarmupBars);
         var trainSpy = train["SPY"];
         var holdoutSpy = holdout["SPY"];
@@ -210,6 +218,8 @@ public class BacktestConsumerFunction(
         var baselineTrain = await HistoricBacktester.RunAsync(
             train, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear, profile), sectorEtfs, ct);
         var baselineSummary = SweepOptimizer.Summarise(candidates[0], baselineTrain, trainSpy, baselineTrain.MaxDrawdownPct);
+        run.CompletedCandidates = 1;
+        await runs.UpdateAsync(run);
 
         var summaries = new List<SweepCandidateResult> { baselineSummary };
         var trainResults = new Dictionary<string, HistoricResult> { [baselineSummary.Label] = baselineTrain };
@@ -220,6 +230,9 @@ public class BacktestConsumerFunction(
             summaries.Add(SweepOptimizer.Summarise(c, r, trainSpy, baselineTrain.MaxDrawdownPct));
             trainResults[c.Label] = r;
             logger.LogInformation("Sweep candidate '{Label}': {Trades} trades, {Adj}% adjusted expectancy", c.Label, r.Trades, summaries[^1].AdjustedExpectancyPct);
+
+            run.CompletedCandidates++;
+            await runs.UpdateAsync(run);
         }
 
         var winnerSummary = summaries

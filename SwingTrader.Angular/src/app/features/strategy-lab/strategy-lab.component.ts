@@ -9,6 +9,7 @@ import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSliderModule } from '@angular/material/slider';
@@ -65,6 +66,7 @@ interface DiffRow {
     MatSliderModule,
     MatSlideToggleModule,
     MatProgressSpinnerModule,
+    MatProgressBarModule,
     MatTabsModule,
     MatTooltipModule,
     MatDialogModule,
@@ -251,6 +253,7 @@ export class StrategyLabComponent {
   optimizing = signal(false);
   sweepStatus = signal<string | null>(null);
   sweepResult = signal<SweepResultDto | null>(null);
+  sweepProgress = signal<{ completed: number; total: number } | null>(null);
 
   // ── Shared state ───────────────────────────────────────────────────────────
   dataStatus = signal<LabDataStatusDto | null>(null);
@@ -512,20 +515,23 @@ export class StrategyLabComponent {
   runOptimizer(): void {
     this.optimizing.set(true);
     this.sweepResult.set(null);
+    this.sweepProgress.set(null);
     this.api.runStrategyLabOptimize().subscribe({
       next: (r) => this.pollRun(
         'sweep',
         r.backtestRunId,
-        'Running — evaluating ~200 dial variations on the training window, then validating the best on held-out data. Expect 10–20 minutes…',
+        'Running — evaluating ~400 dial variations on the training window, then validating the best on held-out data. Expect 20–40 minutes…',
         this.sweepStatus,
         (result) => {
           if (result && 'mode' in result && result.mode === 'sweep') this.sweepResult.set(result);
           else this.snackbar.open('Unexpected optimizer result shape.', 'Dismiss', { duration: 5000 });
           this.optimizing.set(false);
+          this.sweepProgress.set(null);
         }),
       error: (err) => {
         this.snackbar.open(errorMessage(err, 'Failed to queue the optimizer.'), 'Dismiss', { duration: 5000 });
         this.optimizing.set(false);
+        this.sweepProgress.set(null);
       },
     });
   }
@@ -547,6 +553,9 @@ export class StrategyLabComponent {
       this.api.getBacktestRun(runId).subscribe({
         next: (r) => {
           if (r.status === 'Running') status.set(runningText);
+          if (kind === 'sweep' && r.totalCandidates != null && r.completedCandidates != null) {
+            this.sweepProgress.set({ completed: r.completedCandidates, total: r.totalCandidates });
+          }
           if (r.status === 'Completed' || r.status === 'Failed') {
             clearInterval(timer);
             this.pollHandles.delete(kind);
@@ -559,6 +568,7 @@ export class StrategyLabComponent {
               else if (kind === 'validate') this.validating.set(false);
               else if (kind === 'montecarlo') this.monteCarloRunning.set(false);
               else this.optimizing.set(false);
+              if (kind === 'sweep') this.sweepProgress.set(null);
             }
           }
         },

@@ -88,9 +88,9 @@ public static class SweepOptimizer
     // production weights took) and would pipe its overfit into this, the
     // honest pipeline.
     // Total candidates per sweep. Each engine run costs a few seconds, so
-    // ~200 keeps the job in the 10-20 minute range while searching the live
-    // simplex far more densely than the original ~25.
-    public const int TargetCandidateCount = 200;
+    // ~400 keeps the job in the 20-40 minute range while searching the live
+    // simplex far more densely than the original ~25 (bumped from 200).
+    public const int TargetCandidateCount = 400;
 
     public static List<HistoricBacktestCandidate> GenerateCandidates(HistoricBacktestCandidate baseline)
     {
