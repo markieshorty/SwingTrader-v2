@@ -203,6 +203,11 @@ export class ApiService {
     return this.http.get<BacktestRunStatusDto>(`${this.baseUrl}/api/strategy-lab/backtest/${id}`);
   }
 
+  // 404s when the account has never completed a run of this mode.
+  getLatestBacktestRun(mode: 'sweep' | 'ab' | 'validate' | 'montecarlo'): Observable<BacktestRunStatusDto> {
+    return this.http.get<BacktestRunStatusDto>(`${this.baseUrl}/api/strategy-lab/backtest/latest?mode=${mode}`);
+  }
+
   getLabDataStatus(): Observable<LabDataStatusDto> {
     return this.http.get<LabDataStatusDto>(`${this.baseUrl}/api/strategy-lab/data-status`);
   }

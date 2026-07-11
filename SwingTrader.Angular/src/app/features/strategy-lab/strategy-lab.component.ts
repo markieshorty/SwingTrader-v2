@@ -254,6 +254,10 @@ export class StrategyLabComponent {
   sweepStatus = signal<string | null>(null);
   sweepResult = signal<SweepResultDto | null>(null);
   sweepProgress = signal<{ completed: number; total: number } | null>(null);
+  // When the displayed result was restored from a PAST run (rather than one
+  // just finished in this session), this holds its completion time so the
+  // card can say how stale it is. Cleared when a fresh run starts.
+  sweepResultCompletedAt = signal<string | null>(null);
 
   // ── Shared state ───────────────────────────────────────────────────────────
   dataStatus = signal<LabDataStatusDto | null>(null);
@@ -315,6 +319,20 @@ export class StrategyLabComponent {
         this.resetRules();
       },
       error: () => {},
+    });
+    // Optimizer results are persisted on the run row forever, but the run id
+    // only lived in this component's memory - an hour-long sweep's output
+    // vanished on page refresh. Restore the most recent completed one.
+    this.api.getLatestBacktestRun('sweep').subscribe({
+      next: (r) => {
+        // A run started in THIS session takes precedence over history.
+        if (this.optimizing()) return;
+        if (r.result && 'mode' in r.result && r.result.mode === 'sweep') {
+          this.sweepResult.set(r.result);
+          this.sweepResultCompletedAt.set(r.completedAt);
+        }
+      },
+      error: () => {}, // 404 = never run one - nothing to restore
     });
   }
 
@@ -516,6 +534,7 @@ export class StrategyLabComponent {
     this.optimizing.set(true);
     this.sweepResult.set(null);
     this.sweepProgress.set(null);
+    this.sweepResultCompletedAt.set(null); // fresh run - the "from a past run" caption no longer applies
     this.api.runStrategyLabOptimize().subscribe({
       next: (r) => this.pollRun(
         'sweep',

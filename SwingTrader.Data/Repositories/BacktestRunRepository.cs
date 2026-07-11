@@ -22,4 +22,17 @@ public class BacktestRunRepository(SwingTraderDbContext db) : IBacktestRunReposi
         db.BacktestRuns.Update(run);
         await db.SaveChangesAsync();
     }
+
+    // Mode lives inside RequestJson (serialized HistoricBacktestRequest with
+    // PascalCase properties), not as a column - a LIKE on the exact
+    // "Mode":"..." fragment avoids a schema change for what is a rare,
+    // tab-load-only query over a small per-account table.
+    public Task<BacktestRun?> GetLatestCompletedByModeAsync(int accountId, string mode, CancellationToken ct = default) =>
+        db.BacktestRuns
+            .Where(r => r.AccountId == accountId
+                        && r.Status == "Completed"
+                        && r.ResultJson != null
+                        && r.RequestJson.Contains($"\"Mode\":\"{mode}\""))
+            .OrderByDescending(r => r.CompletedAt)
+            .FirstOrDefaultAsync(ct);
 }

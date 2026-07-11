@@ -627,6 +627,9 @@
             @if (sw.validation.heldUp) { <mat-icon class="good">verified</mat-icon> Optimizer result — held up out-of-sample }
             @else { <mat-icon class="bad">warning</mat-icon> Optimizer result — did not hold up out-of-sample }
           </h3>
+          @if (sweepResultCompletedAt(); as completedAt) {
+            <p class="muted small">Restored from the run completed {{ completedAt | date: 'dd MMM yyyy, HH:mm' }} — results are kept, so a page refresh no longer loses them.</p>
+          }
           <p class="summary">{{ sw.validation.verdict }}</p>
 
           @if (sw.winnerSource) {

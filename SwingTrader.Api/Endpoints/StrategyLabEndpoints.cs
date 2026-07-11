@@ -209,6 +209,29 @@ public static class StrategyLabEndpoints
             return Results.Ok(new { backtestRunId = run.Id });
         });
 
+        // Latest completed run of a given mode - lets the UI restore the most
+        // recent optimizer result on tab load instead of losing an hour-long
+        // run's output the moment the page refreshes (results were always
+        // persisted; only the run id lived in component memory).
+        api.MapGet("/strategy-lab/backtest/latest", async (
+            string mode, IBacktestRunRepository runs, IAccountContext ctx, CancellationToken ct) =>
+        {
+            var run = await runs.GetLatestCompletedByModeAsync(ctx.AccountId, mode, ct);
+            return run is null
+                ? Results.NotFound()
+                : Results.Ok(new
+                {
+                    run.Id,
+                    run.Status,
+                    run.Error,
+                    run.StartedAt,
+                    run.CompletedAt,
+                    run.TotalCandidates,
+                    run.CompletedCandidates,
+                    result = run.ResultJson is null ? (JsonElement?)null : JsonSerializer.Deserialize<JsonElement>(run.ResultJson),
+                });
+        });
+
         // Poll a historic run. Result JSON is the shared HistoricResult shape.
         api.MapGet("/strategy-lab/backtest/{id:int}", async (
             int id, IBacktestRunRepository runs, IAccountContext ctx) =>
