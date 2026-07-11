@@ -88,6 +88,7 @@ public class BacktestConsumerFunction(
             {
                 "ab" => await RunAbAsync(request, bars, profile, sectorEtfs, ct),
                 "sweep" => await RunSweepAsync(message.AccountId, request, bars, profile, sectorEtfs, ct),
+                "validate" => await RunValidateAsync(request, bars, profile, sectorEtfs, ct),
                 _ => await RunSingleAsync(request, bars, profile, sectorEtfs, ct),
             };
             run.Status = "Completed";
@@ -239,6 +240,35 @@ public class BacktestConsumerFunction(
 
         var sweep = new SweepResult("sweep", baselineSummary, winnerSummary, validation, summaries, explanation);
         return JsonSerializer.Serialize(sweep, CamelCase);
+    }
+
+    // Out-of-sample validation of ONE hand-tuned configuration: the sweep's
+    // train/holdout split and hold-up verdict, applied on demand. Candidates:
+    // [0] = the user's dials+rules, [1] = the production baseline snapshot
+    // (needed because "held up" includes beating the baseline out-of-sample).
+    private static async Task<string> RunValidateAsync(
+        HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, AccountRiskProfile profile,
+        IReadOnlyDictionary<string, string>? sectorEtfs, CancellationToken ct)
+    {
+        var candidates = request.Candidates is { Count: 2 }
+            ? request.Candidates
+            : throw new InvalidOperationException("Validate request needs exactly [user, baseline] candidates.");
+        var user = candidates[0];
+        var baseline = candidates[1];
+
+        var (train, holdout) = SweepOptimizer.SplitBars(bars, HistoricBacktester.WarmupBars);
+        var trainSpy = train["SPY"];
+        var holdoutSpy = holdout["SPY"];
+
+        var userTrain = await HistoricBacktester.RunAsync(
+            train, ToConfig(user.Weights, user.BuyThreshold, user.ExcludeBreakout, user.AutopauseDuringBear, profile, user.Rules), sectorEtfs, ct);
+        var userHoldout = await HistoricBacktester.RunAsync(
+            holdout, ToConfig(user.Weights, user.BuyThreshold, user.ExcludeBreakout, user.AutopauseDuringBear, profile, user.Rules), sectorEtfs, ct);
+        var baselineHoldout = await HistoricBacktester.RunAsync(
+            holdout, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear, profile, baseline.Rules), sectorEtfs, ct);
+
+        var validation = SweepOptimizer.BuildValidation(userTrain, userHoldout, baselineHoldout, trainSpy, holdoutSpy);
+        return JsonSerializer.Serialize(new ValidateResult("validate", validation), CamelCase);
     }
 
     private async Task<string?> TryExplainAsync(

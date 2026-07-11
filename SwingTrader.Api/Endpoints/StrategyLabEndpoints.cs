@@ -127,6 +127,50 @@ public static class StrategyLabEndpoints
             return Results.Ok(new { backtestRunId = run.Id });
         });
 
+        // Out-of-sample validation of the CURRENT form dials+rules: the
+        // optimizer's train/holdout split + hold-up verdict, on demand. This
+        // exists because hand-tuned configs are in-sample by construction -
+        // the user iterated against the full window - and the A/B card alone
+        // can't tell a real edge from a curve fit.
+        api.MapPost("/strategy-lab/validate", async (
+            StrategyLabRequest req,
+            IBacktestRunRepository runs,
+            IStrategyWeightsRepository weightsRepo,
+            IAccountRiskProfileRepository riskProfileRepo,
+            [FromServices] ServiceBusClient? serviceBus,
+            IAccountContext ctx,
+            CancellationToken ct) =>
+        {
+            if (serviceBus is null)
+                return Results.Problem("Service Bus is not configured on this environment.", statusCode: StatusCodes.Status503ServiceUnavailable);
+
+            var userWeights = new HistoricBacktestWeights(
+                req.Weights.Rsi, req.Weights.Macd, req.Weights.Volume, req.Weights.Sentiment,
+                req.Weights.SetupQuality, req.Weights.RelativeStrength, req.Weights.PriceLevel, req.Weights.FundamentalMomentum);
+            var baseline = await SnapshotBaselineAsync(weightsRepo, riskProfileRepo, ctx.AccountId, ct);
+            if (baseline is null)
+                return Results.BadRequest(new { message = "No active production weights found to validate against." });
+
+            var run = await runs.AddAsync(new BacktestRun
+            {
+                AccountId = ctx.AccountId,
+                RequestJson = JsonSerializer.Serialize(new HistoricBacktestRequest(
+                    userWeights, req.BuyThreshold, req.ExcludeBreakout,
+                    Mode: "validate",
+                    Candidates:
+                    [
+                        new HistoricBacktestCandidate("Your dials", userWeights, req.BuyThreshold, req.ExcludeBreakout, req.AutopauseDuringBear, req.Rules),
+                        baseline,
+                    ])),
+            });
+
+            await using var sender = serviceBus.CreateSender("backtest-jobs");
+            await sender.SendMessageAsync(new ServiceBusMessage(JsonSerializer.Serialize(
+                new BacktestJobMessage(ctx.AccountId, Guid.NewGuid().ToString("N"), run.Id))), ct);
+
+            return Results.Ok(new { backtestRunId = run.Id });
+        });
+
         // Poll a historic run. Result JSON is the shared HistoricResult shape.
         api.MapGet("/strategy-lab/backtest/{id:int}", async (
             int id, IBacktestRunRepository runs, IAccountContext ctx) =>

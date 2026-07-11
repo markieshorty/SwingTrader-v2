@@ -25,10 +25,12 @@ import {
   LabAnalyseSuggestionDto,
   LabDataStatusDto,
   LabSuggestionDto,
+  LabTradingRulesDto,
   LabWeightsDto,
   StrategyLabResponseDto,
   StrategyWeightsDto,
   SweepResultDto,
+  ValidateResultDto,
 } from '../../core/models/dtos';
 import { errorMessage } from '../../shared/utils/error-message.util';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
@@ -167,6 +169,32 @@ export class StrategyLabComponent {
     || this.rulesSizingMode() !== 'flat'
     || this.rulesPositionFraction() !== 10);
 
+  // The trading-rules override payload, or null when the panel is untouched
+  // (so the engine uses the live risk profile exactly as before). Shared by
+  // run() and validateRun() so the validated config is byte-identical to the
+  // one the A/B ran.
+  private buildRules(): LabTradingRulesDto | null {
+    if (!this.rulesTouched()) return null;
+    return {
+      excludedSetups: [
+        ...(this.excludeBreakout() ? ['Breakout'] : []),
+        ...this.rulesExtraExcludedSetups(),
+      ],
+      maxHoldDays: this.rulesMaxHoldDays(),
+      maxOpenPositions: this.rulesMaxOpenPositions(),
+      trailingActivationPct: this.rulesTrailingActivation() / 100,
+      trailingDistancePct: this.rulesTrailingDistance() / 100,
+      stopLossPct: this.rulesStopLossPct() !== null ? this.rulesStopLossPct()! / 100 : null,
+      targetPct: this.rulesTargetPct() !== null ? this.rulesTargetPct()! / 100 : null,
+      simulateProbation: this.rulesSimulateProbation(),
+      minHoldDays: this.rulesMinHoldDays(),
+      momentumHealthThreshold: this.rulesHealthThreshold(),
+      positionFraction: this.rulesSizingMode() === 'flat' ? this.rulesPositionFraction() / 100 : null,
+      activeCapitalPct: this.rulesSizingMode() === 'pool' ? this.rulesActiveCapitalPct() / 100 : null,
+      maxPositionPctOfActive: this.rulesSizingMode() === 'pool' ? this.rulesMaxPositionPctOfActive() / 100 : null,
+    };
+  }
+
   resetRules(): void {
     this.rulesExtraExcludedSetups.set([]);
     this.rulesMaxHoldDays.set(this.profileRules.maxHoldDays);
@@ -189,6 +217,11 @@ export class StrategyLabComponent {
   historicResult = signal<HistoricResultDto | null>(null);
   abResult = signal<AbResultDto | null>(null);
   historicStatus = signal<string | null>(null); // Queued/Running progress text
+
+  // Out-of-sample validation of the current form dials+rules.
+  validating = signal(false);
+  validateStatus = signal<string | null>(null);
+  validateResult = signal<ValidateResultDto | null>(null);
 
   // Snapshot of the dials actually submitted for the run in progress/last
   // completed - the "old" side of diff tables and the config sent to the
@@ -220,7 +253,7 @@ export class StrategyLabComponent {
   isOwner = signal(false);
   // One poll handle per job kind: an A/B run and an optimizer sweep can be in
   // flight at the same time, and starting one must not kill the other's poll.
-  private pollHandles = new Map<'ab' | 'sweep', ReturnType<typeof setInterval>>();
+  private pollHandles = new Map<'ab' | 'sweep' | 'validate', ReturnType<typeof setInterval>>();
 
   weightSum = computed(() => {
     const w = this.weights();
@@ -358,26 +391,7 @@ export class StrategyLabComponent {
       // Trading-rule overrides only ride historic runs, and only when
       // something was actually changed - an untouched panel sends nothing so
       // the engine uses the live risk profile exactly as before.
-      rules: historic && this.rulesTouched()
-        ? {
-            excludedSetups: [
-              ...(this.excludeBreakout() ? ['Breakout'] : []),
-              ...this.rulesExtraExcludedSetups(),
-            ],
-            maxHoldDays: this.rulesMaxHoldDays(),
-            maxOpenPositions: this.rulesMaxOpenPositions(),
-            trailingActivationPct: this.rulesTrailingActivation() / 100,
-            trailingDistancePct: this.rulesTrailingDistance() / 100,
-            stopLossPct: this.rulesStopLossPct() !== null ? this.rulesStopLossPct()! / 100 : null,
-            targetPct: this.rulesTargetPct() !== null ? this.rulesTargetPct()! / 100 : null,
-            simulateProbation: this.rulesSimulateProbation(),
-            minHoldDays: this.rulesMinHoldDays(),
-            momentumHealthThreshold: this.rulesHealthThreshold(),
-            positionFraction: this.rulesSizingMode() === 'flat' ? this.rulesPositionFraction() / 100 : null,
-            activeCapitalPct: this.rulesSizingMode() === 'pool' ? this.rulesActiveCapitalPct() / 100 : null,
-            maxPositionPctOfActive: this.rulesSizingMode() === 'pool' ? this.rulesMaxPositionPctOfActive() / 100 : null,
-          }
-        : null,
+      rules: historic ? this.buildRules() : null,
     };
     this.ranWeights = request.weights;
     this.ranThreshold = request.buyThreshold;
@@ -415,6 +429,40 @@ export class StrategyLabComponent {
     });
   }
 
+  // Out-of-sample validation of the CURRENT form dials+rules: the optimizer's
+  // train/holdout split + hold-up verdict, on demand. Hand-tuned configs are
+  // in-sample by construction (the user iterated against the full window) -
+  // this is the gate between "looks great" and "believe it".
+  validateRun(): void {
+    if (!this.sumOk()) {
+      this.snackbar.open(`Weights must sum to 1.0 (currently ${this.weightSum().toFixed(2)}).`, 'Dismiss', { duration: 4000 });
+      return;
+    }
+    this.validating.set(true);
+    this.validateResult.set(null);
+    const request = {
+      dataSource: 'historic' as const,
+      weights: this.weights(),
+      buyThreshold: this.buyThreshold(),
+      excludeBreakout: this.excludeBreakout(),
+      autopauseDuringBear: this.autopauseBear(),
+      rules: this.buildRules(),
+    };
+    this.api.validateStrategyLab(request).subscribe({
+      next: (r) => this.pollRun('validate', r.backtestRunId,
+        'Validating — tuning window (~70%) and held-out remainder run separately, plus the production baseline on the held-out window…',
+        this.validateStatus, (result) => {
+          if (result && 'mode' in result && result.mode === 'validate') this.validateResult.set(result);
+          else if (result) this.snackbar.open('Unexpected validation result shape.', 'Dismiss', { duration: 5000 });
+          this.validating.set(false);
+        }),
+      error: (err) => {
+        this.snackbar.open(errorMessage(err, 'Failed to queue the validation.'), 'Dismiss', { duration: 5000 });
+        this.validating.set(false);
+      },
+    });
+  }
+
   // ── Optimizer tab ──────────────────────────────────────────────────────────
 
   runOptimizer(): void {
@@ -442,7 +490,7 @@ export class StrategyLabComponent {
   // decides how to interpret the stored result. Restarting a job of the same
   // kind replaces its own poll; the other kind's poll is left running.
   private pollRun(
-    kind: 'ab' | 'sweep',
+    kind: 'ab' | 'sweep' | 'validate',
     runId: number,
     runningText: string,
     status: ReturnType<typeof signal<string | null>>,
@@ -464,6 +512,7 @@ export class StrategyLabComponent {
               this.snackbar.open(`Job failed: ${r.error}`, 'Dismiss', { duration: 8000 });
               onDone(null);
               if (kind === 'ab') this.running.set(false);
+              else if (kind === 'validate') this.validating.set(false);
               else this.optimizing.set(false);
             }
           }

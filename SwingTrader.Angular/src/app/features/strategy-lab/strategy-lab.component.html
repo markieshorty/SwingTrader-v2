@@ -244,11 +244,43 @@
             @if (running()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>science</mat-icon> }
             Run Simulation
           </button>
+
+          @if (dataSource() === 'historic') {
+            <button mat-stroked-button color="accent" [disabled]="validating() || !sumOk()" (click)="validateRun()"
+              matTooltip="The honesty check for hand-tuned dials: reruns this exact configuration on the tuning window (~first 70%) and separately on the held-out remainder it was never tuned against, then applies the optimizer's hold-up verdict. Dials you iterated on the full window ALWAYS look good on the full window — this is the difference between a curve fit and an edge.">
+              @if (validating()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>fact_check</mat-icon> }
+              Validate out-of-sample
+            </button>
+          }
         </div>
       </mat-card>
 
       @if (historicStatus(); as hs) {
         <mat-card class="panel loading"><mat-spinner diameter="24"></mat-spinner><span>{{ hs }}</span></mat-card>
+      }
+      @if (validateStatus(); as vs) {
+        <mat-card class="panel loading"><mat-spinner diameter="24"></mat-spinner><span>{{ vs }}</span></mat-card>
+      }
+
+      @if (validateResult(); as vr) {
+        <mat-card class="panel" [class.validate-pass]="vr.validation.heldUp" [class.validate-fail]="!vr.validation.heldUp">
+          <h3>
+            <mat-icon>{{ vr.validation.heldUp ? 'verified' : 'report' }}</mat-icon>
+            Out-of-sample validation — {{ vr.validation.heldUp ? 'HELD UP' : 'did NOT hold up' }}
+          </h3>
+          <p>{{ vr.validation.verdict }}</p>
+          <div class="stat-row muted small">
+            <span>Tuning window: <strong>{{ vr.validation.trainAdjustedExpectancyPct }}%</strong>/trade (market-adjusted, {{ vr.validation.train.trades }} trades)</span>
+            <span>Held-out window: <strong>{{ vr.validation.holdoutAdjustedExpectancyPct }}%</strong>/trade ({{ vr.validation.holdout.trades }} trades)</span>
+            <span>Production on the same held-out window: <strong>{{ vr.validation.baselineHoldoutAdjustedExpectancyPct }}%</strong>/trade</span>
+          </div>
+          @if (!vr.validation.heldUp) {
+            <p class="muted small">
+              A configuration that only wins on the window it was tuned against is most likely a curve fit.
+              Applying it to production is not recommended.
+            </p>
+          }
+        </mat-card>
       }
 
       <!-- Historic single result -->

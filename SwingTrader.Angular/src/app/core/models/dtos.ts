@@ -673,7 +673,12 @@ export interface SweepResultDto {
   explanation: string | null;
 }
 
-export type BacktestResultDto = HistoricResultDto | AbResultDto | SweepResultDto;
+export interface ValidateResultDto {
+  mode: 'validate';
+  validation: SweepValidationDto;
+}
+
+export type BacktestResultDto = HistoricResultDto | AbResultDto | SweepResultDto | ValidateResultDto;
 
 export interface BacktestRunStatusDto {
   id: number;

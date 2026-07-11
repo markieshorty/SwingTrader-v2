@@ -496,3 +496,13 @@ h3 .bad {
   letter-spacing: 0.4px;
   opacity: 0.75;
 }
+
+// Out-of-sample validation verdict card
+.validate-pass { border-left: 4px solid #4caf50; }
+.validate-fail { border-left: 4px solid #ef5350; }
+.panel .stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 8px;
+}

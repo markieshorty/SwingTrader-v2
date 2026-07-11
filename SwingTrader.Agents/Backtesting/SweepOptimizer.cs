@@ -36,6 +36,15 @@ public sealed record SweepValidation(
     bool HeldUp,                         // false = the edge collapsed out-of-sample
     string Verdict);                     // plain-English interpretation of the above
 
+// Result of an on-demand out-of-sample validation of ONE configuration (the
+// A/B tab's "Validate out-of-sample" button): the same train/holdout split
+// and hold-up verdict the optimizer applies to its sweep winner, applied to
+// dials the user tuned by hand - which are in-sample by construction until
+// they pass this.
+public sealed record ValidateResult(
+    string Mode,                         // "validate" - discriminator for the UI
+    SweepValidation Validation);
+
 public sealed record SweepResult(
     string Mode,                         // "sweep" - discriminator for the UI
     SweepCandidateResult Baseline,
