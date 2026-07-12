@@ -209,14 +209,16 @@ public static class StrategyLabEndpoints
             return Results.Ok(new { backtestRunId = run.Id });
         });
 
-        // Latest completed run of a given mode - lets the UI restore the most
-        // recent optimizer result on tab load instead of losing an hour-long
-        // run's output the moment the page refreshes (results were always
-        // persisted; only the run id lived in component memory).
+        // Latest run of a given mode - an in-flight run preferred over the
+        // newest completed one, so on tab load the UI can either restore the
+        // most recent optimizer result or REATTACH its poll to a sweep still
+        // running server-side (both were lost on page refresh before; the
+        // results were always persisted, only the run id lived in component
+        // memory).
         api.MapGet("/strategy-lab/backtest/latest", async (
             string mode, IBacktestRunRepository runs, IAccountContext ctx, CancellationToken ct) =>
         {
-            var run = await runs.GetLatestCompletedByModeAsync(ctx.AccountId, mode, ct);
+            var run = await runs.GetLatestByModeAsync(ctx.AccountId, mode, ct);
             return run is null
                 ? Results.NotFound()
                 : Results.Ok(new

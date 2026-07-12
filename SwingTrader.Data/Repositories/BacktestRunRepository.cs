@@ -27,12 +27,25 @@ public class BacktestRunRepository(SwingTraderDbContext db) : IBacktestRunReposi
     // PascalCase properties), not as a column - a LIKE on the exact
     // "Mode":"..." fragment avoids a schema change for what is a rare,
     // tab-load-only query over a small per-account table.
-    public Task<BacktestRun?> GetLatestCompletedByModeAsync(int accountId, string mode, CancellationToken ct = default) =>
-        db.BacktestRuns
-            .Where(r => r.AccountId == accountId
-                        && r.Status == "Completed"
-                        && r.ResultJson != null
-                        && r.RequestJson.Contains($"\"Mode\":\"{mode}\""))
+    //
+    // An in-flight (Queued/Running) run wins over any completed one: the UI
+    // uses this on tab load to REATTACH to a sweep that survived a page
+    // refresh - reattaching matters more than re-showing an old result,
+    // which comes back on the next load once the run completes anyway.
+    public async Task<BacktestRun?> GetLatestByModeAsync(int accountId, string mode, CancellationToken ct = default)
+    {
+        var byMode = db.BacktestRuns
+            .Where(r => r.AccountId == accountId && r.RequestJson.Contains($"\"Mode\":\"{mode}\""));
+
+        var active = await byMode
+            .Where(r => r.Status == "Queued" || r.Status == "Running")
+            .OrderByDescending(r => r.Id)
+            .FirstOrDefaultAsync(ct);
+        if (active is not null) return active;
+
+        return await byMode
+            .Where(r => r.Status == "Completed" && r.ResultJson != null)
             .OrderByDescending(r => r.CompletedAt)
             .FirstOrDefaultAsync(ct);
+    }
 }

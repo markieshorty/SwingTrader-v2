@@ -719,16 +719,22 @@
           <mat-expansion-panel class="suggestion-row">
             <mat-expansion-panel-header>
               <mat-panel-title>All {{ sw.candidates.length }} configurations tried</mat-panel-title>
-              <mat-panel-description class="muted small">ranked by market-adjusted expectancy on the tuning window</mat-panel-description>
+              <mat-panel-description class="muted small">ranked by robust score — the same score the winner is picked on</mat-panel-description>
             </mat-expansion-panel-header>
             <table class="diff-table">
               <thead>
-                <tr><th>Configuration</th><th>Adj. expectancy</th><th>Trades</th><th>Max DD</th><th>Eligible?</th></tr>
+                <tr>
+                  <th>Configuration</th>
+                  <th matTooltip="What candidates are ranked on: the worse of the two tuning-window halves, discounted for sample size.">Robust score</th>
+                  <th matTooltip="Headline market-adjusted expectancy per trade over the whole tuning window — display only, not the ranking key.">Adj. expectancy</th>
+                  <th>Trades</th><th>Max DD</th><th>Eligible?</th>
+                </tr>
               </thead>
               <tbody>
                 @for (c of sweepCandidatesRanked(sw); track c.label) {
                   <tr [class.changed]="c.label === sw.winner.label">
                     <td>{{ c.label }}</td>
+                    <td class="num" [class.good]="c.robustScorePct > 0" [class.bad]="c.robustScorePct < 0">{{ c.robustScorePct | number: '1.2-2' }}%</td>
                     <td class="num" [class.good]="c.adjustedExpectancyPct > 0" [class.bad]="c.adjustedExpectancyPct < 0">{{ c.adjustedExpectancyPct | number: '1.2-2' }}%</td>
                     <td class="num">{{ c.trades }}</td>
                     <td class="num">{{ c.maxDrawdownPct | number: '1.1-1' }}%</td>

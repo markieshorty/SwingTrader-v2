@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -75,7 +75,7 @@ interface DiffRow {
   templateUrl: './strategy-lab.component.html',
   styleUrl: './strategy-lab.component.scss',
 })
-export class StrategyLabComponent {
+export class StrategyLabComponent implements OnDestroy {
   private api = inject(ApiService);
   private snackbar = inject(MatSnackBar);
   private dialog = inject(MatDialog);
@@ -320,13 +320,19 @@ export class StrategyLabComponent {
       },
       error: () => {},
     });
-    // Optimizer results are persisted on the run row forever, but the run id
-    // only lived in this component's memory - an hour-long sweep's output
-    // vanished on page refresh. Restore the most recent completed one.
+    // Optimizer runs are persisted on the run row forever, but the run id
+    // only lived in this component's memory - a page refresh lost both a
+    // finished sweep's output and, mid-run, the poll tracking one still
+    // running server-side. Restore the former; REATTACH to the latter.
     this.api.getLatestBacktestRun('sweep').subscribe({
       next: (r) => {
         // A run started in THIS session takes precedence over history.
         if (this.optimizing()) return;
+        if (r.status === 'Queued' || r.status === 'Running') {
+          this.optimizing.set(true);
+          this.startSweepPoll(r.id);
+          return;
+        }
         if (r.result && 'mode' in r.result && r.result.mode === 'sweep') {
           this.sweepResult.set(r.result);
           this.sweepResultCompletedAt.set(r.completedAt);
@@ -334,6 +340,14 @@ export class StrategyLabComponent {
       },
       error: () => {}, // 404 = never run one - nothing to restore
     });
+  }
+
+  // Server-side jobs outlive the page, but setInterval doesn't get cleaned up
+  // by Angular - without this, navigating away mid-run left every poll
+  // ticking (and snackbaring) forever in the background.
+  ngOnDestroy(): void {
+    for (const handle of this.pollHandles.values()) clearInterval(handle);
+    this.pollHandles.clear();
   }
 
   historicAvailable(): boolean {
@@ -536,27 +550,33 @@ export class StrategyLabComponent {
     this.sweepProgress.set(null);
     this.sweepResultCompletedAt.set(null); // fresh run - the "from a past run" caption no longer applies
     this.api.runStrategyLabOptimize().subscribe({
-      next: (r) => this.pollRun(
-        'sweep',
-        r.backtestRunId,
-        'Running — evaluating ~1,200 dial variations (deterministic sweep + ML-guided search) on the training window, then validating the best on held-out data. Expect roughly an hour…',
-        this.sweepStatus,
-        (result) => {
-          if (result && 'mode' in result && result.mode === 'sweep') this.sweepResult.set(result);
-          // Only warn on a genuinely unexpected COMPLETED payload - a null
-          // here means the job failed, and pollRun already surfaced the real
-          // "Job failed: <error>" message; showing a generic shape warning
-          // would just clobber it (which is exactly what hid a SQL timeout).
-          else if (result) this.snackbar.open('Unexpected optimizer result shape.', 'Dismiss', { duration: 5000 });
-          this.optimizing.set(false);
-          this.sweepProgress.set(null);
-        }),
+      next: (r) => this.startSweepPoll(r.backtestRunId),
       error: (err) => {
         this.snackbar.open(errorMessage(err, 'Failed to queue the optimizer.'), 'Dismiss', { duration: 5000 });
         this.optimizing.set(false);
         this.sweepProgress.set(null);
       },
     });
+  }
+
+  // Shared by a freshly-queued sweep and the tab-load reattach to one that
+  // was already running server-side when the page was opened/refreshed.
+  private startSweepPoll(runId: number): void {
+    this.pollRun(
+      'sweep',
+      runId,
+      'Running — evaluating ~1,200 dial variations (deterministic sweep + ML-guided search) on the training window, then validating the best on held-out data. Expect roughly an hour…',
+      this.sweepStatus,
+      (result) => {
+        if (result && 'mode' in result && result.mode === 'sweep') this.sweepResult.set(result);
+        // Only warn on a genuinely unexpected COMPLETED payload - a null
+        // here means the job failed, and pollRun already surfaced the real
+        // "Job failed: <error>" message; showing a generic shape warning
+        // would just clobber it (which is exactly what hid a SQL timeout).
+        else if (result) this.snackbar.open('Unexpected optimizer result shape.', 'Dismiss', { duration: 5000 });
+        this.optimizing.set(false);
+        this.sweepProgress.set(null);
+      });
   }
 
   // Server-side jobs are polled until the run row completes; the caller
@@ -685,8 +705,12 @@ export class StrategyLabComponent {
     return sorted[0].result.expectancyPct === sorted[1].result.expectancyPct ? null : sorted[0].label;
   }
 
+  // Ranked on the robust score - the same key the backend picks the winner
+  // on - so the winner actually appears at (or near) the top of the list.
+  // Sorting on the headline expectancy here used to put lucky small-sample
+  // configs above the winner and made the selection look arbitrary.
   sweepCandidatesRanked(sw: SweepResultDto) {
-    return [...sw.candidates].sort((a, b) => b.adjustedExpectancyPct - a.adjustedExpectancyPct);
+    return [...sw.candidates].sort((a, b) => b.robustScorePct - a.robustScorePct);
   }
 
   // Load a suggestion's dials into the form (doesn't touch production).

@@ -8,10 +8,11 @@ public interface IBacktestRunRepository
     Task<BacktestRun?> GetByIdAsync(int accountId, int id);
     Task UpdateAsync(BacktestRun run);
 
-    // Latest completed run of a given request mode ("sweep", "ab", ...).
-    // Results are persisted forever in ResultJson but the run id only ever
-    // lived in the Angular component's memory - so an hour-long optimizer
-    // run's result was effectively lost on page refresh. This lets the UI
-    // reload the most recent one on tab load.
-    Task<BacktestRun?> GetLatestCompletedByModeAsync(int accountId, string mode, CancellationToken ct = default);
+    // Latest run of a given request mode ("sweep", "ab", ...) - an in-flight
+    // (Queued/Running) run preferred over the newest completed one. Results
+    // are persisted forever in ResultJson but the run id only ever lived in
+    // the Angular component's memory - so a page refresh lost both an
+    // hour-long optimizer run's RESULT and, mid-run, the poll tracking it.
+    // This lets the UI restore the former and reattach to the latter.
+    Task<BacktestRun?> GetLatestByModeAsync(int accountId, string mode, CancellationToken ct = default);
 }

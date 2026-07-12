@@ -29,7 +29,7 @@ public class BacktestRunRepositoryTests
         };
 
     [Fact]
-    public async Task GetLatestCompletedByModeAsync_PicksNewestCompletedOfThatModeOnly()
+    public async Task GetLatestByModeAsync_PicksNewestCompletedOfThatModeOnly()
     {
         await using var db = CreateDb();
         var repo = new BacktestRunRepository(db);
@@ -41,19 +41,38 @@ public class BacktestRunRepositoryTests
         await repo.AddAsync(Run(1, "ab", "Completed", t0.AddHours(4)));             // newer but wrong mode
         await repo.AddAsync(Run(2, "sweep", "Completed", t0.AddHours(5)));          // newer but wrong account
 
-        var latest = await repo.GetLatestCompletedByModeAsync(1, "sweep");
+        var latest = await repo.GetLatestByModeAsync(1, "sweep");
 
         latest.Should().NotBeNull();
         latest!.Id.Should().Be(newest.Id);
     }
 
     [Fact]
-    public async Task GetLatestCompletedByModeAsync_NoneCompleted_ReturnsNull()
+    public async Task GetLatestByModeAsync_InFlightRunBeatsAnyCompletedOne()
+    {
+        // Reattach-over-restore: with a sweep still running server-side, the
+        // tab load must resume its poll rather than show an older result.
+        await using var db = CreateDb();
+        var repo = new BacktestRunRepository(db);
+        var t0 = new DateTime(2026, 7, 11, 10, 0, 0);
+
+        await repo.AddAsync(Run(1, "sweep", "Completed", t0.AddHours(5)));
+        var running = await repo.AddAsync(Run(1, "sweep", "Running", null, null));
+        await repo.AddAsync(Run(1, "ab", "Running", null, null)); // wrong mode
+
+        var latest = await repo.GetLatestByModeAsync(1, "sweep");
+
+        latest.Should().NotBeNull();
+        latest!.Id.Should().Be(running.Id);
+    }
+
+    [Fact]
+    public async Task GetLatestByModeAsync_OnlyFailedRuns_ReturnsNull()
     {
         await using var db = CreateDb();
         var repo = new BacktestRunRepository(db);
-        await repo.AddAsync(Run(1, "sweep", "Running", null, null));
+        await repo.AddAsync(Run(1, "sweep", "Failed", null, null));
 
-        (await repo.GetLatestCompletedByModeAsync(1, "sweep")).Should().BeNull();
+        (await repo.GetLatestByModeAsync(1, "sweep")).Should().BeNull();
     }
 }
