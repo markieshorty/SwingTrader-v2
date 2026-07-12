@@ -49,6 +49,17 @@ public class ResearchConfig
     public decimal MaxCatalystPenalty { get; set; } = 0.5m;
     public int CatalystMaxDaysAhead { get; set; } = 30;
 
+    // Funnel Phase F2 master switch. FALSE (default) = F1 shadow behaviour:
+    // the legacy 8-component conviction drives recommendations and stage-2
+    // (sentiment/fundamentals) runs for every symbol. TRUE = the flip: the
+    // Gate score drives recommendations and becomes the stored
+    // ConvictionScore, stage-2 runs only for gate-passers (the ~80% Claude
+    // token saving), and the Forward score feeds the sizing multiplier.
+    // Deliberately shipped false so deploying F2 code cannot cut short the
+    // F1 divergence-review window - flip via app config after reviewing
+    // ~2 weeks of daily funnel-shadow report lines (docs/funnel-plan).
+    public bool FunnelEnabled { get; set; } = false;
+
     // Funnel (docs/funnel-plan) Phase F1 shadow knobs. The forward blend
     // favours sentiment (fresher by construction) over fundamentals (which
     // lag via filings/aggregation). The veto floor drives NOTHING in F1 -

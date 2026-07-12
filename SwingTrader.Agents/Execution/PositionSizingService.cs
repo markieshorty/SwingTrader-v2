@@ -14,6 +14,28 @@ public class PositionSizingService : IPositionSizingService
     // +0.42%. With current weights, conviction is not predictive above ~7, so
     // sizing on it puts more money on worse trades. Revisit only once the
     // refinement loop makes conviction genuinely predictive at the top end.
+    //
+    // The FORWARD-score tilt below (funnel Phase F2) is deliberately not a
+    // repeat of that mistake: it tilts on a different signal (the
+    // forward-looking pair, not the technical blend), ships inert
+    // (aggressiveness defaults 0 = multiplier exactly 1), and the dial is
+    // only to be raised once the scorecard shows ForwardScoreAtEntry
+    // actually correlates with outcomes.
+
+    // Pure so the maths is directly testable: 1 + aggressiveness * MaxTilt *
+    // (forward-5)/5, clamped to the tilt band. Missing or degraded forward
+    // scores always yield exactly 1 - unproven-data outages must never move
+    // position sizes.
+    internal static decimal ComputeForwardMultiplier(
+        decimal? forwardScore, bool forwardDegraded, decimal aggressiveness)
+    {
+        if (forwardScore is not { } forward || forwardDegraded || aggressiveness <= 0m)
+            return 1m;
+
+        var tilt = Math.Clamp((forward - 5m) / 5m, -1m, 1m);
+        return 1m + Math.Clamp(aggressiveness, 0m, CapitalRules.MaxSizingAggressiveness)
+                  * CapitalRules.MaxSizingTilt * tilt;
+    }
 
     public Task<PositionSizeResult> CalculateAsync(
         StockSignal signal,
@@ -30,6 +52,13 @@ public class PositionSizingService : IPositionSizingService
             return Task.FromResult(new PositionSizeResult(false, 0, 0,
                 $"Max open positions ({riskProfile.MaxOpenPositions}) already reached"));
 
+        // Funnel F2: the Forward-score tilt on the per-position BASE budget.
+        // Applied before the cash/pool clamps, which stay supreme - the tilt
+        // redistributes within the risk budget, never expands it. Exactly 1
+        // while the aggressiveness dial is 0 (the default).
+        var multiplier = ComputeForwardMultiplier(
+            signal.ForwardScore, signal.ForwardScoreDegraded, riskProfile.SizingAggressiveness);
+
         // Flat mode (SizingMode override): every position is a fixed slice of
         // the whole portfolio - the tier pool and MaxPositionPctOfActive are
         // deliberately bypassed. The locked-capital ceiling is enforced
@@ -43,8 +72,8 @@ public class PositionSizingService : IPositionSizingService
                 return Task.FromResult(new PositionSizeResult(false, 0, 0,
                     "Insufficient cash after applying 2% buffer"));
 
-            var flatBudget = Math.Min(totalPortfolioValue * riskProfile.FlatPositionPct, flatSpendable);
-            return Task.FromResult(SizeFromBudget(signal, flatBudget, priceOverride));
+            var flatBudget = Math.Min(totalPortfolioValue * riskProfile.FlatPositionPct * multiplier, flatSpendable);
+            return Task.FromResult(SizeFromBudget(signal, flatBudget, priceOverride, multiplier));
         }
 
         // Step 2 — determine active capital % for the current tier (cumulative)
@@ -59,8 +88,9 @@ public class PositionSizingService : IPositionSizingService
         // Step 3 — active capital pool = total portfolio value * active %
         var activeCapital = totalPortfolioValue * activeCapitalPct;
 
-        // Step 4 — max position size = active capital * MaxPositionPctOfActive
-        var maxPositionBudget = activeCapital * riskProfile.MaxPositionPctOfActive;
+        // Step 4 — max position size = active capital * MaxPositionPctOfActive,
+        // tilted by the Forward-score multiplier (F2; 1 while the dial is 0).
+        var maxPositionBudget = activeCapital * riskProfile.MaxPositionPctOfActive * multiplier;
 
         // Step 4b — cumulative active-capital cap. The per-position cap alone
         // never bounded TOTAL deployment: at the config extremes (10 positions
@@ -86,11 +116,12 @@ public class PositionSizingService : IPositionSizingService
         // cash, and the active pool's remaining headroom (step 4b)
         var positionBudget = Math.Min(Math.Min(maxPositionBudget, spendableCash), remainingActiveCapital);
 
-        return Task.FromResult(SizeFromBudget(signal, positionBudget, priceOverride));
+        return Task.FromResult(SizeFromBudget(signal, positionBudget, priceOverride, multiplier));
     }
 
     // Budget -> fractional quantity, shared by both sizing modes.
-    private static PositionSizeResult SizeFromBudget(StockSignal signal, decimal positionBudget, decimal? priceOverride)
+    private static PositionSizeResult SizeFromBudget(
+        StockSignal signal, decimal positionBudget, decimal? priceOverride, decimal appliedMultiplier)
     {
         // Use the caller-supplied (GBP-converted) price when given so the budget
         // (GBP) and price are the same currency — otherwise the quantity would be
@@ -107,6 +138,6 @@ public class PositionSizingService : IPositionSizingService
             return new PositionSizeResult(false, 0, 0,
                 $"Position budget ${positionBudget:F2} is insufficient for one share at ${price:F2}");
 
-        return new PositionSizeResult(true, quantity, quantity * price, null);
+        return new PositionSizeResult(true, quantity, quantity * price, null, appliedMultiplier);
     }
 }

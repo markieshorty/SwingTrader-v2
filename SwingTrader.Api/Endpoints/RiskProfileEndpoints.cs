@@ -52,6 +52,7 @@ public static class RiskProfileEndpoints
                 profile.TargetPct,
                 SizingMode = profile.SizingMode.ToString(),
                 profile.FlatPositionPct,
+                profile.SizingAggressiveness,
                 profile.RiskLabel,
                 BuyThreshold = weights?.BuyThreshold,
                 WatchThreshold = weights?.WatchThreshold,
@@ -89,6 +90,7 @@ public static class RiskProfileEndpoints
                     StopLossPct = new { Min = CapitalRules.MinStopLossPct, Max = CapitalRules.MaxStopLossPct },
                     TargetPct = new { Min = CapitalRules.MinTargetPct, Max = CapitalRules.MaxTargetPct },
                     FlatPositionPct = new { Min = CapitalRules.MinFlatPositionPct, Max = CapitalRules.MaxFlatPositionPct },
+                    SizingAggressiveness = new { Min = CapitalRules.MinSizingAggressiveness, Max = CapitalRules.MaxSizingAggressiveness },
                 },
             });
         });
@@ -128,6 +130,7 @@ public static class RiskProfileEndpoints
                         ? mode
                         : PositionSizingMode.TierLadder,
                     FlatPositionPct = req.FlatPositionPct,
+                    SizingAggressiveness = req.SizingAggressiveness,
                 });
                 return Results.Ok();
             }

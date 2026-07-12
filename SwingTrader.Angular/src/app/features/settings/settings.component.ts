@@ -78,6 +78,7 @@ function toUpdateRiskProfileDto(profile: RiskProfileDto): UpdateRiskProfileDto {
     targetPct: profile.targetPct,
     sizingMode: profile.sizingMode,
     flatPositionPct: profile.flatPositionPct,
+    sizingAggressiveness: profile.sizingAggressiveness,
   };
 }
 

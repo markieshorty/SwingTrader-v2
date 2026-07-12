@@ -64,6 +64,15 @@ public class AccountRiskProfile : BaseEntity
     // on by default. Monitor still manages exits while paused.
     public bool AutopauseDuringBear { get; set; } = true;
 
+    // Funnel Phase F2 (docs/funnel-plan): how strongly the Forward score
+    // tilts position size. 0 (default) = every position gets base size -
+    // the multiplier is exactly 1 and this dial changes nothing. 1 = sizes
+    // span 0.5x-1.5x of the per-position base by Forward score. Distinct
+    // from the reverted conviction-weighted sizing (see
+    // PositionSizingService's NOTE): this tilts on the FORWARD score, whose
+    // predictiveness the scorecard must earn before this dial is raised.
+    public decimal SizingAggressiveness { get; set; } = 0m;
+
     public string RiskLabel => LockedCapitalPct switch
     {
         >= 0.80m => "Very Conservative",
@@ -159,6 +168,10 @@ public class AccountRiskProfile : BaseEntity
         if (TargetWatchlistSize < CapitalRules.MinTargetWatchlistSize || TargetWatchlistSize > CapitalRules.MaxTargetWatchlistSize)
             throw new ValidationException(
                 $"Watchlist size must be {CapitalRules.MinTargetWatchlistSize}-{CapitalRules.MaxTargetWatchlistSize} symbols");
+
+        if (SizingAggressiveness < CapitalRules.MinSizingAggressiveness || SizingAggressiveness > CapitalRules.MaxSizingAggressiveness)
+            throw new ValidationException(
+                $"Sizing aggressiveness must be {CapitalRules.MinSizingAggressiveness:0.0}-{CapitalRules.MaxSizingAggressiveness:0.0}");
 
         // Cross-field: a position needs at least one day in the Confirmed
         // phase to run after clearing probation.

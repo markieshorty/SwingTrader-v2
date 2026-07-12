@@ -325,6 +325,24 @@
           }
 
           <div class="slider-row">
+            <label>Sizing Aggressiveness: {{ draft.sizingAggressiveness | number: '1.1-1' }}</label>
+            <mat-slider
+              [min]="profile.allowedRanges.sizingAggressiveness.min"
+              [max]="profile.allowedRanges.sizingAggressiveness.max"
+              step="0.1"
+              discrete
+            >
+              <input matSliderThumb [ngModel]="draft.sizingAggressiveness" (ngModelChange)="updateRiskDraftField('sizingAggressiveness', $event)" />
+            </mat-slider>
+          </div>
+          <p class="muted small">
+            How strongly the <strong>Forward score</strong> (news sentiment + fundamentals) tilts each position's size.
+            At 0 (default) every position gets its base size. At 1, a high forward score sizes up to 1.5× base and a
+            weak one down to 0.5× — always inside the pool, cash-buffer and position caps above. Leave at 0 until the
+            scorecard shows the forward score is earning its keep.
+          </p>
+
+          <div class="slider-row">
             <label>Max Open Positions: {{ draft.maxOpenPositions }}</label>
             <mat-slider
               [min]="profile.allowedRanges.maxOpenPositions.min"

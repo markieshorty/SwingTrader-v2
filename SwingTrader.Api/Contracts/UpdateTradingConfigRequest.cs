@@ -55,7 +55,9 @@ public record UpdateRiskProfileRequest(
     decimal StopLossPct = 0.05m,
     decimal TargetPct = 0.08m,
     string SizingMode = "TierLadder",
-    decimal FlatPositionPct = 0.10m);
+    decimal FlatPositionPct = 0.10m,
+    // Funnel F2: Forward-score size tilt strength; 0 = off (multiplier 1).
+    decimal SizingAggressiveness = 0m);
 
 public record CreateWatchlistRequest(string Name, WatchlistType Type, string? Description);
 

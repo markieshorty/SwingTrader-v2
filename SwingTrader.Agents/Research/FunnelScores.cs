@@ -9,11 +9,12 @@ public static class FunnelScores
 {
     public sealed record ForwardResult(decimal Score, bool Degraded);
 
-    // Everything the pipeline persists per signal in shadow mode - the gate
-    // score (earnings-adjusted), the forward score (catalyst-adjusted), and
-    // the at-signal-time decisions the funnel WOULD have made.
+    // Everything the pipeline persists per signal - the gate score
+    // (earnings-adjusted), the forward score (catalyst-adjusted; null when
+    // stage-2 was skipped for a sub-Watch gate under FunnelEnabled), and the
+    // at-signal-time decisions the funnel would make / has made.
     public sealed record FunnelShadow(
-        decimal GateScore, decimal ForwardScore, bool ForwardScoreDegraded,
+        decimal GateScore, decimal? ForwardScore, bool ForwardScoreDegraded,
         bool WouldPassGate, bool WouldBeVetoed);
 
     // Stage 1: the six backtestable components only, with the two

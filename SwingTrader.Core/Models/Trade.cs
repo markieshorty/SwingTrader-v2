@@ -80,4 +80,11 @@ public class Trade : BaseEntity
     public string? MomentumHealthVerdict { get; set; }
     public string? MomentumHealthReasoning { get; set; }
     public DateTime? MomentumHealthCheckedAt { get; set; }
+
+    // Funnel Phase F2 (docs/funnel-plan): what the Forward score was at
+    // entry and the size multiplier it produced - the scorecard evidence
+    // for whether forward-tilted sizing earns its keep. Null on trades
+    // placed before F2 (or while the multiplier was inert at 1).
+    public decimal? ForwardScoreAtEntry { get; set; }
+    public decimal? SizeMultiplier { get; set; }
 }

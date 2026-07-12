@@ -99,6 +99,16 @@ public static class CapitalRules
     public const decimal MaxMaxPositionPctOfActive = 0.40m;
     public const int MinMaxOpenPositions = 1;
     public const int MaxMaxOpenPositions = 10;
+
+    // Funnel Phase F2 (docs/funnel-plan): how strongly the Forward score
+    // tilts position size. Aggressiveness 0 = every position gets base size
+    // (multiplier exactly 1 - the deploy-safe default); 1 = sizes span
+    // (1 - MaxSizingTilt)x .. (1 + MaxSizingTilt)x of the per-position base.
+    // The tilt shapes distribution WITHIN the risk budget - pool headroom,
+    // the cash buffer and the dust floor still clamp after it.
+    public const decimal MinSizingAggressiveness = 0.0m;
+    public const decimal MaxSizingAggressiveness = 1.0m;
+    public const decimal MaxSizingTilt = 0.5m;
     public const decimal MinDailyLossCircuitBreakerPct = 0.02m;
     public const decimal MaxDailyLossCircuitBreakerPct = 0.15m;
     public const int MinTier1UnlockMinTrades = 20;

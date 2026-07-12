@@ -338,6 +338,10 @@ public class ExecutionService(
                 Status = TradeStatus.Pending,
                 OpenedAt = DateTime.UtcNow,
                 SignalId = signal.Id,
+                // Funnel F2 scorecard fields: what the forward score said at
+                // entry and how much it tilted the size (1 = untitled).
+                ForwardScoreAtEntry = signal.ForwardScore,
+                SizeMultiplier = sizing.AppliedMultiplier,
             };
             try
             {

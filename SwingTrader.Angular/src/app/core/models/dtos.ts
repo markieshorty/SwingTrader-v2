@@ -831,6 +831,8 @@ export interface RiskProfileDto {
   targetPct: number;     // flat take-profit, fraction — replaced the per-conviction table
   sizingMode: 'TierLadder' | 'Flat';
   flatPositionPct: number; // Flat mode: fraction of the whole portfolio per position
+  // Funnel F2: Forward-score size tilt strength (0 = off, sizes untouched).
+  sizingAggressiveness: number;
   riskLabel: string;
   buyThreshold: number | null;
   watchThreshold: number | null;
@@ -861,6 +863,7 @@ export interface RiskProfileDto {
     stopLossPct: RiskProfileRangeDto;
     targetPct: RiskProfileRangeDto;
     flatPositionPct: RiskProfileRangeDto;
+    sizingAggressiveness: RiskProfileRangeDto;
   };
 }
 
@@ -885,6 +888,7 @@ export interface UpdateRiskProfileDto {
   targetPct: number;
   sizingMode: 'TierLadder' | 'Flat';
   flatPositionPct: number;
+  sizingAggressiveness: number;
 }
 
 export interface NotificationRecipientDto {

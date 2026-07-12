@@ -840,6 +840,7 @@ export class StrategyLabComponent {
           targetPct: p.targetPct,
           sizingMode: p.sizingMode,
           flatPositionPct: p.flatPositionPct,
+          sizingAggressiveness: p.sizingAggressiveness,
         }).subscribe({
           next: () => {
             this.productionAutopauseBear = autopause;

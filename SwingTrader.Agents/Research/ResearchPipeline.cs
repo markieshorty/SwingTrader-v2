@@ -90,7 +90,6 @@ public class ResearchPipeline(
 
         var (weights, regime) = await GetWeightsAndRegimeAsync(accountId, tiingo, finnhub, symbol, ct);
         var ind = await CalculateIndicatorsAsync(candles);
-        var (sentimentScore, newsSummary, catalyst) = await FetchAndScoreSentimentAsync(finnhub, tiingo, claude, symbol, ct);
         var setupType = DetectSetup(ind, candles);
 
         // MACD's "rising" distinction needs yesterday's histogram — recompute MACD on the
@@ -103,7 +102,6 @@ public class ResearchPipeline(
             previousMacdHistogram = prevHistogram;
         }
 
-        var componentScores = ScoreComponents(ind, sentimentScore, setupType, previousMacdHistogram);
         RelativeStrengthResult? rs = null;
         try
         {
@@ -124,54 +122,98 @@ public class ResearchPipeline(
             logger.LogWarning(ex, "Price level service failed for {Symbol} — skipping price level score", symbol);
         }
 
+        // Stage 1 (the gate) is computed BEFORE any stage-2 fetching: it only
+        // needs the technical components, and under FunnelEnabled a sub-Watch
+        // gate skips stage 2 entirely (no Claude sentiment call, no
+        // fundamentals fetch) - the funnel's cost saving. Earnings adjustment
+        // belongs to the gate (docs/funnel-plan).
+        var funnelCfg = researchConfig.Value;
+        var funnelEnabled = funnelCfg.FunnelEnabled;
+        var technicalScores = ScoreComponents(ind, null, setupType, previousMacdHistogram);
+        var gateScore = ApplyEarningsAdjustment(
+            FunnelScores.Gate(weights, technicalScores.Rsi, technicalScores.Macd, technicalScores.Volume,
+                technicalScores.Setup, rs?.Score ?? 0.5m, priceLevel?.Score ?? 0.5m),
+            earningsCtx, out var gateEarningsReasoning);
+        // Watch threshold from the WEIGHTS row (the same source
+        // DetermineRecommendationAsync classifies with), so a symbol that
+        // could still classify Watch always gets its forward score.
+        var skipStageTwo = funnelEnabled && gateScore < weights.WatchThreshold;
+
+        decimal? sentimentScore = null;
+        var newsSummary = "Skipped — gate score below Watch threshold (funnel stage-2 skip).";
+        ClaudeCatalystResult? catalyst = null;
         FundamentalSnapshot? fundamentalSnapshot = null;
         FundamentalScore? fundamental = null;
-        try
+
+        if (!skipStageTwo)
         {
-            var earningsHistory = earningsCtx.EarningsHistory ?? [];
-            fundamentalSnapshot = await fundamentalDataService.GetSnapshotAsync(finnhub, symbol, earningsHistory, ct);
-            fundamental = await fundamentalScoringService.ScoreAsync(claude, symbol, fundamentalSnapshot, ct);
+            (sentimentScore, newsSummary, catalyst) = await FetchAndScoreSentimentAsync(finnhub, tiingo, claude, symbol, ct);
+            try
+            {
+                var earningsHistory = earningsCtx.EarningsHistory ?? [];
+                fundamentalSnapshot = await fundamentalDataService.GetSnapshotAsync(finnhub, symbol, earningsHistory, ct);
+                fundamental = await fundamentalScoringService.ScoreAsync(claude, symbol, fundamentalSnapshot, ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Fundamental scoring failed for {Symbol} — using neutral default", symbol);
+            }
         }
-        catch (Exception ex)
+
+        var componentScores = ScoreComponents(ind, sentimentScore, setupType, previousMacdHistogram);
+
+        // Stage 2 (the forward score): catalyst adjustment belongs here -
+        // forward-looking information adjusting the forward-looking score.
+        // Null when stage 2 was skipped (sub-Watch gate can't trade, so
+        // there's nothing to size or veto).
+        decimal? forwardScore = null;
+        var forwardDegraded = false;
+        if (!skipStageTwo)
         {
-            logger.LogWarning(ex, "Fundamental scoring failed for {Symbol} — using neutral default", symbol);
+            var forward = FunnelScores.Forward(
+                sentimentScore is null ? null : componentScores.Sentiment,
+                fundamental?.Score,
+                funnelCfg.ForwardSentimentWeight, funnelCfg.ForwardFundamentalWeight);
+            forwardScore = ApplyCatalystAdjustment(forward.Score, catalyst, out _);
+            forwardDegraded = forward.Degraded;
         }
 
-        var conviction = ConvictionScorer.Calculate(
-            weights,
-            componentScores.Rsi,
-            componentScores.Macd,
-            componentScores.Volume,
-            componentScores.Sentiment,
-            componentScores.Setup,
-            relativeStrengthScore: rs?.Score ?? 0.5m,
-            priceLevelScore: priceLevel?.Score ?? 0.5m,
-            fundamentalMomentumScore: fundamental?.Score ?? 0.5m);
-
-        conviction = ApplyEarningsAdjustment(conviction, earningsCtx, out var earningsReasoning);
-        conviction = ApplyCatalystAdjustment(conviction, catalyst, out var catalystReasoning);
-
-        // Funnel shadow (docs/funnel-plan, Phase F1): both scores computed and
-        // persisted but driving NOTHING - the legacy conviction above remains
-        // the sole authority. Gate mirrors the earnings adjustment (it stays
-        // on the gate in the funnel design); Forward takes the catalyst
-        // adjustment (forward-looking information belongs in the forward
-        // score). Would* booleans are snapshotted here so later threshold
-        // changes never rewrite what the funnel would have decided today.
-        var funnelCfg = researchConfig.Value;
-        var gateScore = ApplyEarningsAdjustment(
-            FunnelScores.Gate(weights, componentScores.Rsi, componentScores.Macd, componentScores.Volume,
-                componentScores.Setup, rs?.Score ?? 0.5m, priceLevel?.Score ?? 0.5m),
-            earningsCtx, out _);
-        var forward = FunnelScores.Forward(
-            sentimentScore is null ? null : componentScores.Sentiment,
-            fundamental?.Score,
-            funnelCfg.ForwardSentimentWeight, funnelCfg.ForwardFundamentalWeight);
-        var forwardScore = ApplyCatalystAdjustment(forward.Score, catalyst, out _);
         var shadow = new FunnelScores.FunnelShadow(
-            gateScore, forwardScore, forward.Degraded,
+            gateScore, forwardScore, forwardDegraded,
             WouldPassGate: gateScore >= weights.BuyThreshold,
-            WouldBeVetoed: !forward.Degraded && forwardScore < funnelCfg.ForwardVetoFloor);
+            WouldBeVetoed: forwardScore is { } f && !forwardDegraded && f < funnelCfg.ForwardVetoFloor);
+
+        // Which score drives: the flip. Enabled = the gate IS the conviction
+        // (ConvictionScore field keeps one meaning downstream - probation,
+        // reports, refinement buckets all keep working). Disabled = the
+        // legacy 8-component blend exactly as before, catalyst included.
+        decimal conviction;
+        string? earningsReasoning;
+        string? catalystReasoning = null;
+        if (funnelEnabled)
+        {
+            conviction = gateScore;
+            earningsReasoning = gateEarningsReasoning;
+            // The catalyst note still rides along for auditability - it
+            // explains the Forward score shown next to the signal.
+            if (forwardScore is not null)
+                _ = ApplyCatalystAdjustment(0m, catalyst, out catalystReasoning);
+        }
+        else
+        {
+            conviction = ConvictionScorer.Calculate(
+                weights,
+                componentScores.Rsi,
+                componentScores.Macd,
+                componentScores.Volume,
+                componentScores.Sentiment,
+                componentScores.Setup,
+                relativeStrengthScore: rs?.Score ?? 0.5m,
+                priceLevelScore: priceLevel?.Score ?? 0.5m,
+                fundamentalMomentumScore: fundamental?.Score ?? 0.5m);
+            conviction = ApplyEarningsAdjustment(conviction, earningsCtx, out earningsReasoning);
+            conviction = ApplyCatalystAdjustment(conviction, catalyst, out catalystReasoning);
+        }
 
         var recommendation = await DetermineRecommendationAsync(accountId, account.TradingMode, symbol, ind, conviction, weights, setupType);
 

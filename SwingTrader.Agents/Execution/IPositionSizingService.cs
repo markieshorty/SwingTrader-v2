@@ -7,7 +7,12 @@ public record PositionSizeResult(
     bool CanTrade,
     decimal Quantity,
     decimal EstimatedCost,
-    string? RejectionReason
+    string? RejectionReason,
+    // Funnel Phase F2: the Forward-score size tilt applied to the
+    // per-position base (1 = none - the default while the aggressiveness
+    // dial is 0 or the forward score is missing/degraded). Persisted on the
+    // Trade for the scorecard.
+    decimal AppliedMultiplier = 1m
 );
 
 public interface IPositionSizingService

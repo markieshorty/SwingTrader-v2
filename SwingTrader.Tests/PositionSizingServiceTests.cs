@@ -159,4 +159,74 @@ public class PositionSizingServiceTests
 
         tight.EstimatedCost.Should().BeLessThan(loose.EstimatedCost);
     }
+
+    // ── Funnel F2: Forward-score sizing multiplier ───────────────────────────
+
+    [Theory]
+    [InlineData(null, false, 1.0, 1.0)]   // no forward score -> exactly 1
+    [InlineData(8.0, true, 1.0, 1.0)]     // degraded -> exactly 1, however strong
+    [InlineData(8.0, false, 0.0, 1.0)]    // dial at 0 (the default) -> exactly 1
+    [InlineData(10.0, false, 1.0, 1.5)]   // max score, full dial -> +MaxSizingTilt
+    [InlineData(0.0, false, 1.0, 0.5)]    // min score, full dial -> -MaxSizingTilt
+    [InlineData(5.0, false, 1.0, 1.0)]    // neutral score -> 1 at any dial
+    [InlineData(7.5, false, 0.5, 1.125)]  // tilt 0.5 x aggr 0.5 x maxTilt 0.5
+    public void ComputeForwardMultiplier_MapsScoreAndDialToTheTiltBand(
+        double? forward, bool degraded, double aggressiveness, double expected) =>
+        PositionSizingService.ComputeForwardMultiplier(
+                (decimal?)forward, degraded, (decimal)aggressiveness)
+            .Should().Be((decimal)expected);
+
+    [Fact]
+    public async Task CalculateAsync_ForwardTilt_ScalesTheBudget_AndReportsTheMultiplier()
+    {
+        var sut = new PositionSizingService();
+        var profile = new AccountRiskProfile { SizingAggressiveness = 1.0m };
+        StockSignal Sig(decimal? forward) => new()
+        {
+            Symbol = "AAA", CurrentPrice = 100m, ForwardScore = forward,
+        };
+
+        var strong = await sut.CalculateAsync(Sig(10m), CapitalTier.Tier3, 0, 100000m, 100000m, profile);
+        var weak = await sut.CalculateAsync(Sig(0m), CapitalTier.Tier3, 0, 100000m, 100000m, profile);
+        var noScore = await sut.CalculateAsync(Sig(null), CapitalTier.Tier3, 0, 100000m, 100000m, profile);
+
+        strong.AppliedMultiplier.Should().Be(1.5m);
+        weak.AppliedMultiplier.Should().Be(0.5m);
+        noScore.AppliedMultiplier.Should().Be(1m);
+        strong.EstimatedCost.Should().Be(noScore.EstimatedCost * 1.5m);
+        weak.EstimatedCost.Should().Be(noScore.EstimatedCost * 0.5m);
+    }
+
+    [Fact]
+    public async Task CalculateAsync_ForwardTilt_NeverEscapesTheCashAndPoolClamps()
+    {
+        // A 1.5x tilt on a budget already limited by spendable cash must not
+        // spend more cash - the tilt redistributes, the rails stay supreme.
+        var sut = new PositionSizingService();
+        var profile = new AccountRiskProfile { SizingAggressiveness = 1.0m };
+        var signal = new StockSignal { Symbol = "AAA", CurrentPrice = 10m, ForwardScore = 10m };
+
+        var result = await sut.CalculateAsync(signal, CapitalTier.Tier3, 0,
+            availableCash: 300m, totalPortfolioValue: 10000m, profile);
+
+        result.CanTrade.Should().BeTrue();
+        result.EstimatedCost.Should().BeLessThanOrEqualTo(100m); // 300 cash - 200 buffer
+    }
+
+    [Fact]
+    public async Task CalculateAsync_DialAtZero_IsIdenticalToPreF2Sizing()
+    {
+        // The F2 deploy-safety property: aggressiveness 0 (the default) means
+        // a maxed-out forward score changes nothing at all.
+        var sut = new PositionSizingService();
+        var profile = new AccountRiskProfile(); // SizingAggressiveness defaults 0
+        var withForward = new StockSignal { Symbol = "AAA", CurrentPrice = 100m, ForwardScore = 10m };
+        var withoutForward = new StockSignal { Symbol = "AAA", CurrentPrice = 100m };
+
+        var a = await sut.CalculateAsync(withForward, CapitalTier.Tier1, 0, 10000m, 10000m, profile);
+        var b = await sut.CalculateAsync(withoutForward, CapitalTier.Tier1, 0, 10000m, 10000m, profile);
+
+        a.EstimatedCost.Should().Be(b.EstimatedCost);
+        a.AppliedMultiplier.Should().Be(1m);
+    }
 }
