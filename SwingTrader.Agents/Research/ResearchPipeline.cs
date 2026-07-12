@@ -181,7 +181,7 @@ public class ResearchPipeline(
         var shadow = new FunnelScores.FunnelShadow(
             gateScore, forwardScore, forwardDegraded,
             WouldPassGate: gateScore >= weights.BuyThreshold,
-            WouldBeVetoed: forwardScore is { } f && !forwardDegraded && f < funnelCfg.ForwardVetoFloor);
+            WouldBeVetoed: FunnelScores.ShouldVeto(forwardScore, forwardDegraded, riskProfile.ForwardVetoFloor));
 
         // Which score drives: the flip. Enabled = the gate IS the conviction
         // (ConvictionScore field keeps one meaning downstream - probation,
@@ -217,8 +217,23 @@ public class ResearchPipeline(
 
         var recommendation = await DetermineRecommendationAsync(accountId, account.TradingMode, symbol, ind, conviction, weights, setupType);
 
-        // Both adjustment notes ride the same reasoning-append slot.
-        var adjustmentReasoning = (earningsReasoning ?? string.Empty) + (catalystReasoning ?? string.Empty);
+        // Funnel Phase F3: the asymmetric veto. A gate-passing Buy whose
+        // Forward score sits below the account's floor demotes to Watch -
+        // forward information can block a Buy, never create one. Degraded or
+        // missing Forward scores never veto (fail-open: a data outage must
+        // not stop trading). The signal stays visible as Watch with
+        // WouldBeVetoed=true so the scorecard can measure the counterfactual.
+        string? vetoReasoning = null;
+        if (funnelEnabled && recommendation == Recommendation.Buy && shadow.WouldBeVetoed)
+        {
+            recommendation = Recommendation.Watch;
+            vetoReasoning = $" Forward veto: score {forwardScore:0.0} below floor {riskProfile.ForwardVetoFloor:0.0}.";
+            logger.LogInformation("Forward veto for {Symbol}: forward {Forward:0.0} < floor {Floor:0.0}, Buy demoted to Watch",
+                symbol, forwardScore, riskProfile.ForwardVetoFloor);
+        }
+
+        // All adjustment notes ride the same reasoning-append slot.
+        var adjustmentReasoning = (earningsReasoning ?? string.Empty) + (catalystReasoning ?? string.Empty) + (vetoReasoning ?? string.Empty);
 
         return await PersistSignalAsync(accountId, symbol, companyName, candles[^1], ind, sentimentScore,
             newsSummary, setupType, conviction, recommendation, componentScores, regime, earningsCtx, rs, priceLevel,

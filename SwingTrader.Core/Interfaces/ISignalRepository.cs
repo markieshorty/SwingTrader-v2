@@ -7,6 +7,7 @@ public interface ISignalRepository
     Task<StockSignal?> GetByIdAsync(int accountId, int id);
     Task<IEnumerable<StockSignal>> GetAllAsync(int accountId);
     Task<IEnumerable<StockSignal>> GetByDateAsync(int accountId, DateOnly date);
+    Task<IEnumerable<StockSignal>> GetSinceDateAsync(int accountId, DateOnly fromDate);
     Task<IEnumerable<StockSignal>> GetUnexecutedSignalsAsync(int accountId);
     Task<IEnumerable<StockSignal>> GetBySymbolAsync(int accountId, string symbol);
     Task<StockSignal> AddAsync(StockSignal signal);

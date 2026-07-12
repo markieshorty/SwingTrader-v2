@@ -73,6 +73,14 @@ public class AccountRiskProfile : BaseEntity
     // predictiveness the scorecard must earn before this dial is raised.
     public decimal SizingAggressiveness { get; set; } = 0m;
 
+    // Funnel Phase F3 (docs/funnel-plan): a gate-passing Buy whose Forward
+    // score sits below this floor is demoted to Watch (asymmetric veto -
+    // forward information can block, never create, a Buy). Degraded or
+    // missing Forward scores never veto (fail-open, like every other data
+    // dependency). 0 disables the veto entirely. Only consulted while
+    // Research:FunnelEnabled is on.
+    public decimal ForwardVetoFloor { get; set; } = CapitalRules.DefaultForwardVetoFloor;
+
     public string RiskLabel => LockedCapitalPct switch
     {
         >= 0.80m => "Very Conservative",
@@ -172,6 +180,10 @@ public class AccountRiskProfile : BaseEntity
         if (SizingAggressiveness < CapitalRules.MinSizingAggressiveness || SizingAggressiveness > CapitalRules.MaxSizingAggressiveness)
             throw new ValidationException(
                 $"Sizing aggressiveness must be {CapitalRules.MinSizingAggressiveness:0.0}-{CapitalRules.MaxSizingAggressiveness:0.0}");
+
+        if (ForwardVetoFloor < CapitalRules.MinForwardVetoFloor || ForwardVetoFloor > CapitalRules.MaxForwardVetoFloor)
+            throw new ValidationException(
+                $"Forward veto floor must be {CapitalRules.MinForwardVetoFloor:0.0}-{CapitalRules.MaxForwardVetoFloor:0.0}");
 
         // Cross-field: a position needs at least one day in the Confirmed
         // phase to run after clearing probation.

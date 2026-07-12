@@ -109,6 +109,12 @@ public static class CapitalRules
     public const decimal MinSizingAggressiveness = 0.0m;
     public const decimal MaxSizingAggressiveness = 1.0m;
     public const decimal MaxSizingTilt = 0.5m;
+
+    // Funnel Phase F3 (docs/funnel-plan): floor under the Forward score for
+    // gate-passing Buys. Below it a Buy demotes to Watch. 0 disables the veto.
+    public const decimal MinForwardVetoFloor = 0.0m;
+    public const decimal MaxForwardVetoFloor = 5.0m;
+    public const decimal DefaultForwardVetoFloor = 2.5m;
     public const decimal MinDailyLossCircuitBreakerPct = 0.02m;
     public const decimal MaxDailyLossCircuitBreakerPct = 0.15m;
     public const int MinTier1UnlockMinTrades = 20;

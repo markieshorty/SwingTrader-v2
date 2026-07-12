@@ -60,12 +60,11 @@ public class ResearchConfig
     // ~2 weeks of daily funnel-shadow report lines (docs/funnel-plan).
     public bool FunnelEnabled { get; set; } = false;
 
-    // Funnel (docs/funnel-plan) Phase F1 shadow knobs. The forward blend
-    // favours sentiment (fresher by construction) over fundamentals (which
-    // lag via filings/aggregation). The veto floor drives NOTHING in F1 -
-    // it exists so WouldBeVetoed is snapshotted honestly at signal time
-    // rather than recomputed against whatever the floor is later.
+    // Funnel (docs/funnel-plan) forward-blend knobs. The blend favours
+    // sentiment (fresher by construction) over fundamentals (which lag via
+    // filings/aggregation). The veto floor itself lives on
+    // AccountRiskProfile.ForwardVetoFloor (F3) - it's per-account risk
+    // posture, like the other dials.
     public decimal ForwardSentimentWeight { get; set; } = 0.60m;
     public decimal ForwardFundamentalWeight { get; set; } = 0.40m;
-    public decimal ForwardVetoFloor { get; set; } = 2.5m;
 }

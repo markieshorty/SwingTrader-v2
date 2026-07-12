@@ -833,6 +833,8 @@ export interface RiskProfileDto {
   flatPositionPct: number; // Flat mode: fraction of the whole portfolio per position
   // Funnel F2: Forward-score size tilt strength (0 = off, sizes untouched).
   sizingAggressiveness: number;
+  // Funnel F3: Forward-score floor under gate-passing Buys (0 = veto off).
+  forwardVetoFloor: number;
   riskLabel: string;
   buyThreshold: number | null;
   watchThreshold: number | null;
@@ -864,6 +866,7 @@ export interface RiskProfileDto {
     targetPct: RiskProfileRangeDto;
     flatPositionPct: RiskProfileRangeDto;
     sizingAggressiveness: RiskProfileRangeDto;
+    forwardVetoFloor: RiskProfileRangeDto;
   };
 }
 
@@ -889,6 +892,7 @@ export interface UpdateRiskProfileDto {
   sizingMode: 'TierLadder' | 'Flat';
   flatPositionPct: number;
   sizingAggressiveness: number;
+  forwardVetoFloor: number;
 }
 
 export interface NotificationRecipientDto {

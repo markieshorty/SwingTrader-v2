@@ -87,7 +87,22 @@ public class ReportGenerationService(
         // approval-window timing, both genuinely environment-level.
         var approvalRequired = account.ApprovalRequired;
         var cfg = reportConfig.Value;
-        var markdown = BuildMarkdown(reportDate, buys, watches, holds, avoids, portfolio, market, narratives, cfg, gbpUsd, funnel);
+
+        // Funnel F3: veto visibility. Today's veto candidates plus the
+        // trailing-30-day counterfactual scorecard (see ComputeVetoScorecard).
+        var windowSignals = (await signalRepo.GetSinceDateAsync(accountId, reportDate.AddDays(-30))).ToList();
+        var vetoedToday = windowSignals
+            .Where(s => s.SignalDate == reportDate && s.WouldPassGate && s.WouldBeVetoed)
+            .OrderBy(s => s.ForwardScore)
+            .ToList();
+        var closedTrades = (await tradeRepo.GetTradeHistoryAsync(
+                accountId, account.TradingMode,
+                reportDate.AddDays(-30).ToDateTime(TimeOnly.MinValue), DateTime.UtcNow))
+            .Where(t => t.Status == TradeStatus.Closed)
+            .ToList();
+        var vetoScorecard = ComputeVetoScorecard(reportDate, windowSignals, closedTrades);
+
+        var markdown = BuildMarkdown(reportDate, buys, watches, holds, avoids, portfolio, market, narratives, cfg, gbpUsd, funnel, vetoedToday, vetoScorecard);
         if (approvalRequired)
         {
             var baseUrl = approvalConfig.Value.BaseUrl.TrimEnd('/');
@@ -121,6 +136,50 @@ public class ReportGenerationService(
             scored.Count(s => s.WouldPassGate),
             divergent,
             scored.Count(s => s.WouldBeVetoed));
+    }
+
+    // Funnel Phase F3: the veto's justification is the counterfactual - what
+    // the vetoed signals went on to do vs the Buys that executed. Vetoed set
+    // OUTPERFORMING executed Buys = the floor is cutting winners: lower it.
+    // "Counterfactual return" for a vetoed signal is priced from its own
+    // watchlist re-scores (same symbol's latest signal price), so it costs
+    // no extra API calls; symbols that dropped off the watchlist just don't
+    // count toward the average.
+    internal sealed record VetoScorecard(
+        int VetoedInWindow, int MeasurableVetoes, decimal? AvgVetoCounterfactualPct,
+        int ClosedBuys, decimal? AvgClosedBuyReturnPct);
+
+    internal static VetoScorecard ComputeVetoScorecard(
+        DateOnly reportDate, IReadOnlyList<StockSignal> windowSignals, IReadOnlyList<Trade> closedTrades)
+    {
+        var vetoed = windowSignals
+            .Where(s => s.WouldPassGate && s.WouldBeVetoed && s.SignalDate < reportDate && s.CurrentPrice > 0m)
+            .ToList();
+
+        var latestPriceBySymbol = windowSignals
+            .Where(s => s.CurrentPrice > 0m)
+            .GroupBy(s => s.Symbol)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(s => s.SignalDate).First());
+
+        var counterfactuals = vetoed
+            .Select(v => latestPriceBySymbol[v.Symbol] is var latest && latest.SignalDate > v.SignalDate
+                ? (decimal?)((latest.CurrentPrice - v.CurrentPrice) / v.CurrentPrice * 100m)
+                : null)
+            .Where(r => r is not null)
+            .Select(r => r!.Value)
+            .ToList();
+
+        var buyReturns = closedTrades
+            .Where(t => t.ExitPrice is not null && t.EntryPrice > 0m)
+            .Select(t => (t.ExitPrice!.Value - t.EntryPrice) / t.EntryPrice * 100m)
+            .ToList();
+
+        return new VetoScorecard(
+            vetoed.Count,
+            counterfactuals.Count,
+            counterfactuals.Count > 0 ? Math.Round(counterfactuals.Average(), 2) : null,
+            buyReturns.Count,
+            buyReturns.Count > 0 ? Math.Round(buyReturns.Average(), 2) : null);
     }
 
     private async Task<(List<StockSignal> buys, List<StockSignal> watches, int holds, List<StockSignal> avoids, FunnelShadowStats funnel)>
@@ -445,7 +504,8 @@ public class ReportGenerationService(
         DateOnly reportDate, List<StockSignal> buys, List<StockSignal> watches,
         int holds, List<StockSignal> avoids, PortfolioState portfolio,
         MarketContext market, ReportNarratives narratives, ReportConfig cfg,
-        decimal gbpUsd, FunnelShadowStats? funnel = null)
+        decimal gbpUsd, FunnelShadowStats? funnel = null,
+        List<StockSignal>? vetoedToday = null, VetoScorecard? vetoScorecard = null)
     {
         var sb = new StringBuilder();
         var now = ToEastern(DateTime.UtcNow);
@@ -648,6 +708,29 @@ public class ReportGenerationService(
             sb.AppendLine(
                 $"*Funnel shadow: {funnel.Scored} scored · legacy Buy {funnel.LegacyBuys} · gate would-Buy {funnel.GateWouldBuy} · " +
                 $"divergent: {divergent} · would-veto {funnel.WouldVeto}.*");
+        }
+
+        // Funnel F3: today's veto candidates (gate-passers under the forward
+        // floor) plus the trailing counterfactual - the numbers that decide
+        // whether the floor moves at the quarterly review.
+        if (vetoedToday is { Count: > 0 })
+        {
+            sb.AppendLine();
+            sb.AppendLine("### 🚫 Forward veto");
+            foreach (var v in vetoedToday)
+                sb.AppendLine($"- **{v.Symbol}** — gate {v.GateScore:0.0}, forward {v.ForwardScore:0.0} (sentiment {(v.SentimentComponentScore is { } sc ? sc.ToString("0.00") : "n/a")}, fundamentals {(v.FundamentalMomentumScore is { } fm ? fm.ToString("0.00") : "n/a")})");
+        }
+        if (vetoScorecard is { VetoedInWindow: > 0 })
+        {
+            sb.AppendLine();
+            var vetoAvg = vetoScorecard.AvgVetoCounterfactualPct is { } va
+                ? $"{va:+0.00;-0.00}% avg counterfactual ({vetoScorecard.MeasurableVetoes} measurable)"
+                : "no measurable counterfactuals yet";
+            var buyAvg = vetoScorecard.AvgClosedBuyReturnPct is { } ba
+                ? $"{ba:+0.00;-0.00}% avg over {vetoScorecard.ClosedBuys} closed Buys"
+                : "no closed Buys in window";
+            sb.AppendLine($"*Veto scorecard (30d): {vetoScorecard.VetoedInWindow} vetoed · {vetoAvg} · executed: {buyAvg}. " +
+                          "Vetoes earn their keep when the vetoed set underperforms.*");
         }
 
         sb.AppendLine();

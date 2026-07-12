@@ -49,4 +49,11 @@ public static class FunnelScores
         var score = Math.Round(Math.Clamp(blend01 * 10m, 0m, 10m), 1);
         return new ForwardResult(score, degraded);
     }
+
+    // Phase F3: the asymmetric veto predicate. True only for a real (non-null,
+    // non-degraded) Forward score strictly below the floor - degraded or
+    // missing scores never veto (fail-open: a data outage must not block
+    // trading), and a floor of 0 can never fire since scores are >= 0.
+    public static bool ShouldVeto(decimal? forwardScore, bool degraded, decimal vetoFloor) =>
+        forwardScore is { } f && !degraded && f < vetoFloor;
 }

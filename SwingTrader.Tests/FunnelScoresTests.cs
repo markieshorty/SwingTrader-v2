@@ -87,4 +87,75 @@ public class FunnelScoresTests
         stats.DivergentSymbols.Should().Equal("GATEONLY+", "LEGACYONLY-");
         stats.WouldVeto.Should().Be(1);
     }
+
+    // ── Phase F3: the veto predicate + counterfactual scorecard ─────────────
+
+    [Theory]
+    [InlineData(2.4, false, 2.5, true)]   // just below the floor -> veto
+    [InlineData(2.5, false, 2.5, false)]  // AT the floor -> no veto (strict <)
+    [InlineData(2.6, false, 2.5, false)]  // above -> no veto
+    [InlineData(0.0, true, 2.5, false)]   // degraded never vetoes, however low
+    [InlineData(null, false, 2.5, false)] // missing never vetoes
+    [InlineData(0.0, false, 0.0, false)]  // floor 0 = veto off (scores are >= 0)
+    public void ShouldVeto_FiresOnlyForRealScoresStrictlyBelowTheFloor(
+        double? forward, bool degraded, double floor, bool expected) =>
+        FunnelScores.ShouldVeto((decimal?)forward, degraded, (decimal)floor)
+            .Should().Be(expected);
+
+    [Fact]
+    public void ForwardVetoFloor_OutsideTheRail_FailsValidation()
+    {
+        var profile = new AccountRiskProfile { ForwardVetoFloor = 5.1m };
+
+        var act = profile.Validate;
+
+        act.Should().Throw<System.ComponentModel.DataAnnotations.ValidationException>()
+            .WithMessage("*veto floor*");
+    }
+
+    [Fact]
+    public void ComputeVetoScorecard_PricesCounterfactualsFromTheSymbolsOwnLaterSignals()
+    {
+        var today = new DateOnly(2026, 7, 12);
+        StockSignal Sig(string sym, int daysAgo, decimal price, bool vetoed = false) => new()
+        {
+            Symbol = sym, SignalDate = today.AddDays(-daysAgo), CurrentPrice = price,
+            WouldPassGate = vetoed, WouldBeVetoed = vetoed,
+        };
+
+        var window = new List<StockSignal>
+        {
+            Sig("UP", 10, 100m, vetoed: true),   // vetoed at 100...
+            Sig("UP", 0, 110m),                  // ...now 110 -> +10%
+            Sig("DOWN", 10, 100m, vetoed: true), // vetoed at 100...
+            Sig("DOWN", 0, 90m),                 // ...now 90 -> -10%
+            Sig("GONE", 10, 50m, vetoed: true),  // dropped off watchlist - counted, not measurable
+            Sig("TODAY", 0, 80m, vetoed: true),  // vetoed today - no elapsed time, excluded entirely
+        };
+        var closed = new List<Trade>
+        {
+            new() { Symbol = "X", EntryPrice = 100m, ExitPrice = 105m }, // +5%
+            new() { Symbol = "Y", EntryPrice = 100m, ExitPrice = 99m },  // -1%
+            new() { Symbol = "Z", EntryPrice = 100m, ExitPrice = null }, // no fill price - excluded
+        };
+
+        var card = ReportGenerationService.ComputeVetoScorecard(today, window, closed);
+
+        card.VetoedInWindow.Should().Be(3);       // UP, DOWN, GONE (not TODAY)
+        card.MeasurableVetoes.Should().Be(2);     // GONE has no later price
+        card.AvgVetoCounterfactualPct.Should().Be(0m); // (+10 - 10) / 2
+        card.ClosedBuys.Should().Be(2);
+        card.AvgClosedBuyReturnPct.Should().Be(2m);    // (+5 - 1) / 2
+    }
+
+    [Fact]
+    public void ComputeVetoScorecard_EmptyWindow_ReportsZeroesAndNulls()
+    {
+        var card = ReportGenerationService.ComputeVetoScorecard(
+            new DateOnly(2026, 7, 12), [], []);
+
+        card.VetoedInWindow.Should().Be(0);
+        card.AvgVetoCounterfactualPct.Should().BeNull();
+        card.AvgClosedBuyReturnPct.Should().BeNull();
+    }
 }

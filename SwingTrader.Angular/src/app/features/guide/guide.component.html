@@ -104,6 +104,17 @@
           (does not auto-liquidate) if the portfolio drops that far in a single day.
         </p>
 
+        <h3>Forward score: sizing tilt &amp; veto</h3>
+        <p>
+          When the conviction funnel is enabled, a separate <strong>Forward score</strong> (news sentiment +
+          fundamentals, 0–10) fine-tunes each trade without ever creating one. Two Settings dials control it:
+          <strong>Sizing Aggressiveness</strong> ({{ risk()?.sizingAggressiveness ?? '—' }}) tilts position size up
+          or down by the forward score (0 = off, every position gets base size), and the
+          <strong>Forward Veto Floor</strong> ({{ risk()?.forwardVetoFloor ?? '—' }}) demotes a Buy to Watch when its
+          forward score falls below the floor (0 = off). A missing or degraded forward score never vetoes and never
+          tilts — data outages fail open. All the hard limits above still apply after any tilt.
+        </p>
+
         <h3>How positions are exited</h3>
         <p>
           Buying is only half the job — knowing when to sell is what protects the account. Once a trade is open the

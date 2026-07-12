@@ -343,6 +343,23 @@
           </p>
 
           <div class="slider-row">
+            <label>Forward Veto Floor: {{ draft.forwardVetoFloor | number: '1.1-1' }}</label>
+            <mat-slider
+              [min]="profile.allowedRanges.forwardVetoFloor.min"
+              [max]="profile.allowedRanges.forwardVetoFloor.max"
+              step="0.1"
+              discrete
+            >
+              <input matSliderThumb [ngModel]="draft.forwardVetoFloor" (ngModelChange)="updateRiskDraftField('forwardVetoFloor', $event)" />
+            </mat-slider>
+          </div>
+          <p class="muted small">
+            The veto: a Buy whose <strong>Forward score</strong> falls below this floor is demoted to Watch —
+            forward information can block a Buy, never create one. A missing or degraded forward score never
+            vetoes (data outages fail open). Set to 0 to disable. Only active once the funnel is switched on.
+          </p>
+
+          <div class="slider-row">
             <label>Max Open Positions: {{ draft.maxOpenPositions }}</label>
             <mat-slider
               [min]="profile.allowedRanges.maxOpenPositions.min"

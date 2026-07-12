@@ -15,6 +15,9 @@ public class SignalRepository(SwingTraderDbContext context) : ISignalRepository
     public async Task<IEnumerable<StockSignal>> GetByDateAsync(int accountId, DateOnly date) =>
         await context.StockSignals.Where(x => x.AccountId == accountId && x.SignalDate == date).ToListAsync();
 
+    public async Task<IEnumerable<StockSignal>> GetSinceDateAsync(int accountId, DateOnly fromDate) =>
+        await context.StockSignals.Where(x => x.AccountId == accountId && x.SignalDate >= fromDate).ToListAsync();
+
     public async Task<IEnumerable<StockSignal>> GetUnexecutedSignalsAsync(int accountId) =>
         await context.StockSignals.Where(x => x.AccountId == accountId && !x.WasExecuted).ToListAsync();
 
