@@ -388,6 +388,12 @@ public class ExecutionService(
                 // re-place here): Monitor's pending reconciliation resolves it
                 // against T212 order history - promoting to Open if it actually
                 // placed, or Cancelling it if it definitively did not.
+                // Reserve its cash for the rest of THIS run too: if the order
+                // did fill, later signals sized against un-decremented cash
+                // would overspend. Worst case (it never placed) this run is
+                // slightly conservative and reconciliation frees the capital.
+                availableCash -= sizing.EstimatedCost;
+                deployedThisRun += sizing.EstimatedCost;
                 logger.LogError(ex, "Order placement outcome unknown for {Symbol} ({Ticker}), account {AccountId} — left as Pending for reconciliation", signal.Symbol, ticker, accountId);
                 failed++;
             }

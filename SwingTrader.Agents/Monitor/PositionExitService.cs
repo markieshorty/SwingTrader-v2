@@ -35,15 +35,25 @@ public class PositionExitService(
     {
         var label = ExitReasonLabel(exitReason);
 
-        string? ticker;
-        try
+        // Sell the EXACT instrument that was bought: BrokerTicker was captured
+        // at placement precisely because symbol-based resolution can land on a
+        // different listing of the same company (see MonitorService's
+        // TickerMatchesTrade note) - re-resolving here risked selling an
+        // instrument the account doesn't hold while the real position stayed
+        // open. The heuristic lookup remains only for legacy trades placed
+        // before BrokerTicker was captured.
+        string? ticker = trade.BrokerTicker;
+        if (string.IsNullOrEmpty(ticker))
         {
-            ticker = await ResolveT212TickerAsync(accountId, t212, trade.Symbol);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Could not resolve T212 ticker for {Symbol} (account {AccountId}) — {Label} deferred to next cycle", trade.Symbol, accountId, label);
-            return new PositionExitResult(false, ex.Message, null, null);
+            try
+            {
+                ticker = await ResolveT212TickerAsync(accountId, t212, trade.Symbol);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Could not resolve T212 ticker for {Symbol} (account {AccountId}) — {Label} deferred to next cycle", trade.Symbol, accountId, label);
+                return new PositionExitResult(false, ex.Message, null, null);
+            }
         }
 
         if (ticker is null)
@@ -147,11 +157,15 @@ public class PositionExitService(
             if (toAddresses.Count == 0) return;
 
             var pnlSign = realizedPnl >= 0 ? "+" : "";
+            // Exit price and the estimated P&L are in the instrument's own
+            // currency (USD quotes) - labelling them £ overstated/understated
+            // by the FX rate. The authoritative GBP P&L arrives later via
+            // fill reconciliation (T212's realisedProfitLoss).
             var markdown =
                 $"# \U0001F4C9 {label} — {trade.Symbol}\n\n" +
                 $"Position closed automatically by Acme Trading — no action needed in Trading212.\n\n" +
-                $"**Exit price:** £{exitPrice:F2}\n" +
-                $"**P&L:** {pnlSign}£{realizedPnl:F2}\n" +
+                $"**Exit price:** ${exitPrice:F2}\n" +
+                $"**Estimated P&L:** {pnlSign}${realizedPnl:F2} (confirmed £ figure follows T212's fill)\n" +
                 $"**Reason:** {reasonDetail}";
 
             await emailService.SendSimpleEmailAsync(toAddresses, markdown, $"Acme Trading — {trade.Symbol} closed ({label})");
