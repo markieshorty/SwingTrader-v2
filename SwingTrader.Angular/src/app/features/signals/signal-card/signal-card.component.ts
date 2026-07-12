@@ -32,6 +32,14 @@ import { ConvictionBarComponent } from '../../../shared/components/conviction-ba
           <span>PriceLevel {{ signal().priceLevelScore?.toFixed(2) ?? 'n/a' }}</span>
           <span>Fundamental {{ signal().fundamentalMomentumScore?.toFixed(2) ?? 'n/a' }}</span>
         </div>
+        @if (signal().gateScore !== null) {
+          <div class="scores funnel"
+            title="Funnel shadow (Phase F1): what the two-stage design WOULD decide - gate (technical entry) and forward (sizing) scores. Not driving recommendations yet.">
+            <span>Gate {{ signal().gateScore?.toFixed(1) }}{{ signal().wouldPassGate ? ' ✓' : '' }}</span>
+            <span>Forward {{ signal().forwardScore?.toFixed(1) }}{{ signal().forwardScoreDegraded ? ' (degraded)' : '' }}</span>
+            @if (signal().wouldBeVetoed) { <span class="veto">would veto</span> }
+          </div>
+        }
       </div>
     }
   `,
@@ -93,6 +101,14 @@ import { ConvictionBarComponent } from '../../../shared/components/conviction-ba
         gap: 12px;
         color: var(--st-muted);
         margin-top: 8px;
+      }
+      .scores.funnel {
+        border-top: 1px dashed var(--st-border);
+        padding-top: 6px;
+        font-style: italic;
+      }
+      .veto {
+        color: var(--st-red);
       }
     `,
   ],

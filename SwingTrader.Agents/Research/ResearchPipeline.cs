@@ -151,6 +151,28 @@ public class ResearchPipeline(
         conviction = ApplyEarningsAdjustment(conviction, earningsCtx, out var earningsReasoning);
         conviction = ApplyCatalystAdjustment(conviction, catalyst, out var catalystReasoning);
 
+        // Funnel shadow (docs/funnel-plan, Phase F1): both scores computed and
+        // persisted but driving NOTHING - the legacy conviction above remains
+        // the sole authority. Gate mirrors the earnings adjustment (it stays
+        // on the gate in the funnel design); Forward takes the catalyst
+        // adjustment (forward-looking information belongs in the forward
+        // score). Would* booleans are snapshotted here so later threshold
+        // changes never rewrite what the funnel would have decided today.
+        var funnelCfg = researchConfig.Value;
+        var gateScore = ApplyEarningsAdjustment(
+            FunnelScores.Gate(weights, componentScores.Rsi, componentScores.Macd, componentScores.Volume,
+                componentScores.Setup, rs?.Score ?? 0.5m, priceLevel?.Score ?? 0.5m),
+            earningsCtx, out _);
+        var forward = FunnelScores.Forward(
+            sentimentScore is null ? null : componentScores.Sentiment,
+            fundamental?.Score,
+            funnelCfg.ForwardSentimentWeight, funnelCfg.ForwardFundamentalWeight);
+        var forwardScore = ApplyCatalystAdjustment(forward.Score, catalyst, out _);
+        var shadow = new FunnelScores.FunnelShadow(
+            gateScore, forwardScore, forward.Degraded,
+            WouldPassGate: gateScore >= weights.BuyThreshold,
+            WouldBeVetoed: !forward.Degraded && forwardScore < funnelCfg.ForwardVetoFloor);
+
         var recommendation = await DetermineRecommendationAsync(accountId, account.TradingMode, symbol, ind, conviction, weights, setupType);
 
         // Both adjustment notes ride the same reasoning-append slot.
@@ -158,7 +180,7 @@ public class ResearchPipeline(
 
         return await PersistSignalAsync(accountId, symbol, companyName, candles[^1], ind, sentimentScore,
             newsSummary, setupType, conviction, recommendation, componentScores, regime, earningsCtx, rs, priceLevel,
-            adjustmentReasoning.Length > 0 ? adjustmentReasoning : null, fundamentalSnapshot, fundamental);
+            adjustmentReasoning.Length > 0 ? adjustmentReasoning : null, fundamentalSnapshot, fundamental, shadow);
     }
 
     private async Task<(StrategyWeights Weights, MarketRegime? Regime)> GetWeightsAndRegimeAsync(
@@ -622,7 +644,8 @@ public class ResearchPipeline(
         ComponentScores componentScores, MarketRegime? currentRegime, EarningsContext? earningsCtx,
         RelativeStrengthResult? rs = null,
         PriceLevelResult? priceLevel = null, string? earningsReasoning = null,
-        FundamentalSnapshot? fundamentalSnapshot = null, FundamentalScore? fundamental = null)
+        FundamentalSnapshot? fundamentalSnapshot = null, FundamentalScore? fundamental = null,
+        FunnelScores.FunnelShadow? funnelShadow = null)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var existing = (await signalRepo.GetByDateAsync(accountId, today))
@@ -723,6 +746,15 @@ public class ResearchPipeline(
         signal.InsiderActivity = fundamentalSnapshot?.InsiderActivity;
         signal.EarningsConsistency = fundamentalSnapshot?.EarningsConsistency;
         signal.RevenueDirection = fundamentalSnapshot?.RevenueDirection;
+
+        if (funnelShadow is not null)
+        {
+            signal.GateScore = funnelShadow.GateScore;
+            signal.ForwardScore = funnelShadow.ForwardScore;
+            signal.ForwardScoreDegraded = funnelShadow.ForwardScoreDegraded;
+            signal.WouldPassGate = funnelShadow.WouldPassGate;
+            signal.WouldBeVetoed = funnelShadow.WouldBeVetoed;
+        }
 
         if (existing is null)
             return await signalRepo.AddAsync(signal);

@@ -48,4 +48,13 @@ public class ResearchConfig
     public decimal MaxCatalystBoost { get; set; } = 0.5m;
     public decimal MaxCatalystPenalty { get; set; } = 0.5m;
     public int CatalystMaxDaysAhead { get; set; } = 30;
+
+    // Funnel (docs/funnel-plan) Phase F1 shadow knobs. The forward blend
+    // favours sentiment (fresher by construction) over fundamentals (which
+    // lag via filings/aggregation). The veto floor drives NOTHING in F1 -
+    // it exists so WouldBeVetoed is snapshotted honestly at signal time
+    // rather than recomputed against whatever the floor is later.
+    public decimal ForwardSentimentWeight { get; set; } = 0.60m;
+    public decimal ForwardFundamentalWeight { get; set; } = 0.40m;
+    public decimal ForwardVetoFloor { get; set; } = 2.5m;
 }

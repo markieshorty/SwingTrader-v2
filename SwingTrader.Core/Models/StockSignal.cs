@@ -70,4 +70,17 @@ public class StockSignal : BaseEntity
     public InsiderActivity? InsiderActivity { get; set; }
     public EarningsConsistency? EarningsConsistency { get; set; }
     public RevenueDirection? RevenueDirection { get; set; }
+
+    // Funnel shadow scores (docs/funnel-plan, Phase F1): computed alongside
+    // the legacy blend but driving nothing yet. GateScore = the six
+    // backtestable components only (dead pair pinned neutral - bit-identical
+    // to what HistoricBacktester models), earnings-adjusted. ForwardScore =
+    // sentiment+fundamental blend rescaled 0..10, catalyst-adjusted. The
+    // Would* booleans are snapshotted AT SIGNAL TIME (not derived at read
+    // time) so later threshold changes never rewrite history.
+    public decimal? GateScore { get; set; }
+    public decimal? ForwardScore { get; set; }
+    public bool ForwardScoreDegraded { get; set; }
+    public bool WouldPassGate { get; set; }
+    public bool WouldBeVetoed { get; set; }
 }

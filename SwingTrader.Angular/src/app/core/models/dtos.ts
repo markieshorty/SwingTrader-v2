@@ -71,6 +71,13 @@ export interface SignalDto {
   insiderActivity: string | null;
   daysUntilEarnings: number | null;
   daysSinceEarnings: number | null;
+  // Funnel shadow scores (Phase F1) - computed alongside the legacy
+  // conviction but driving nothing yet. Null on signals scored before F1.
+  gateScore: number | null;
+  forwardScore: number | null;
+  forwardScoreDegraded: boolean;
+  wouldPassGate: boolean;
+  wouldBeVetoed: boolean;
 }
 
 export interface SignalGroupDto {
