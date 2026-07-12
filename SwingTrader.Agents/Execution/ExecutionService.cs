@@ -339,7 +339,7 @@ public class ExecutionService(
                 OpenedAt = DateTime.UtcNow,
                 SignalId = signal.Id,
                 // Funnel F2 scorecard fields: what the forward score said at
-                // entry and how much it tilted the size (1 = untitled).
+                // entry and how much it tilted the size (1 = untilted).
                 ForwardScoreAtEntry = signal.ForwardScore,
                 SizeMultiplier = sizing.AppliedMultiplier,
             };

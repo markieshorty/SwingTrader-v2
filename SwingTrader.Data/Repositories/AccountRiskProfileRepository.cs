@@ -59,6 +59,8 @@ public class AccountRiskProfileRepository(SwingTraderDbContext db) : IAccountRis
         existing.TargetPct = profile.TargetPct;
         existing.SizingMode = profile.SizingMode;
         existing.FlatPositionPct = profile.FlatPositionPct;
+        existing.SizingAggressiveness = profile.SizingAggressiveness;
+        existing.ForwardVetoFloor = profile.ForwardVetoFloor;
         existing.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync(ct);
@@ -94,6 +96,9 @@ public class AccountRiskProfileRepository(SwingTraderDbContext db) : IAccountRis
         existing.TargetPct = defaults.TargetPct;
         existing.SizingMode = defaults.SizingMode;
         existing.FlatPositionPct = defaults.FlatPositionPct;
+        existing.SizingAggressiveness = defaults.SizingAggressiveness;
+        existing.ForwardVetoFloor = defaults.ForwardVetoFloor;
+        existing.AutopauseDuringBear = defaults.AutopauseDuringBear;
         existing.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync(ct);

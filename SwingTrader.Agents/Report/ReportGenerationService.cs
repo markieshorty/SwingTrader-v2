@@ -135,7 +135,9 @@ public class ReportGenerationService(
             scored.Count(s => s.Recommendation == Recommendation.Buy),
             scored.Count(s => s.WouldPassGate),
             divergent,
-            scored.Count(s => s.WouldBeVetoed));
+            // Only gate-passers: a veto on a stock the gate wouldn't buy is a
+            // no-op, and counting it would overstate how active the floor is.
+            scored.Count(s => s.WouldPassGate && s.WouldBeVetoed));
     }
 
     // Funnel Phase F3: the veto's justification is the counterfactual - what

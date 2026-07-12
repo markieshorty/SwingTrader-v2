@@ -75,17 +75,18 @@ public class FunnelScoresTests
             Sig("AGREE2", Recommendation.Hold, 4m, wouldPass: false),    // both no
             Sig("GATEONLY", Recommendation.Watch, 7m, wouldPass: true),  // gate-only (+)
             Sig("LEGACYONLY", Recommendation.Buy, 5m, wouldPass: false), // legacy-only (-)
-            Sig("VETOED", Recommendation.Watch, 3m, wouldPass: false, wouldVeto: true),
+            Sig("VETOED", Recommendation.Watch, 3m, wouldPass: false, wouldVeto: true), // sub-gate: veto is a no-op
+            Sig("PASSVETO", Recommendation.Watch, 8m, wouldPass: true, wouldVeto: true), // the real veto case
             Sig("PREFUNNEL", Recommendation.Buy, null, wouldPass: false), // scored before F1 - excluded
         };
 
         var stats = ReportGenerationService.ComputeFunnelShadowStats(all);
 
-        stats.Scored.Should().Be(5);
+        stats.Scored.Should().Be(6);
         stats.LegacyBuys.Should().Be(2);
-        stats.GateWouldBuy.Should().Be(2);
-        stats.DivergentSymbols.Should().Equal("GATEONLY+", "LEGACYONLY-");
-        stats.WouldVeto.Should().Be(1);
+        stats.GateWouldBuy.Should().Be(3);
+        stats.DivergentSymbols.Should().Equal("GATEONLY+", "LEGACYONLY-", "PASSVETO+");
+        stats.WouldVeto.Should().Be(1); // PASSVETO only - sub-gate VETOED doesn't count
     }
 
     // ── Phase F3: the veto predicate + counterfactual scorecard ─────────────

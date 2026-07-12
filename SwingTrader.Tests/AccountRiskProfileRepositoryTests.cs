@@ -138,6 +138,45 @@ public class AccountRiskProfileRepositoryTests
     }
 
     [Fact]
+    public async Task UpdateAsync_PersistsTheFunnelDials()
+    {
+        // Regression: the field-by-field copy in UpdateAsync originally missed
+        // SizingAggressiveness and ForwardVetoFloor, so the Settings sliders
+        // saved successfully while silently persisting nothing.
+        await using var db = CreateDb();
+        var repo = new AccountRiskProfileRepository(db);
+        await repo.SeedDefaultAsync(1);
+        var profile = await repo.GetAsync(1);
+        profile.SizingAggressiveness = 0.7m;
+        profile.ForwardVetoFloor = 3.5m;
+
+        await repo.UpdateAsync(profile);
+
+        var updated = await db.AccountRiskProfiles.SingleAsync(p => p.AccountId == 1);
+        updated.SizingAggressiveness.Should().Be(0.7m);
+        updated.ForwardVetoFloor.Should().Be(3.5m);
+    }
+
+    [Fact]
+    public async Task ResetToDefaultsAsync_RestoresTheFunnelDials()
+    {
+        await using var db = CreateDb();
+        var repo = new AccountRiskProfileRepository(db);
+        await repo.SeedDefaultAsync(1);
+        var profile = await repo.GetAsync(1);
+        profile.SizingAggressiveness = 1.0m;
+        profile.ForwardVetoFloor = 0.0m;
+        profile.AutopauseDuringBear = false;
+        await repo.UpdateAsync(profile);
+
+        var reset = await repo.ResetToDefaultsAsync(1);
+
+        reset.SizingAggressiveness.Should().Be(0m);
+        reset.ForwardVetoFloor.Should().Be(CapitalRules.DefaultForwardVetoFloor);
+        reset.AutopauseDuringBear.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task ResetToDefaultsAsync_NoExistingProfile_SeedsDefault()
     {
         await using var db = CreateDb();

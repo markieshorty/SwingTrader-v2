@@ -57,6 +57,17 @@ public class SignalRepository(SwingTraderDbContext context) : ISignalRepository
         existing.EarningsSetupType = signal.EarningsSetupType;
         existing.DaysUntilEarnings = signal.DaysUntilEarnings;
         existing.Reasoning = signal.Reasoning;
+        // Funnel shadow fields follow the incoming signal so a same-day
+        // re-score through this path (the earnings-gate short-circuit, which
+        // computes no scores) can't leave a stale WouldPassGate/WouldBeVetoed
+        // from an earlier full scoring pass attached to a Hold row - that
+        // stale pair would surface in the report's veto list and divergence
+        // stats as if it were today's decision.
+        existing.GateScore = signal.GateScore;
+        existing.ForwardScore = signal.ForwardScore;
+        existing.ForwardScoreDegraded = signal.ForwardScoreDegraded;
+        existing.WouldPassGate = signal.WouldPassGate;
+        existing.WouldBeVetoed = signal.WouldBeVetoed;
         // WasExecuted is deliberately NOT copied from the incoming signal -
         // callers (Research's earnings-gate short-circuit) always construct
         // a brand-new StockSignal with WasExecuted defaulted to false, which
