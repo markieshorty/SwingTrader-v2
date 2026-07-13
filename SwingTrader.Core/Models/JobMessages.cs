@@ -25,4 +25,8 @@ public record ReadinessJobMessage(int AccountId, string JobId, DateOnly Snapshot
 
 public record CandleSyncJobMessage(int AccountId, string JobId);
 
+// Platform-level like CandleSync: one run refreshes the shared Filings /
+// FilingDeltas tables for every account (docs/filing-delta-plan).
+public record FilingSyncJobMessage(int AccountId, string JobId);
+
 public record BacktestJobMessage(int AccountId, string JobId, int BacktestRunId);

@@ -28,6 +28,11 @@ public interface IWatchlistRepository
     // what the Research pipeline scans.
     Task<List<WatchlistItem>> GetAllEnabledSymbolsAsync(int accountId, CancellationToken ct = default);
 
+    // Distinct active symbols across EVERY account - the scope of platform-
+    // level jobs (FilingSync) that maintain shared data for whatever anyone
+    // is watching.
+    Task<List<string>> GetActiveSymbolsAcrossAccountsAsync(CancellationToken ct = default);
+
     Task<Watchlist> CreateWatchlistAsync(int accountId, string name, WatchlistType type, string? description, CancellationToken ct = default);
     Task UpdateWatchlistAsync(int accountId, int watchlistId, string name, string? description, bool topMoversEnabled, CancellationToken ct = default);
 

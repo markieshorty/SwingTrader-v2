@@ -83,4 +83,11 @@ public class StockSignal : BaseEntity
     public bool ForwardScoreDegraded { get; set; }
     public bool WouldPassGate { get; set; }
     public bool WouldBeVetoed { get; set; }
+
+    // Filing-delta shadow (docs/filing-delta-plan Phase FD1): the symbol's
+    // most recent scored filing-language change, decayed to signal date
+    // (half-life ~63 trading days). Drives nothing until ForwardFilingWeight
+    // is raised above 0 (FD2). Null = no scored filing history yet.
+    public decimal? FilingDeltaScore { get; set; }
+    public string? FilingDeltaSummary { get; set; }
 }

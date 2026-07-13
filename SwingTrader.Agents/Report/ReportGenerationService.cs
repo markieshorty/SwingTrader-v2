@@ -17,6 +17,7 @@ namespace SwingTrader.Agents.Report;
 public class ReportGenerationService(
     ISignalRepository signalRepo,
     ITradeRepository tradeRepo,
+    IFilingRepository filingRepo,
     IPortfolioRepository portfolioRepo,
     IReportRepository reportRepo,
     IApprovalRepository approvalRepo,
@@ -102,7 +103,21 @@ public class ReportGenerationService(
             .ToList();
         var vetoScorecard = ComputeVetoScorecard(reportDate, windowSignals, closedTrades);
 
-        var markdown = BuildMarkdown(reportDate, buys, watches, holds, avoids, portfolio, market, narratives, cfg, gbpUsd, funnel, vetoedToday, vetoScorecard);
+        // Filing-delta visibility (FD1 shadow): the last week's scored
+        // language changes, worst first. Best-effort - never fails the report.
+        List<FilingDelta> filingDeltas = [];
+        try
+        {
+            filingDeltas = (await filingRepo.GetDeltasSinceAsync(DateTime.UtcNow.AddDays(-7)))
+                .Where(d => d.Delta != 0m)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Filing-delta report read failed — line omitted");
+        }
+
+        var markdown = BuildMarkdown(reportDate, buys, watches, holds, avoids, portfolio, market, narratives, cfg, gbpUsd, funnel, vetoedToday, vetoScorecard, filingDeltas);
         if (approvalRequired)
         {
             var baseUrl = approvalConfig.Value.BaseUrl.TrimEnd('/');
@@ -507,7 +522,8 @@ public class ReportGenerationService(
         int holds, List<StockSignal> avoids, PortfolioState portfolio,
         MarketContext market, ReportNarratives narratives, ReportConfig cfg,
         decimal gbpUsd, FunnelShadowStats? funnel = null,
-        List<StockSignal>? vetoedToday = null, VetoScorecard? vetoScorecard = null)
+        List<StockSignal>? vetoedToday = null, VetoScorecard? vetoScorecard = null,
+        List<FilingDelta>? filingDeltas = null)
     {
         var sb = new StringBuilder();
         var now = ToEastern(DateTime.UtcNow);
@@ -733,6 +749,19 @@ public class ReportGenerationService(
                 : "no closed Buys in window";
             sb.AppendLine($"*Veto scorecard (30d): {vetoScorecard.VetoedInWindow} vetoed · {vetoAvg} · executed: {buyAvg}. " +
                           "Vetoes earn their keep when the vetoed set underperforms.*");
+        }
+
+        // Filing-delta shadow (docs/filing-delta-plan FD1): the week's scored
+        // filing-language changes, worst first - visibility only, drives
+        // nothing until FD2.
+        if (filingDeltas is { Count: > 0 })
+        {
+            sb.AppendLine();
+            sb.AppendLine("### 📄 Filing language changes (7d, shadow)");
+            foreach (var d in filingDeltas.Take(5))
+                sb.AppendLine($"- **{d.Symbol}** {d.Delta:+0.00;-0.00} ({d.FiledAt:dd MMM}) — {d.Summary}");
+            if (filingDeltas.Count > 5)
+                sb.AppendLine($"- …and {filingDeltas.Count - 5} more.");
         }
 
         sb.AppendLine();

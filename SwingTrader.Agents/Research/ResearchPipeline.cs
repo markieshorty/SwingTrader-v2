@@ -41,6 +41,8 @@ public class ResearchPipeline(
     IOptions<ResearchConfig> researchConfig,
     IOptions<EarningsConfig> earningsConfig,
     ISentimentArchiveRepository sentimentArchive,
+    IFilingRepository filingRepo,
+    IOptions<FilingDeltaConfig> filingDeltaConfig,
     ILogger<ResearchPipeline> logger) : IResearchPipeline
 {
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
@@ -235,9 +237,32 @@ public class ResearchPipeline(
         // All adjustment notes ride the same reasoning-append slot.
         var adjustmentReasoning = (earningsReasoning ?? string.Empty) + (catalystReasoning ?? string.Empty) + (vetoReasoning ?? string.Empty);
 
+        // Filing-delta shadow (docs/filing-delta-plan FD1): the most recent
+        // scored filing-language change, decayed to today. Persisted for the
+        // scorecard; drives NOTHING until ForwardFilingWeight > 0 (FD2).
+        // Strictly best-effort - no filing data is degraded-null, never a
+        // failed research run.
+        decimal? filingDeltaScore = null;
+        string? filingDeltaSummary = null;
+        try
+        {
+            if (await filingRepo.GetLatestNonZeroDeltaAsync(symbol, ct) is { } latestDelta)
+            {
+                filingDeltaScore = Filings.FilingDeltaMath.EffectiveScore(
+                    latestDelta.Delta, latestDelta.FiledAt, DateOnly.FromDateTime(DateTime.UtcNow),
+                    filingDeltaConfig.Value.HalfLifeTradingDays);
+                filingDeltaSummary = latestDelta.Summary;
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Filing-delta lookup failed for {Symbol} — shadow score omitted", symbol);
+        }
+
         return await PersistSignalAsync(accountId, symbol, companyName, candles[^1], ind, sentimentScore,
             newsSummary, setupType, conviction, recommendation, componentScores, regime, earningsCtx, rs, priceLevel,
-            adjustmentReasoning.Length > 0 ? adjustmentReasoning : null, fundamentalSnapshot, fundamental, shadow);
+            adjustmentReasoning.Length > 0 ? adjustmentReasoning : null, fundamentalSnapshot, fundamental, shadow,
+            filingDeltaScore, filingDeltaSummary);
     }
 
     private async Task<(StrategyWeights Weights, MarketRegime? Regime)> GetWeightsAndRegimeAsync(
@@ -702,7 +727,8 @@ public class ResearchPipeline(
         RelativeStrengthResult? rs = null,
         PriceLevelResult? priceLevel = null, string? earningsReasoning = null,
         FundamentalSnapshot? fundamentalSnapshot = null, FundamentalScore? fundamental = null,
-        FunnelScores.FunnelShadow? funnelShadow = null)
+        FunnelScores.FunnelShadow? funnelShadow = null,
+        decimal? filingDeltaScore = null, string? filingDeltaSummary = null)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var existing = (await signalRepo.GetByDateAsync(accountId, today))
@@ -812,6 +838,11 @@ public class ResearchPipeline(
             signal.WouldPassGate = funnelShadow.WouldPassGate;
             signal.WouldBeVetoed = funnelShadow.WouldBeVetoed;
         }
+
+        // Filing-delta shadow (FD1) - overwritten (not preserved) on rescore
+        // so the stored value always reflects the decay as of the latest pass.
+        signal.FilingDeltaScore = filingDeltaScore;
+        signal.FilingDeltaSummary = filingDeltaSummary;
 
         if (existing is null)
             return await signalRepo.AddAsync(signal);

@@ -20,6 +20,7 @@ public static class WorkerCadence
         ["Readiness"] = 1560,     // daily
         ["Watchlist"] = 11520,    // weekly Sunday (~8 days)
         ["CandleSync"] = 11520,   // weekly Saturday (~8 days)
+        ["FilingSync"] = 5760,    // weekdays 18:00 ET (~4 days, covers long weekends)
     };
 
     // Unknown worker names fall back to the daily threshold.

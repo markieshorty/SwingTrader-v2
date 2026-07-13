@@ -34,6 +34,8 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     public DbSet<BacktestRun> BacktestRuns => Set<BacktestRun>();
     public DbSet<SentimentArticle> SentimentArticles => Set<SentimentArticle>();
     public DbSet<SentimentDailyScore> SentimentDailyScores => Set<SentimentDailyScore>();
+    public DbSet<Filing> Filings => Set<Filing>();
+    public DbSet<FilingDelta> FilingDeltas => Set<FilingDelta>();
 
     // The 'system' Account created by the AddMultiTenancy migration - all
     // pre-existing (pre-Phase-10c) data defaults to this AccountId.
@@ -378,6 +380,38 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.Score).HasPrecision(5, 4);
             // One score per symbol per day, however many accounts researched it.
             e.HasIndex(x => new { x.Symbol, x.Date }).IsUnique();
+        });
+
+        // Filing-delta store (docs/filing-delta-plan). Platform-level like
+        // HistoricalCandle - one copy per document for every account.
+        modelBuilder.Entity<Filing>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Symbol).IsRequired().HasMaxLength(10);
+            e.Property(x => x.Cik).IsRequired().HasMaxLength(10);
+            e.Property(x => x.AccessionNumber).IsRequired().HasMaxLength(30);
+            e.Property(x => x.FilingType).IsRequired().HasMaxLength(10);
+            e.Property(x => x.PrimaryDocument).IsRequired().HasMaxLength(200);
+            e.Property(x => x.RiskFactorsHash).HasMaxLength(64);
+            e.Property(x => x.MdaHash).HasMaxLength(64);
+            // Accession numbers are EDGAR-globally unique - the sync's
+            // idempotency key across overlapping runs.
+            e.HasIndex(x => x.AccessionNumber).IsUnique();
+            e.HasIndex(x => new { x.Symbol, x.FilingType, x.FiledAt });
+        });
+
+        modelBuilder.Entity<FilingDelta>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Symbol).IsRequired().HasMaxLength(10);
+            e.Property(x => x.Direction).HasPrecision(5, 4);
+            e.Property(x => x.Materiality).HasPrecision(5, 4);
+            e.Property(x => x.Delta).HasPrecision(5, 4);
+            e.Property(x => x.Categories).HasMaxLength(500);
+            e.Property(x => x.Model).HasMaxLength(100);
+            // One delta per filing - re-scoring replaces, never duplicates.
+            e.HasIndex(x => x.FilingId).IsUnique();
+            e.HasIndex(x => new { x.Symbol, x.FiledAt });
         });
 
         modelBuilder.Entity<HistoricalCandle>(e =>

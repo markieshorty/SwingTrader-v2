@@ -133,6 +133,22 @@ public class SchedulerFunction(
         {
             logger.LogError(ex, "Scheduler failed to enqueue the weekly candle sync");
         }
+
+        // Platform-level daily filing sync (docs/filing-delta-plan): shared
+        // Filings/FilingDeltas tables, one job under the system account.
+        // 18:00 ET weekdays - after the market close so the day's filings
+        // (most land after hours) are captured before the NEXT morning's
+        // research reads them.
+        try
+        {
+            if (isWeekday && InWindow(nowEt, 18, 0, 18, 5))
+                await TryEnqueueAsync(Data.SwingTraderDbContext.SystemAccountId, "FilingSync", today, "filingsync-jobs",
+                    new FilingSyncJobMessage(Data.SwingTraderDbContext.SystemAccountId, Guid.NewGuid().ToString("N")), ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Scheduler failed to enqueue the daily filing sync");
+        }
     }
 
     private bool MiddayRescoreEnabled =>

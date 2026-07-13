@@ -155,6 +155,22 @@ public class WatchlistRepository(SwingTraderDbContext db) : IWatchlistRepository
             .ToList();
     }
 
+    public async Task<List<string>> GetActiveSymbolsAcrossAccountsAsync(CancellationToken ct = default)
+    {
+        // No AccountId filter - this is the scope of platform-level jobs
+        // (FilingSync) maintaining shared data for whatever anyone watches.
+        // The IsActive global query filter still applies.
+        var symbols = await db.WatchlistItems
+            .Where(i => i.Watchlist!.IsEnabled || i.ForceIntoFinalList)
+            .Select(i => i.Symbol)
+            .ToListAsync(ct);
+        return symbols
+            .Select(s => s.ToUpperInvariant())
+            .Distinct()
+            .OrderBy(s => s)
+            .ToList();
+    }
+
     public async Task<Watchlist> CreateWatchlistAsync(int accountId, string name, WatchlistType type, string? description, CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;

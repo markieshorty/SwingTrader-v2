@@ -100,6 +100,7 @@ builder.Services.Configure<MonitorConfig>(builder.Configuration.GetSection(Monit
 builder.Services.Configure<RefinementConfig>(builder.Configuration.GetSection(RefinementConfig.SectionName));
 builder.Services.Configure<RiskManagementConfig>(builder.Configuration.GetSection(RiskManagementConfig.SectionName));
 builder.Services.Configure<ExecutionConfig>(builder.Configuration.GetSection(ExecutionConfig.SectionName));
+builder.Services.Configure<FilingDeltaConfig>(builder.Configuration.GetSection(FilingDeltaConfig.SectionName));
 
 builder.Services.AddRefitClient<IExchangeRateClient>()
     .ConfigureHttpClient(c => c.BaseAddress = new Uri("https://api.frankfurter.dev"));
@@ -144,6 +145,13 @@ builder.Services.AddScoped<IHistoricalCandleRepository, HistoricalCandleReposito
 builder.Services.AddScoped<ISentimentArchiveRepository, SentimentArchiveRepository>();
 builder.Services.AddScoped<IBacktestRunRepository, BacktestRunRepository>();
 builder.Services.AddScoped<SwingTrader.Agents.Backtesting.ICandleSyncService, SwingTrader.Agents.Backtesting.CandleSyncService>();
+
+// Filing-delta store + sync (docs/filing-delta-plan). EDGAR requires a
+// declared User-Agent; the header itself is set per-request from config.
+builder.Services.AddScoped<IFilingRepository, FilingRepository>();
+builder.Services.AddHttpClient<SwingTrader.Infrastructure.Edgar.IEdgarClient, SwingTrader.Infrastructure.Edgar.EdgarClient>(
+    client => client.Timeout = TimeSpan.FromSeconds(60));
+builder.Services.AddScoped<SwingTrader.Agents.Filings.IFilingSyncService, SwingTrader.Agents.Filings.FilingSyncService>();
 builder.Services.AddScoped<IApplyRefinementService, ApplyRefinementService>();
 builder.Services.AddScoped<ITierEvaluationService, TierEvaluationService>();
 builder.Services.AddScoped<IReadinessAssessmentService, ReadinessAssessmentService>();
