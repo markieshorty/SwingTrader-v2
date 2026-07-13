@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SwingTrader.Core.Interfaces;
+using SwingTrader.Core.Models;
 using SwingTrader.Infrastructure.Configuration;
 using SwingTrader.Infrastructure.HttpClients;
 using SwingTrader.Infrastructure.HttpClients.Dtos;
@@ -48,11 +49,9 @@ public class SecondHopScorer(
         var from = today.AddDays(-cfg.LookbackDays);
         var linkedTickers = links.Select(l => l.LinkedTicker!).Distinct().ToList();
 
-        var events = (await sentimentArchive.GetScoresForSymbolsSinceAsync(linkedTickers, from, ct))
-            .Where(e => Math.Abs(e.Score) >= cfg.MinSourceMagnitude)
-            .OrderByDescending(e => Math.Abs(e.Score))
-            .Take(12) // prompt-size bound; the strongest events carry the signal
-            .ToList();
+        var events = SelectStrongestPerSymbol(
+            await sentimentArchive.GetScoresForSymbolsSinceAsync(linkedTickers, from, ct),
+            cfg.MinSourceMagnitude);
         if (events.Count == 0) return null;
 
         var linkLines = string.Join("\n", links.Select(l =>
@@ -104,6 +103,20 @@ public class SecondHopScorer(
             return null;
         }
     }
+
+    // One event per linked symbol: a story that dominates a symbol's news for
+    // a week produces one archive row per DAY, and offering each row as a
+    // separate "event" counted the same story several times over (the decay +
+    // clamp only partially masked it). The strongest day carries the story;
+    // the per-symbol cap also bounds the prompt without a magic Take(N).
+    internal static List<SentimentDailyScore> SelectStrongestPerSymbol(
+        IEnumerable<SentimentDailyScore> scores, decimal minMagnitude) =>
+        scores
+            .Where(e => Math.Abs(e.Score) >= minMagnitude)
+            .GroupBy(e => e.Symbol, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.OrderByDescending(e => Math.Abs(e.Score)).ThenByDescending(e => e.Date).First())
+            .OrderByDescending(e => Math.Abs(e.Score))
+            .ToList();
 
     // Internal static so the clamping/filtering rules are directly testable.
     internal static List<(int Index, bool Transmits, decimal Impact)> ParseTransmissions(string raw)

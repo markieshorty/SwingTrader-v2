@@ -44,6 +44,30 @@ public class FilingDeltaTests
     }
 
     [Fact]
+    public void ExtractSections_TenQ_MdaPicksPartI_NotPartIIUnregisteredSales()
+    {
+        // A 10-Q has TWO "Item 2" headers: Part I Item 2 is the (long) MD&A,
+        // Part II Item 2 is the short Unregistered Sales item. Last-occurrence
+        // extraction picked Part II; longest-section-wins must pick the MD&A.
+        var html =
+            "<h2>Item 1.</h2><p>Financial statements.</p>" +
+            $"<h2>Item 2.</h2>{Paragraphs("MDA", 12)}" +                    // Part I MD&A (long)
+            "<h2>Item 3.</h2><p>Quantitative disclosures about market risk.</p>" +
+            "<h2>Item 4.</h2><p>Controls and procedures.</p>" +
+            $"<h2>Item 1A.</h2>{Paragraphs("RISK", 8)}" +                   // Part II Risk Factors
+            $"<h2>Item 2.</h2>{Paragraphs("SALES", 4)}" +                   // Part II Unregistered Sales (short)
+            "<h2>Item 5.</h2><p>Other information.</p>";
+        var text = FilingTextExtractor.HtmlToText($"<html><body>{html}</body></html>");
+
+        var sections = FilingTextExtractor.ExtractSections(text, "10-Q");
+
+        sections.Mda.Should().NotBeNull();
+        sections.Mda.Should().Contain("MDA paragraph 0").And.NotContain("SALES paragraph");
+        sections.RiskFactors.Should().NotBeNull();
+        sections.RiskFactors.Should().Contain("RISK paragraph 0").And.NotContain("SALES paragraph 1");
+    }
+
+    [Fact]
     public void ExtractSections_SectionTooShortToBeReal_IsNull()
     {
         // A ToC hit produces a tiny "section" - must be treated as extraction

@@ -50,15 +50,21 @@ public static partial class FilingTextExtractor
             _ => new Sections(null, null),
         };
 
-    // Finds the last plausible start header and the first end header after
-    // it. Headers are matched at line starts to avoid mid-sentence mentions
+    // Evaluates EVERY start-header occurrence (each ended by the first end
+    // header after it) and keeps the LONGEST resulting section. Longest-wins
+    // handles both failure modes of a positional heuristic at once: a
+    // table-of-contents hit produces a tiny "section" (its end header is the
+    // very next ToC line), and a 10-Q's ambiguous "Item 2" (Part I = the real
+    // MD&A, Part II = the short Unregistered Sales item) resolves to the
+    // MD&A because it is pages long - last-occurrence used to pick Part II.
+    // Headers are matched at line starts to avoid mid-sentence mentions
     // ("see Item 1A above").
     private static string? Slice(
         string text, string[] startHeaders, string[] endHeaders, string[]? excludeStarts = null)
     {
         var lower = text.ToLowerInvariant();
 
-        var start = -1;
+        var starts = new List<int>();
         foreach (var header in startHeaders)
         {
             foreach (Match m in LineStartOccurrences(lower, header))
@@ -68,25 +74,28 @@ public static partial class FilingTextExtractor
                         lower.Length >= m.Index + ex.Length &&
                         lower.Substring(m.Index, ex.Length) == ex))
                     continue;
-                if (m.Index > start) start = m.Index;
+                starts.Add(m.Index);
             }
         }
-        if (start < 0) return null;
+        if (starts.Count == 0) return null;
 
-        var end = text.Length;
-        foreach (var header in endHeaders)
+        var endCandidates = endHeaders
+            .SelectMany(h => LineStartOccurrences(lower, h).Select(m => m.Index))
+            .OrderBy(i => i)
+            .ToList();
+
+        string? best = null;
+        foreach (var start in starts)
         {
-            foreach (Match m in LineStartOccurrences(lower, header))
-            {
-                if (m.Index > start + 50 && m.Index < end) end = m.Index;
-            }
+            var end = endCandidates.FirstOrDefault(i => i > start + 50, text.Length);
+            var section = text[start..end].Trim();
+            if (best is null || section.Length > best.Length) best = section;
         }
 
-        var section = text[start..end].Trim();
         // A "section" of a few hundred chars is a table-of-contents hit, not
         // the real thing - treat as extraction failure rather than hashing
         // noise that would flag every quarter as changed.
-        return section.Length < 500 ? null : section;
+        return best is { Length: >= 500 } ? best : null;
     }
 
     private static MatchCollection LineStartOccurrences(string lowerText, string header) =>

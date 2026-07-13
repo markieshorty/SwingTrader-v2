@@ -55,7 +55,11 @@ public class EdgarClient(
         var json = await GetStringAsync($"{DataHost}/submissions/CIK{cik}.json", ct);
         var doc = JsonSerializer.Deserialize<SubmissionsResponse>(json, JsonOpts);
         var recent = doc?.Filings?.Recent;
-        if (recent?.AccessionNumber is null) return [];
+        // Parallel arrays: any one missing means the payload shape changed -
+        // treat as "no filings" rather than NRE-ing the whole sync.
+        if (recent?.AccessionNumber is null || recent.Form is null
+            || recent.FilingDate is null || recent.PrimaryDocument is null)
+            return [];
 
         var results = new List<EdgarFilingRef>();
         // The "recent" block is parallel arrays, newest first.

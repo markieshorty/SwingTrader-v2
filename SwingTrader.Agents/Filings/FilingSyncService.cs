@@ -171,6 +171,13 @@ public class FilingSyncService(
             // Both sections missing = the heuristics found nothing usable.
             filing.ParseFailed = filing.RiskFactorsHash is null && filing.MdaHash is null;
         }
+        catch (OperationCanceledException)
+        {
+            // A shutdown mid-fetch must NOT be stored as ParseFailed: the
+            // accession-exists check would then never refetch this filing,
+            // making a transient cancellation a permanent no-score.
+            throw;
+        }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Filing fetch/extract failed for {Symbol} {Accession}", symbol, filingRef.AccessionNumber);

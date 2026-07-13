@@ -26,6 +26,7 @@ public interface IBellwetherSyncService
 // researched this morning) are skipped without any API call.
 public class BellwetherSyncService(
     ISentimentArchiveRepository sentimentArchive,
+    IWatchlistRepository watchlists,
     IUserHttpClientFactory clientFactory,
     IFinnhubRateLimiter finnhubRateLimiter,
     IClaudeRateLimiter claudeRateLimiter,
@@ -53,13 +54,20 @@ public class BellwetherSyncService(
             .Select(s => s.Symbol)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+        // A bellwether that is ALSO a watchlist symbol belongs to research:
+        // its 7:30 run writes a richer momentum-blended score, and the
+        // (symbol, day) unique index means whoever writes first wins - this
+        // job writing the lean level first would silently block the good row.
+        var watchlistOwned = (await watchlists.GetActiveSymbolsAcrossAccountsAsync(ct))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         var lookbackDays = researchConfig.Value.NewsLookbackDays;
         int scored = 0, noNews = 0, skipped = 0, failed = 0;
 
         foreach (var symbol in cfg.Bellwethers)
         {
             if (ct.IsCancellationRequested) break;
-            if (alreadyToday.Contains(symbol)) { skipped++; continue; }
+            if (alreadyToday.Contains(symbol) || watchlistOwned.Contains(symbol)) { skipped++; continue; }
 
             try
             {

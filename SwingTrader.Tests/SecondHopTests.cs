@@ -40,6 +40,29 @@ public class SecondHopTests
         SecondHopMath.Combine([], asOf, 5).Should().Be(0m);
     }
 
+    [Fact]
+    public void SelectStrongestPerSymbol_OneEventPerStory_NotOnePerDay()
+    {
+        // A story dominating a linked symbol's news all week produces one
+        // archive row per DAY - only the strongest day may represent it, or
+        // the same story gets counted several times over in the combine.
+        var scores = new List<SentimentDailyScore>
+        {
+            new() { Symbol = "TSM", Date = new DateOnly(2026, 7, 9), Score = 0.5m },
+            new() { Symbol = "TSM", Date = new DateOnly(2026, 7, 10), Score = 0.7m }, // strongest
+            new() { Symbol = "TSM", Date = new DateOnly(2026, 7, 11), Score = 0.6m },
+            new() { Symbol = "ASML", Date = new DateOnly(2026, 7, 11), Score = -0.4m },
+            new() { Symbol = "AMAT", Date = new DateOnly(2026, 7, 11), Score = 0.1m }, // below floor
+        };
+
+        var events = SecondHopScorer.SelectStrongestPerSymbol(scores, minMagnitude: 0.3m);
+
+        events.Should().HaveCount(2);
+        events[0].Symbol.Should().Be("TSM");
+        events[0].Score.Should().Be(0.7m);
+        events[1].Symbol.Should().Be("ASML");
+    }
+
     // ── Graph-build parsing (EconomicLinkService.ParseLinks) ─────────────────
 
     [Fact]
