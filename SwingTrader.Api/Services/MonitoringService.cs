@@ -20,27 +20,6 @@ public class MonitoringService(
     IConfiguration config,
     ILogger<MonitoringService> logger)
 {
-    // Per-worker staleness thresholds keyed to each worker's real cadence, so
-    // "stale" means "missed its expected run", not merely "idle". Each worker
-    // only heartbeats when it runs: Monitor fires every ~5 min, the daily agents
-    // once a day, and Watchlist weekly. A flat threshold flagged every daily/
-    // weekly worker as stale between runs (a false alarm); these are generous
-    // multiples of each real cadence so only a genuinely missed run trips it.
-    private static readonly Dictionary<string, int> StaleThresholdMinutes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["Monitor"] = 20,        // ~5-min cadence during market hours
-        ["Execution"] = 1560,    // daily (~26h)
-        ["Research"] = 1560,     // daily
-        ["Report"] = 1560,       // daily
-        ["Refinement"] = 1560,   // daily
-        ["Risk"] = 1560,         // daily
-        ["Readiness"] = 1560,    // daily
-        ["Watchlist"] = 11520,   // weekly (~8 days)
-    };
-
-    // Unknown worker names fall back to the daily threshold.
-    private const int DefaultStaleThresholdMinutes = 1560;
-
     public async Task<MonitoringDashboard> GetDashboardAsync(CancellationToken ct)
     {
         var db = await monitoringRepo.GetSnapshotAsync(ct);
@@ -49,9 +28,13 @@ public class MonitoringService(
         var now = DateTime.UtcNow;
         var workers = db.Workers.Select(w =>
         {
+            // Cadence-aware staleness (see WorkerCadence, shared with the API
+            // health check): the old local map here was missing CandleSync,
+            // whose weekly Saturday run wore a red STALE badge on the Health
+            // tab from Sunday morning until the next sync.
             var mins = (now - w.LastHeartbeatAt).TotalMinutes;
-            var threshold = StaleThresholdMinutes.GetValueOrDefault(w.Name, DefaultStaleThresholdMinutes);
-            return new MonitoringWorkerView(w.Name, w.LastResult, w.LastHeartbeatAt, Math.Round(mins, 1), mins > threshold, w.Message);
+            return new MonitoringWorkerView(w.Name, w.LastResult, w.LastHeartbeatAt, Math.Round(mins, 1),
+                WorkerCadence.IsStale(w.Name, w.LastHeartbeatAt, now), w.Message);
         }).ToList();
 
         var queues = await GetQueueHealthAsync(ct);

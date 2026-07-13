@@ -10,8 +10,6 @@ namespace SwingTrader.Api.HealthChecks;
 // reported Healthy, since no workers means nothing to be behind on.
 public class WorkerHealthCheck(SwingTraderDbContext db) : IHealthCheck
 {
-    private static readonly TimeSpan StaleAfter = TimeSpan.FromHours(25);
-
     public async Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context, CancellationToken cancellationToken = default)
     {
@@ -19,8 +17,12 @@ public class WorkerHealthCheck(SwingTraderDbContext db) : IHealthCheck
         if (heartbeats.Count == 0)
             return HealthCheckResult.Healthy("No workers registered yet");
 
+        // Cadence-aware (see WorkerCadence): the previous flat 25h threshold
+        // flagged the weekly workers (CandleSync, Watchlist) stale for most
+        // of every week, keeping this check permanently Degraded.
+        var now = DateTime.UtcNow;
         var stale = heartbeats
-            .Where(h => DateTime.UtcNow - h.LastHeartbeatAt > StaleAfter)
+            .Where(h => Services.WorkerCadence.IsStale(h.WorkerName, h.LastHeartbeatAt, now))
             .Select(h => h.WorkerName)
             .ToList();
 
