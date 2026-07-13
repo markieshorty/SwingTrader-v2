@@ -85,6 +85,37 @@ public class MomentumHealthServiceTests
     }
 
     [Fact]
+    public async Task CalculateAsync_UsesThresholdFrozenAtEntry_NotTheLiveProfile()
+    {
+        // Thesis-as-contract: the pass bar the trade entered under decides,
+        // not whatever the profile says today. Neutral signals score 0.50;
+        // with a frozen 0.25 threshold that's Confirmed (>= 0.25 + 0.25),
+        // while the live profile's 0.95 would call the same score Exit.
+        var (service, db) = CreateService();
+        await new AccountRiskProfileRepository(db).SeedDefaultAsync(1);
+        var profile = await db.AccountRiskProfiles.SingleAsync(p => p.AccountId == 1);
+        profile.MomentumHealthThreshold = 0.95m;
+        await db.SaveChangesAsync();
+
+        db.StockSignals.Add(new StockSignal
+        {
+            AccountId = 1,
+            Symbol = "TEST",
+            SignalDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            CurrentPrice = 100m, // flat vs entry -> all components neutral 0.5
+        });
+        await db.SaveChangesAsync();
+
+        var trade = OpenTrade(entryPrice: 100m);
+        trade.MomentumHealthThresholdAtEntry = 0.25m;
+
+        var result = await service.CalculateAsync(1, trade);
+
+        result.Score.Should().Be(0.50m);
+        result.Verdict.Should().Be("Confirmed"); // frozen 0.25 wins; live 0.95 would say Exit
+    }
+
+    [Fact]
     public async Task CalculateAsync_AllNegative_ReturnsExit()
     {
         var (service, db) = CreateService();

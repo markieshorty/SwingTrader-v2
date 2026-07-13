@@ -87,4 +87,18 @@ public class Trade : BaseEntity
     // placed before F2 (or while the multiplier was inert at 1).
     public decimal? ForwardScoreAtEntry { get; set; }
     public decimal? SizeMultiplier { get; set; }
+
+    // Rules frozen at buy time ("thesis-as-contract"): the position honours
+    // the hold/probation/trailing rules it was entered under, exactly like
+    // StopLossPrice/TargetPrice always have. Profile changes therefore apply
+    // to NEW positions only - no surprise mass time-exits when MaxHoldDays
+    // is lowered, closed-trade outcomes stay attributable to one rule set,
+    // and live behaviour matches the backtest (which applies one config for
+    // a trade's whole life). Null on trades placed before these existed -
+    // consumers fall back to the live risk profile for those.
+    public int? MaxHoldDaysAtEntry { get; set; }
+    public int? MinHoldDaysAtEntry { get; set; }
+    public decimal? MomentumHealthThresholdAtEntry { get; set; }
+    public double? TrailingActivationPctAtEntry { get; set; }
+    public double? TrailingDistancePctAtEntry { get; set; }
 }

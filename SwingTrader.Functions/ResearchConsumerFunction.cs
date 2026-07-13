@@ -182,8 +182,15 @@ public class ResearchConsumerFunction(
             // market holidays must not count toward it.
             var daysHeld = marketCalendar.TradingDaysBetween(
                 DateOnly.FromDateTime(trade.OpenedAt), DateOnly.FromDateTime(today));
-            var isGraceDayRecheck = daysHeld == profile.MinHoldDays + 1 && trade.MomentumHealthVerdict == "Borderline";
-            if (daysHeld != profile.MinHoldDays && !isGraceDayRecheck)
+            // The probation day frozen at buy time (thesis-as-contract) -
+            // profile changes can't retarget an open position's check day,
+            // which also closes the gap where lowering MinHoldDays past a
+            // position's current age made this equality never match and the
+            // position skipped probation entirely. Legacy trades (null) still
+            // follow the live profile.
+            var minHoldDays = trade.MinHoldDaysAtEntry ?? profile.MinHoldDays;
+            var isGraceDayRecheck = daysHeld == minHoldDays + 1 && trade.MomentumHealthVerdict == "Borderline";
+            if (daysHeld != minHoldDays && !isGraceDayRecheck)
                 continue;
 
             var result = await momentumHealth.CalculateAsync(accountId, trade, ct);

@@ -32,7 +32,10 @@ public class MomentumHealthService(
             ? await signalRepo.GetByIdAsync(accountId, trade.SignalId.Value)
             : null;
 
-        var profile = await riskProfileRepo.GetAsync(accountId, ct);
+        // The pass bar frozen at buy time (thesis-as-contract); live profile
+        // only for legacy trades placed before freezing existed.
+        var threshold = trade.MomentumHealthThresholdAtEntry
+            ?? (await riskProfileRepo.GetAsync(accountId, ct)).MomentumHealthThreshold;
 
         // Shared algorithm (MomentumHealthCalculator) - the exact same code
         // the historic backtester's probation simulation runs, so live and
@@ -44,7 +47,7 @@ public class MomentumHealthService(
             currentPrice: signal.CurrentPrice,
             entryPrice: trade.EntryPrice,
             relativeReturn: signal.RelativeReturn,
-            threshold: profile.MomentumHealthThreshold);
+            threshold: threshold);
 
         var (score, verdict, rsiScore, volumeScore, priceScore, relativeScore) =
             (outcome.Score, outcome.Verdict, outcome.RsiDirectionScore, outcome.VolumeScore,

@@ -342,6 +342,13 @@ public class ExecutionService(
                 // entry and how much it tilted the size (1 = untilted).
                 ForwardScoreAtEntry = signal.ForwardScore,
                 SizeMultiplier = sizing.AppliedMultiplier,
+                // Rules frozen at entry (thesis-as-contract) - profile changes
+                // only affect positions opened after them. See Trade.cs.
+                MaxHoldDaysAtEntry = riskProfile.MaxHoldDays,
+                MinHoldDaysAtEntry = riskProfile.MinHoldDays,
+                MomentumHealthThresholdAtEntry = riskProfile.MomentumHealthThreshold,
+                TrailingActivationPctAtEntry = riskProfile.TrailingActivationPct,
+                TrailingDistancePctAtEntry = riskProfile.TrailingDistancePct,
             };
             try
             {

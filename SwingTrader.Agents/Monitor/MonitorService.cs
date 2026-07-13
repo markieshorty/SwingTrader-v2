@@ -187,11 +187,15 @@ public class MonitorService(
                     continue;
                 }
 
+                // Rules frozen at buy time win over the live profile (see
+                // Trade.MaxHoldDaysAtEntry) - profile changes only shape
+                // positions opened after them. Nulls = legacy trades placed
+                // before freezing existed; they follow the live profile.
                 var result = await positionMonitor.CheckPositionAsync(
                     trade, currentPrice,
-                    riskProfile.MaxHoldDays,
-                    riskProfile.TrailingActivationPct,
-                    riskProfile.TrailingDistancePct,
+                    trade.MaxHoldDaysAtEntry ?? riskProfile.MaxHoldDays,
+                    trade.TrailingActivationPctAtEntry ?? riskProfile.TrailingActivationPct,
+                    trade.TrailingDistancePctAtEntry ?? riskProfile.TrailingDistancePct,
                     ct);
 
                 if (result.UpdatedTrailingStop.HasValue && result.Reason == ExitReason.None)
