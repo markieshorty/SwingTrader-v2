@@ -214,6 +214,7 @@ builder.Services.AddScoped<SwingTrader.Agents.Refinement.ITradeReplayService, Sw
 builder.Services.AddScoped<IHistoricalCandleRepository, HistoricalCandleRepository>();
 builder.Services.AddScoped<ISentimentArchiveRepository, SentimentArchiveRepository>();
 builder.Services.AddScoped<IBacktestRunRepository, BacktestRunRepository>();
+builder.Services.AddScoped<IEconomicLinkRepository, EconomicLinkRepository>();
 builder.Services.AddScoped<IMarketRegimeService, MarketRegimeService>();
 
 // Screening universe (S&P 1500 + Nasdaq-100 via Wikipedia) for the /watchlists

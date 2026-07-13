@@ -764,6 +764,23 @@ public class ReportGenerationService(
                 sb.AppendLine($"- …and {filingDeltas.Count - 5} more.");
         }
 
+        // Second-hop shadow (docs/second-hop-plan SH1): today's strongest
+        // linked-company transmissions - visibility only, drives nothing
+        // until SH2.
+        var secondHops = (buys.Concat(watches).Concat(avoids))
+            .Where(s => s.SecondHopScore is not null)
+            .OrderByDescending(s => Math.Abs(s.SecondHopScore!.Value))
+            .ToList();
+        if (secondHops.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("### 🔗 Second-hop transmissions (today, shadow)");
+            foreach (var s in secondHops.Take(5))
+                sb.AppendLine($"- **{s.Symbol}** {s.SecondHopScore:+0.00;-0.00} — {s.SecondHopSummary}");
+            if (secondHops.Count > 5)
+                sb.AppendLine($"- …and {secondHops.Count - 5} more.");
+        }
+
         sb.AppendLine();
         sb.AppendLine("---");
         var totalSignals = buys.Count + watches.Count + holds + avoids.Count;

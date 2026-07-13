@@ -36,6 +36,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     public DbSet<SentimentDailyScore> SentimentDailyScores => Set<SentimentDailyScore>();
     public DbSet<Filing> Filings => Set<Filing>();
     public DbSet<FilingDelta> FilingDeltas => Set<FilingDelta>();
+    public DbSet<EconomicLink> EconomicLinks => Set<EconomicLink>();
 
     // The 'system' Account created by the AddMultiTenancy migration - all
     // pre-existing (pre-Phase-10c) data defaults to this AccountId.
@@ -412,6 +413,23 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             // One delta per filing - re-scoring replaces, never duplicates.
             e.HasIndex(x => x.FilingId).IsUnique();
             e.HasIndex(x => new { x.Symbol, x.FiledAt });
+        });
+
+        // Second-hop economic graph (docs/second-hop-plan). Platform-level;
+        // suppression is the human kill switch for hallucinated links.
+        modelBuilder.Entity<EconomicLink>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Symbol).IsRequired().HasMaxLength(10);
+            e.Property(x => x.LinkedName).IsRequired().HasMaxLength(200);
+            e.Property(x => x.LinkedTicker).HasMaxLength(10);
+            e.Property(x => x.Relation).IsRequired().HasMaxLength(20);
+            e.Property(x => x.TransmissionNote).IsRequired().HasMaxLength(500);
+            e.Property(x => x.Strength).HasPrecision(5, 4);
+            e.Property(x => x.Rationale).IsRequired().HasMaxLength(500);
+            e.Property(x => x.Model).HasMaxLength(100);
+            e.HasIndex(x => x.Symbol);
+            e.HasIndex(x => x.LinkedTicker);
         });
 
         modelBuilder.Entity<HistoricalCandle>(e =>

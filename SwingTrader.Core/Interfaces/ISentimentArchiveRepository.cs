@@ -24,5 +24,12 @@ public interface ISentimentArchiveRepository
     /// </summary>
     Task<List<SentimentDailyScore>> GetRecentScoresAsync(string symbol, DateOnly before, int lookbackDays, CancellationToken ct = default);
 
+    /// <summary>
+    /// Recent scores for MANY symbols at once (inclusive of <paramref name="from"/>) -
+    /// the second-hop relevance pass's read over a target's linked tickers.
+    /// </summary>
+    Task<List<SentimentDailyScore>> GetScoresForSymbolsSinceAsync(
+        IReadOnlyCollection<string> symbols, DateOnly from, CancellationToken ct = default);
+
     Task<SentimentArchiveStats> GetStatsAsync(CancellationToken ct = default);
 }

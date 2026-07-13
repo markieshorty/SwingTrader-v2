@@ -10,6 +10,7 @@ import {
   AdminUserOverviewDto,
   AdminUserSummaryDto,
   ApplyResultDto,
+  EconomicLinkDto,
   InviteResultDto,
   InsightsDetailSectionDto,
   KeyStatusesDto,
@@ -336,6 +337,14 @@ export class ApiService {
 
   getWatchlists(): Observable<WatchlistDto[]> {
     return this.http.get<WatchlistDto[]>(`${this.baseUrl}/api/watchlists`);
+  }
+
+  getEconomicLinks(symbol: string): Observable<EconomicLinkDto[]> {
+    return this.http.get<EconomicLinkDto[]>(`${this.baseUrl}/api/watchlists/links/${symbol}`);
+  }
+
+  setEconomicLinkSuppressed(linkId: number, suppressed: boolean): Observable<void> {
+    return this.http.post<void>(`${this.baseUrl}/api/watchlists/links/${linkId}/suppress?suppressed=${suppressed}`, {});
   }
 
   createWatchlist(name: string, type: WatchlistType, description?: string): Observable<WatchlistDto> {

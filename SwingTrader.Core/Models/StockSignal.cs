@@ -90,4 +90,11 @@ public class StockSignal : BaseEntity
     // is raised above 0 (FD2). Null = no scored filing history yet.
     public decimal? FilingDeltaScore { get; set; }
     public string? FilingDeltaSummary { get; set; }
+
+    // Second-hop news shadow (docs/second-hop-plan Phase SH1): scored events
+    // at economically LINKED companies, propagated to this symbol with a
+    // 5-trading-day half-life. Drives nothing until ForwardSecondHopWeight
+    // is raised above 0 (SH2). Null = no links / no qualifying events.
+    public decimal? SecondHopScore { get; set; }
+    public string? SecondHopSummary { get; set; }
 }

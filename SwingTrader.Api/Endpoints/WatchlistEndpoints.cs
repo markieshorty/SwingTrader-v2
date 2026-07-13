@@ -33,6 +33,24 @@ public static class WatchlistEndpoints
         watchlistsGroup.MapGet("/universe", async (IMarketUniverseService universe, CancellationToken ct) =>
             Results.Ok(await universe.GetUniverseWithNamesAsync(ct)));
 
+        // Second-hop economic links (docs/second-hop-plan) - platform-level,
+        // Claude-built, deliberately human-auditable: readable by anyone on
+        // the account, suppressible by the Owner (the hallucinated-link kill
+        // switch). Suppressed links stay visible so the veto is reviewable.
+        watchlistsGroup.MapGet("/links/{symbol}", async (
+            string symbol, IEconomicLinkRepository links, CancellationToken ct) =>
+            Results.Ok(await links.GetLinksAsync(symbol, ct)));
+
+        watchlistsGroup.MapPost("/links/{linkId:long}/suppress", async (
+            long linkId, bool suppressed, IEconomicLinkRepository links, IAccountContext ctx, CancellationToken ct) =>
+        {
+            if (ctx.Role != AccountRole.Owner)
+                return Results.Forbid();
+            return await links.SetSuppressedAsync(linkId, suppressed, ct)
+                ? Results.Ok()
+                : Results.NotFound();
+        });
+
         watchlistsGroup.MapPost("/", async (
             CreateWatchlistRequest req,
             IWatchlistRepository watchlists,

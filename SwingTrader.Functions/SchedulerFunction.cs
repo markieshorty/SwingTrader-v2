@@ -134,6 +134,20 @@ public class SchedulerFunction(
             logger.LogError(ex, "Scheduler failed to enqueue the weekly candle sync");
         }
 
+        // Platform-level daily bellwether news scoring (docs/second-hop-plan):
+        // 7:00 ET weekdays - BEFORE Research at 7:30, so the second-hop
+        // relevance pass reads today's bellwether events, not yesterday's.
+        try
+        {
+            if (isWeekday && InWindow(nowEt, 7, 0, 7, 5))
+                await TryEnqueueAsync(Data.SwingTraderDbContext.SystemAccountId, "BellwetherSync", today, "bellwether-jobs",
+                    new BellwetherSyncJobMessage(Data.SwingTraderDbContext.SystemAccountId, Guid.NewGuid().ToString("N")), ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Scheduler failed to enqueue the daily bellwether sync");
+        }
+
         // Platform-level daily filing sync (docs/filing-delta-plan): shared
         // Filings/FilingDeltas tables, one job under the system account.
         // 18:00 ET weekdays - after the market close so the day's filings

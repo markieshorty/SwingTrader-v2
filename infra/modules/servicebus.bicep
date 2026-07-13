@@ -24,6 +24,7 @@ var queues = [
   'candlesync-jobs'
   'backtest-jobs'
   'filingsync-jobs'
+  'bellwether-jobs'
 ]
 
 resource queue 'Microsoft.ServiceBus/namespaces/queues@2022-10-01-preview' = [

@@ -104,6 +104,10 @@
                 @for (item of watchlist.items; track item.id) {
                   <div class="custom-item-row">
                     <span class="symbol" [matTooltip]="item.companyName">{{ item.symbol }}</span>
+                    <button mat-icon-button (click)="toggleLinks(item.symbol)"
+                      matTooltip="Economic links (suppliers/customers/competitors) — the second-hop news graph">
+                      <mat-icon>hub</mat-icon>
+                    </button>
                     <mat-slide-toggle
                       [checked]="item.forceIntoFinalList"
                       [disabled]="!isOwner()"
@@ -123,7 +127,8 @@
             } @else {
               <mat-chip-set>
                 @for (item of watchlist.items; track item.id) {
-                  <mat-chip [removable]="isOwner()" (removed)="removeSymbol(watchlist, item.symbol)" [matTooltip]="item.companyName">
+                  <mat-chip [removable]="isOwner()" (removed)="removeSymbol(watchlist, item.symbol)" [matTooltip]="item.companyName"
+                    (click)="toggleLinks(item.symbol)">
                     {{ item.symbol }}
                     @if (isOwner()) {
                       <button matChipRemove title="Remove {{ item.symbol }}">
@@ -133,6 +138,42 @@
                   </mat-chip>
                 }
               </mat-chip-set>
+              <p class="muted small">Click a symbol to see its economic links (the second-hop news graph).</p>
+            }
+
+            <!-- Second-hop economic links (docs/second-hop-plan): Claude-built,
+                 human-auditable. Suppress = the hallucinated-link kill switch;
+                 suppressed links stay listed so the veto is reviewable. -->
+            @if (linksSymbol(); as sym) {
+              <mat-card class="links-panel">
+                <h4><mat-icon>hub</mat-icon> Economic links — {{ sym }}</h4>
+                @if (linksLoading()) {
+                  <mat-spinner diameter="20"></mat-spinner>
+                } @else if (links().length === 0) {
+                  <p class="muted small">No links built yet — the graph is created by the weekly watchlist refresh.</p>
+                } @else {
+                  <div class="rows">
+                    @for (link of links(); track link.id) {
+                      <div class="link-row" [class.suppressed]="link.suppressed">
+                        <span class="name"><strong>{{ link.linkedTicker ?? '—' }}</strong> {{ link.linkedName }}</span>
+                        <span class="badge">{{ link.relation }}</span>
+                        <span class="muted small">strength {{ link.strength | number: '1.1-1' }}</span>
+                        <span class="muted small" [matTooltip]="link.transmissionNote">{{ link.rationale }}</span>
+                        @if (isOwner()) {
+                          <mat-slide-toggle
+                            [checked]="!link.suppressed"
+                            (change)="setLinkSuppressed(link, !$event.checked)"
+                            matTooltip="Off = suppressed: this link stops feeding the second-hop score. Use it to kill a link that looks wrong.">
+                            Active
+                          </mat-slide-toggle>
+                        } @else if (link.suppressed) {
+                          <span class="badge muted">suppressed</span>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </mat-card>
             }
 
             <div class="add-symbol-row">

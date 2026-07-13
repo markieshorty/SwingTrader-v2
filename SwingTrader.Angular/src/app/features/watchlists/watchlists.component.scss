@@ -238,3 +238,39 @@
 .symbol-field {
   max-width: 200px;
 }
+
+// Second-hop economic links panel (docs/second-hop-plan)
+.links-panel {
+  margin-top: 12px;
+  padding: 12px 16px;
+
+  h4 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 8px;
+  }
+
+  .link-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+
+    &.suppressed {
+      opacity: 0.45;
+    }
+
+    .name {
+      min-width: 180px;
+    }
+
+    .badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: rgba(128, 128, 128, 0.15);
+    }
+  }
+}

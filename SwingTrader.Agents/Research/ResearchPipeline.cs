@@ -43,6 +43,7 @@ public class ResearchPipeline(
     ISentimentArchiveRepository sentimentArchive,
     IFilingRepository filingRepo,
     IOptions<FilingDeltaConfig> filingDeltaConfig,
+    SecondHop.ISecondHopScorer secondHopScorer,
     ILogger<ResearchPipeline> logger) : IResearchPipeline
 {
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
@@ -259,10 +260,32 @@ public class ResearchPipeline(
             logger.LogWarning(ex, "Filing-delta lookup failed for {Symbol} — shadow score omitted", symbol);
         }
 
+        // Second-hop shadow (docs/second-hop-plan SH1): linked-company events
+        // propagated to this symbol. Skipped with stage 2 under the funnel
+        // (same cost contract as sentiment - sub-Watch gates buy nothing, so
+        // there is nothing to size). Best-effort; null = no links/events.
+        decimal? secondHopScore = null;
+        string? secondHopSummary = null;
+        if (!skipStageTwo)
+        {
+            try
+            {
+                if (await secondHopScorer.ScoreAsync(claude, symbol, companyName, ct) is { } hop)
+                {
+                    secondHopScore = hop.Score;
+                    secondHopSummary = hop.Summary;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Second-hop scoring failed for {Symbol} — shadow score omitted", symbol);
+            }
+        }
+
         return await PersistSignalAsync(accountId, symbol, companyName, candles[^1], ind, sentimentScore,
             newsSummary, setupType, conviction, recommendation, componentScores, regime, earningsCtx, rs, priceLevel,
             adjustmentReasoning.Length > 0 ? adjustmentReasoning : null, fundamentalSnapshot, fundamental, shadow,
-            filingDeltaScore, filingDeltaSummary);
+            filingDeltaScore, filingDeltaSummary, secondHopScore, secondHopSummary);
     }
 
     private async Task<(StrategyWeights Weights, MarketRegime? Regime)> GetWeightsAndRegimeAsync(
@@ -728,7 +751,8 @@ public class ResearchPipeline(
         PriceLevelResult? priceLevel = null, string? earningsReasoning = null,
         FundamentalSnapshot? fundamentalSnapshot = null, FundamentalScore? fundamental = null,
         FunnelScores.FunnelShadow? funnelShadow = null,
-        decimal? filingDeltaScore = null, string? filingDeltaSummary = null)
+        decimal? filingDeltaScore = null, string? filingDeltaSummary = null,
+        decimal? secondHopScore = null, string? secondHopSummary = null)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var existing = (await signalRepo.GetByDateAsync(accountId, today))
@@ -843,6 +867,10 @@ public class ResearchPipeline(
         // so the stored value always reflects the decay as of the latest pass.
         signal.FilingDeltaScore = filingDeltaScore;
         signal.FilingDeltaSummary = filingDeltaSummary;
+
+        // Second-hop shadow (SH1) - same overwrite-on-rescore convention.
+        signal.SecondHopScore = secondHopScore;
+        signal.SecondHopSummary = secondHopSummary;
 
         if (existing is null)
             return await signalRepo.AddAsync(signal);

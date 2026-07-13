@@ -896,6 +896,21 @@ export interface UpdateRiskProfileDto {
   forwardVetoFloor: number;
 }
 
+// Second-hop economic link (docs/second-hop-plan) - Claude-built, platform-
+// level, human-auditable: rationale always present, suppressible per link.
+export interface EconomicLinkDto {
+  id: number;
+  symbol: string;
+  linkedName: string;
+  linkedTicker: string | null;
+  relation: 'Supplier' | 'Customer' | 'Competitor' | 'SharedChain';
+  transmissionNote: string;
+  strength: number;
+  rationale: string;
+  suppressed: boolean;
+  builtAt: string;
+}
+
 export interface NotificationRecipientDto {
   id: number;
   email: string;

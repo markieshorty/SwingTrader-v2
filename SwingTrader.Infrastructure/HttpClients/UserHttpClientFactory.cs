@@ -129,6 +129,15 @@ public class UserHttpClientFactory(
             if (!string.IsNullOrEmpty(shared)) return shared;
         }
 
+        // Platform jobs (BellwetherSync) run under the system account, which
+        // has no per-account keys - fall back to the shared platform Finnhub
+        // key (Key Vault: Finnhub--ApiKey), mirroring the Claude fallback.
+        if (provider == ApiKeyProviders.Finnhub)
+        {
+            var shared = config["Finnhub:ApiKey"];
+            if (!string.IsNullOrEmpty(shared)) return shared;
+        }
+
         throw new InvalidOperationException($"No {provider} key configured for account {accountId}.");
     }
 

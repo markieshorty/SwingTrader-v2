@@ -17,6 +17,8 @@ public class WatchlistConsumerFunction(
     IWatchlistSelectionService selector,
     IWatchlistUpdateService updater,
     IAccountRiskProfileRepository riskProfileRepo,
+    IWatchlistRepository watchlists,
+    Agents.SecondHop.IEconomicLinkService economicLinks,
     IWorkerHeartbeatRepository heartbeats,
     IActivityLogRepository activityLog,
     IUserHttpClientFactory clientFactory,
@@ -104,6 +106,24 @@ public class WatchlistConsumerFunction(
                     $"{updateResult.SkippedForCapacity.Count} selection(s) skipped this refresh — adding them would have " +
                     $"exceeded the 100-symbol enabled-watchlist limit: {string.Join(", ", updateResult.SkippedForCapacity)}. " +
                     "Disable another watchlist or remove some symbols to make room.", ct);
+            }
+
+            // Second-hop economic graph refresh rides this weekly job
+            // (docs/second-hop-plan): rebuild links for whichever of the
+            // account's post-update symbols are missing/stale. Best-effort -
+            // a failed graph build never fails the watchlist refresh.
+            try
+            {
+                var currentSymbols = (await watchlists.GetAllEnabledSymbolsAsync(message.AccountId, ct))
+                    .Select(i => i.Symbol)
+                    .ToList();
+                var refreshed = await economicLinks.RefreshStaleLinksAsync(currentSymbols, ct);
+                if (refreshed > 0)
+                    logger.LogInformation("Economic-link graphs refreshed for {Count} symbol(s) (account {AccountId})", refreshed, message.AccountId);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Economic-link refresh failed after watchlist update (account {AccountId}) — retries next week", message.AccountId);
             }
 
             await heartbeats.UpsertAsync(message.AccountId, "Watchlist", "Success", $"{selections.Count} symbols selected from {candidates.Count} candidates");

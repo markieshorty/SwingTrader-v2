@@ -101,6 +101,7 @@ builder.Services.Configure<RefinementConfig>(builder.Configuration.GetSection(Re
 builder.Services.Configure<RiskManagementConfig>(builder.Configuration.GetSection(RiskManagementConfig.SectionName));
 builder.Services.Configure<ExecutionConfig>(builder.Configuration.GetSection(ExecutionConfig.SectionName));
 builder.Services.Configure<FilingDeltaConfig>(builder.Configuration.GetSection(FilingDeltaConfig.SectionName));
+builder.Services.Configure<SecondHopConfig>(builder.Configuration.GetSection(SecondHopConfig.SectionName));
 
 builder.Services.AddRefitClient<IExchangeRateClient>()
     .ConfigureHttpClient(c => c.BaseAddress = new Uri("https://api.frankfurter.dev"));
@@ -152,6 +153,13 @@ builder.Services.AddScoped<IFilingRepository, FilingRepository>();
 builder.Services.AddHttpClient<SwingTrader.Infrastructure.Edgar.IEdgarClient, SwingTrader.Infrastructure.Edgar.EdgarClient>(
     client => client.Timeout = TimeSpan.FromSeconds(60));
 builder.Services.AddScoped<SwingTrader.Agents.Filings.IFilingSyncService, SwingTrader.Agents.Filings.FilingSyncService>();
+
+// Second-hop news (docs/second-hop-plan): economic-link graph + bellwether
+// archive coverage + the research relevance pass.
+builder.Services.AddScoped<IEconomicLinkRepository, EconomicLinkRepository>();
+builder.Services.AddScoped<SwingTrader.Agents.SecondHop.IEconomicLinkService, SwingTrader.Agents.SecondHop.EconomicLinkService>();
+builder.Services.AddScoped<SwingTrader.Agents.SecondHop.ISecondHopScorer, SwingTrader.Agents.SecondHop.SecondHopScorer>();
+builder.Services.AddScoped<SwingTrader.Agents.SecondHop.IBellwetherSyncService, SwingTrader.Agents.SecondHop.BellwetherSyncService>();
 builder.Services.AddScoped<IApplyRefinementService, ApplyRefinementService>();
 builder.Services.AddScoped<ITierEvaluationService, TierEvaluationService>();
 builder.Services.AddScoped<IReadinessAssessmentService, ReadinessAssessmentService>();

@@ -15,7 +15,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/services/api.service';
-import { UniverseSymbolDto, WatchlistDto, WatchlistItemDto, WatchlistType } from '../../core/models/dtos';
+import { EconomicLinkDto, UniverseSymbolDto, WatchlistDto, WatchlistItemDto, WatchlistType } from '../../core/models/dtos';
 import { errorMessage } from '../../shared/utils/error-message.util';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 
@@ -98,11 +98,41 @@ export class WatchlistsComponent {
   maxSymbols = MAX_SYMBOLS_PER_WATCHLIST;
   maxTotalSymbols = MAX_TOTAL_ENABLED_SYMBOLS;
 
+  // Second-hop economic links (docs/second-hop-plan): per-symbol viewer with
+  // the Owner-only suppress toggle - the hallucinated-link kill switch.
+  linksSymbol = signal<string | null>(null);
+  links = signal<EconomicLinkDto[]>([]);
+  linksLoading = signal(false);
+
   constructor() {
     this.load();
     this.api.getAccountSettings().subscribe({
       next: (s) => this.isOwner.set(s.role === 'Owner'),
       error: () => {},
+    });
+  }
+
+  toggleLinks(symbol: string): void {
+    if (this.linksSymbol() === symbol) {
+      this.linksSymbol.set(null);
+      return;
+    }
+    this.linksSymbol.set(symbol);
+    this.linksLoading.set(true);
+    this.links.set([]);
+    this.api.getEconomicLinks(symbol).subscribe({
+      next: (links) => {
+        this.links.set(links);
+        this.linksLoading.set(false);
+      },
+      error: () => this.linksLoading.set(false),
+    });
+  }
+
+  setLinkSuppressed(link: EconomicLinkDto, suppressed: boolean): void {
+    this.api.setEconomicLinkSuppressed(link.id, suppressed).subscribe({
+      next: () => this.links.set(this.links().map((l) => (l.id === link.id ? { ...l, suppressed } : l))),
+      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to update the link.'), 'Dismiss', { duration: 4000 }),
     });
   }
 

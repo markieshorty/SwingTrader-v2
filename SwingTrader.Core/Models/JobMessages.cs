@@ -29,4 +29,8 @@ public record CandleSyncJobMessage(int AccountId, string JobId);
 // FilingDeltas tables for every account (docs/filing-delta-plan).
 public record FilingSyncJobMessage(int AccountId, string JobId);
 
+// Platform-level daily bellwether news scoring into the shared sentiment
+// archive (docs/second-hop-plan).
+public record BellwetherSyncJobMessage(int AccountId, string JobId);
+
 public record BacktestJobMessage(int AccountId, string JobId, int BacktestRunId);
