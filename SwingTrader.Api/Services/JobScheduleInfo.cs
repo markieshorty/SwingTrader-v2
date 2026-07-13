@@ -17,13 +17,18 @@ public static class JobScheduleInfo
 
         var runs = new List<(string JobType, DateTime NextEt)>
         {
-            ("Research", NextWeekdayAt(nowEt, 4, 0)),
+            // Times MUST match SchedulerFunction's windows. These went stale
+            // once already (still showing the pre-P2 4:00/6:30/7:00 slots),
+            // which made a Monday at 4am ET display "next Research: Tuesday" -
+            // reading as a skipped trading day when research was simply due at
+            // 7:30 ET later that morning.
+            ("Research", NextWeekdayAt(nowEt, 7, 30)),
             ("Watchlist", NextWeeklyAt(nowEt, DayOfWeek.Sunday, 20, 0)),
-            ("Report", NextWeekdayAt(nowEt, 6, 30)),
+            ("Report", NextWeekdayAt(nowEt, 8, 30)),
             ("Execution", NextWeekdayAt(nowEt, 9, 20)),
             ("Risk", NextMonthlyDayAt(nowEt, 1, 9, 0)),
             ("Refinement", NextMonthlyDayAt(nowEt, 15, 8, 0)),
-            ("Readiness", NextDailyAt(nowEt, 7, 0)),
+            ("Readiness", NextDailyAt(nowEt, 8, 45)),
         }
         .Select(x => new NextRunDto(
             x.JobType,
