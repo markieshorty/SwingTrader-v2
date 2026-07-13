@@ -49,6 +49,13 @@ export class AdminComponent {
 
   selectedTabIndex = signal(0);
 
+  // Health's position derived from TAB_NAMES, never hardcoded: the template
+  // lazy-instantiates the monitoring dashboard only while its tab is
+  // selected, and a hardcoded index went stale when the Unapproved tab was
+  // inserted - Health (now index 5) rendered nothing while Logs (index 4)
+  // invisibly ran the monitoring queries.
+  readonly healthTabIndex = TAB_NAMES.indexOf('health');
+
   constructor() {
     this.loadStats();
     this.loadUsers();
