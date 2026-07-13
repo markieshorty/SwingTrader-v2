@@ -27,4 +27,12 @@ public class WatchlistConfig
     // automatically instead of going stale.
     public int UniverseCacheDays { get; set; } = 7;
     public decimal TopMoverOrderBoost { get; set; } = 1.2m;
+
+    // Qualitative AI watchlist (docs/qualitative-watchlist-plan): weekly
+    // Claude picks over the WHOLE universe on narrative grounds - the lens
+    // the technical screener structurally lacks. The list is created
+    // disabled so picks are reviewable before they cost research; a themed
+    // list is a probe, not a portfolio, hence the small default size.
+    public bool QualitativeEnabled { get; set; } = true;
+    public int QualitativeSize { get; set; } = 10;
 }

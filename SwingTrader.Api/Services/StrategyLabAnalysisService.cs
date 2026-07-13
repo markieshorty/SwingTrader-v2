@@ -85,7 +85,7 @@ public class StrategyLabAnalysisService(
             var claude = await clientFactory.CreateClaudeAsync<IClaudeClient>(accountId, ct);
             var cfg = claudeConfig.Value;
             var response = await claude.SendMessageAsync(new ClaudeRequest(
-                cfg.RefinementModel ?? cfg.Model, cfg.MaxTokens,
+                cfg.RefinementModel ?? cfg.PremiumModel, cfg.MaxTokens,
                 LabAnalysisPrompts.SystemPrompt,
                 [new ClaudeMessage("user", userPrompt)]));
 

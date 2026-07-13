@@ -170,9 +170,10 @@ public enum RevenueDirection
 
 public enum WatchlistType
 {
-    AiManaged, // Watchlist Agent refreshes weekly
-    Manual,    // User fully controls
-    Mixed,     // AI adds but never removes user-added symbols
+    AiManaged,     // Watchlist Agent refreshes weekly (technical screener + Claude)
+    Manual,        // User fully controls
+    Mixed,         // AI adds but never removes user-added symbols
+    AiQualitative, // Weekly Claude picks over the whole universe on qualitative grounds (docs/qualitative-watchlist-plan)
 }
 
 public enum TradePhase

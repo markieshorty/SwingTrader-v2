@@ -67,7 +67,7 @@ public class WatchlistSelectionService(
         try
         {
             var request = new ClaudeRequest(
-                claudeConfig.Value.WatchlistModel ?? claudeConfig.Value.Model,
+                claudeConfig.Value.WatchlistModel ?? claudeConfig.Value.PremiumModel,
                 claudeConfig.Value.MaxTokens,
                 systemPrompt,
                 [new ClaudeMessage("user", userPrompt)]);

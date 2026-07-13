@@ -132,6 +132,7 @@ builder.Services.AddScoped<IResearchPipeline, ResearchPipeline>();
 builder.Services.AddScoped<IStockScreener, StockScreener>();
 builder.Services.AddScoped<IWatchlistSelectionService, WatchlistSelectionService>();
 builder.Services.AddScoped<IWatchlistUpdateService, WatchlistUpdateService>();
+builder.Services.AddScoped<IQualitativeWatchlistService, QualitativeWatchlistService>();
 builder.Services.AddScoped<IReportGenerationService, ReportGenerationService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IPositionMonitorService, PositionMonitorService>();

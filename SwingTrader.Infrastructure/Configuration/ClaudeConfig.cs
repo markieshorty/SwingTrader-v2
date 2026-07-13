@@ -9,11 +9,16 @@ public class ClaudeConfig
     public string Model { get; set; } = "claude-haiku-4-5-20251001";
     public int MaxTokens { get; set; } = 4000;
 
-    // Per-agent overrides for the two Claude calls that do open-ended,
-    // low-frequency synthesis (curating ~25 picks from ~600 candidates with
-    // soft constraints; assessing correlation/regime findings once a month)
-    // rather than high-frequency structured extraction or narrating an
-    // already-deterministic decision - those stay on the cheaper default.
-    public string? WatchlistModel { get; set; } = "claude-sonnet-4-5-20250929";
-    public string? RefinementModel { get; set; } = "claude-sonnet-4-5-20250929";
+    // The high-value, low-frequency judgement calls run on Opus (Mark,
+    // 13 Jul 2026 - token volume on these paths is minimal, so the extra
+    // intelligence is affordable): watchlist selection (both lists),
+    // refinement analysis, Lab analysis/sweep explanation, filing-delta
+    // diff scoring, economic-link graph building, second-hop relevance.
+    // High-volume structured extraction (per-symbol sentiment/catalyst,
+    // fundamentals, bellwether levels) stays on the cheap default Model.
+    public string PremiumModel { get; set; } = "claude-opus-4-8";
+
+    // Per-agent overrides; null = PremiumModel. Kept for targeted tuning.
+    public string? WatchlistModel { get; set; }
+    public string? RefinementModel { get; set; }
 }

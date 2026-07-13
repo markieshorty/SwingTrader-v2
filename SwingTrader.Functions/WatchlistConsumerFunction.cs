@@ -18,6 +18,7 @@ public class WatchlistConsumerFunction(
     IWatchlistUpdateService updater,
     IAccountRiskProfileRepository riskProfileRepo,
     IWatchlistRepository watchlists,
+    IQualitativeWatchlistService qualitative,
     Agents.SecondHop.IEconomicLinkService economicLinks,
     IWorkerHeartbeatRepository heartbeats,
     IActivityLogRepository activityLog,
@@ -106,6 +107,22 @@ public class WatchlistConsumerFunction(
                     $"{updateResult.SkippedForCapacity.Count} selection(s) skipped this refresh — adding them would have " +
                     $"exceeded the 100-symbol enabled-watchlist limit: {string.Join(", ", updateResult.SkippedForCapacity)}. " +
                     "Disable another watchlist or remove some symbols to make room.", ct);
+            }
+
+            // Qualitative sibling list (docs/qualitative-watchlist-plan):
+            // Claude picks over the whole universe on narrative grounds,
+            // applied to the account's (created-disabled) AiQualitative
+            // watchlist. Best-effort - a failed selection keeps last week's
+            // picks and never fails the technical refresh.
+            try
+            {
+                var qualitativeApplied = await qualitative.RefreshAsync(message.AccountId, claude, ct);
+                if (qualitativeApplied > 0)
+                    logger.LogInformation("Qualitative watchlist: {Count} pick(s) applied (account {AccountId})", qualitativeApplied, message.AccountId);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Qualitative watchlist refresh failed (account {AccountId}) — retries next week", message.AccountId);
             }
 
             // Second-hop economic graph refresh rides this weekly job

@@ -93,11 +93,11 @@ public class EconomicLinkService(
 
         await claudeRateLimiter.WaitAsync(ct);
         var response = await claude.SendMessageAsync(new ClaudeRequest(
-            claudeConfig.Value.Model, claudeConfig.Value.MaxTokens, systemPrompt,
+            claudeConfig.Value.PremiumModel, claudeConfig.Value.MaxTokens, systemPrompt,
             [new ClaudeMessage("user", userPrompt)]));
         var raw = response.Content.FirstOrDefault(c => c.Type == "text")?.Text ?? string.Empty;
 
-        return ParseLinks(raw, symbol, claudeConfig.Value.Model);
+        return ParseLinks(raw, symbol, claudeConfig.Value.PremiumModel);
     }
 
     // Internal static so the defensive rules are directly testable: relation

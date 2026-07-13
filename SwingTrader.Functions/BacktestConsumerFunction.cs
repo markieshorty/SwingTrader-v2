@@ -379,7 +379,7 @@ public class BacktestConsumerFunction(
             var claude = await clientFactory.CreateClaudeAsync<IClaudeClient>(accountId, ct);
             var cfg = claudeConfig.Value;
             var response = await claude.SendMessageAsync(new ClaudeRequest(
-                cfg.RefinementModel ?? cfg.Model, cfg.MaxTokens,
+                cfg.RefinementModel ?? cfg.PremiumModel, cfg.MaxTokens,
                 LabAnalysisPrompts.SystemPrompt,
                 [new ClaudeMessage("user", LabAnalysisPrompts.BuildSweepExplanationPrompt(baseline, winner, validation, candidates))]));
             var raw = response.Content.FirstOrDefault(c => c.Type == "text")?.Text;

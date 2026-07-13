@@ -31,5 +31,11 @@ public interface ISentimentArchiveRepository
     Task<List<SentimentDailyScore>> GetScoresForSymbolsSinceAsync(
         IReadOnlyCollection<string> symbols, DateOnly from, CancellationToken ct = default);
 
+    /// <summary>
+    /// The archive's strongest absolute scores since <paramref name="from"/>, any symbol -
+    /// recent-context grounding for the qualitative watchlist prompt.
+    /// </summary>
+    Task<List<SentimentDailyScore>> GetTopMoversSinceAsync(DateOnly from, int take, CancellationToken ct = default);
+
     Task<SentimentArchiveStats> GetStatsAsync(CancellationToken ct = default);
 }
