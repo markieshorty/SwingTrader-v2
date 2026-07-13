@@ -474,7 +474,8 @@ export interface MonitoringTradingStateDto {
   openPositions: number;
   pendingIntents: number;
   cancelledToday: number;
-  ordersPlacedToday: number;
+  buysToday: number;
+  exitsToday: number;
 }
 
 export interface MonitoringDashboardDto {

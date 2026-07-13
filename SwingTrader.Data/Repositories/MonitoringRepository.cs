@@ -67,10 +67,15 @@ public class MonitoringRepository(SwingTraderDbContext db) : IMonitoringReposito
         var pendingIntents = await db.Trades.CountAsync(t => t.Status == TradeStatus.Pending, ct);
         var cancelledToday = await db.Trades.CountAsync(
             t => t.Status == TradeStatus.Cancelled && t.UpdatedAt >= todayUtc, ct);
-        var ordersPlacedToday = await db.Trades.CountAsync(
+        // Buys and exits counted separately: a sell closing a days-old
+        // position is a real order placed today, but the old single
+        // "orders placed" metric (entries only) read 0 for it.
+        var buysToday = await db.Trades.CountAsync(
             t => t.EntryOrderId != null && t.OpenedAt >= todayUtc, ct);
+        var exitsToday = await db.Trades.CountAsync(
+            t => t.Status == TradeStatus.Closed && t.ClosedAt != null && t.ClosedAt >= todayUtc, ct);
 
-        var trading = new MonitoringTradingState(openPositions, pendingIntents, cancelledToday, ordersPlacedToday);
+        var trading = new MonitoringTradingState(openPositions, pendingIntents, cancelledToday, buysToday, exitsToday);
 
         return new MonitoringDbSnapshot(workers, jobs, systemEvents, trading);
     }

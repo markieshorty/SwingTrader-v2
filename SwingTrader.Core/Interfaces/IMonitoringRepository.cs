@@ -33,7 +33,8 @@ public record MonitoringTradingState(
     int OpenPositions,
     int PendingIntents,     // intent-first placements not yet resolved
     int CancelledToday,     // intents reconciled as never-placed today
-    int OrdersPlacedToday);
+    int BuysToday,          // entry orders placed today (by OpenedAt)
+    int ExitsToday);        // positions closed today (by ClosedAt) - sells were invisible before
 
 public record MonitoringDbSnapshot(
     List<MonitoringWorker> Workers,
