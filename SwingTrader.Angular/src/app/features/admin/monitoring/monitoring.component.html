@@ -157,7 +157,12 @@
       <p class="muted small">No warnings or failures in the last 7 days.</p>
     } @else {
       <div class="rows">
-        @for (e of d.systemEvents; track e.occurredAt + e.accountId + e.title) {
+        <!-- track $index, NOT a content key: two activity rows logged in the
+             same instant with the same title (batched drift warnings, the old
+             duplicate-enqueue pairs) collide on any content-derived key, and a
+             duplicate track value throws NG0955 at render time - which blanks
+             the ENTIRE Health tab, not just this list. -->
+        @for (e of d.systemEvents; track $index) {
           <div class="row event">
             <span class="dot" [class]="resultClass(e.result)"></span>
             <span class="muted small">{{ e.occurredAt | date: 'short' }}</span>
