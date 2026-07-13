@@ -572,7 +572,10 @@
     </mat-tab>
 
     <!-- ══════════════════════════ OPTIMIZER TAB ══════════════════════════ -->
-    <mat-tab label="Optimizer" [disabled]="!historicAvailable()">
+    <!-- Only disabled once the data check has FINISHED and found nothing:
+         the bar-count query can take a while on the Basic-tier DB, and an
+         already-running sweep's progress must be visible immediately. -->
+    <mat-tab label="Optimizer" [disabled]="!dataStatusLoading() && !historicAvailable()">
       <mat-card class="panel controls">
         <h3>Find optimum weights</h3>
         <p class="muted small">
