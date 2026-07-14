@@ -43,7 +43,10 @@ public static class RunEndpoints
 
             (string QueueName, object Message)? job = jobType.ToLowerInvariant() switch
             {
-                "research" => ("research-jobs", new ResearchJobMessage(ctx.AccountId, jobId, today, nowEt)),
+                // ForceRescore: a manual trigger is a deliberate refresh, so it
+                // re-scores everything even when today's signals already exist
+                // (scheduler messages resume/skip instead - see JobMessages).
+                "research" => ("research-jobs", new ResearchJobMessage(ctx.AccountId, jobId, today, nowEt, ForceRescore: true)),
                 "watchlist" => ("watchlist-jobs", new WatchlistJobMessage(ctx.AccountId, jobId, nowEt)),
                 "report" => ("report-jobs", new ReportJobMessage(ctx.AccountId, jobId, today)),
                 "execution" => ("execution-jobs", new ExecutionJobMessage(ctx.AccountId, jobId, today)),

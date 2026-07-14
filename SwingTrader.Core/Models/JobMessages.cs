@@ -7,7 +7,14 @@ namespace SwingTrader.Core.Models;
 // dedup independently while sharing the same queue and consumer. The default
 // keeps older queued messages (serialized without the property)
 // deserializing as the morning run.
-public record ResearchJobMessage(int AccountId, string JobId, DateOnly TradeDate, DateTime ScheduledFor, string JobType = "Research");
+// ForceRescore: manual /run triggers set true (a deliberate refresh must
+// re-score everything); scheduler messages leave it false so a Service Bus
+// REDELIVERY of an interrupted run (host restart or deploy mid-run - observed
+// 14 Jul 2026 as three duplicate ~90-min research runs in one day) RESUMES by
+// skipping symbols already scored for the TradeDate instead of re-paying the
+// full Claude cost from scratch. Defaulted so older queued messages still
+// deserialize.
+public record ResearchJobMessage(int AccountId, string JobId, DateOnly TradeDate, DateTime ScheduledFor, string JobType = "Research", bool ForceRescore = false);
 
 public record WatchlistJobMessage(int AccountId, string JobId, DateTime ScheduledFor);
 

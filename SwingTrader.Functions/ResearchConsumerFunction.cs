@@ -18,6 +18,7 @@ namespace SwingTrader.Functions;
 public class ResearchConsumerFunction(
     IJobLogRepository jobLog,
     IWatchlistRepository watchlist,
+    ISignalRepository signalRepo,
     IResearchPipeline pipeline,
     ITradeRepository tradeRepo,
     IAccountRepository accountRepo,
@@ -69,6 +70,26 @@ public class ResearchConsumerFunction(
             // default AI-managed one - a symbol on multiple enabled
             // watchlists is researched once.
             var symbols = await watchlist.GetAllEnabledSymbolsAsync(message.AccountId, ct);
+
+            // Resume support: a redelivered message (host restarted mid-run)
+            // skips symbols already scored for this TradeDate, finishing the
+            // remainder instead of re-scoring all of them. Manual runs
+            // (ForceRescore) and the midday rescore re-score by design.
+            if (!message.ForceRescore && jobType == "Research")
+            {
+                var alreadyScored = (await signalRepo.GetByDateAsync(message.AccountId, message.TradeDate))
+                    .Select(s => s.Symbol)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                if (alreadyScored.Count > 0)
+                {
+                    var before = symbols.Count;
+                    symbols = symbols.Where(s => !alreadyScored.Contains(s.Symbol)).ToList();
+                    logger.LogInformation(
+                        "Research job {JobId} resuming: {Skipped} of {Total} symbol(s) already scored for {TradeDate} — scoring the remaining {Remaining}",
+                        message.JobId, before - symbols.Count, before, message.TradeDate, symbols.Count);
+                }
+            }
+
             logger.LogInformation(
                 "Research job {JobId} for account {AccountId} — scoring {Count} symbols",
                 message.JobId, message.AccountId, symbols.Count);
