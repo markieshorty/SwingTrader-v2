@@ -1,13 +1,15 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
+import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/services/api.service';
 import { WeightEditorComponent } from './weight-editor/weight-editor.component';
 import { SuggestionCardComponent } from './suggestion-card/suggestion-card.component';
+import { RefinementDetailDialogComponent } from './refinement-detail-dialog/refinement-detail-dialog.component';
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
-import { RefinementStatusDto } from '../../core/models/dtos';
+import { RefinementStatusDto, RefinementSuggestionDto } from '../../core/models/dtos';
 
 @Component({
   selector: 'app-refinement',
@@ -18,6 +20,7 @@ import { RefinementStatusDto } from '../../core/models/dtos';
 })
 export class RefinementComponent {
   private api = inject(ApiService);
+  private dialog = inject(MatDialog);
   private snackbar = inject(MatSnackBar);
 
   status = signal<RefinementStatusDto | null>(null);
@@ -25,6 +28,16 @@ export class RefinementComponent {
 
   constructor() {
     this.load();
+  }
+
+  // Click a history row to inspect its stats + weights and re-apply them.
+  openDetail(suggestion: RefinementSuggestionDto): void {
+    this.dialog
+      .open(RefinementDetailDialogComponent, { width: '640px', maxWidth: '95vw', data: suggestion })
+      .afterClosed()
+      .subscribe((applied) => {
+        if (applied) this.load();
+      });
   }
 
   private load(): void {

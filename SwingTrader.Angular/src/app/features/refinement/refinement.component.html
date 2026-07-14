@@ -29,29 +29,29 @@
     @if (!status()?.history?.length) {
       <p class="muted">No history yet.</p>
     } @else {
+      <p class="muted small">Click a run to see its stats and weights, and re-apply them to live settings.</p>
       <table class="history-table">
         <thead>
           <tr>
             <th>Date</th>
             <th>Origin</th>
             <th>Trades</th>
+            <th>Win rate</th>
             <th>Confidence</th>
             <th>Status</th>
           </tr>
         </thead>
         <tbody>
           @for (item of status()!.history; track item.id) {
-            <tr>
+            <tr class="clickable" (click)="openDetail(item)" matTooltip="View stats & weights, and re-apply">
               <td>{{ item.generatedAt | date: 'medium' }}</td>
               <td>
-                <span class="origin-chip" [class.lab]="item.origin === 'StrategyLab'"
-                  [matTooltip]="item.origin === 'StrategyLab'
-                    ? 'Applied by you from the Strategy Lab — the evidence is in the suggestion details'
-                    : 'Proposed by the scheduled auto-refinement analysis'">
+                <span class="origin-chip" [class.lab]="item.origin === 'StrategyLab'">
                   {{ item.origin === 'StrategyLab' ? 'Strategy Lab' : 'Auto refinement' }}
                 </span>
               </td>
               <td>{{ item.tradeCountAnalysed }}</td>
+              <td>{{ item.overallWinRate | number: '1.0-1' }}%</td>
               <td>{{ item.confidenceLevel }}</td>
               <td>{{ item.status }}</td>
             </tr>

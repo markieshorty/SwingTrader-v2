@@ -17,11 +17,16 @@ public class ApplyRefinementService(
         if (suggestion is null)
             return new ApplyRefinementResult(false, "Suggestion not found", null);
 
-        if (suggestion.Status != RefinementStatus.Pending)
-            return new ApplyRefinementResult(false, $"Suggestion is {suggestion.Status}, not Pending", null);
-
         if (suggestion.IsShadowMode)
             return new ApplyRefinementResult(false, "Cannot apply a shadow-mode suggestion — enable Refinement:Active first", null);
+
+        // A non-Pending suggestion (already Applied/Rejected/Superseded) can
+        // still be RE-applied from the history list - it just creates a fresh
+        // active weights row from that suggestion's weights. The old
+        // suggestion's status is left untouched in that case (only a Pending
+        // suggestion transitions to Applied below), so the audit trail of what
+        // happened when is preserved.
+        var isReApply = suggestion.Status != RefinementStatus.Pending;
 
         StrategyWeights suggested;
         if (specificRegime is null)
@@ -66,8 +71,8 @@ public class ApplyRefinementService(
             Source = suggestion.Origin == RefinementOrigin.StrategyLab ? "StrategyLab" : "RefinementAgent",
             ApplicableRegime = specificRegime,
             Notes = specificRegime is null
-                ? $"Applied from {(suggestion.Origin == RefinementOrigin.StrategyLab ? "Strategy Lab" : "auto-refinement")} suggestion #{suggestion.Id} generated {suggestion.GeneratedAt:yyyy-MM-dd}"
-                : $"Applied ({specificRegime} only) from RefinementSuggestion #{suggestion.Id} generated {suggestion.GeneratedAt:yyyy-MM-dd}"
+                ? $"{(isReApply ? "Re-applied" : "Applied")} from {(suggestion.Origin == RefinementOrigin.StrategyLab ? "Strategy Lab" : "auto-refinement")} suggestion #{suggestion.Id} generated {suggestion.GeneratedAt:yyyy-MM-dd}"
+                : $"{(isReApply ? "Re-applied" : "Applied")} ({specificRegime} only) from RefinementSuggestion #{suggestion.Id} generated {suggestion.GeneratedAt:yyyy-MM-dd}"
         };
 
         var saved = await weightsRepo.AddAsync(newWeights);
@@ -76,9 +81,11 @@ public class ApplyRefinementService(
         else
             await weightsRepo.SetRegimeActiveAsync(accountId, saved.Id, specificRegime.Value);
 
-        // Only mark the whole suggestion Applied when the general weights were applied —
-        // a regime-only apply leaves the suggestion Pending so other regimes can still be applied.
-        if (specificRegime is null)
+        // Only transition a Pending suggestion to Applied when the general
+        // weights were applied - a regime-only apply leaves it Pending so other
+        // regimes can still be applied, and a RE-apply of an already-terminal
+        // suggestion leaves its recorded status/history alone.
+        if (specificRegime is null && !isReApply)
         {
             suggestion.Status = RefinementStatus.Applied;
             suggestion.AppliedAt = DateTime.UtcNow;

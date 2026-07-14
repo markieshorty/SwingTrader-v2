@@ -44,3 +44,16 @@
     color: #818cf8;
   }
 }
+
+.muted.small {
+  font-size: 12px;
+  margin: 0 0 8px;
+}
+
+.history-table tr.clickable {
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(128, 128, 128, 0.08);
+  }
+}

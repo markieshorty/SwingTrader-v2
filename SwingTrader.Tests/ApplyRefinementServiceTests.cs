@@ -64,4 +64,55 @@ public class ApplyRefinementServiceTests
         await _weightsRepo.Received(1).AddAsync(Arg.Is<StrategyWeights>(w =>
             w.FundamentalMomentumWeight == 0.15m));
     }
+
+    private static StrategyWeights NormalisedWeights() => new()
+    {
+        RsiWeight = 0.15m, MacdWeight = 0.10m, VolumeWeight = 0.20m, SentimentWeight = 0.15m,
+        SetupQualityWeight = 0.10m, RelativeStrengthWeight = 0.10m, PriceLevelWeight = 0.05m,
+        FundamentalMomentumWeight = 0.15m,
+    };
+
+    [Fact]
+    public async Task ApplyAsync_ReApplyingHistoricalSuggestion_CreatesWeights_ButLeavesStatusUntouched()
+    {
+        // Re-applying an already-Applied suggestion from the history list must
+        // create a fresh active weights row without rewriting the old
+        // suggestion's status/AppliedAt (its audit trail is preserved).
+        var appliedAt = new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc);
+        var suggestion = new RefinementSuggestion
+        {
+            Id = 9,
+            AccountId = 1,
+            Status = RefinementStatus.Applied,
+            AppliedAt = appliedAt,
+            IsShadowMode = false,
+            SuggestedWeightsJson = JsonSerializer.Serialize(NormalisedWeights()),
+        };
+        _suggestionRepo.GetByIdAsync(1, 9).Returns(suggestion);
+
+        var result = await _sut.ApplyAsync(1, 9);
+
+        result.Success.Should().BeTrue(result.Error);
+        await _weightsRepo.Received(1).AddAsync(Arg.Any<StrategyWeights>());
+        await _weightsRepo.Received(1).SetActiveAsync(1, 42);
+        // The historical suggestion's own record is not rewritten.
+        await _suggestionRepo.DidNotReceive().UpdateAsync(Arg.Any<RefinementSuggestion>());
+        suggestion.Status.Should().Be(RefinementStatus.Applied);
+        suggestion.AppliedAt.Should().Be(appliedAt);
+    }
+
+    [Fact]
+    public async Task ApplyAsync_ShadowModeSuggestion_IsRejected()
+    {
+        _suggestionRepo.GetByIdAsync(1, 5).Returns(new RefinementSuggestion
+        {
+            Id = 5, AccountId = 1, Status = RefinementStatus.Pending, IsShadowMode = true,
+            SuggestedWeightsJson = JsonSerializer.Serialize(NormalisedWeights()),
+        });
+
+        var result = await _sut.ApplyAsync(1, 5);
+
+        result.Success.Should().BeFalse();
+        await _weightsRepo.DidNotReceive().AddAsync(Arg.Any<StrategyWeights>());
+    }
 }
