@@ -216,6 +216,8 @@ builder.Services.AddScoped<IHistoricalCandleRepository, HistoricalCandleReposito
 builder.Services.AddScoped<ISentimentArchiveRepository, SentimentArchiveRepository>();
 builder.Services.AddScoped<IBacktestRunRepository, BacktestRunRepository>();
 builder.Services.AddScoped<IEconomicLinkRepository, EconomicLinkRepository>();
+builder.Services.AddScoped<IFilingRepository, FilingRepository>();
+builder.Services.AddScoped<IWatchlistHistoryRepository, WatchlistHistoryRepository>();
 builder.Services.AddScoped<IMarketRegimeService, MarketRegimeService>();
 
 // Screening universe (S&P 1500 + Nasdaq-100 via Wikipedia) for the /watchlists
