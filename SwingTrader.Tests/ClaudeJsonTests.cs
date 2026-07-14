@@ -33,3 +33,49 @@ public class ClaudeJsonTests
         BellwetherSyncService.ParseScore("{\"sentiment_score\": 0.4}\n```")
             .Should().Be(0.4m);
 }
+
+// US-only instrument resolution (14 Jul 2026: a "HAL" buy matched HAL1a_EQ,
+// the Amsterdam listing of HAL Trust, not Halliburton).
+public class T212InstrumentResolverTests
+{
+    private static SwingTrader.Infrastructure.HttpClients.Dtos.InstrumentResponse Instr(string ticker, string name) =>
+        new(ticker, name, "STOCK", "USD", "US0000000000");
+
+    [Fact]
+    public void PrefersUsListing_OverForeignListingListedFirst()
+    {
+        var instruments = new[]
+        {
+            Instr("HAL1a_EQ", "HAL"),      // Amsterdam HAL Trust - the incident match
+            Instr("HAL_US_EQ", "Halliburton"),
+        };
+
+        SwingTrader.Agents.Execution.T212InstrumentResolver.ResolveUsTicker(instruments, "HAL")
+            .Should().Be("HAL_US_EQ");
+    }
+
+    [Fact]
+    public void NoUsListing_ReturnsNull_RatherThanForeign()
+    {
+        var instruments = new[] { Instr("HAL1a_EQ", "HAL") };
+
+        SwingTrader.Agents.Execution.T212InstrumentResolver.ResolveUsTicker(instruments, "HAL")
+            .Should().BeNull();
+    }
+
+    [Fact]
+    public void DisambiguatedUsListing_Matches_ButDifferentSymbolDoesNot()
+    {
+        var instruments = new[] { Instr("HAL1a_US_EQ", "Halliburton A"), Instr("HALO_US_EQ", "Halozyme") };
+
+        SwingTrader.Agents.Execution.T212InstrumentResolver.ResolveUsTicker(instruments, "HAL")
+            .Should().Be("HAL1a_US_EQ");
+    }
+
+    [Fact]
+    public void IsUsListing_ChecksSuffix()
+    {
+        SwingTrader.Agents.Execution.T212InstrumentResolver.IsUsListing("AAPL_US_EQ").Should().BeTrue();
+        SwingTrader.Agents.Execution.T212InstrumentResolver.IsUsListing("HAL1a_EQ").Should().BeFalse();
+    }
+}

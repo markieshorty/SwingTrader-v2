@@ -452,11 +452,30 @@ public class MonitorServiceFillReconciliationTests
     public async Task RunCycleAsync_BrokerTickerHasListingDisambiguator_MatchesStoredTicker_NoDrift()
     {
         // Regression: T212 tickers can carry a listing disambiguator the Symbol
-        // can't reproduce, e.g. "HAL1a_EQ" for symbol "HAL". Before the fix this
-        // produced BOTH a phantom ("open locally, not at broker") and an
-        // untracked ("held at broker, no local record") alert every cycle for a
-        // position that was actually fine. With the exact broker ticker stored
-        // at placement, the match is unambiguous.
+        // can't reproduce. Before the fix this produced BOTH a phantom ("open
+        // locally, not at broker") and an untracked ("held at broker, no local
+        // record") alert every cycle for a position that was actually fine.
+        // With the exact broker ticker stored at placement, the match is
+        // unambiguous. (US-suffixed here - a non-US ticker now legitimately
+        // drifts; see the NonUsListing test below.)
+        SetupNoOpenPositions();
+        var hal = ConfirmedOpen("HAL", 3.936m);
+        hal.BrokerTicker = "HAL1a_US_EQ";
+        _tradeRepo.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade> { hal });
+        _t212.GetPortfolioAsync().Returns(new List<PortfolioPositionResponse> { BrokerPosition("HAL1a_US_EQ", 3.936m) });
+
+        await CreateSut().RunCycleAsync(1, _finnhub, _t212);
+
+        await _activityLog.DidNotReceive().LogAsync(1, "SystemEvent", "Position Drift", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunCycleAsync_NonUsListingBrokerTicker_FlagsForManualReview()
+    {
+        // 14 Jul 2026: a "HAL" buy landed on HAL1a_EQ (Euronext Amsterdam, HAL
+        // Trust) while research scored Halliburton on US data. Such positions
+        // get ONE drift line telling the owner to review/close manually - and
+        // no phantom/untracked noise, since the broker genuinely holds it.
         SetupNoOpenPositions();
         var hal = ConfirmedOpen("HAL", 3.936m);
         hal.BrokerTicker = "HAL1a_EQ";
@@ -465,7 +484,10 @@ public class MonitorServiceFillReconciliationTests
 
         await CreateSut().RunCycleAsync(1, _finnhub, _t212);
 
-        await _activityLog.DidNotReceive().LogAsync(1, "SystemEvent", "Position Drift", Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _activityLog.Received(1).LogAsync(1, "SystemEvent", "Position Drift", Arg.Any<string>(),
+            Arg.Is<string>(m => m.Contains("non-US listing")), Arg.Any<CancellationToken>());
+        await _activityLog.DidNotReceive().LogAsync(1, "SystemEvent", "Position Drift", Arg.Any<string>(),
+            Arg.Is<string>(m => !m.Contains("non-US listing")), Arg.Any<CancellationToken>());
     }
 
     [Fact]

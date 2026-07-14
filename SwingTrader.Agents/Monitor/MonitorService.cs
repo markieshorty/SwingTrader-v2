@@ -380,6 +380,20 @@ public class MonitorService(
             return;
         }
 
+        // 0) Non-US listing: a position whose captured BrokerTicker isn't a
+        //    _US_EQ instrument was bought on a foreign listing (14 Jul 2026:
+        //    a "HAL" buy landed on HAL1a_EQ, the Euronext Amsterdam listing
+        //    of HAL Trust, while research scored Halliburton on US data).
+        //    New buys can't create these any more (T212InstrumentResolver is
+        //    US-only); this flags any that predate the fix for manual review.
+        foreach (var trade in openTrades.Where(t =>
+                     !string.IsNullOrEmpty(t.BrokerTicker)
+                     && !Execution.T212InstrumentResolver.IsUsListing(t.BrokerTicker!)))
+        {
+            await LogPositionDriftAsync(accountId,
+                $"{trade.Symbol}: held via non-US listing {trade.BrokerTicker} — research data and exit monitoring assume a US listing; review and close manually.", ct);
+        }
+
         // 1) Phantom / quantity-mismatch: a confirmed, settled local open
         //    position that the broker either doesn't hold or holds a different
         //    quantity of. Fresh/unconfirmed positions are skipped (grace window).

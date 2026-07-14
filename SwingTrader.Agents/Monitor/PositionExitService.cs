@@ -195,12 +195,10 @@ public class PositionExitService(
             cache.Set(instrumentsCacheKey, instruments, TimeSpan.FromHours(24));
         }
 
-        var match = instruments.FirstOrDefault(i =>
-            i.Name.Equals(symbol, StringComparison.OrdinalIgnoreCase)
-            || i.Ticker.StartsWith(symbol + "_", StringComparison.OrdinalIgnoreCase)
-            || i.Ticker.Equals(symbol, StringComparison.OrdinalIgnoreCase));
-
-        var ticker = match?.Ticker;
+        // US listings only (same rule as ExecutionService's buy-side
+        // resolution) - this legacy path only serves trades placed before
+        // BrokerTicker capture, which were all US buys.
+        var ticker = Execution.T212InstrumentResolver.ResolveUsTicker(instruments, symbol);
         cache.Set(cacheKey, ticker, TimeSpan.FromHours(24));
         return ticker;
     }

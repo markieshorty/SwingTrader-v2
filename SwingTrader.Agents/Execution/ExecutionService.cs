@@ -546,12 +546,9 @@ public class ExecutionService(
             cache.Set(instrumentsCacheKey, instruments, TimeSpan.FromHours(24));
         }
 
-        var match = instruments.FirstOrDefault(i =>
-            i.Name.Equals(symbol, StringComparison.OrdinalIgnoreCase)
-            || i.Ticker.StartsWith(symbol + "_", StringComparison.OrdinalIgnoreCase)
-            || i.Ticker.Equals(symbol, StringComparison.OrdinalIgnoreCase));
-
-        var ticker = match?.Ticker;
+        // US listings only - see T212InstrumentResolver for the HAL/HAL Trust
+        // incident this prevents. Null = ineligible; caller skips with a warning.
+        var ticker = T212InstrumentResolver.ResolveUsTicker(instruments, symbol);
         cache.Set(cacheKey, ticker, TimeSpan.FromHours(24));
         return ticker;
     }
