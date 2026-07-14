@@ -23,8 +23,14 @@ public class FilingDeltaConfig
 
     // Paragraph-level diff cap: only this many added + removed paragraphs are
     // sent to Claude (with the rest summarized as a count), bounding tokens
-    // on pathological rewrites.
-    public int MaxDiffParagraphs { get; set; } = 40;
+    // on pathological rewrites. Lowered from 40 (13 Jul 2026): at 40, one
+    // symbol's first-ever backfill (2 sections x 2 filing types x up to 80
+    // paragraphs each) could plausibly reach tens of thousands of prompt
+    // tokens, and that ran for every watchlist symbol at once on rollout - a
+    // real contributor to an unexpectedly large first-day API bill. 15 is
+    // still generous for judging materiality; a genuinely sprawling rewrite
+    // degrades to "many paragraphs changed" rather than reading all of them.
+    public int MaxDiffParagraphs { get; set; } = 15;
 
     // Stored section text cap (per section, chars) - filings can run to
     // megabytes; we keep enough for the next diff, not the whole document.

@@ -81,7 +81,13 @@ public class SecondHopScorer(
 
         await claudeRateLimiter.WaitAsync(ct);
         var response = await claude.SendMessageAsync(new ClaudeRequest(
-            claudeConfig.Value.PremiumModel, claudeConfig.Value.MaxTokens, systemPrompt,
+            // Deliberately NOT PremiumModel: this runs once per watchlist
+            // symbol EVERY DAY during Research (same cardinality as
+            // sentiment scoring), not the low-frequency synthesis Opus is
+            // reserved for - routing a daily per-symbol call to Opus would
+            // multiply cost every day, not just once. Correction of a
+            // mis-classification made 13 Jul 2026.
+            claudeConfig.Value.Model, claudeConfig.Value.MaxTokens, systemPrompt,
             [new ClaudeMessage("user", userPrompt)]));
         var raw = response.Content.FirstOrDefault(c => c.Type == "text")?.Text ?? string.Empty;
 
