@@ -211,8 +211,14 @@ public class FilingSyncService(
             // "paragraph" can be a whole flattened table thousands of chars
             // long, so each is clipped too. Belt-and-braces: the assembled
             // diff is hard-capped below regardless of what these produce.
-            var added = diff.Added.Take(cfg.MaxDiffParagraphs).Select(p => Clip(p, cfg.MaxParagraphChars)).ToList();
-            var removed = diff.Removed.Take(cfg.MaxDiffParagraphs).Select(p => Clip(p, cfg.MaxParagraphChars)).ToList();
+            // When the count cap binds, prefer the LONGEST paragraphs -
+            // substance over boilerplate reshuffles - rather than whatever
+            // happened to come first in dictionary order; the full counts in
+            // the header still tell Claude how much was left unshown.
+            var added = diff.Added.OrderByDescending(p => p.Length)
+                .Take(cfg.MaxDiffParagraphs).Select(p => Clip(p, cfg.MaxParagraphChars)).ToList();
+            var removed = diff.Removed.OrderByDescending(p => p.Length)
+                .Take(cfg.MaxDiffParagraphs).Select(p => Clip(p, cfg.MaxParagraphChars)).ToList();
             parts.Add(
                 $"## Section: {name}\n" +
                 $"### Paragraphs ADDED in the new filing ({diff.Added.Count} total, showing {added.Count}):\n" +
