@@ -56,21 +56,46 @@ public class QualitativeWatchlistService(
         }
         var universeSymbols = universeNames.Select(u => u.Symbol).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+        // Exclude symbols already covered by any OTHER enabled watchlist
+        // (the technical AI list, manual lists) from the candidate pool
+        // itself - not just as a prompt instruction, which Claude can and
+        // does ignore. If it's not in the list Claude sees, it structurally
+        // cannot be picked, so the target count is real new ideas rather
+        // than overlaps that get thinned out later. The qualitative list's
+        // OWN current picks are deliberately NOT excluded - keeping a good
+        // idea from last week is continuity, not a duplicate.
+        var ownList = (await watchlists.GetAllWatchlistsAsync(accountId, ct))
+            .FirstOrDefault(w => w.Type == WatchlistType.AiQualitative);
+        var elsewhereSymbols = (await watchlists.GetAllEnabledSymbolsAsync(accountId, ct))
+            .Where(i => ownList is null || i.WatchlistId != ownList.Id)
+            .Select(i => i.Symbol)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var candidatePool = universeNames.Where(u => !elsewhereSymbols.Contains(u.Symbol)).ToList();
+        if (candidatePool.Count == 0)
+        {
+            logger.LogWarning("Qualitative watchlist skipped for account {AccountId} — every universe symbol is already tracked elsewhere", accountId);
+            return 0;
+        }
+
         // Recent-context grounding: the archive's strongest movers (watchlist
         // + bellwether coverage) counter the model's training cutoff -
         // "likely to be active" should come from this week's data, not memory.
         var movers = await sentimentArchive.GetTopMoversSinceAsync(
             DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-14)), 15, ct);
 
-        var picks = await SelectAsync(claude, universeNames, movers, cfg.QualitativeSize, ct);
+        var picks = await SelectAsync(claude, candidatePool, movers, cfg.QualitativeSize, ct);
         if (picks is null) return 0; // selection failed - previous list stands
 
         // Hallucinated tickers are a certainty, not a risk: silently drop
-        // anything not in the universe, however firmly the prompt forbade it.
-        var valid = picks.Where(p => universeSymbols.Contains(p.Symbol)).ToList();
-        if (valid.Count < picks.Count)
-            logger.LogWarning("Qualitative selection: {Dropped} pick(s) not in the universe were dropped ({Symbols})",
-                picks.Count - valid.Count, string.Join(", ", picks.Where(p => !universeSymbols.Contains(p.Symbol)).Select(p => p.Symbol)));
+        // anything not in the universe (however firmly the prompt forbade
+        // it) and anything already tracked elsewhere (belt-and-braces - the
+        // exclusion above stops Claude SEEING those symbols, but a model
+        // recalling one from memory rather than the supplied list would
+        // still slip through without this second check).
+        var (valid, dropped) = FilterValidPicks(picks, universeSymbols, elsewhereSymbols);
+        if (dropped.Count > 0)
+            logger.LogWarning("Qualitative selection: {Dropped} pick(s) dropped (not in universe, or already tracked on another list): {Symbols}",
+                dropped.Count, string.Join(", ", dropped));
         if (valid.Count == 0) return 0;
 
         var namesBySymbol = universeNames
@@ -126,6 +151,26 @@ public class QualitativeWatchlistService(
             logger.LogError(ex, "Qualitative watchlist selection failed");
             return null;
         }
+    }
+
+    // Internal static so the drop rules are directly testable: a pick
+    // survives only if it's a real universe symbol AND not already tracked
+    // on another enabled watchlist (the pre-filtered candidate pool should
+    // make the latter case rare - this is the belt-and-braces catch for a
+    // model recalling a symbol from memory rather than the supplied list).
+    internal static (List<QualitativePick> Valid, List<string> Dropped) FilterValidPicks(
+        List<QualitativePick> picks, IReadOnlySet<string> universeSymbols, IReadOnlySet<string> elsewhereSymbols)
+    {
+        var valid = new List<QualitativePick>();
+        var dropped = new List<string>();
+        foreach (var p in picks)
+        {
+            if (universeSymbols.Contains(p.Symbol) && !elsewhereSymbols.Contains(p.Symbol))
+                valid.Add(p);
+            else
+                dropped.Add(p.Symbol);
+        }
+        return (valid, dropped);
     }
 
     // Internal static so the parse/shape rules are directly testable.

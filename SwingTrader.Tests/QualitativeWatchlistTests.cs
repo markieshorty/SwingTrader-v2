@@ -27,6 +27,27 @@ public class QualitativeWatchlistTests
         picks[1].Archetype.Should().Be("Unlabelled"); // missing archetype defaults, never drops the pick
     }
 
+    [Fact]
+    public void FilterValidPicks_DropsHallucinatedAndCrossListOverlaps()
+    {
+        var universe = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "NVDA", "COST", "PLTR" };
+        // NVDA is already on the technical AI list - the candidate pool
+        // sent to Claude should have excluded it, but this pins the
+        // belt-and-braces catch for when a model recalls it anyway.
+        var elsewhere = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "NVDA" };
+        var picks = new List<QualitativeWatchlistService.QualitativePick>
+        {
+            new("NVDA", "HypeMomentum", "already on the other list"),
+            new("COST", "StructuralGrowth", "membership compounding"),
+            new("ZZZZ", "Turnaround", "not a real universe symbol"),
+        };
+
+        var (valid, dropped) = QualitativeWatchlistService.FilterValidPicks(picks, universe, elsewhere);
+
+        valid.Should().ContainSingle(p => p.Symbol == "COST");
+        dropped.Should().BeEquivalentTo(["NVDA", "ZZZZ"]);
+    }
+
     // Mark, 13 Jul 2026: high-value judgement calls run on Opus; high-volume
     // structured extraction stays on the cheap default. This test pins the
     // config shape so a default regression is loud.
