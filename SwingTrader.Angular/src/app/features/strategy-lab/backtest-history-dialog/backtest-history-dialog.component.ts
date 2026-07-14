@@ -50,7 +50,7 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
         </div>
       }
 
-      @if (item.mode === 'ab' && item.rules; as r) {
+      @if (item.rules; as r) {
         <h4>Risk settings tested</h4>
         <div class="rules">
           @if (r.maxHoldDays != null) { <span class="rule">Max hold {{ r.maxHoldDays }}d</span> }
@@ -67,13 +67,13 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
 
       @if (item.canApply) {
         <div class="apply-choices">
-          @if (item.mode === 'ab') {
+          @if (item.mode === 'ab' || item.hasRiskOverrides) {
             <mat-checkbox [(ngModel)]="applyWeights">Apply weights</mat-checkbox>
             <mat-checkbox [(ngModel)]="applyRisk" [disabled]="!item.hasRiskOverrides">
               Apply risk settings{{ item.hasRiskOverrides ? '' : ' (none in this run)' }}
             </mat-checkbox>
           } @else {
-            <p class="muted">The optimizer only tunes weights — applying replaces your live strategy weights.</p>
+            <p class="muted">This run tuned weights only — applying replaces your live strategy weights.</p>
           }
         </div>
       } @else {
@@ -83,7 +83,7 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close>Close</button>
       <button mat-raised-button color="primary"
-        [disabled]="!item.canApply || applying() || (item.mode === 'ab' && !applyWeights() && !applyRisk())"
+        [disabled]="!item.canApply || applying() || (checkboxesShown && !applyWeights() && !applyRisk())"
         (click)="apply()">
         Apply to live
       </button>
@@ -110,12 +110,18 @@ export class BacktestHistoryDialogComponent {
 
   item = inject<BacktestHistoryItemDto>(MAT_DIALOG_DATA);
   applying = signal(false);
-  // A/B defaults to weights ticked; optimizer is weights-only (no checkboxes).
+  // Checkboxes appear whenever a choice exists: always for A/B, and for a
+  // sweep whose winner carried rule overrides ("search for optimal trading
+  // rules"). A weights-only sweep just applies weights.
   applyWeights = signal(true);
   applyRisk = signal(false);
 
-  private effectiveWeights = computed(() => (this.item.mode === 'sweep' ? true : this.applyWeights()));
-  private effectiveRisk = computed(() => (this.item.mode === 'sweep' ? false : this.applyRisk()));
+  get checkboxesShown(): boolean {
+    return this.item.mode === 'ab' || this.item.hasRiskOverrides;
+  }
+
+  private effectiveWeights = computed(() => (this.checkboxesShown ? this.applyWeights() : true));
+  private effectiveRisk = computed(() => (this.checkboxesShown ? this.applyRisk() : false));
 
   apply(): void {
     const parts: string[] = [];

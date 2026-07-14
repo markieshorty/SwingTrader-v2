@@ -201,7 +201,18 @@ public class BacktestConsumerFunction(
         var baseline = request.Candidates?.FirstOrDefault()
             ?? throw new InvalidOperationException("Sweep request carries no baseline candidate.");
 
-        var candidates = SweepOptimizer.GenerateCandidates(baseline);
+        // The production rule values, so rule-search grid points that equal
+        // production are skipped (they'd just duplicate the baseline run).
+        var productionRules = new HistoricTradingRules(
+            MaxHoldDays: profile.MaxHoldDays,
+            MaxOpenPositions: profile.MaxOpenPositions,
+            TrailingActivationPct: (decimal)profile.TrailingActivationPct,
+            TrailingDistancePct: (decimal)profile.TrailingDistancePct,
+            StopLossPct: profile.StopLossPct,
+            TargetPct: profile.TargetPct,
+            MinHoldDays: profile.MinHoldDays,
+            MomentumHealthThreshold: profile.MomentumHealthThreshold);
+        var candidates = SweepOptimizer.GenerateCandidates(baseline, request.SearchRules, productionRules);
 
         // Progress the UI polls: total covers BOTH search pools (traditional
         // sweep + ML search) up front, completed ticks up per candidate below
@@ -217,7 +228,7 @@ public class BacktestConsumerFunction(
 
         // Baseline first - its drawdown sets the ceiling for everyone else.
         var baselineTrain = await HistoricBacktester.RunAsync(
-            train, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear, profile), sectorEtfs, ct);
+            train, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear, profile, baseline.Rules), sectorEtfs, ct);
         var baselineSummary = SweepOptimizer.Summarise(candidates[0], baselineTrain, trainSpy, baselineTrain.MaxDrawdownPct);
         run.CompletedCandidates = 1;
         await runs.UpdateAsync(run);
@@ -227,7 +238,9 @@ public class BacktestConsumerFunction(
         foreach (var c in candidates.Skip(1))
         {
             ct.ThrowIfCancellationRequested();
-            var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile), sectorEtfs, ct);
+            // c.Rules rides into the engine config - null for weight variants
+            // (production rules), set for the rule-search candidates.
+            var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile, c.Rules), sectorEtfs, ct);
             summaries.Add(SweepOptimizer.Summarise(c, r, trainSpy, baselineTrain.MaxDrawdownPct, baselineTrain.Trades));
             trainResults[c.Label] = r;
             logger.LogInformation("Sweep candidate '{Label}': {Trades} trades, {Adj}% adjusted expectancy", c.Label, r.Trades, summaries[^1].AdjustedExpectancyPct);
@@ -302,11 +315,11 @@ public class BacktestConsumerFunction(
 
         // Out-of-sample validation: winner and baseline on the held-out window.
         var winnerHoldout = await HistoricBacktester.RunAsync(
-            holdout, ToConfig(winnerSummary.Weights, winnerSummary.BuyThreshold, winnerSummary.ExcludeBreakout, winnerSummary.AutopauseDuringBear, profile), sectorEtfs, ct);
+            holdout, ToConfig(winnerSummary.Weights, winnerSummary.BuyThreshold, winnerSummary.ExcludeBreakout, winnerSummary.AutopauseDuringBear, profile, winnerSummary.Rules), sectorEtfs, ct);
         var baselineHoldout = winnerSummary.Label == baselineSummary.Label
             ? winnerHoldout
             : await HistoricBacktester.RunAsync(
-                holdout, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear, profile), sectorEtfs, ct);
+                holdout, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear, profile, baseline.Rules), sectorEtfs, ct);
 
         var validation = SweepOptimizer.BuildValidation(
             trainResults[winnerSummary.Label], winnerHoldout, baselineHoldout, trainSpy, holdoutSpy);

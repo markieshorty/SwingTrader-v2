@@ -31,7 +31,13 @@ public sealed record SweepCandidateResult(
     // deliberately more pessimistic than AdjustedExpectancyPct so a big mean
     // from a small/one-regime sample can't win on luck; the headline
     // AdjustedExpectancyPct is kept alongside it for display.
-    decimal RobustScorePct = 0m);
+    decimal RobustScorePct = 0m,
+    // Trading-rule overrides this candidate tested (only set by the "search
+    // for optimal trading rules" sweep variants; null = production rules).
+    // Carried onto the winner so Optimizer History can re-apply the rules
+    // alongside the weights. Defaulted (like RobustScorePct) so pre-existing
+    // stored result JSON keeps deserializing.
+    HistoricTradingRules? Rules = null);
 
 public sealed record SweepValidation(
     HistoricResult Train,                // winner's full result on the train window
@@ -124,7 +130,8 @@ public static class SweepOptimizer
     // simplex far more densely than the original ~25 (bumped from 200).
     public const int TargetCandidateCount = 400;
 
-    public static List<HistoricBacktestCandidate> GenerateCandidates(HistoricBacktestCandidate baseline)
+    public static List<HistoricBacktestCandidate> GenerateCandidates(
+        HistoricBacktestCandidate baseline, bool searchRules = false, HistoricTradingRules? productionRules = null)
     {
         var candidates = new List<HistoricBacktestCandidate> { baseline with { Label = "Production baseline" } };
         var names = new[] { "RSI", "MACD", "Volume", "Sentiment", "Setup quality", "Relative strength", "Price level", "Fundamental momentum" };
@@ -215,6 +222,63 @@ public static class SweepOptimizer
                     });
                 }
             }
+        }
+
+        // Optional trading-RULE search ("Search for optimal trading rules"):
+        // grid variants of the exit/probation/position rules, one dial at a
+        // time on the BASELINE weights - the same one-change-at-a-time
+        // philosophy as the weight nudges, so a winning rule candidate is
+        // attributable to that rule. Values equal to the current production
+        // rule are skipped (they'd duplicate the baseline). A few combined
+        // risk-posture bundles cover the interaction between stop, target and
+        // hold length that single-dial variants can't see. All of these are
+        // added BEFORE the random filler so the rules search never gets
+        // crowded out by the candidate cap; each still faces the same
+        // constraints, robust-score ranking and holdout validation as every
+        // weight candidate.
+        if (searchRules)
+        {
+            void AddRule(string label, HistoricTradingRules rules) =>
+                candidates.Add(baseline with { Label = label, Rules = rules });
+
+            foreach (var v in new[] { 5, 8, 12, 15, 20, 30 })
+                if (v != productionRules?.MaxHoldDays)
+                    AddRule($"Max hold {v}d", new HistoricTradingRules(MaxHoldDays: v));
+
+            foreach (var v in new[] { 0.03m, 0.05m, 0.07m, 0.10m })
+                if (v != productionRules?.StopLossPct)
+                    AddRule($"Stop {v:P0}", new HistoricTradingRules(StopLossPct: v));
+
+            foreach (var v in new[] { 0.10m, 0.15m, 0.20m, 0.30m })
+                if (v != productionRules?.TargetPct)
+                    AddRule($"Target {v:P0}", new HistoricTradingRules(TargetPct: v));
+
+            foreach (var (act, dist) in new[] { (0.03m, 0.02m), (0.05m, 0.03m), (0.08m, 0.04m), (0.10m, 0.05m) })
+                if (act != productionRules?.TrailingActivationPct || dist != productionRules?.TrailingDistancePct)
+                    AddRule($"Trail +{act:P0}/{dist:P0}",
+                        new HistoricTradingRules(TrailingActivationPct: act, TrailingDistancePct: dist));
+
+            foreach (var v in new[] { 2, 3, 5 })
+                if (v != productionRules?.MinHoldDays)
+                    AddRule($"Probation {v}d", new HistoricTradingRules(MinHoldDays: v));
+
+            foreach (var v in new[] { 0.3m, 0.45m, 0.6m })
+                if (v != productionRules?.MomentumHealthThreshold)
+                    AddRule($"Health floor {v:0.00}", new HistoricTradingRules(MomentumHealthThreshold: v));
+
+            foreach (var v in new[] { 3, 5, 8 })
+                if (v != productionRules?.MaxOpenPositions)
+                    AddRule($"Max positions {v}", new HistoricTradingRules(MaxOpenPositions: v));
+
+            AddRule("Tight risk (stop 3%, target 10%, trail +3%/2%, hold 10d)",
+                new HistoricTradingRules(MaxHoldDays: 10, StopLossPct: 0.03m, TargetPct: 0.10m,
+                    TrailingActivationPct: 0.03m, TrailingDistancePct: 0.02m));
+            AddRule("Loose risk (stop 10%, target 30%, trail +10%/5%, hold 30d)",
+                new HistoricTradingRules(MaxHoldDays: 30, StopLossPct: 0.10m, TargetPct: 0.30m,
+                    TrailingActivationPct: 0.10m, TrailingDistancePct: 0.05m));
+            AddRule("Let winners run (target 30%, trail +5%/3%, hold 30d)",
+                new HistoricTradingRules(MaxHoldDays: 30, TargetPct: 0.30m,
+                    TrailingActivationPct: 0.05m, TrailingDistancePct: 0.03m));
         }
 
         // Fill the remainder to TargetCandidateCount with deterministic
@@ -394,7 +458,8 @@ public static class SweepOptimizer
             result.Trades, result.WinRate, result.ExpectancyPct, adjusted,
             result.ProfitFactor, result.MaxDrawdownPct, result.TotalReturnPct,
             rejection is null, rejection,
-            RobustScorePct: Math.Min(earlyLcb, lateLcb));
+            RobustScorePct: Math.Min(earlyLcb, lateLcb),
+            Rules: candidate.Rules);
     }
 
     public static SweepValidation BuildValidation(

@@ -100,6 +100,7 @@ public static class StrategyLabEndpoints
         // any historic run and polled via the same endpoint, which also
         // reports CompletedCandidates/TotalCandidates for a progress bar.
         api.MapPost("/strategy-lab/optimize", async (
+            OptimizeRequest? req,
             IBacktestRunRepository runs,
             IStrategyWeightsRepository weightsRepo,
             IAccountRiskProfileRepository riskProfileRepo,
@@ -120,7 +121,8 @@ public static class StrategyLabEndpoints
                 RequestJson = JsonSerializer.Serialize(new HistoricBacktestRequest(
                     baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout,
                     Mode: "sweep",
-                    Candidates: [baseline])),
+                    Candidates: [baseline],
+                    SearchRules: req?.SearchRules ?? false)),
             });
 
             await using var sender = serviceBus.CreateSender("backtest-jobs");

@@ -581,12 +581,16 @@ export class StrategyLabComponent implements OnDestroy {
 
   // ── Optimizer tab ──────────────────────────────────────────────────────────
 
+  // "Search for optimal trading rules": adds exit/probation/position rule
+  // candidates to the sweep alongside the weight search.
+  searchRules = signal(false);
+
   runOptimizer(): void {
     this.optimizing.set(true);
     this.sweepResult.set(null);
     this.sweepProgress.set(null);
     this.sweepResultCompletedAt.set(null); // fresh run - the "from a past run" caption no longer applies
-    this.api.runStrategyLabOptimize().subscribe({
+    this.api.runStrategyLabOptimize(this.searchRules()).subscribe({
       next: (r) => this.startSweepPoll(r.backtestRunId),
       error: (err) => {
         this.snackbar.open(errorMessage(err, 'Failed to queue the optimizer.'), 'Dismiss', { duration: 5000 });

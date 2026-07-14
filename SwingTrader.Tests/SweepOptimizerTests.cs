@@ -277,6 +277,64 @@ public class SweepOptimizerTests
         v.HeldUp.Should().BeTrue();
         v.Verdict.Should().Contain("Held up");
     }
+
+    // ── "Search for optimal trading rules" ──────────────────────────────────
+
+    [Fact]
+    public void GenerateCandidates_SearchRulesOff_EmitsNoRuleCandidates()
+    {
+        SweepOptimizer.GenerateCandidates(Baseline())
+            .Should().AllSatisfy(c => c.Rules.Should().BeNull());
+    }
+
+    [Fact]
+    public void GenerateCandidates_SearchRulesOn_EmitsRuleCandidates_OnBaselineWeights()
+    {
+        var candidates = SweepOptimizer.GenerateCandidates(Baseline(), searchRules: true);
+
+        var ruleCandidates = candidates.Where(c => c.Rules is not null).ToList();
+        ruleCandidates.Should().NotBeEmpty();
+        // Rule candidates test the rule change in isolation: baseline weights
+        // and threshold, one-dial (or one bundle) rule overrides.
+        ruleCandidates.Should().AllSatisfy(c =>
+        {
+            c.Weights.Should().Be(ProdWeights);
+            c.BuyThreshold.Should().Be(6.0m);
+        });
+        // Total stays capped - rule candidates displace random filler rather
+        // than extending the run.
+        candidates.Count.Should().Be(SweepOptimizer.TargetCandidateCount);
+    }
+
+    [Fact]
+    public void GenerateCandidates_SearchRulesOn_SkipsGridPointsEqualToProduction()
+    {
+        var production = new HistoricTradingRules(
+            MaxHoldDays: 15, StopLossPct: 0.05m, TargetPct: 0.20m,
+            TrailingActivationPct: 0.05m, TrailingDistancePct: 0.03m,
+            MinHoldDays: 3, MomentumHealthThreshold: 0.45m, MaxOpenPositions: 5);
+
+        var candidates = SweepOptimizer.GenerateCandidates(Baseline(), searchRules: true, productionRules: production);
+
+        // Grid points matching production would just duplicate the baseline run.
+        candidates.Should().NotContain(c => c.Rules != null && c.Label.StartsWith("Max hold") && c.Rules.MaxHoldDays == 15);
+        candidates.Should().NotContain(c => c.Rules != null && c.Label.StartsWith("Stop") && c.Rules.StopLossPct == 0.05m);
+        candidates.Should().NotContain(c => c.Rules != null && c.Label.StartsWith("Probation") && c.Rules.MinHoldDays == 3);
+        // Other grid points remain.
+        candidates.Should().Contain(c => c.Rules != null && c.Label.StartsWith("Max hold") && c.Rules.MaxHoldDays == 30);
+    }
+
+    [Fact]
+    public void Summarise_CarriesCandidateRulesOntoTheSummary()
+    {
+        var rules = new HistoricTradingRules(MaxHoldDays: 12);
+        var candidate = Baseline() with { Label = "Max hold 12d", Rules = rules };
+        var spy = new[] { new DailyBar(new DateTime(2024, 1, 1), 100m, 100m, 100m, 100m, 1m) };
+
+        var summary = SweepOptimizer.Summarise(candidate, Result(100, 0.5m, 8m), spy, 10m);
+
+        summary.Rules.Should().Be(rules);
+    }
 }
 
 // Claude response parsing for the Lab analysis: strict-JSON happy path,

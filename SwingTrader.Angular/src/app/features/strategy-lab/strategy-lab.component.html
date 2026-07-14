@@ -600,6 +600,12 @@
           expectancy (each trade's return minus SPY's move over the same days), with guardrails: at least {{ 40 }}
           trades, and a max drawdown no worse than 1.25× the baseline's.
         </p>
+        <div class="search-rules-row">
+          <mat-checkbox [(ngModel)]="searchRules" [disabled]="optimizing()"
+            matTooltip="Adds ~35 trading-rule candidates to the search: hold-day, stop, target, trailing-stop, probation and position-cap grids, each tested one change at a time on your production weights, plus a few combined risk postures. Rule candidates face the same guardrails and out-of-sample validation as every weight candidate — if one wins, Optimizer History can apply its rules to your live risk settings alongside the weights.">
+            Search for optimal trading rules
+          </mat-checkbox>
+        </div>
         <div class="meta-row">
           <button mat-raised-button color="primary" [disabled]="optimizing() || !historicAvailable()" (click)="runOptimizer()">
             @if (optimizing()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>auto_awesome</mat-icon> }

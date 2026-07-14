@@ -123,3 +123,7 @@ public record LabApplyRequest(
 // Body of POST /strategy-lab/backtest/{runId}/apply - the A/B/Optimizer
 // history "Apply to live" action. At least one flag must be true.
 public record BacktestApplyRequest(bool ApplyWeights, bool ApplyRiskSettings);
+
+// Body of POST /strategy-lab/optimize. SearchRules adds trading-rule
+// candidates (exit/probation/position grids) to the sweep's search space.
+public record OptimizeRequest(bool SearchRules = false);

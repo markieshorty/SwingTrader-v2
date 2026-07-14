@@ -78,6 +78,25 @@ public class BacktestApplyExtractorTests
     }
 
     [Fact]
+    public void Extract_Sweep_RuleWinner_CarriesItsRules()
+    {
+        // A "search for optimal trading rules" winner: rules ride on the
+        // winner record (camelCase, PascalCase-insensitive parse).
+        var resultJson =
+            "{\"mode\":\"sweep\",\"winner\":{\"label\":\"Max hold 12d\",\"weights\":" + Weights + ",\"buyThreshold\":6.0," +
+            "\"rules\":{\"maxHoldDays\":12,\"stopLossPct\":0.05}," +
+            "\"trades\":110,\"winRate\":54,\"expectancyPct\":0.4,\"profitFactor\":1.2,\"maxDrawdownPct\":9,\"totalReturnPct\":12}}";
+
+        var config = BacktestApplyExtractor.Extract("sweep", "{\"Mode\":\"sweep\"}", resultJson);
+
+        config.Should().NotBeNull();
+        config!.Rules.Should().NotBeNull();
+        config.Rules!.MaxHoldDays.Should().Be(12);
+        config.Rules.StopLossPct.Should().Be(0.05m);
+        config.Rules.TargetPct.Should().BeNull();
+    }
+
+    [Fact]
     public void Extract_NullOrMalformedResult_ReturnsNull()
     {
         BacktestApplyExtractor.Extract("ab", "{}", null).Should().BeNull();

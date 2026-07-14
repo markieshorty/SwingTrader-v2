@@ -47,9 +47,14 @@ public static class BacktestApplyExtractor
             if (string.Equals(mode, "sweep", StringComparison.OrdinalIgnoreCase))
             {
                 if (!TryProp(root, "winner", out var winner) || !TryParseWeights(winner, out var weights)) return null;
-                // The winner's headline stats live directly on the candidate record.
+                // The winner's headline stats live directly on the candidate
+                // record, as do its rules when the sweep ran with "search for
+                // optimal trading rules" and a rule candidate won.
+                var rules = TryProp(winner, "rules", out var r) && r.ValueKind == JsonValueKind.Object
+                    ? r.Deserialize<HistoricTradingRules>(CaseInsensitive)
+                    : null;
                 return new ApplyableConfig(
-                    Label(winner, "Winner"), weights, Decimal(winner, "buyThreshold"), null, ParseStats(winner));
+                    Label(winner, "Winner"), weights, Decimal(winner, "buyThreshold"), rules, ParseStats(winner));
             }
 
             return null;

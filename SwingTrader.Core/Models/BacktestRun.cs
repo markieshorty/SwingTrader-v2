@@ -71,4 +71,8 @@ public record HistoricBacktestRequest(
     string? Mode = null,
     List<HistoricBacktestCandidate>? Candidates = null,
     bool AutopauseDuringBear = true,
-    HistoricTradingRules? Rules = null);
+    HistoricTradingRules? Rules = null,
+    // Sweep-only: also generate trading-rule candidates (exit/probation/
+    // position grids) alongside the weight search. Defaulted so older queued
+    // requests keep deserializing.
+    bool SearchRules = false);
