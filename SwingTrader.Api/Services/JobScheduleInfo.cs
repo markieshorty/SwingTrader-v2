@@ -22,7 +22,7 @@ public static class JobScheduleInfo
             // which made a Monday at 4am ET display "next Research: Tuesday" -
             // reading as a skipped trading day when research was simply due at
             // 7:30 ET later that morning.
-            ("Research", NextWeekdayAt(nowEt, 7, 30)),
+            ("Research", NextWeekdayAt(nowEt, 6, 30)),
             ("Watchlist", NextWeeklyAt(nowEt, DayOfWeek.Sunday, 20, 0)),
             ("Report", NextWeekdayAt(nowEt, 8, 30)),
             ("Execution", NextWeekdayAt(nowEt, 9, 20)),

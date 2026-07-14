@@ -29,10 +29,10 @@ public class JobScheduleInfoTests
     [Fact]
     public void GetNextRuns_ResearchBeforeTodaysWindow_IsLaterToday()
     {
-        // 6:30am ET Monday - before the 7:30 ET Research window (the P2
-        // schedule; this test previously pinned the stale 4:00 slot, which is
-        // exactly the drift the display bug shipped with).
-        var beforeWindowUtc = new DateTime(2026, 7, 6, 10, 30, 0, DateTimeKind.Utc);
+        // 5:30am ET Monday - before the 6:30 ET Research window (this test
+        // previously pinned the stale 4:00 slot, which is exactly the drift
+        // the display bug shipped with).
+        var beforeWindowUtc = new DateTime(2026, 7, 6, 9, 30, 0, DateTimeKind.Utc);
         var runs = JobScheduleInfo.GetNextRuns(beforeWindowUtc);
 
         var research = runs.Single(r => r.JobType == "Research");

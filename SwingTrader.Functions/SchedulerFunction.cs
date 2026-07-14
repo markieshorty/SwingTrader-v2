@@ -58,7 +58,16 @@ public class SchedulerFunction(
                 // the 7:35 tick and every later tick see the JobLog row and
                 // skip. Start times are unchanged; only the "too late to
                 // bother" cutoffs are new.
-                if (isWeekday && InWindow(nowEt, 7, 30, 15, 55))
+                // 6:30 ET (was 7:30, was 4:00): a 39-symbol run now takes ~90
+                // minutes (serial per-symbol scoring + second-hop relevance
+                // pass), so a 7:30 start finished ~9:00 ET - after Report and
+                // uncomfortably close to the market open. 6:30 finishes ~8:00
+                // with margin before Report at 8:30. Trade-off consciously
+                // accepted 14 Jul 2026: 7:00-8:00 ET earnings releases now land
+                // after scoring (the midday rescore or tomorrow's run catches
+                // them) in exchange for signals existing before the report and
+                // the open.
+                if (isWeekday && InWindow(nowEt, 6, 30, 15, 55))
                     await TryEnqueueAsync(account.Id, "Research", today, "research-jobs",
                         new ResearchJobMessage(account.Id, Guid.NewGuid().ToString("N"), today, nowEt), ct);
 
@@ -155,14 +164,14 @@ public class SchedulerFunction(
         }
 
         // Platform-level daily bellwether news scoring (docs/second-hop-plan):
-        // 7:00 ET weekdays - BEFORE Research at 7:30, so the second-hop
+        // 6:00 ET weekdays - BEFORE Research at 6:30, so the second-hop
         // relevance pass reads today's bellwether events, not yesterday's.
         try
         {
             // Wide for self-healing like the per-account jobs; a late
             // bellwether run is still useful (research reads whatever archive
             // rows exist, and the relevance pass handles absence gracefully).
-            if (isWeekday && InWindow(nowEt, 7, 0, 17, 55))
+            if (isWeekday && InWindow(nowEt, 6, 0, 17, 55))
                 await TryEnqueueAsync(Data.SwingTraderDbContext.SystemAccountId, "BellwetherSync", today, "bellwether-jobs",
                     new BellwetherSyncJobMessage(Data.SwingTraderDbContext.SystemAccountId, Guid.NewGuid().ToString("N")), ct);
         }
