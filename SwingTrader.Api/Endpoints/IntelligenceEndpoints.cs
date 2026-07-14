@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using SwingTrader.Agents.Filings;
 using SwingTrader.Api.Services;
@@ -81,7 +82,12 @@ public static class IntelligenceEndpoints
             ISignalRepository signals,
             IAccountRepository accounts,
             IAccountContext ctx,
-            IOptions<FilingDeltaConfig> filingCfg,
+            // Explicit [FromServices]: IOptions<> is registered as an open
+            // generic, which minimal APIs' service inference doesn't see - left
+            // implicit it gets inferred as a body parameter and the app throws
+            // at startup ("Body was inferred but the method does not allow
+            // inferred body parameters") because this is a GET.
+            [FromServices] IOptions<FilingDeltaConfig> filingCfg,
             CancellationToken ct) =>
         {
             var cfg = filingCfg.Value;
