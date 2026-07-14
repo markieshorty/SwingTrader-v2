@@ -46,7 +46,19 @@ public class SchedulerFunction(
                 // takes minutes, so research now uses fresh pre-market data
                 // (morning earnings/news included) and still finishes well
                 // before Report at 8:30 ET.
-                if (isWeekday && InWindow(nowEt, 7, 30, 7, 35))
+                //
+                // SELF-HEALING WINDOWS (14 Jul 2026): every once-per-day job's
+                // window now runs from its scheduled start to a late cutoff
+                // instead of start+5min. The old narrow windows had no catch-up:
+                // a host outage overlapping the 5 minutes silently skipped that
+                // day's job (observed 14 Jul - the Functions host stopped
+                // 11:26-11:38 UTC and research never ran). TryEnqueueAsync's
+                // per-(account, job, day) dedup already guarantees at most one
+                // run per day, so a wide window costs nothing on a normal day -
+                // the 7:35 tick and every later tick see the JobLog row and
+                // skip. Start times are unchanged; only the "too late to
+                // bother" cutoffs are new.
+                if (isWeekday && InWindow(nowEt, 7, 30, 15, 55))
                     await TryEnqueueAsync(account.Id, "Research", today, "research-jobs",
                         new ResearchJobMessage(account.Id, Guid.NewGuid().ToString("N"), today, nowEt), ct);
 
@@ -57,17 +69,25 @@ public class SchedulerFunction(
                 // Distinct job-log key ("ResearchMidday") so the morning run's
                 // dedup row doesn't block it; signals upsert in place and
                 // WasExecuted survives a rescore, so no double-buys.
-                if (isWeekday && MiddayRescoreEnabled && InWindow(nowEt, 12, 30, 12, 35))
+                if (isWeekday && MiddayRescoreEnabled && InWindow(nowEt, 12, 30, 15, 55))
                     await TryEnqueueAsync(account.Id, "ResearchMidday", today, "research-jobs",
                         new ResearchJobMessage(account.Id, Guid.NewGuid().ToString("N"), today, nowEt, "ResearchMidday"), ct);
 
-                if (nowEt.DayOfWeek == DayOfWeek.Sunday && InWindow(nowEt, 20, 0, 20, 5))
+                if (nowEt.DayOfWeek == DayOfWeek.Sunday && InWindow(nowEt, 20, 0, 23, 55))
                     await TryEnqueueAsync(account.Id, "Watchlist", today, "watchlist-jobs",
                         new WatchlistJobMessage(account.Id, Guid.NewGuid().ToString("N"), nowEt), ct);
 
                 // 8:30 ET (was 6:30) - follows Research at 7:30 with ~55 min of
                 // margin; the approval email lands ~8:35 ET / 13:35 UK.
-                if (isWeekday && InWindow(nowEt, 8, 30, 8, 35))
+                // Catch-up ordering guard: on a normal day research completed
+                // ~7:35 so this passes on the first 8:30 tick. On a catch-up
+                // day both windows are open at once and Report must not race a
+                // still-running (or not-yet-run) Research - a report over
+                // yesterday's signals is worse than a late report. If research
+                // never completes today, no report goes out, which is the
+                // honest outcome.
+                if (isWeekday && InWindow(nowEt, 8, 30, 15, 55)
+                    && (await jobLog.FindAsync(account.Id, "Research", today, ct))?.Status == JobStatus.Completed)
                     await TryEnqueueAsync(account.Id, "Report", today, "report-jobs",
                         new ReportJobMessage(account.Id, Guid.NewGuid().ToString("N"), today), ct);
 
@@ -94,11 +114,11 @@ public class SchedulerFunction(
                     await EnqueueEveryTickAsync("monitor-jobs",
                         new MonitorJobMessage(account.Id, Guid.NewGuid().ToString("N"), nowEt), ct);
 
-                if (nowEt.Day == 1 && InWindow(nowEt, 9, 0, 9, 5))
+                if (nowEt.Day == 1 && InWindow(nowEt, 9, 0, 23, 55))
                     await TryEnqueueAsync(account.Id, "Risk", today, "risk-jobs",
                         new RiskJobMessage(account.Id, Guid.NewGuid().ToString("N"), today), ct);
 
-                if (nowEt.Day == 15 && InWindow(nowEt, 8, 0, 8, 5))
+                if (nowEt.Day == 15 && InWindow(nowEt, 8, 0, 23, 55))
                     await TryEnqueueAsync(account.Id, "Refinement", today, "refinement-jobs",
                         new RefinementJobMessage(account.Id, Guid.NewGuid().ToString("N"), today), ct);
 
@@ -108,7 +128,7 @@ public class SchedulerFunction(
                 // weekends too. 8:45 ET (was 7:00) keeps it after Report,
                 // which moved to 8:30, so weekday snapshots reflect the day's
                 // fresh signals.
-                if (InWindow(nowEt, 8, 45, 8, 50))
+                if (InWindow(nowEt, 8, 45, 23, 55))
                     await TryEnqueueAsync(account.Id, "Readiness", today, "readiness-jobs",
                         new ReadinessJobMessage(account.Id, Guid.NewGuid().ToString("N"), today), ct);
             }
@@ -125,7 +145,7 @@ public class SchedulerFunction(
         // week's bars are final, and it lands before Sunday's watchlist run.
         try
         {
-            if (nowEt.DayOfWeek == DayOfWeek.Saturday && InWindow(nowEt, 8, 0, 8, 5))
+            if (nowEt.DayOfWeek == DayOfWeek.Saturday && InWindow(nowEt, 8, 0, 23, 55))
                 await TryEnqueueAsync(Data.SwingTraderDbContext.SystemAccountId, "CandleSync", today, "candlesync-jobs",
                     new CandleSyncJobMessage(Data.SwingTraderDbContext.SystemAccountId, Guid.NewGuid().ToString("N")), ct);
         }
@@ -139,7 +159,10 @@ public class SchedulerFunction(
         // relevance pass reads today's bellwether events, not yesterday's.
         try
         {
-            if (isWeekday && InWindow(nowEt, 7, 0, 7, 5))
+            // Wide for self-healing like the per-account jobs; a late
+            // bellwether run is still useful (research reads whatever archive
+            // rows exist, and the relevance pass handles absence gracefully).
+            if (isWeekday && InWindow(nowEt, 7, 0, 17, 55))
                 await TryEnqueueAsync(Data.SwingTraderDbContext.SystemAccountId, "BellwetherSync", today, "bellwether-jobs",
                     new BellwetherSyncJobMessage(Data.SwingTraderDbContext.SystemAccountId, Guid.NewGuid().ToString("N")), ct);
         }
@@ -155,7 +178,7 @@ public class SchedulerFunction(
         // research reads them.
         try
         {
-            if (isWeekday && InWindow(nowEt, 18, 0, 18, 5))
+            if (isWeekday && InWindow(nowEt, 18, 0, 23, 55))
                 await TryEnqueueAsync(Data.SwingTraderDbContext.SystemAccountId, "FilingSync", today, "filingsync-jobs",
                     new FilingSyncJobMessage(Data.SwingTraderDbContext.SystemAccountId, Guid.NewGuid().ToString("N")), ct);
         }
