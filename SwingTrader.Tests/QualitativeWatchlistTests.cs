@@ -48,15 +48,16 @@ public class QualitativeWatchlistTests
         dropped.Should().BeEquivalentTo(["NVDA", "ZZZZ"]);
     }
 
-    // Mark, 13 Jul 2026: high-value judgement calls run on Opus; high-volume
-    // structured extraction stays on the cheap default. This test pins the
-    // config shape so a default regression is loud.
+    // Mark, 14 Jul 2026: high-value judgement calls run on Sonnet (Opus was
+    // tried for a day and judged not worth its premium for qualitative text
+    // work); high-volume structured extraction stays on the cheap default.
+    // This test pins the config shape so a default regression is loud.
     [Fact]
-    public void ClaudeConfig_PremiumModelIsOpus_AndOverridesDefaultToNull()
+    public void ClaudeConfig_PremiumModelIsSonnet_AndOverridesDefaultToNull()
     {
         var cfg = new ClaudeConfig();
 
-        cfg.PremiumModel.Should().Be("claude-opus-4-8");
+        cfg.PremiumModel.Should().Be("claude-sonnet-5");
         cfg.Model.Should().StartWith("claude-haiku"); // the volume paths stay cheap
         cfg.WatchlistModel.Should().BeNull();  // null = PremiumModel at the call sites
         cfg.RefinementModel.Should().BeNull();

@@ -23,24 +23,14 @@ public class FilingDeltaConfig
 
     // Paragraph-level diff cap: only this many added + removed paragraphs are
     // sent to Claude (with the rest summarized as a count), bounding tokens
-    // on pathological rewrites. Lowered from 40 (13 Jul 2026): at 40, one
-    // symbol's first-ever backfill (2 sections x 2 filing types x up to 80
-    // paragraphs each) could plausibly reach tens of thousands of prompt
-    // tokens, and that ran for every watchlist symbol at once on rollout - a
-    // real contributor to an unexpectedly large first-day API bill. 15 is
-    // still generous for judging materiality; a genuinely sprawling rewrite
-    // degrades to "many paragraphs changed" rather than reading all of them.
-    public int MaxDiffParagraphs { get; set; } = 15;
-
-    // Per-paragraph clip: after HTML flattening a "paragraph" can be a whole
-    // flattened table thousands of chars long, so the count cap alone does
-    // not bound the prompt. 800 chars keeps enough for a materiality read.
-    public int MaxParagraphChars { get; set; } = 800;
-
-    // Hard ceiling on the assembled diff prompt regardless of the caps
-    // above (~30k chars ≈ ~8k tokens): the diff scoring runs on the PREMIUM
-    // model, so this is the worst-case spend per changed filing, full stop.
-    public int MaxDiffChars { get; set; } = 30_000;
+    // on pathological rewrites. When the cap binds, the LONGEST paragraphs
+    // are kept (substance over boilerplate reshuffles). History: briefly
+    // tightened to 15 + per-paragraph clipping after FD1's backfill produced
+    // a large first-day bill on Opus; restored to full fidelity 14 Jul 2026
+    // ("I want it to do it properly" - Mark) once the premium model moved to
+    // Sonnet, whose pricing makes an uncapped changed-filing diff a few
+    // pence rather than tens.
+    public int MaxDiffParagraphs { get; set; } = 40;
 
     // Stored section text cap (per section, chars) - filings can run to
     // megabytes; we keep enough for the next diff, not the whole document.
