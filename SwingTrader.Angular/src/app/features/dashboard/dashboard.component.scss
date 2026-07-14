@@ -332,3 +332,14 @@
     grid-template-columns: 1fr;
   }
 }
+
+.mark-closed {
+  width: 32px;
+  height: 32px;
+  line-height: 32px;
+  opacity: 0.55;
+
+  &:hover {
+    opacity: 1;
+  }
+}

@@ -7,7 +7,9 @@ import { MatCardModule } from '@angular/material/card';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { ConfirmDialogComponent, ConfirmDialogData } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { DashboardDataService } from '../../core/services/dashboard-data.service';
@@ -49,6 +51,7 @@ const AGENTS = ['Research', 'Watchlist', 'Report', 'Execution', 'Monitor', 'Risk
 export class DashboardComponent {
   private api = inject(ApiService);
   private snackbar = inject(MatSnackBar);
+  private dialog = inject(MatDialog);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private titleService = inject(Title);
@@ -66,6 +69,45 @@ export class DashboardComponent {
   nextRuns = signal<NextRunDto[]>([]);
 
   agents = AGENTS;
+
+  closingPosition = signal<number | null>(null);
+
+  // Same flow as the Trades page's open-positions card: confirm, then place
+  // a REAL market sell in Trading212 via the monitor's exit path.
+  closePositionEarly(position: PositionDto): void {
+    const ref = this.dialog.open<ConfirmDialogComponent, ConfirmDialogData, boolean>(ConfirmDialogComponent, {
+      width: '440px',
+      data: {
+        title: `Close ${position.symbol} early?`,
+        message:
+          `This places a REAL market sell order in Trading212 for ` +
+          `${position.quantity} share(s) of ${position.symbol} right now.\n\n` +
+          `Estimated P&L at the current price: £${position.unrealisedPnl.toFixed(2)} ` +
+          `(${position.unrealisedPnlPercent.toFixed(1)}%). The exact figure depends on the fill.`,
+        cancelLabel: 'Cancel',
+        confirmLabel: 'Sell at market',
+        confirmColor: 'warn',
+      },
+    });
+
+    ref.afterClosed().subscribe((confirmed) => {
+      if (!confirmed) return;
+      this.closingPosition.set(position.id);
+      this.api.closePositionEarly(position.id).subscribe({
+        next: (r) => {
+          this.closingPosition.set(null);
+          this.snackbar.open(
+            `${r.symbol} sold at market — est. P&L £${(r.realizedPnl ?? 0).toFixed(2)} (final figure after fill reconciliation)`,
+            'Dismiss', { duration: 5000 });
+          this.data.refresh();
+        },
+        error: (err) => {
+          this.closingPosition.set(null);
+          this.snackbar.open(errorMessage(err, 'Sell order failed — the position is unchanged.'), 'Dismiss', { duration: 5000 });
+        },
+      });
+    });
+  }
 
   // Any worker that failed on its most recent run flips the overall
   // system-health capsule red - a quick "is anything broken" signal

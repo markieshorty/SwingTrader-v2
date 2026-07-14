@@ -142,6 +142,7 @@ public class PositionExitService(
         ExitReason.TrailingStopHit => "Trailing stop exit",
         ExitReason.TimeExit => "Time exit",
         ExitReason.MomentumHealthExit => "Momentum health exit",
+        ExitReason.ManualClose => "Manual early exit",
         _ => "Exit",
     };
 

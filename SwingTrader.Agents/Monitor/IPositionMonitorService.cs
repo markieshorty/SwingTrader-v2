@@ -10,7 +10,8 @@ public enum ExitReason
     TrailingStopHit,
     TimeExit,
     CircuitBreaker,
-    MomentumHealthExit
+    MomentumHealthExit,
+    ManualClose, // owner clicked "Close early" in the app - not rule-driven
 }
 
 public record PositionCheckResult(

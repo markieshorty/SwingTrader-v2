@@ -46,6 +46,65 @@ public static class TradesEndpoints
             return Results.Ok(result);
         }).RequireRateLimiting(RateLimitPolicies.ExternalRead);
 
+        // "Close early": the owner exits a position on demand. Delegates to
+        // the SAME exit path the monitor's rule-driven exits use
+        // (PositionExitService: T212 market sell against the exact
+        // BrokerTicker, trade closed with an estimated P&L, exit email, and a
+        // same-day Execution re-enqueue so freed capital can fund an approved
+        // buy). The monitor's fill reconciliation later replaces the estimate
+        // with T212's real fill price and realised P&L, exactly as it does
+        // for stop/target exits.
+        api.MapPost("/positions/{tradeId:int}/close-early", async (
+            int tradeId,
+            ITradeRepository trades,
+            IUserHttpClientFactory clientFactory,
+            IPositionExitService exitService,
+            IActivityLogRepository activityLog,
+            IAccountContext ctx,
+            CancellationToken ct) =>
+        {
+            if (ctx.Role != AccountRole.Owner) return Results.Forbid();
+
+            var trade = await trades.GetByIdAsync(ctx.AccountId, tradeId);
+            if (trade is null) return Results.NotFound();
+            if (trade.Status != TradeStatus.Open)
+                return Results.BadRequest(new { message = "Only open positions can be closed." });
+
+            ITrading212Client t212;
+            try
+            {
+                t212 = await clientFactory.CreateTrading212Async<ITrading212Client>(ctx.AccountId, ct);
+            }
+            catch (Exception ex)
+            {
+                return Results.Problem($"Trading212 is not available: {ex.Message}", statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+
+            // Estimated exit price for the immediate P&L figure (the monitor
+            // reconciles the real fill afterwards); a failed quote falls back
+            // to the entry price rather than blocking the close.
+            var currentPrice = trade.EntryPrice;
+            try
+            {
+                var finnhub = await clientFactory.CreateFinnhubAsync<IFinnhubClient>(ctx.AccountId, ct);
+                var quote = await finnhub.GetQuoteAsync(trade.Symbol);
+                if (quote.CurrentPrice is > 0) currentPrice = quote.CurrentPrice.Value;
+            }
+            catch { /* estimate only */ }
+
+            var result = await exitService.ClosePositionAsync(
+                ctx.AccountId, trade, t212, currentPrice,
+                ExitReason.ManualClose, "Closed early by the owner from the app.", ct);
+
+            if (!result.Success)
+                return Results.Problem($"Sell order failed: {result.ErrorMessage}", statusCode: StatusCodes.Status502BadGateway);
+
+            await activityLog.LogAsync(ctx.AccountId, "Trade", "Manual Close", "Success",
+                $"{trade.Symbol}: closed early by the owner (market sell placed, est. P&L £{result.RealizedPnl:F2}).", ct);
+
+            return Results.Ok(new { trade.Id, trade.Symbol, exitPrice = result.ExitPrice, realizedPnl = result.RealizedPnl });
+        });
+
         return api;
     }
 }

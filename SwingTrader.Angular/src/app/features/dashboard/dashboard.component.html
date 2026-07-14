@@ -76,6 +76,11 @@
             >
               {{ position.unrealisedPnl | currencyGbp }} ({{ position.unrealisedPnlPercent | percentSigned }})
             </span>
+            <button mat-icon-button class="mark-closed" [disabled]="closingPosition() === position.id"
+              (click)="closePositionEarly(position)"
+              title="Close early — places a market sell in Trading212 now">
+              <mat-icon>sell</mat-icon>
+            </button>
           </div>
           <span class="phase-badge" [class]="'phase-' + position.phase.toLowerCase()">{{ phaseLabel(position) }}</span>
           <app-stop-target-bar [position]="position" />

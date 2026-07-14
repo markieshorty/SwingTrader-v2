@@ -82,6 +82,13 @@ export class ApiService {
     });
   }
 
+  // "Close early" - places a real market sell in Trading212 via the same
+  // exit path the monitor's rule-driven exits use, then closes the trade.
+  closePositionEarly(tradeId: number): Observable<{ id: number; symbol: string; exitPrice: number | null; realizedPnl: number | null }> {
+    return this.http.post<{ id: number; symbol: string; exitPrice: number | null; realizedPnl: number | null }>(
+      `${this.baseUrl}/api/positions/${tradeId}/close-early`, {});
+  }
+
   getStatus(): Observable<StatusDto> {
     return this.http.get<StatusDto>(`${this.baseUrl}/api/status`);
   }

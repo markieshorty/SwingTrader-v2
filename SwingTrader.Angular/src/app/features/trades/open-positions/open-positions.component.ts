@@ -1,15 +1,24 @@
 import { CommonModule } from '@angular/common';
-import { Component, input } from '@angular/core';
+import { Component, inject, input, signal } from '@angular/core';
+import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatDialog } from '@angular/material/dialog';
+import { MatIconModule } from '@angular/material/icon';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { StopTargetBarComponent } from '../../../shared/components/stop-target-bar/stop-target-bar.component';
 import { CurrencyGbpPipe } from '../../../shared/pipes/currency-gbp.pipe';
 import { PercentSignedPipe } from '../../../shared/pipes/percent-signed.pipe';
 import { PositionDto } from '../../../core/models/dtos';
+import { ApiService } from '../../../core/services/api.service';
+import { DashboardDataService } from '../../../core/services/dashboard-data.service';
+import { ConfirmDialogComponent, ConfirmDialogData } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
+import { errorMessage } from '../../../shared/utils/error-message.util';
 
 @Component({
   selector: 'app-open-positions',
   standalone: true,
-  imports: [CommonModule, MatCardModule, StopTargetBarComponent, CurrencyGbpPipe, PercentSignedPipe],
+  imports: [CommonModule, MatButtonModule, MatCardModule, MatIconModule, MatTooltipModule, StopTargetBarComponent, CurrencyGbpPipe, PercentSignedPipe],
   template: `
     @if (positions().length === 0) {
       <p class="muted">No open positions.</p>
@@ -26,6 +35,11 @@ import { PositionDto } from '../../../core/models/dtos';
             >
               {{ position.unrealisedPnl | currencyGbp }} ({{ position.unrealisedPnlPercent | percentSigned }})
             </span>
+            <button mat-icon-button class="close-early" [disabled]="closing() === position.id"
+              (click)="closeEarly(position)"
+              matTooltip="Close early — places a market sell in Trading212 now">
+              <mat-icon>sell</mat-icon>
+            </button>
           </div>
           <span class="phase-badge" [class]="'phase-' + position.phase.toLowerCase()">{{ phaseLabel(position) }}</span>
           <app-stop-target-bar [position]="position" />
@@ -75,8 +89,19 @@ import { PositionDto } from '../../../core/models/dtos';
       }
       .position-header {
         display: flex;
+        align-items: center;
         justify-content: space-between;
+        gap: 4px;
         margin-bottom: 8px;
+      }
+      .mark-closed {
+        width: 32px;
+        height: 32px;
+        line-height: 32px;
+        opacity: 0.55;
+      }
+      .mark-closed:hover {
+        opacity: 1;
       }
       .symbol {
         font-weight: 600;
@@ -134,6 +159,51 @@ import { PositionDto } from '../../../core/models/dtos';
 })
 export class OpenPositionsComponent {
   positions = input.required<PositionDto[]>();
+
+  private api = inject(ApiService);
+  private dialog = inject(MatDialog);
+  private snackbar = inject(MatSnackBar);
+  private data = inject(DashboardDataService);
+
+  closing = signal<number | null>(null);
+
+  // "Close early" - confirm, then place a REAL market sell in Trading212
+  // via the same exit path the monitor's rule-driven exits use. The P&L
+  // shown is an estimate; the monitor reconciles the real fill afterwards.
+  closeEarly(position: PositionDto): void {
+    const ref = this.dialog.open<ConfirmDialogComponent, ConfirmDialogData, boolean>(ConfirmDialogComponent, {
+      width: '440px',
+      data: {
+        title: `Close ${position.symbol} early?`,
+        message:
+          `This places a REAL market sell order in Trading212 for ` +
+          `${position.quantity} share(s) of ${position.symbol} right now.\n\n` +
+          `Estimated P&L at the current price: £${position.unrealisedPnl.toFixed(2)} ` +
+          `(${position.unrealisedPnlPercent.toFixed(1)}%). The exact figure depends on the fill.`,
+        cancelLabel: 'Cancel',
+        confirmLabel: 'Sell at market',
+        confirmColor: 'warn',
+      },
+    });
+
+    ref.afterClosed().subscribe((confirmed) => {
+      if (!confirmed) return;
+      this.closing.set(position.id);
+      this.api.closePositionEarly(position.id).subscribe({
+        next: (r) => {
+          this.closing.set(null);
+          this.snackbar.open(
+            `${r.symbol} sold at market — est. P&L £${(r.realizedPnl ?? 0).toFixed(2)} (final figure after fill reconciliation)`,
+            'Dismiss', { duration: 5000 });
+          this.data.refresh();
+        },
+        error: (err) => {
+          this.closing.set(null);
+          this.snackbar.open(errorMessage(err, 'Sell order failed — the position is unchanged.'), 'Dismiss', { duration: 5000 });
+        },
+      });
+    });
+  }
 
   heldLabel(position: PositionDto): string {
     if (position.daysHeld >= 1) return `${position.daysHeld} ${position.daysHeld === 1 ? 'day' : 'days'} held`;

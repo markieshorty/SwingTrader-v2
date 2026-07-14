@@ -35,6 +35,7 @@ using SwingTrader.Infrastructure.HttpClients;
 using SwingTrader.Infrastructure.HttpClients.Dtos;
 using SwingTrader.Infrastructure.Market;
 using SwingTrader.Infrastructure.Security;
+using SwingTrader.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -211,6 +212,13 @@ builder.Services.AddScoped<StrategyLabService>();
 builder.Services.AddScoped<StrategyLabAnalysisService>();
 builder.Services.Configure<ClaudeConfig>(builder.Configuration.GetSection(ClaudeConfig.SectionName));
 builder.Services.Configure<FilingDeltaConfig>(builder.Configuration.GetSection(FilingDeltaConfig.SectionName));
+// The "Close early" endpoint reuses the Monitor worker's exit path (market
+// sell + trade close + exit email + same-day execution re-enqueue) so a
+// manual close behaves identically to a rule-driven one.
+builder.Services.Configure<ExecutionConfig>(builder.Configuration.GetSection(ExecutionConfig.SectionName));
+builder.Services.Configure<EmailConfig>(builder.Configuration.GetSection(EmailConfig.SectionName));
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IPositionExitService, PositionExitService>();
 builder.Services.AddScoped<SwingTrader.Agents.Refinement.ITradeReplayService, SwingTrader.Agents.Refinement.TradeReplayService>();
 builder.Services.AddScoped<IHistoricalCandleRepository, HistoricalCandleRepository>();
 builder.Services.AddScoped<ISentimentArchiveRepository, SentimentArchiveRepository>();
