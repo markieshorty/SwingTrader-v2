@@ -11,6 +11,8 @@ import {
   AdminUserSummaryDto,
   ApplyResultDto,
   EconomicLinkDto,
+  FilingsIntelligenceDto,
+  FunnelShadowDto,
   InviteResultDto,
   InsightsDetailSectionDto,
   KeyStatusesDto,
@@ -25,6 +27,7 @@ import {
   RegimeDto,
   RiskProfileDto,
   RunResultDto,
+  SecondHopIntelligenceDto,
   SentimentArchiveStatsDto,
   SignalGroupDto,
   StatusDto,
@@ -337,6 +340,24 @@ export class ApiService {
 
   getWatchlists(): Observable<WatchlistDto[]> {
     return this.http.get<WatchlistDto[]>(`${this.baseUrl}/api/watchlists`);
+  }
+
+  getFunnelShadow(days = 30): Observable<FunnelShadowDto> {
+    return this.http.get<FunnelShadowDto>(`${this.baseUrl}/api/intelligence/funnel-shadow`, { params: { days } });
+  }
+
+  getFilingsIntelligence(days = 90): Observable<FilingsIntelligenceDto> {
+    return this.http.get<FilingsIntelligenceDto>(`${this.baseUrl}/api/intelligence/filings`, { params: { days } });
+  }
+
+  getSecondHopIntelligence(days = 14): Observable<SecondHopIntelligenceDto> {
+    return this.http.get<SecondHopIntelligenceDto>(`${this.baseUrl}/api/intelligence/second-hop`, { params: { days } });
+  }
+
+  // Latest "[Archetype] reason" per symbol the AI recorded when it picked
+  // each stock onto the given list.
+  getWatchlistRationales(id: number): Observable<Record<string, string>> {
+    return this.http.get<Record<string, string>>(`${this.baseUrl}/api/watchlists/${id}/rationales`);
   }
 
   getEconomicLinks(symbol: string): Observable<EconomicLinkDto[]> {

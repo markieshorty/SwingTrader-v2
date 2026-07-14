@@ -210,6 +210,7 @@ builder.Services.AddScoped<AccountViewService>();
 builder.Services.AddScoped<StrategyLabService>();
 builder.Services.AddScoped<StrategyLabAnalysisService>();
 builder.Services.Configure<ClaudeConfig>(builder.Configuration.GetSection(ClaudeConfig.SectionName));
+builder.Services.Configure<FilingDeltaConfig>(builder.Configuration.GetSection(FilingDeltaConfig.SectionName));
 builder.Services.AddScoped<SwingTrader.Agents.Refinement.ITradeReplayService, SwingTrader.Agents.Refinement.TradeReplayService>();
 builder.Services.AddScoped<IHistoricalCandleRepository, HistoricalCandleRepository>();
 builder.Services.AddScoped<ISentimentArchiveRepository, SentimentArchiveRepository>();
@@ -320,6 +321,7 @@ api.MapStrategyWeightsEndpoints();
 api.MapStrategyLabEndpoints();
 api.MapRiskProfileEndpoints();
 api.MapWatchlistEndpoints();
+api.MapIntelligenceEndpoints();
 
 // Manual "run now" triggers (/run/*) and the global admin area (/api/admin/*)
 // are separate top-level groups that own their auth / rate-limiting internally.

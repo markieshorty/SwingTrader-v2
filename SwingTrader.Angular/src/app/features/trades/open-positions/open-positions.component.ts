@@ -41,6 +41,24 @@ import { PositionDto } from '../../../core/models/dtos';
             <span>Conviction: {{ position.convictionScoreAtEntry ?? 'n/a' }}</span>
             <span>Regime: {{ position.marketRegimeAtEntry ?? 'n/a' }}</span>
           </div>
+          <!-- The contract: rules frozen at buy time (thesis-as-contract).
+               Null fields = trade pre-dates the freeze; those run under the
+               live profile, so show nothing rather than guess. -->
+          @if (contractLabel(position); as contract) {
+            <p class="detail-line contract-line" title="Rules frozen at entry — later settings changes don't affect this position">
+              {{ contract }}
+            </p>
+          }
+          @if (position.forwardScoreAtEntry !== null || position.sizeMultiplier !== null) {
+            <p class="detail-line">
+              @if (position.forwardScoreAtEntry !== null) {
+                Forward score at entry: {{ position.forwardScoreAtEntry | number: '1.2-2' }}
+              }
+              @if (position.sizeMultiplier !== null) {
+                · Size ×{{ position.sizeMultiplier | number: '1.2-2' }}
+              }
+            </p>
+          }
         </mat-card>
       }
     </div>
@@ -108,6 +126,9 @@ import { PositionDto } from '../../../core/models/dtos';
       .momentum-line {
         font-style: italic;
       }
+      .contract-line {
+        margin-top: 6px;
+      }
     `,
   ],
 })
@@ -118,6 +139,16 @@ export class OpenPositionsComponent {
     if (position.daysHeld >= 1) return `${position.daysHeld} ${position.daysHeld === 1 ? 'day' : 'days'} held`;
     const hours = Math.floor((Date.now() - new Date(position.entryDate).getTime()) / 3_600_000);
     return `${hours} hour${hours === 1 ? '' : 's'} held`;
+  }
+
+  contractLabel(position: PositionDto): string | null {
+    const parts: string[] = [];
+    if (position.minHoldDaysAtEntry !== null) parts.push(`probation ${position.minHoldDaysAtEntry}d`);
+    if (position.maxHoldDaysAtEntry !== null) parts.push(`max hold ${position.maxHoldDaysAtEntry}d`);
+    if (position.momentumHealthThresholdAtEntry !== null) parts.push(`health floor ${position.momentumHealthThresholdAtEntry}`);
+    if (position.trailingActivationPctAtEntry !== null && position.trailingDistancePctAtEntry !== null)
+      parts.push(`trail ${position.trailingDistancePctAtEntry}% after +${position.trailingActivationPctAtEntry}%`);
+    return parts.length > 0 ? `Contract: ${parts.join(' · ')}` : null;
   }
 
   phaseLabel(position: PositionDto): string {

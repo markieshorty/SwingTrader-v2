@@ -64,4 +64,14 @@ public class FilingRepository(SwingTraderDbContext db) : IFilingRepository
             .Where(d => d.ScoredAt >= sinceUtc)
             .OrderBy(d => d.Delta) // worst first - the report leads with what needs eyes
             .ToListAsync(ct);
+
+    public Task<List<FilingDeltaView>> GetDeltaViewsSinceAsync(DateTime sinceUtc, CancellationToken ct = default) =>
+        db.FilingDeltas
+            .Where(d => d.ScoredAt >= sinceUtc)
+            .Join(db.Filings, d => d.FilingId, f => f.Id,
+                (d, f) => new FilingDeltaView(d, f.FilingType, f.Cik, f.AccessionNumber, f.PrimaryDocument))
+            .ToListAsync(ct);
+
+    public Task<int> CountFilingsSinceAsync(DateTime sinceUtc, CancellationToken ct = default) =>
+        db.Filings.CountAsync(f => f.CreatedAt >= sinceUtc, ct);
 }

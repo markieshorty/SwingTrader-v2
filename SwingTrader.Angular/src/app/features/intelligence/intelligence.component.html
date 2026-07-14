@@ -1,0 +1,185 @@
+<mat-tab-group>
+  <!-- Tab 1: Funnel shadow -->
+  <mat-tab label="Funnel shadow">
+    <div class="tab-body">
+      <div class="window-picker">
+        <mat-button-toggle-group [value]="funnelDays()" (change)="loadFunnel($event.value)" hideSingleSelectionIndicator>
+          <mat-button-toggle [value]="14">14d</mat-button-toggle>
+          <mat-button-toggle [value]="30">30d</mat-button-toggle>
+          <mat-button-toggle [value]="90">90d</mat-button-toggle>
+        </mat-button-toggle-group>
+      </div>
+
+      @if (!funnelLoaded()) {
+        <app-loading-spinner />
+      } @else {
+        @if (funnel(); as f) {
+        <div class="stat-row">
+          <mat-card class="stat"><span class="stat-value">{{ f.scored }}</span><span class="stat-label">Signals scored</span></mat-card>
+          <mat-card class="stat"><span class="stat-value">{{ f.legacyBuys }}</span><span class="stat-label">Legacy Buys</span></mat-card>
+          <mat-card class="stat"><span class="stat-value">{{ f.gateWouldBuy }}</span><span class="stat-label">Gate would Buy</span></mat-card>
+          <mat-card class="stat" [class.attention]="f.divergentCount > 0"><span class="stat-value">{{ f.divergentCount }}</span><span class="stat-label">Divergent</span></mat-card>
+          <mat-card class="stat"><span class="stat-value">{{ f.wouldVetoCount }}</span><span class="stat-label">Would veto</span></mat-card>
+        </div>
+
+        <h3>Divergences <span class="hint">— where the gate and the legacy blend disagree; this is the flip evidence</span></h3>
+        @if (f.divergent.length === 0) {
+          <p class="empty">No divergences in this window — the two systems agree on every scored signal.</p>
+        } @else {
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Date</th><th>Symbol</th><th>Legacy conviction</th><th>Gate score</th><th>Forward score</th><th>Legacy says</th><th>Gate says</th></tr>
+              </thead>
+              <tbody>
+                @for (row of f.divergent; track row.symbol + row.signalDate) {
+                  <tr>
+                    <td>{{ row.signalDate | date: 'dd MMM' }}</td>
+                    <td><span [matTooltip]="row.companyName ?? ''">{{ row.symbol }}</span></td>
+                    <td>{{ row.legacyConviction | number: '1.2-2' }}</td>
+                    <td>{{ row.gateScore | number: '1.2-2' }}</td>
+                    <td>{{ row.forwardScore | number: '1.2-2' }}</td>
+                    <td><span class="decision" [class.buy]="row.legacyDecision === 'Buy'">{{ row.legacyDecision }}</span></td>
+                    <td><span class="decision" [class.buy]="row.gateDecision === 'Buy'">{{ row.gateDecision }}</span></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+
+        <h3>Veto candidates <span class="hint">— gate-passers the forward score would have blocked</span></h3>
+        @if (f.vetoCandidates.length === 0) {
+          <p class="empty">No veto candidates in this window.</p>
+        } @else {
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Date</th><th>Symbol</th><th>Gate score</th><th>Forward score</th><th>Sentiment</th><th>Fundamentals</th></tr>
+              </thead>
+              <tbody>
+                @for (row of f.vetoCandidates; track row.symbol + row.signalDate) {
+                  <tr>
+                    <td>{{ row.signalDate | date: 'dd MMM' }}</td>
+                    <td><span [matTooltip]="row.companyName ?? ''">{{ row.symbol }}</span></td>
+                    <td>{{ row.gateScore | number: '1.2-2' }}</td>
+                    <td class="negative">{{ row.forwardScore | number: '1.2-2' }}</td>
+                    <td>{{ row.sentiment | number: '1.2-2' }}</td>
+                    <td>{{ row.fundamentals | number: '1.2-2' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+        }
+      }
+    </div>
+  </mat-tab>
+
+  <!-- Tab 2: Filings -->
+  <mat-tab label="Filings">
+    <div class="tab-body">
+      <div class="window-picker">
+        <mat-button-toggle-group [value]="filingsView()" (change)="filingsView.set($event.value)" hideSingleSelectionIndicator>
+          <mat-button-toggle value="warnings">Warnings</mat-button-toggle>
+          <mat-button-toggle value="opportunities">Opportunities</mat-button-toggle>
+        </mat-button-toggle-group>
+        <mat-button-toggle-group [value]="filingsDays()" (change)="loadFilings($event.value)" hideSingleSelectionIndicator>
+          <mat-button-toggle [value]="30">30d</mat-button-toggle>
+          <mat-button-toggle [value]="90">90d</mat-button-toggle>
+          <mat-button-toggle [value]="365">1y</mat-button-toggle>
+        </mat-button-toggle-group>
+      </div>
+
+      @if (!filingsLoaded()) {
+        <app-loading-spinner />
+      } @else {
+        @if (filings(); as fi) {
+        <p class="context-line">
+          {{ fi.filingsChecked }} filings checked, {{ fi.changed }} with language changes
+          <span class="hint">— unchanged filings cost nothing and mean the hash gate is doing its job</span>
+        </p>
+
+        @if (visibleDeltas().length === 0) {
+          <p class="empty">No scored language changes in this window.</p>
+        }
+        @for (row of visibleDeltas(); track row.symbol + row.filedAt) {
+          <mat-card class="delta-card" [class.warning]="row.delta < 0" [class.opportunity]="row.delta > 0">
+            <div class="delta-header">
+              <span class="symbol">{{ row.symbol }}</span>
+              @if (row.isHeld) {
+                <mat-chip class="badge held" matTooltip="You hold this position">HELD</mat-chip>
+              }
+              @if (row.isActiveToday) {
+                <mat-chip class="badge active" matTooltip="Today's Buy/Watch signal">ACTIVE</mat-chip>
+              }
+              <span class="filing-meta">{{ row.filingType }} · filed {{ row.filedAt | date: 'dd MMM yyyy' }}</span>
+              <span class="spacer"></span>
+              <span class="delta-score" [class.negative]="row.delta < 0" [class.positive]="row.delta > 0"
+                    [matTooltip]="'Direction ' + (row.direction | number: '1.2-2') + ' × materiality ' + (row.materiality | number: '1.2-2') + ' · decayed to ' + (row.effectiveScore | number: '1.3-3') + ' today'">
+                {{ row.delta | number: '1.2-2' }}
+              </span>
+              <a [href]="row.edgarUrl" target="_blank" rel="noopener" matTooltip="Open the filing on EDGAR">
+                <mat-icon>open_in_new</mat-icon>
+              </a>
+            </div>
+            @if (row.categories.length > 0) {
+              <div class="categories">
+                @for (cat of row.categories; track cat) {
+                  <mat-chip>{{ cat }}</mat-chip>
+                }
+              </div>
+            }
+            @if (row.summary) {
+              <p class="summary">{{ row.summary }}</p>
+            }
+          </mat-card>
+        }
+        }
+      }
+    </div>
+  </mat-tab>
+
+  <!-- Tab 3: Second-hop -->
+  <mat-tab label="Second-hop">
+    <div class="tab-body">
+      <div class="window-picker">
+        <mat-button-toggle-group [value]="secondHopDays()" (change)="loadSecondHop($event.value)" hideSingleSelectionIndicator>
+          <mat-button-toggle [value]="7">7d</mat-button-toggle>
+          <mat-button-toggle [value]="14">14d</mat-button-toggle>
+          <mat-button-toggle [value]="30">30d</mat-button-toggle>
+        </mat-button-toggle-group>
+      </div>
+
+      @if (!secondHopLoaded()) {
+        <app-loading-spinner />
+      } @else {
+        @if (secondHop(); as sh) {
+        @if (sh.transmissions.length === 0) {
+          <p class="empty">No second-hop transmissions in this window.</p>
+        }
+        @for (row of sh.transmissions; track row.symbol + row.signalDate) {
+          <mat-card class="hop-card">
+            <div class="hop-header">
+              <span class="symbol" [matTooltip]="row.companyName ?? ''">{{ row.symbol }}</span>
+              <span class="hop-date">{{ row.signalDate | date: 'dd MMM' }}</span>
+              <span class="spacer"></span>
+              <span class="delta-score" [class.negative]="row.score < 0" [class.positive]="row.score > 0">
+                {{ row.score > 0 ? '+' : '' }}{{ row.score | number: '1.2-2' }}
+              </span>
+              <a [routerLink]="['/watchlists']" [queryParams]="{ links: row.symbol }"
+                 matTooltip="View this symbol's economic links (suppress a bad link there)">
+                <mat-icon>hub</mat-icon>
+              </a>
+            </div>
+            @if (row.secondHopSummary) {
+              <p class="summary">{{ row.secondHopSummary }}</p>
+            }
+          </mat-card>
+        }
+        }
+      }
+    </div>
+  </mat-tab>
+</mat-tab-group>

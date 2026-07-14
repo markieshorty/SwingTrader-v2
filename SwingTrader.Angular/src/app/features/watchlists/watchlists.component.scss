@@ -274,3 +274,25 @@
     }
   }
 }
+
+.rationale-list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rationale-row {
+  display: flex;
+  gap: 10px;
+  font-size: 0.85rem;
+
+  .symbol {
+    font-weight: 600;
+    min-width: 56px;
+  }
+
+  .reason {
+    opacity: 0.8;
+  }
+}

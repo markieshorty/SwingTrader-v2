@@ -139,6 +139,21 @@
                 }
               </mat-chip-set>
               <p class="muted small">Click a symbol to see its economic links (the second-hop news graph).</p>
+
+              @if (watchlist.type === 'AiQualitative') {
+                <!-- Why the AI picked each stock ("[Archetype] reason" from the
+                     watchlist history) - the review-before-enable evidence. -->
+                <div class="rationale-list">
+                  @for (item of watchlist.items; track item.id) {
+                    @if (rationaleFor(watchlist.id, item.symbol); as reason) {
+                      <div class="rationale-row">
+                        <span class="symbol">{{ item.symbol }}</span>
+                        <span class="reason">{{ reason }}</span>
+                      </div>
+                    }
+                  }
+                </div>
+              }
             }
 
             <!-- Second-hop economic links (docs/second-hop-plan): Claude-built,

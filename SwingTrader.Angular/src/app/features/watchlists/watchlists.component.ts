@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -110,6 +111,10 @@ export class WatchlistsComponent {
       next: (s) => this.isOwner.set(s.role === 'Owner'),
       error: () => {},
     });
+    // ?links=SYMBOL deep-link (from the Intelligence second-hop tab): open
+    // that symbol's economic-links panel directly.
+    const linksParam = inject(ActivatedRoute).snapshot.queryParamMap.get('links');
+    if (linksParam) this.toggleLinks(linksParam.toUpperCase());
   }
 
   toggleLinks(symbol: string): void {
@@ -147,7 +152,24 @@ export class WatchlistsComponent {
   }
 
   toggleExpanded(id: number): void {
-    this.expandedId.set(this.expandedId() === id ? null : id);
+    const opening = this.expandedId() !== id;
+    this.expandedId.set(opening ? id : null);
+    // AI-picked lists carry a "[Archetype] reason" per symbol in the history
+    // - fetch it on first expand so the review-before-enable read isn't blind.
+    const watchlist = this.watchlists().find((w) => w.id === id);
+    if (opening && watchlist?.type === 'AiQualitative' && !this.rationales()[id]) {
+      this.api.getWatchlistRationales(id).subscribe({
+        next: (r) => this.rationales.set({ ...this.rationales(), [id]: r }),
+        error: () => {},
+      });
+    }
+  }
+
+  // Per-watchlist-id map of symbol -> "[Archetype] reason".
+  rationales = signal<Record<number, Record<string, string>>>({});
+
+  rationaleFor(watchlistId: number, symbol: string): string | null {
+    return this.rationales()[watchlistId]?.[symbol.toUpperCase()] ?? null;
   }
 
   onTabChange(index: number): void {
@@ -298,7 +320,7 @@ export class WatchlistsComponent {
   }
 
   typeBadgeClass(type: WatchlistType): string {
-    return { AiManaged: 'ai', Manual: 'manual', Mixed: 'mixed' }[type];
+    return { AiManaged: 'ai', Manual: 'manual', Mixed: 'mixed', AiQualitative: 'ai' }[type];
   }
 
   toggleTopMovers(watchlist: WatchlistDto): void {

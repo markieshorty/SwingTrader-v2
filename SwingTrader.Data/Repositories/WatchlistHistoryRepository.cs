@@ -12,4 +12,20 @@ public class WatchlistHistoryRepository(SwingTraderDbContext context) : IWatchli
         context.WatchlistHistory.Add(entry);
         await context.SaveChangesAsync();
     }
+
+    public async Task<Dictionary<string, string>> GetLatestReasonsAsync(
+        int accountId, IReadOnlyCollection<string> symbols, CancellationToken ct = default)
+    {
+        var upper = symbols.Select(s => s.ToUpperInvariant()).Distinct().ToList();
+        var rows = await context.WatchlistHistory
+            .Where(h => h.AccountId == accountId
+                && h.Action == Core.Enums.WatchlistAction.Added
+                && upper.Contains(h.Symbol))
+            .OrderByDescending(h => h.Id)
+            .ToListAsync(ct);
+
+        return rows
+            .GroupBy(h => h.Symbol)
+            .ToDictionary(g => g.Key, g => g.First().Reason, StringComparer.OrdinalIgnoreCase);
+    }
 }

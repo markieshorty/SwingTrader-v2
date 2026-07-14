@@ -19,4 +19,17 @@ public interface IFilingRepository
 
     // Deltas scored in the window - the daily report's visibility line.
     Task<List<FilingDelta>> GetDeltasSinceAsync(DateTime sinceUtc, CancellationToken ct = default);
+
+    // Deltas joined with their filing's identity (type, EDGAR coordinates) -
+    // the Intelligence page's filings tab, where every AI-scored change must
+    // link back to the source document in one click.
+    Task<List<FilingDeltaView>> GetDeltaViewsSinceAsync(DateTime sinceUtc, CancellationToken ct = default);
+
+    // Filings stored in the window regardless of change - shown as context
+    // ("34 checked, 5 changed") so a quiet quarter reads as the hash gate
+    // working rather than the pipeline broken.
+    Task<int> CountFilingsSinceAsync(DateTime sinceUtc, CancellationToken ct = default);
 }
+
+public sealed record FilingDeltaView(
+    FilingDelta Delta, string FilingType, string Cik, string AccessionNumber, string PrimaryDocument);

@@ -42,6 +42,15 @@ export interface PositionDto {
   momentumHealthReasoning: string | null;
   momentumHealthCheckedAt: string | null;
   phaseConfirmedAt: string | null;
+  // The contract this position runs under - rules frozen at buy time.
+  // Null = trade placed before the freeze existed (falls back to profile).
+  maxHoldDaysAtEntry: number | null;
+  minHoldDaysAtEntry: number | null;
+  momentumHealthThresholdAtEntry: number | null;
+  trailingActivationPctAtEntry: number | null;
+  trailingDistancePctAtEntry: number | null;
+  forwardScoreAtEntry: number | null;
+  sizeMultiplier: number | null;
 }
 
 export interface SignalDto {
@@ -107,6 +116,13 @@ export interface TradeDto {
   marketRegimeAtEntry: string | null;
   openedAt: string;
   closedAt: string | null;
+  maxHoldDaysAtEntry: number | null;
+  minHoldDaysAtEntry: number | null;
+  momentumHealthThresholdAtEntry: number | null;
+  trailingActivationPctAtEntry: number | null;
+  trailingDistancePctAtEntry: number | null;
+  forwardScoreAtEntry: number | null;
+  sizeMultiplier: number | null;
 }
 
 // Admin "view a user's account" overview — reuses the same portfolio/position/
@@ -781,7 +797,7 @@ export interface LabDataStatusDto {
   platformKeyConfigured: boolean;
 }
 
-export type WatchlistType = 'AiManaged' | 'Manual' | 'Mixed';
+export type WatchlistType = 'AiManaged' | 'Manual' | 'Mixed' | 'AiQualitative';
 
 export interface WatchlistItemDto {
   id: number;
@@ -937,4 +953,74 @@ export interface TradeApprovalDto {
   approvedSymbols: string | null;
   approvedVia: string | null;
   candidates: TradeApprovalCandidateDto[];
+}
+
+// --- Intelligence page (docs/intelligence-page-plan) ---
+
+export interface FunnelDivergenceDto {
+  signalDate: string;
+  symbol: string;
+  companyName: string | null;
+  legacyConviction: number | null;
+  gateScore: number | null;
+  forwardScore: number | null;
+  legacyDecision: string;
+  gateDecision: string;
+}
+
+export interface FunnelVetoCandidateDto {
+  signalDate: string;
+  symbol: string;
+  companyName: string | null;
+  gateScore: number | null;
+  forwardScore: number | null;
+  sentiment: number | null;
+  fundamentals: number | null;
+}
+
+export interface FunnelShadowDto {
+  windowDays: number;
+  scored: number;
+  legacyBuys: number;
+  gateWouldBuy: number;
+  divergentCount: number;
+  wouldVetoCount: number;
+  divergent: FunnelDivergenceDto[];
+  vetoCandidates: FunnelVetoCandidateDto[];
+}
+
+export interface FilingDeltaRowDto {
+  symbol: string;
+  filedAt: string;
+  filingType: string;
+  direction: number;
+  materiality: number;
+  delta: number;
+  categories: string[];
+  summary: string | null;
+  effectiveScore: number;
+  isHeld: boolean;
+  isActiveToday: boolean;
+  edgarUrl: string;
+}
+
+export interface FilingsIntelligenceDto {
+  windowDays: number;
+  filingsChecked: number;
+  changed: number;
+  unchanged: number;
+  deltas: FilingDeltaRowDto[];
+}
+
+export interface SecondHopRowDto {
+  signalDate: string;
+  symbol: string;
+  companyName: string | null;
+  score: number;
+  secondHopSummary: string | null;
+}
+
+export interface SecondHopIntelligenceDto {
+  windowDays: number;
+  transmissions: SecondHopRowDto[];
 }

@@ -159,6 +159,15 @@ public class AccountViewService(
                 trade.MomentumHealthReasoning,
                 trade.MomentumHealthCheckedAt,
                 trade.PhaseConfirmedAt,
+                // The contract this position runs under - rules frozen at buy
+                // time (null = pre-freeze trade, UI falls back to "profile").
+                trade.MaxHoldDaysAtEntry,
+                trade.MinHoldDaysAtEntry,
+                trade.MomentumHealthThresholdAtEntry,
+                trade.TrailingActivationPctAtEntry,
+                trade.TrailingDistancePctAtEntry,
+                trade.ForwardScoreAtEntry,
+                trade.SizeMultiplier,
             });
         }
 
@@ -216,6 +225,13 @@ public class AccountViewService(
                 trade.MarketRegimeAtEntry,
                 OpenedAt = trade.OpenedAt,
                 trade.ClosedAt,
+                trade.MaxHoldDaysAtEntry,
+                trade.MinHoldDaysAtEntry,
+                trade.MomentumHealthThresholdAtEntry,
+                trade.TrailingActivationPctAtEntry,
+                trade.TrailingDistancePctAtEntry,
+                trade.ForwardScoreAtEntry,
+                trade.SizeMultiplier,
             });
         }
 

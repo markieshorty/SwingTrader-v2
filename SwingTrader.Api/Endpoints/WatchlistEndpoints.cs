@@ -167,6 +167,22 @@ public static class WatchlistEndpoints
             IAccountContext ctx) =>
             Results.Ok(await watchlists.GetSymbolsAsync(ctx.AccountId, id)));
 
+        // Latest pick rationale per symbol on a list - the "[Archetype] reason"
+        // the AI recorded in WatchlistHistory when it added the symbol. Surfaced
+        // so the review-before-enable decision isn't made blind.
+        watchlistsGroup.MapGet("/{id:int}/rationales", async (
+            int id,
+            IWatchlistRepository watchlists,
+            IWatchlistHistoryRepository history,
+            IAccountContext ctx,
+            CancellationToken ct) =>
+        {
+            var symbols = (await watchlists.GetSymbolsAsync(ctx.AccountId, id, ct))
+                .Select(i => i.Symbol).ToList();
+            if (symbols.Count == 0) return Results.Ok(new Dictionary<string, string>());
+            return Results.Ok(await history.GetLatestReasonsAsync(ctx.AccountId, symbols, ct));
+        });
+
         watchlistsGroup.MapPost("/{id:int}/symbols", async (
             int id,
             AddWatchlistSymbolRequest req,

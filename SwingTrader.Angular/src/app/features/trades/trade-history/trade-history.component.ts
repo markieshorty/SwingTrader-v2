@@ -89,6 +89,32 @@ export class TradeHistoryComponent {
     { field: 'daysHeld', headerName: 'Hold Days' },
     { field: 'setupType', headerName: 'Setup Type' },
     { field: 'convictionScoreAtEntry', headerName: 'Conviction' },
+    {
+      field: 'forwardScoreAtEntry',
+      headerName: 'Forward Score',
+      valueFormatter: (p) => (p.value != null ? p.value.toFixed(2) : '-'),
+    },
+    {
+      field: 'sizeMultiplier',
+      headerName: 'Size ×',
+      valueFormatter: (p) => (p.value != null ? `×${p.value.toFixed(2)}` : '-'),
+    },
+    {
+      colId: 'contract',
+      headerName: 'Contract',
+      // The frozen-at-entry rules the trade ran under; '-' = pre-freeze trade
+      // that used the live profile throughout.
+      valueGetter: (p) => {
+        const t = p.data;
+        if (!t) return '';
+        const parts: string[] = [];
+        if (t.minHoldDaysAtEntry != null) parts.push(`probation ${t.minHoldDaysAtEntry}d`);
+        if (t.maxHoldDaysAtEntry != null) parts.push(`max ${t.maxHoldDaysAtEntry}d`);
+        if (t.trailingActivationPctAtEntry != null && t.trailingDistancePctAtEntry != null)
+          parts.push(`trail ${t.trailingDistancePctAtEntry}% after +${t.trailingActivationPctAtEntry}%`);
+        return parts.length > 0 ? parts.join(' · ') : '-';
+      },
+    },
     { field: 'marketRegimeAtEntry', headerName: 'Regime' },
     { field: 'status', headerName: 'Outcome' },
   ];

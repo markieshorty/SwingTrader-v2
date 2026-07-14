@@ -85,6 +85,13 @@ export const routes: Routes = [
     title: 'Watchlists',
   },
   {
+    path: 'intelligence',
+    canActivate: [authGuard, approvalGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./features/intelligence/intelligence.component').then((m) => m.IntelligenceComponent),
+    title: 'Intelligence',
+  },
+  {
     path: 'admin',
     canActivate: [authGuard, adminGuard],
     loadComponent: () => import('./features/admin/admin.component').then((m) => m.AdminComponent),
