@@ -206,8 +206,13 @@ public class FilingSyncService(
             if (diff.Added.Count == 0 && diff.Removed.Count == 0) return;
 
             changed.Add(name);
-            var added = diff.Added.Take(cfg.MaxDiffParagraphs).ToList();
-            var removed = diff.Removed.Take(cfg.MaxDiffParagraphs).ToList();
+            // Cost bound (this runs on the PREMIUM model): the paragraph
+            // COUNT cap alone is not enough - after HTML flattening a
+            // "paragraph" can be a whole flattened table thousands of chars
+            // long, so each is clipped too. Belt-and-braces: the assembled
+            // diff is hard-capped below regardless of what these produce.
+            var added = diff.Added.Take(cfg.MaxDiffParagraphs).Select(p => Clip(p, cfg.MaxParagraphChars)).ToList();
+            var removed = diff.Removed.Take(cfg.MaxDiffParagraphs).Select(p => Clip(p, cfg.MaxParagraphChars)).ToList();
             parts.Add(
                 $"## Section: {name}\n" +
                 $"### Paragraphs ADDED in the new filing ({diff.Added.Count} total, showing {added.Count}):\n" +
@@ -219,7 +224,7 @@ public class FilingSyncService(
         CompareSection("Risk Factors", previous.RiskFactorsHash, previous.RiskFactorsText, current.RiskFactorsHash, current.RiskFactorsText);
         CompareSection("MD&A", previous.MdaHash, previous.MdaText, current.MdaHash, current.MdaText);
 
-        return (changed, string.Join("\n\n", parts));
+        return (changed, Clip(string.Join("\n\n", parts), cfg.MaxDiffChars));
     }
 
     private async Task<FilingDelta> ScoreDiffAsync(
@@ -282,6 +287,11 @@ public class FilingSyncService(
 
     private static string Truncate(string text, int maxChars) =>
         text.Length <= maxChars ? text : text[..maxChars];
+
+    // Clip with an explicit marker so Claude (and anyone auditing the
+    // prompt) can see content was cut rather than silently ending mid-word.
+    private static string Clip(string text, int maxChars) =>
+        text.Length <= maxChars ? text : text[..maxChars] + " …[clipped]";
 
     private sealed record DeltaResponse(double Direction, double Materiality, List<string>? Categories, string? Summary);
 }

@@ -32,6 +32,16 @@ public class FilingDeltaConfig
     // degrades to "many paragraphs changed" rather than reading all of them.
     public int MaxDiffParagraphs { get; set; } = 15;
 
+    // Per-paragraph clip: after HTML flattening a "paragraph" can be a whole
+    // flattened table thousands of chars long, so the count cap alone does
+    // not bound the prompt. 800 chars keeps enough for a materiality read.
+    public int MaxParagraphChars { get; set; } = 800;
+
+    // Hard ceiling on the assembled diff prompt regardless of the caps
+    // above (~30k chars ≈ ~8k tokens): the diff scoring runs on the PREMIUM
+    // model, so this is the worst-case spend per changed filing, full stop.
+    public int MaxDiffChars { get; set; } = 30_000;
+
     // Stored section text cap (per section, chars) - filings can run to
     // megabytes; we keep enough for the next diff, not the whole document.
     public int MaxSectionChars { get; set; } = 400_000;
