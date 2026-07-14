@@ -48,4 +48,13 @@ public class BacktestRunRepository(SwingTraderDbContext db) : IBacktestRunReposi
             .OrderByDescending(r => r.CompletedAt)
             .FirstOrDefaultAsync(ct);
     }
+
+    public Task<List<BacktestRun>> GetCompletedByModeAsync(int accountId, string mode, int limit, CancellationToken ct = default) =>
+        db.BacktestRuns
+            .Where(r => r.AccountId == accountId
+                && r.RequestJson.Contains($"\"Mode\":\"{mode}\"")
+                && r.Status == "Completed" && r.ResultJson != null)
+            .OrderByDescending(r => r.CompletedAt)
+            .Take(limit)
+            .ToListAsync(ct);
 }

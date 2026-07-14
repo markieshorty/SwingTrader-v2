@@ -15,4 +15,8 @@ public interface IBacktestRunRepository
     // hour-long optimizer run's RESULT and, mid-run, the poll tracking it.
     // This lets the UI restore the former and reattach to the latter.
     Task<BacktestRun?> GetLatestByModeAsync(int accountId, string mode, CancellationToken ct = default);
+
+    // Completed runs of a mode, newest first - the Strategy Lab history tabs
+    // (Optimizer History / A/B History).
+    Task<List<BacktestRun>> GetCompletedByModeAsync(int accountId, string mode, int limit, CancellationToken ct = default);
 }

@@ -1030,3 +1030,63 @@ export interface SecondHopIntelligenceDto {
   windowDays: number;
   transmissions: SecondHopRowDto[];
 }
+
+// --- Strategy Lab history (Optimizer History / A/B History tabs) ---
+
+export interface HistoricWeightsDto {
+  rsi: number;
+  macd: number;
+  volume: number;
+  sentiment: number;
+  setupQuality: number;
+  relativeStrength: number;
+  priceLevel: number;
+  fundamentalMomentum: number;
+}
+
+// The A/B run's experimental risk-rule overrides. Any null field means the run
+// used the production value (so applying leaves the live value alone).
+export interface HistoricRulesDto {
+  excludedSetups: string[] | null;
+  maxHoldDays: number | null;
+  maxOpenPositions: number | null;
+  trailingActivationPct: number | null;
+  trailingDistancePct: number | null;
+  stopLossPct: number | null;
+  targetPct: number | null;
+  simulateProbation: boolean | null;
+  minHoldDays: number | null;
+  momentumHealthThreshold: number | null;
+  positionFraction: number | null;
+  activeCapitalPct: number | null;
+  maxPositionPctOfActive: number | null;
+}
+
+export interface BacktestHistoryStatsDto {
+  trades: number;
+  winRatePct: number;
+  totalReturnPct: number;
+  maxDrawdownPct: number;
+  profitFactor: number;
+  expectancyPct: number;
+}
+
+export interface BacktestHistoryItemDto {
+  id: number;
+  mode: 'ab' | 'sweep';
+  completedAt: string | null;
+  canApply: boolean;
+  label: string | null;
+  weights: HistoricWeightsDto | null;
+  buyThreshold: number | null;
+  rules: HistoricRulesDto | null;
+  hasRiskOverrides: boolean;
+  stats: BacktestHistoryStatsDto | null;
+}
+
+export interface BacktestApplyResultDto {
+  success: boolean;
+  weightsId: number | null;
+  appliedWeights: boolean;
+  appliedRisk: boolean;
+}

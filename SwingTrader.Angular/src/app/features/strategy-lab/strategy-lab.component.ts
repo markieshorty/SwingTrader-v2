@@ -20,6 +20,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/services/api.service';
 import {
   AbResultDto,
+  BacktestHistoryItemDto,
   BacktestResultDto,
   HistoricResultDto,
   LabAnalyseResponseDto,
@@ -36,6 +37,7 @@ import {
 } from '../../core/models/dtos';
 import { errorMessage } from '../../shared/utils/error-message.util';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
+import { BacktestHistoryDialogComponent } from './backtest-history-dialog/backtest-history-dialog.component';
 
 interface WeightDial {
   key: keyof LabWeightsDto;
@@ -79,6 +81,41 @@ export class StrategyLabComponent implements OnDestroy {
   private api = inject(ApiService);
   private snackbar = inject(MatSnackBar);
   private dialog = inject(MatDialog);
+
+  // History tabs (A/B History / Optimizer History). Loaded lazily the first
+  // time each tab is opened, and refreshed after an apply.
+  abHistory = signal<BacktestHistoryItemDto[]>([]);
+  sweepHistory = signal<BacktestHistoryItemDto[]>([]);
+  abHistoryLoaded = signal(false);
+  sweepHistoryLoaded = signal(false);
+
+  // Tabs: 0 A/B Testing · 1 Optimizer · 2 A/B History · 3 Optimizer History.
+  onLabTab(index: number): void {
+    this.labTabIndex.set(index);
+    if (index === 2) this.loadHistory('ab');
+    if (index === 3) this.loadHistory('sweep');
+  }
+
+  loadHistory(mode: 'ab' | 'sweep', force = false): void {
+    const loaded = mode === 'ab' ? this.abHistoryLoaded : this.sweepHistoryLoaded;
+    if (loaded() && !force) return;
+    this.api.getBacktestHistory(mode).subscribe({
+      next: (items) => {
+        (mode === 'ab' ? this.abHistory : this.sweepHistory).set(items);
+        loaded.set(true);
+      },
+      error: () => loaded.set(true),
+    });
+  }
+
+  openHistory(item: BacktestHistoryItemDto): void {
+    this.dialog
+      .open(BacktestHistoryDialogComponent, { width: '620px', maxWidth: '95vw', data: item })
+      .afterClosed()
+      .subscribe((applied) => {
+        if (applied) this.loadHistory(item.mode, true);
+      });
+  }
 
   readonly dials: WeightDial[] = [
     { key: 'rsi', label: 'RSI', hint: 'Dip-buying signal — favours pullbacks recovering from oversold' },

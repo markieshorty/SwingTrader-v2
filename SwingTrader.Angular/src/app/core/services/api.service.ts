@@ -10,6 +10,8 @@ import {
   AdminUserOverviewDto,
   AdminUserSummaryDto,
   ApplyResultDto,
+  BacktestApplyResultDto,
+  BacktestHistoryItemDto,
   EconomicLinkDto,
   FilingsIntelligenceDto,
   FunnelShadowDto,
@@ -242,6 +244,22 @@ export class ApiService {
   applyLabConfig(request: LabApplyRequestDto): Observable<{ success: boolean; suggestionId: number; weightsId: number }> {
     return this.http.post<{ success: boolean; suggestionId: number; weightsId: number }>(
       `${this.baseUrl}/api/strategy-lab/apply`, request);
+  }
+
+  // Strategy Lab history tabs: completed runs of a mode with their applyable
+  // config + stats.
+  getBacktestHistory(mode: 'ab' | 'sweep', limit = 20): Observable<BacktestHistoryItemDto[]> {
+    return this.http.get<BacktestHistoryItemDto[]>(`${this.baseUrl}/api/strategy-lab/history`, {
+      params: { mode, limit },
+    });
+  }
+
+  // Apply a historic run's weights and/or risk settings to live.
+  applyBacktestRun(runId: number, applyWeights: boolean, applyRiskSettings: boolean): Observable<BacktestApplyResultDto> {
+    return this.http.post<BacktestApplyResultDto>(`${this.baseUrl}/api/strategy-lab/backtest/${runId}/apply`, {
+      applyWeights,
+      applyRiskSettings,
+    });
   }
 
   getMonitoringDashboard(): Observable<MonitoringDashboardDto> {

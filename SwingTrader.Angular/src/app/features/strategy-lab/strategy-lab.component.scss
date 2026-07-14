@@ -525,3 +525,19 @@ h3 .bad {
   gap: 16px;
   margin-top: 8px;
 }
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--st-border); white-space: nowrap; }
+  th { color: var(--st-muted); font-weight: 500; }
+
+  tr.clickable {
+    cursor: pointer;
+    &:hover { background: rgba(128, 128, 128, 0.08); }
+  }
+}
+
+.muted.small { font-size: 12px; margin: 0 0 8px; }

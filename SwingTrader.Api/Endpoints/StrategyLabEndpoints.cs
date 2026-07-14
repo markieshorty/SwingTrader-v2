@@ -326,6 +326,132 @@ public static class StrategyLabEndpoints
                 : Results.BadRequest(new { success = false, message = result.Error });
         });
 
+        // Strategy Lab history tabs (Optimizer History / A/B History): completed
+        // runs of a mode, newest first, each carrying its applyable config +
+        // headline stats + (A/B only) the risk-rule overrides it tested.
+        api.MapGet("/strategy-lab/history", async (
+            string mode, int? limit, IBacktestRunRepository runs, IAccountContext ctx, CancellationToken ct) =>
+        {
+            if (mode is not ("ab" or "sweep"))
+                return Results.BadRequest(new { message = "mode must be 'ab' or 'sweep'." });
+
+            var list = await runs.GetCompletedByModeAsync(ctx.AccountId, mode, Math.Clamp(limit ?? 20, 1, 100), ct);
+            var items = list.Select(r =>
+            {
+                var cfg = Agents.Backtesting.BacktestApplyExtractor.Extract(mode, r.RequestJson, r.ResultJson);
+                return new
+                {
+                    r.Id,
+                    mode,
+                    r.CompletedAt,
+                    canApply = cfg is not null,
+                    label = cfg?.Label,
+                    weights = cfg?.Weights,
+                    buyThreshold = cfg?.BuyThreshold,
+                    rules = cfg?.Rules,
+                    hasRiskOverrides = cfg?.Rules is not null,
+                    stats = cfg is null ? null : new
+                    {
+                        cfg.Stats.Trades,
+                        cfg.Stats.WinRatePct,
+                        cfg.Stats.TotalReturnPct,
+                        cfg.Stats.MaxDrawdownPct,
+                        cfg.Stats.ProfitFactor,
+                        cfg.Stats.ExpectancyPct,
+                    },
+                };
+            }).ToList();
+            return Results.Ok(items);
+        });
+
+        // Apply a historic run's config to live settings. Owner-only. Weights
+        // ride the same audited path as the Lab's live apply (a StrategyLab
+        // RefinementSuggestion, then ApplyRefinementService); risk settings map
+        // the run's non-null rule overrides onto the live risk profile. At
+        // least one of the two must be requested.
+        api.MapPost("/strategy-lab/backtest/{runId:int}/apply", async (
+            int runId,
+            BacktestApplyRequest req,
+            IBacktestRunRepository runs,
+            IStrategyWeightsRepository weightsRepo,
+            IRefinementSuggestionRepository suggestionRepo,
+            IApplyRefinementService applyService,
+            IAccountRiskProfileRepository riskRepo,
+            IAccountRepository accounts,
+            IAccountContext ctx,
+            CancellationToken ct) =>
+        {
+            if (ctx.Role != AccountRole.Owner) return Results.Forbid();
+            if (!req.ApplyWeights && !req.ApplyRiskSettings)
+                return Results.BadRequest(new { message = "Select weights, risk settings, or both to apply." });
+
+            var run = await runs.GetByIdAsync(ctx.AccountId, runId);
+            if (run is null) return Results.NotFound();
+
+            var mode = run.RequestJson.Contains("\"Mode\":\"ab\"") ? "ab"
+                : run.RequestJson.Contains("\"Mode\":\"sweep\"") ? "sweep" : null;
+            var cfg = Agents.Backtesting.BacktestApplyExtractor.Extract(mode, run.RequestJson, run.ResultJson);
+            if (cfg is null) return Results.BadRequest(new { message = "This run has no applyable configuration." });
+            if (req.ApplyRiskSettings && cfg.Rules is null)
+                return Results.BadRequest(new { message = "This run has no risk-setting overrides to apply." });
+
+            var account = await accounts.GetAsync(ctx.AccountId, ct);
+            if (account is null) return Results.NotFound();
+
+            int? weightsId = null;
+            if (req.ApplyWeights)
+            {
+                var current = await weightsRepo.GetActiveWeightsAsync(ctx.AccountId);
+                if (current is null) return Results.BadRequest(new { message = "No active production weights found." });
+
+                var suggested = new StrategyWeights
+                {
+                    RsiWeight = cfg.Weights.Rsi, MacdWeight = cfg.Weights.Macd, VolumeWeight = cfg.Weights.Volume,
+                    SentimentWeight = cfg.Weights.Sentiment, SetupQualityWeight = cfg.Weights.SetupQuality,
+                    RelativeStrengthWeight = cfg.Weights.RelativeStrength, PriceLevelWeight = cfg.Weights.PriceLevel,
+                    FundamentalMomentumWeight = cfg.Weights.FundamentalMomentum,
+                    BuyThreshold = cfg.BuyThreshold, WatchThreshold = current.WatchThreshold,
+                    StopLossPctDefault = current.StopLossPctDefault, Source = "StrategyLab",
+                };
+                await suggestionRepo.SupersedeAllPendingAsync(ctx.AccountId, account.TradingMode);
+                var today = DateOnly.FromDateTime(DateTime.UtcNow);
+                var suggestion = await suggestionRepo.AddAsync(new RefinementSuggestion
+                {
+                    AccountId = ctx.AccountId,
+                    TradingMode = account.TradingMode,
+                    Origin = RefinementOrigin.StrategyLab,
+                    GeneratedAt = DateTime.UtcNow,
+                    AnalysisPeriodStart = today,
+                    AnalysisPeriodEnd = today,
+                    TradeCountAnalysed = cfg.Stats.Trades,
+                    OverallWinRate = Math.Round(cfg.Stats.WinRatePct, 4),
+                    CurrentWeightsJson = JsonSerializer.Serialize(current),
+                    SuggestedWeightsJson = JsonSerializer.Serialize(suggested),
+                    ComponentAnalysisJson = "[]",
+                    AssessmentSummary =
+                        $"Applied from {(mode == "ab" ? "A/B" : "optimizer")} run #{run.Id} ('{cfg.Label}'): " +
+                        $"{cfg.Stats.Trades} trades, {cfg.Stats.WinRatePct:0.#}% win rate, {cfg.Stats.TotalReturnPct:0.#}% total return.",
+                    ConfidenceLevel = RefinementConfidenceLevel.Medium,
+                    Status = RefinementStatus.Pending,
+                    IsShadowMode = false,
+                });
+                var applyResult = await applyService.ApplyAsync(ctx.AccountId, suggestion.Id, ct: ct);
+                if (!applyResult.Success) return Results.BadRequest(new { success = false, message = applyResult.Error });
+                weightsId = applyResult.NewWeightsId;
+            }
+
+            var appliedRisk = false;
+            if (req.ApplyRiskSettings && cfg.Rules is not null)
+            {
+                var profile = await riskRepo.GetAsync(ctx.AccountId, ct);
+                Agents.Backtesting.BacktestRiskRuleMapper.Apply(profile, cfg.Rules);
+                await riskRepo.UpdateAsync(profile, ct);
+                appliedRisk = true;
+            }
+
+            return Results.Ok(new { success = true, weightsId, appliedWeights = req.ApplyWeights, appliedRisk });
+        });
+
         // "Analyse this run": Claude reads a completed run and suggests a next
         // config worth TESTING. Advisory only - the user loads the suggestion
         // and runs it themselves. Rate-limited like the other Claude-backed

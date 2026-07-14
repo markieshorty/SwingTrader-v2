@@ -119,3 +119,7 @@ public record LabApplyRequest(
     int TradeCount,                     // trades in the justifying run (0 if n/a)
     decimal WinRate,                    // win rate of the justifying run (0 if n/a)
     SwingTrader.Core.Enums.RefinementConfidenceLevel Confidence);
+
+// Body of POST /strategy-lab/backtest/{runId}/apply - the A/B/Optimizer
+// history "Apply to live" action. At least one flag must be true.
+public record BacktestApplyRequest(bool ApplyWeights, bool ApplyRiskSettings);
