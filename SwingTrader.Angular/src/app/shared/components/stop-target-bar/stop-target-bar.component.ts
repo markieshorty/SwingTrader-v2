@@ -1,23 +1,31 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, input } from '@angular/core';
 import { PositionDto } from '../../../core/models/dtos';
+import { CurrencyGbpPipe } from '../../pipes/currency-gbp.pipe';
 
 @Component({
   selector: 'app-stop-target-bar',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, CurrencyGbpPipe],
   template: `
     <div class="bar-container">
       <div class="labels">
-        <span class="stop">£{{ position().stopLoss | number: '1.2-2' }}</span>
+        <span class="stop">
+          £{{ position().stopLoss | number: '1.2-2' }}
+          <span class="value-gbp">({{ position().stopLossValueGbp | currencyGbp }})</span>
+        </span>
         <span
           class="current"
           [class.near-stop]="position().isNearStop"
           [class.near-target]="position().isNearTarget"
         >
           £{{ position().currentPrice | number: '1.2-2' }}
+          <span class="value-gbp">({{ position().currentValueGbp | currencyGbp }})</span>
         </span>
-        <span class="target">£{{ position().target | number: '1.2-2' }}</span>
+        <span class="target">
+          £{{ position().target | number: '1.2-2' }}
+          <span class="value-gbp">({{ position().targetValueGbp | currencyGbp }})</span>
+        </span>
       </div>
       <div class="track">
         <div class="danger-zone" [style.width.%]="dangerWidth()"></div>
@@ -28,7 +36,10 @@ import { PositionDto } from '../../../core/models/dtos';
         <div class="current-marker" [style.left.%]="currentPosition()"></div>
       </div>
       @if (position().trailingStopPrice) {
-        <p class="trailing-label">Trailing stop: £{{ position().trailingStopPrice | number: '1.2-2' }}</p>
+        <p class="trailing-label">
+          Trailing stop: £{{ position().trailingStopPrice | number: '1.2-2' }}
+          ({{ position().trailingStopValueGbp | currencyGbp }})
+        </p>
       }
     </div>
   `,
@@ -40,9 +51,15 @@ import { PositionDto } from '../../../core/models/dtos';
       .labels {
         display: flex;
         justify-content: space-between;
+        align-items: baseline;
         font-size: 12px;
         margin-bottom: 4px;
         color: var(--st-muted);
+      }
+      .value-gbp {
+        font-size: 10px;
+        opacity: 0.75;
+        white-space: nowrap;
       }
       .current {
         font-weight: 600;

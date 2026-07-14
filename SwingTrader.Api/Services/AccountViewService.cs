@@ -18,6 +18,7 @@ public class AccountViewService(
     IWatchlistRepository watchlist,
     IAccountRepository accounts,
     IMarketCalendarService marketCalendar,
+    IForexService forex,
     IUserHttpClientFactory clientFactory)
 {
     // Portfolio summary card (totals + today P&L + 30-day win rate). Null when
@@ -101,6 +102,13 @@ public class AccountViewService(
         try { finnhub = await clientFactory.CreateFinnhubAsync<IFinnhubClient>(accountId, ct); }
         catch { /* no Finnhub key - fall back to entry price rather than failing the list */ }
 
+        // For "actual money" at stop/current/target: one GBP-per-USD rate for
+        // the whole list (cached 60 min, falls back to a default, never
+        // throws). Where the trade recorded its REAL entry cash, the
+        // effective per-trade rate (EntryValueGbp / entry USD value) is used
+        // instead - it bakes in the actual FX conversion T212 applied.
+        var gbpPerUsd = await forex.GetGbpUsdRateAsync(ct);
+
         var results = new List<object>(openTrades.Count);
         foreach (var trade in openTrades)
         {
@@ -133,6 +141,11 @@ public class AccountViewService(
                 ?? (await watchlist.GetBySymbolAsync(accountId, trade.Symbol))?.CompanyName
                 ?? trade.Symbol;
 
+            var entryUsdValue = trade.EntryPrice * trade.Quantity;
+            var fx = trade.EntryValueGbp is > 0 && entryUsdValue > 0
+                ? trade.EntryValueGbp.Value / entryUsdValue
+                : gbpPerUsd;
+
             results.Add(new
             {
                 trade.Id,
@@ -144,6 +157,13 @@ public class AccountViewService(
                 Target = trade.TargetPrice,
                 trade.TrailingStopPrice,
                 trade.Quantity,
+                // "Actual money" - share prices times the position size,
+                // converted at the trade's own entry FX rate where known
+                // (falls back to the current market rate).
+                StopLossValueGbp = trade.StopLossPrice * trade.Quantity * fx,
+                CurrentValueGbp = currentPrice * trade.Quantity * fx,
+                TargetValueGbp = trade.TargetPrice * trade.Quantity * fx,
+                TrailingStopValueGbp = trade.TrailingStopPrice.HasValue ? trade.TrailingStopPrice.Value * trade.Quantity * fx : (decimal?)null,
                 UnrealisedPnl = unrealisedPnl,
                 UnrealisedPnlPercent = unrealisedPnlPercent,
                 DaysHeld = daysHeld,

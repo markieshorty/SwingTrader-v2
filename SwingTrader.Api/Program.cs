@@ -34,6 +34,7 @@ using SwingTrader.Infrastructure.Configuration;
 using SwingTrader.Infrastructure.HttpClients;
 using SwingTrader.Infrastructure.HttpClients.Dtos;
 using SwingTrader.Infrastructure.Market;
+using Refit;
 using SwingTrader.Infrastructure.Security;
 using SwingTrader.Infrastructure.Services;
 
@@ -219,6 +220,11 @@ builder.Services.Configure<ExecutionConfig>(builder.Configuration.GetSection(Exe
 builder.Services.Configure<EmailConfig>(builder.Configuration.GetSection(EmailConfig.SectionName));
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IPositionExitService, PositionExitService>();
+// GBP/USD rate for showing positions in actual money (Frankfurter, cached
+// 60 min, falls back to a sane default on failure - never throws).
+builder.Services.AddRefitClient<IExchangeRateClient>()
+    .ConfigureHttpClient(c => c.BaseAddress = new Uri("https://api.frankfurter.dev"));
+builder.Services.AddScoped<IForexService, ForexService>();
 builder.Services.AddScoped<SwingTrader.Agents.Refinement.ITradeReplayService, SwingTrader.Agents.Refinement.TradeReplayService>();
 builder.Services.AddScoped<IHistoricalCandleRepository, HistoricalCandleRepository>();
 builder.Services.AddScoped<ISentimentArchiveRepository, SentimentArchiveRepository>();

@@ -27,6 +27,12 @@ export interface PositionDto {
   target: number;
   trailingStopPrice: number | null;
   quantity: number;
+  // Actual money: share price × quantity, converted at the trade's own
+  // entry FX rate where known (falls back to the current market rate).
+  stopLossValueGbp: number;
+  currentValueGbp: number;
+  targetValueGbp: number;
+  trailingStopValueGbp: number | null;
   unrealisedPnl: number;
   unrealisedPnlPercent: number;
   daysHeld: number;
