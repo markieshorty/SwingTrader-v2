@@ -493,7 +493,7 @@ public class ResearchPipeline(
             await claudeRateLimiter.WaitAsync(ct);
             var response = await claude.SendMessageAsync(request);
             var raw = response.Content.FirstOrDefault(c => c.Type == "text")?.Text ?? string.Empty;
-            var text = StripCodeFences(raw);
+            var text = ClaudeJson.Extract(raw);
 
             var parsed = JsonSerializer.Deserialize<ClaudeSentimentResult>(text, JsonOpts);
             if (parsed is null)
@@ -730,17 +730,6 @@ public class ResearchPipeline(
         return Recommendation.Avoid;
     }
 
-    private static string StripCodeFences(string text)
-    {
-        var t = text.Trim();
-        if (t.StartsWith("```"))
-        {
-            var firstNewline = t.IndexOf('\n');
-            if (firstNewline >= 0) t = t[(firstNewline + 1)..];
-            if (t.EndsWith("```")) t = t[..^3];
-        }
-        return t.Trim();
-    }
 
     private async Task<StockSignal> PersistSignalAsync(
         int accountId, string symbol, string? companyName, StockCandle latest, IndicatorResult ind,

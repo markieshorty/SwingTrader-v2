@@ -130,15 +130,7 @@ public class BellwetherSyncService(
 
     internal static decimal ParseScore(string raw)
     {
-        var text = raw.Trim();
-        if (text.StartsWith("```"))
-        {
-            var firstNewline = text.IndexOf('\n');
-            if (firstNewline >= 0) text = text[(firstNewline + 1)..];
-            if (text.EndsWith("```")) text = text[..^3];
-            text = text.Trim();
-        }
-        var parsed = JsonSerializer.Deserialize<ScoreResponse>(text, JsonOpts)
+        var parsed = JsonSerializer.Deserialize<ScoreResponse>(ClaudeJson.Extract(raw), JsonOpts)
             ?? throw new JsonException("null bellwether score");
         return Math.Clamp((decimal)parsed.SentimentScore, -1m, 1m);
     }

@@ -262,16 +262,7 @@ public class FilingSyncService(
     // Internal static so the clamping/parse rules are directly testable.
     internal static FilingDelta ParseDeltaResponse(string raw, string model)
     {
-        var text = raw.Trim();
-        if (text.StartsWith("```"))
-        {
-            var firstNewline = text.IndexOf('\n');
-            if (firstNewline >= 0) text = text[(firstNewline + 1)..];
-            if (text.EndsWith("```")) text = text[..^3];
-            text = text.Trim();
-        }
-
-        var parsed = JsonSerializer.Deserialize<DeltaResponse>(text, JsonOpts)
+        var parsed = JsonSerializer.Deserialize<DeltaResponse>(ClaudeJson.Extract(raw), JsonOpts)
             ?? throw new JsonException("null filing-delta result");
 
         var direction = Math.Clamp((decimal)parsed.Direction, -1m, 1m);

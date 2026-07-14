@@ -104,16 +104,7 @@ public class EconomicLinkService(
     // whitelist, strength clamp, self-links dropped, rationale required.
     internal static List<EconomicLink> ParseLinks(string raw, string symbol, string model)
     {
-        var text = raw.Trim();
-        if (text.StartsWith("```"))
-        {
-            var firstNewline = text.IndexOf('\n');
-            if (firstNewline >= 0) text = text[(firstNewline + 1)..];
-            if (text.EndsWith("```")) text = text[..^3];
-            text = text.Trim();
-        }
-
-        var parsed = JsonSerializer.Deserialize<LinksResponse>(text, JsonOpts)
+        var parsed = JsonSerializer.Deserialize<LinksResponse>(ClaudeJson.Extract(raw), JsonOpts)
             ?? throw new JsonException("null economic-links result");
 
         return (parsed.Links ?? [])

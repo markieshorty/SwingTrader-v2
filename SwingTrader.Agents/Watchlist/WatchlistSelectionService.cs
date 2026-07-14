@@ -75,7 +75,7 @@ public class WatchlistSelectionService(
             await claudeRateLimiter.WaitAsync(ct);
             var response = await claude.SendMessageAsync(request);
             var raw = response.Content.FirstOrDefault(c => c.Type == "text")?.Text ?? string.Empty;
-            var text = StripCodeFences(raw);
+            var text = ClaudeJson.Extract(raw);
 
             var parsed = JsonSerializer.Deserialize<ClaudeWatchlistResponse>(text, JsonOpts);
             if (parsed?.Selected == null)
@@ -100,17 +100,6 @@ public class WatchlistSelectionService(
         }
     }
 
-    private static string StripCodeFences(string text)
-    {
-        var t = text.Trim();
-        if (t.StartsWith("```"))
-        {
-            var firstNewline = t.IndexOf('\n');
-            if (firstNewline >= 0) t = t[(firstNewline + 1)..];
-            if (t.EndsWith("```")) t = t[..^3];
-        }
-        return t.Trim();
-    }
 
     private record ClaudeSelectedItem(
         [property: JsonPropertyName("symbol")] string Symbol,

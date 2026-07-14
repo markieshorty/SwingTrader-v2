@@ -127,7 +127,7 @@ public class SecondHopScorer(
     // Internal static so the clamping/filtering rules are directly testable.
     internal static List<(int Index, bool Transmits, decimal Impact)> ParseTransmissions(string raw)
     {
-        var parsed = JsonSerializer.Deserialize<RelevanceResponse>(StripFences(raw), JsonOpts)
+        var parsed = JsonSerializer.Deserialize<RelevanceResponse>(ClaudeJson.Extract(raw), JsonOpts)
             ?? throw new JsonException("null second-hop result");
         return (parsed.Events ?? [])
             .Select(e => (e.Index, e.Transmits, Math.Clamp((decimal)e.Impact, -1m, 1m)))
@@ -136,18 +136,8 @@ public class SecondHopScorer(
 
     internal static string ParseSummary(string raw)
     {
-        var parsed = JsonSerializer.Deserialize<RelevanceResponse>(StripFences(raw), JsonOpts);
+        var parsed = JsonSerializer.Deserialize<RelevanceResponse>(ClaudeJson.Extract(raw), JsonOpts);
         return string.IsNullOrWhiteSpace(parsed?.Summary) ? "Second-hop transmission detected." : parsed.Summary.Trim();
-    }
-
-    private static string StripFences(string raw)
-    {
-        var text = raw.Trim();
-        if (!text.StartsWith("```")) return text;
-        var firstNewline = text.IndexOf('\n');
-        if (firstNewline >= 0) text = text[(firstNewline + 1)..];
-        if (text.EndsWith("```")) text = text[..^3];
-        return text.Trim();
     }
 
     private sealed record RelevanceResponse(List<RelevanceEvent>? Events, string? Summary);
