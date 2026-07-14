@@ -17,9 +17,17 @@ public class HistoricalCandleRepository(SwingTraderDbContext db) : IHistoricalCa
     // keeps the Lab working without it.)
     private const int HeavyReadTimeoutSeconds = 300;
 
+    // SetCommandTimeout is a relational-only method - guarded so it no-ops on
+    // the in-memory provider the unit tests use rather than throwing.
+    private void SetHeavyTimeout()
+    {
+        if (db.Database.IsRelational())
+            db.Database.SetCommandTimeout(HeavyReadTimeoutSeconds);
+    }
+
     public async Task<Dictionary<string, DateOnly>> GetLatestDatesAsync(CancellationToken ct = default)
     {
-        db.Database.SetCommandTimeout(HeavyReadTimeoutSeconds);
+        SetHeavyTimeout();
         return await db.HistoricalCandles
             .GroupBy(c => c.Symbol)
             .Select(g => new { Symbol = g.Key, Max = g.Max(c => c.Date) })
@@ -28,7 +36,7 @@ public class HistoricalCandleRepository(SwingTraderDbContext db) : IHistoricalCa
 
     public async Task<Dictionary<string, DateOnly>> GetEarliestDatesAsync(CancellationToken ct = default)
     {
-        db.Database.SetCommandTimeout(HeavyReadTimeoutSeconds);
+        SetHeavyTimeout();
         return await db.HistoricalCandles
             .GroupBy(c => c.Symbol)
             .Select(g => new { Symbol = g.Key, Min = g.Min(c => c.Date) })
@@ -43,25 +51,56 @@ public class HistoricalCandleRepository(SwingTraderDbContext db) : IHistoricalCa
         db.ChangeTracker.Clear();
     }
 
+    // Loading the whole candle table (10y of daily bars for ~1,500 symbols +
+    // SPY + sector ETFs) in a SINGLE query outgrew even the 300s command
+    // timeout on the Basic tier - observed 14 Jul 2026 running 302s and
+    // tripping the ceiling, killing the optimizer/backtest. Instead, read it
+    // in four sequential passes partitioned by symbol: each command moves a
+    // quarter of the rows so none is long enough to time out, and running them
+    // one-after-another (not in parallel) keeps DTU pressure flat and is safe
+    // on the single scoped DbContext. The assembled in-memory result is
+    // identical to the old single-query version.
+    private const int LoadPartitions = 4;
+
     public async Task<Dictionary<string, List<HistoricalCandle>>> GetAllBySymbolAsync(CancellationToken ct = default)
     {
-        db.Database.SetCommandTimeout(HeavyReadTimeoutSeconds);
-        var all = await db.HistoricalCandles.AsNoTracking()
-            .OrderBy(c => c.Symbol).ThenBy(c => c.Date)
+        SetHeavyTimeout();
+        var symbols = await db.HistoricalCandles.AsNoTracking()
+            .Select(c => c.Symbol).Distinct()
+            .OrderBy(s => s)
             .ToListAsync(ct);
-        return all.GroupBy(c => c.Symbol, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+
+        var result = new Dictionary<string, List<HistoricalCandle>>(StringComparer.OrdinalIgnoreCase);
+        if (symbols.Count == 0) return result;
+
+        var chunkSize = (int)Math.Ceiling(symbols.Count / (double)LoadPartitions);
+        for (var i = 0; i < symbols.Count; i += chunkSize)
+        {
+            ct.ThrowIfCancellationRequested();
+            var chunk = symbols.Skip(i).Take(chunkSize).ToList();
+
+            SetHeavyTimeout();
+            var rows = await db.HistoricalCandles.AsNoTracking()
+                .Where(c => chunk.Contains(c.Symbol))
+                .OrderBy(c => c.Symbol).ThenBy(c => c.Date)
+                .ToListAsync(ct);
+
+            foreach (var g in rows.GroupBy(c => c.Symbol, StringComparer.OrdinalIgnoreCase))
+                result[g.Key] = g.ToList();
+        }
+
+        return result;
     }
 
     public Task<int> CountAsync(CancellationToken ct = default)
     {
-        db.Database.SetCommandTimeout(HeavyReadTimeoutSeconds);
+        SetHeavyTimeout();
         return db.HistoricalCandles.CountAsync(ct);
     }
 
     public async Task<DateOnly?> GetMaxDateAsync(CancellationToken ct = default)
     {
-        db.Database.SetCommandTimeout(HeavyReadTimeoutSeconds);
+        SetHeavyTimeout();
         return await db.HistoricalCandles.AnyAsync(ct) ? await db.HistoricalCandles.MaxAsync(c => c.Date, ct) : null;
     }
 }
