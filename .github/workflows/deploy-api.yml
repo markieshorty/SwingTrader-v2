@@ -159,10 +159,15 @@ jobs:
             --query "[?properties.active && name!='$LATEST_REVISION'].name" \
             -o tsv | while read -r old_revision; do
               echo "Deactivating stale revision: $old_revision"
+              # Tolerate RevisionAlreadyInRequestedState: a crash-looped
+              # revision gets auto-deactivated by the platform between our
+              # 'active' listing and this call, and that race must not fail
+              # a deploy whose new revision already passed the health check.
               az containerapp revision deactivate \
                 --name ${{ secrets.CONTAINER_APP_NAME }} \
                 --resource-group ${{ secrets.RESOURCE_GROUP }} \
-                --revision "$old_revision"
+                --revision "$old_revision" \
+                || echo "Revision $old_revision was already inactive - fine."
             done
 
           APP_URL=$(az containerapp show \
