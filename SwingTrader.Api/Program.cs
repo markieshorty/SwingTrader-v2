@@ -68,9 +68,13 @@ builder.Host.UseSerilog((ctx, cfg) =>
         cfg.WriteTo.ApplicationInsights(aiConnectionString, TelemetryConverter.Traces);
 });
 
-// EF Core with SQL Server
+// EF Core with SQL Server. EnableRetryOnFailure gives transient-fault
+// resilience on the throttled Basic-tier DB (5 DTU) - see the Functions host's
+// DbContext registration for the full rationale. Safe: no explicit
+// transactions in the codebase.
 builder.Services.AddDbContext<SwingTraderDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"),
+        sql => sql.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null)));
 
 // Serialize enums as their string name (e.g. KeyStatus.NotSet -> "NotSet")
 // rather than System.Text.Json's default raw integer - the Angular DTOs

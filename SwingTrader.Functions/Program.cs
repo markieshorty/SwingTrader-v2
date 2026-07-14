@@ -44,7 +44,16 @@ if (!string.IsNullOrEmpty(keyVaultUrl))
 }
 
 builder.Services.AddDbContext<SwingTraderDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    // EnableRetryOnFailure: the Basic-tier (5 DTU) database throttles under
+    // concurrent load - since FD1/SH1/qualitative/Intelligence shipped, market-
+    // hours traffic (Monitor + FilingSync + BellwetherSync + research reads)
+    // routinely saturates it, and a backtest firing into that would die on the
+    // first transient blip (even the trivial single-row GetByIdAsync at the top
+    // of BacktestConsumer). The retrying execution strategy self-heals those
+    // transient failures instead of failing the whole run. Safe: no explicit
+    // transactions in the codebase (which the strategy would otherwise reject).
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"),
+        sql => sql.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null)));
 
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 builder.Services.AddScoped<IJobLogRepository, JobLogRepository>();
