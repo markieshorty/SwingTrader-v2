@@ -4,6 +4,7 @@ using SwingTrader.Agents.Filings;
 using SwingTrader.Api.Services;
 using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
+using SwingTrader.Core.Models;
 using SwingTrader.Infrastructure.Configuration;
 
 namespace SwingTrader.Api.Endpoints;
@@ -29,7 +30,7 @@ public static class IntelligenceEndpoints
                 .ToList();
 
             var divergent = scored
-                .Where(s => (s.Recommendation == Recommendation.Buy) != s.WouldPassGate)
+                .Where(s => (s.Recommendation == Recommendation.Buy) != (FunnelDecision(s) == "Buy"))
                 .Select(s => new
                 {
                     s.SignalDate,
@@ -39,12 +40,12 @@ public static class IntelligenceEndpoints
                     s.GateScore,
                     s.ForwardScore,
                     LegacyDecision = s.Recommendation.ToString(),
-                    GateDecision = s.WouldPassGate ? "Buy" : "No",
+                    GateDecision = FunnelDecision(s),
                 })
                 .ToList();
 
             var vetoCandidates = scored
-                .Where(s => s.WouldPassGate && s.WouldBeVetoed)
+                .Where(s => FunnelDecision(s) == "Buy" && s.WouldBeVetoed)
                 .Select(s => new
                 {
                     s.SignalDate,
@@ -62,7 +63,7 @@ public static class IntelligenceEndpoints
                 WindowDays = days ?? 30,
                 Scored = scored.Count,
                 LegacyBuys = scored.Count(s => s.Recommendation == Recommendation.Buy),
-                GateWouldBuy = scored.Count(s => s.WouldPassGate),
+                GateWouldBuy = scored.Count(s => FunnelDecision(s) == "Buy"),
                 DivergentCount = divergent.Count,
                 WouldVetoCount = vetoCandidates.Count,
                 Divergent = divergent,
@@ -161,5 +162,23 @@ public static class IntelligenceEndpoints
         });
 
         return api;
+    }
+
+    // What FunnelEnabled would ACTUALLY recommend for this signal - the raw
+    // WouldPassGate threshold plus the overlay rules DetermineRecommendationAsync
+    // applies regardless of which score feeds it. Without these the divergence
+    // table overstates: e.g. a Breakout with gate 8.4 shows "gate says Buy" when
+    // the flip would still cap it at Watch. Mirrors ResearchPipeline order:
+    // held -> Hold, RSI>75 -> Avoid, Breakout cap -> Watch, then threshold.
+    internal static string FunnelDecision(StockSignal s)
+    {
+        if (!s.WouldPassGate) return "No";
+        // A gate-passing signal with a legacy Hold means the held-position
+        // overlay fired (thresholds alone would have said Buy/Watch) - the
+        // funnel would Hold it too.
+        if (s.Recommendation == Recommendation.Hold) return "Hold";
+        if (s.Rsi14 > 75) return "Avoid";
+        if (s.SetupType == SetupType.Breakout) return "Watch";
+        return "Buy";
     }
 }

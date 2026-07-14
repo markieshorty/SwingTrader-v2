@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using SwingTrader.Core.Enums;
 using SwingTrader.Core.Models;
@@ -89,5 +89,28 @@ public class IntelligenceReadTests
         reasons["AAPL"].Should().Be("[Moat] new reason");
         // Case-insensitive lookup for UI convenience
         reasons.ContainsKey("aapl").Should().BeTrue();
+    }
+
+    // FunnelDecision must mirror DetermineRecommendationAsync's overlay rules -
+    // otherwise the divergence table shows "gate says Buy" for signals the
+    // flip would still cap (e.g. Breakouts), overstating divergence.
+    [Theory]
+    [InlineData(false, "MomentumContinuation", 50, "Watch", "No")]     // gate fail always No
+    [InlineData(true, "MomentumContinuation", 50, "Watch", "Buy")]      // clean gate pass
+    [InlineData(true, "Breakout", 50, "Watch", "Watch")]    // breakout cap holds under the funnel
+    [InlineData(true, "MomentumContinuation", 80, "Watch", "Avoid")]    // RSI>75 overlay holds
+    [InlineData(true, "MomentumContinuation", 50, "Hold", "Hold")]      // held-position overlay holds
+    public void FunnelDecision_AppliesOverlayRules(
+        bool passesGate, string setup, decimal rsi, string legacyRec, string expected)
+    {
+        var signal = new StockSignal
+        {
+            WouldPassGate = passesGate,
+            SetupType = Enum.Parse<SetupType>(setup),
+            Rsi14 = rsi,
+            Recommendation = Enum.Parse<Recommendation>(legacyRec),
+        };
+
+        SwingTrader.Api.Endpoints.IntelligenceEndpoints.FunnelDecision(signal).Should().Be(expected);
     }
 }
