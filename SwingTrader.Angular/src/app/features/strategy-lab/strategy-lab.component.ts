@@ -218,17 +218,25 @@ export class StrategyLabComponent implements OnDestroy {
   // one the A/B ran.
   private buildRules(): LabTradingRulesDto | null {
     if (!this.rulesTouched()) return null;
+    const pr = this.profileRules;
+    // The uniform stop/target/hold/trailing fields are applied by the engine to
+    // EVERY setup, so a field left at its default would silently clobber the
+    // account's live PER-SETUP tactics. Send each only when the user actually
+    // changed it from the live baseline; otherwise null, so the engine keeps the
+    // per-setup tactics intact. (num = raw value, pct = fraction for %-fields.)
+    const num = (v: number, base: number): number | null => (v === base ? null : v);
+    const pct = (v: number, base: number): number | null => (v === base ? null : v / 100);
     return {
       excludedSetups: this.excludedSetups(),
-      maxHoldDays: this.rulesMaxHoldDays(),
-      maxOpenPositions: this.rulesMaxOpenPositions(),
-      trailingActivationPct: this.rulesTrailingActivation() / 100,
-      trailingDistancePct: this.rulesTrailingDistance() / 100,
-      stopLossPct: this.rulesStopLossPct() / 100,
-      targetPct: this.rulesTargetPct() / 100,
+      maxHoldDays: num(this.rulesMaxHoldDays(), pr.maxHoldDays),
+      maxOpenPositions: num(this.rulesMaxOpenPositions(), pr.maxOpenPositions),
+      trailingActivationPct: pct(this.rulesTrailingActivation(), pr.trailingActivation),
+      trailingDistancePct: pct(this.rulesTrailingDistance(), pr.trailingDistance),
+      stopLossPct: pct(this.rulesStopLossPct(), pr.stopLossPct),
+      targetPct: pct(this.rulesTargetPct(), pr.targetPct),
       simulateProbation: this.rulesSimulateProbation(),
-      minHoldDays: this.rulesMinHoldDays(),
-      momentumHealthThreshold: this.rulesHealthThreshold(),
+      minHoldDays: num(this.rulesMinHoldDays(), pr.minHoldDays),
+      momentumHealthThreshold: num(this.rulesHealthThreshold(), pr.healthThreshold),
       positionFraction: this.rulesSizingMode() === 'flat' ? this.rulesPositionFraction() / 100 : null,
       activeCapitalPct: this.rulesSizingMode() === 'pool' ? this.rulesActiveCapitalPct() / 100 : null,
       maxPositionPctOfActive: this.rulesSizingMode() === 'pool' ? this.rulesMaxPositionPctOfActive() / 100 : null,
