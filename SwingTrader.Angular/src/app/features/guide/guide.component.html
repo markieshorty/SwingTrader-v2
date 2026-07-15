@@ -21,7 +21,7 @@
         </p>
         <ol class="pipeline">
           <li><strong>Watchlist</strong> (weekly, Sun 20:00) — screens the S&amp;P 500 / Nasdaq 100 down to a focused list of candidates.</li>
-          <li><strong>Research</strong> (daily, 06:30) — scores every watchlist symbol 0–10 on the eight components in the next tab, using fresh pre-market data. An optional midday rescore (off by default) refreshes the same day's scores at 12:30.</li>
+          <li><strong>Research</strong> (daily, 06:30) — scores every watchlist symbol 0–10 on the six gate components in the next tab, using fresh pre-market data. An optional midday rescore (off by default) refreshes the same day's scores at 12:30.</li>
           <li><strong>Report</strong> (daily, 08:30) — emails you a brief of the day's buy/watch/hold/avoid signals.</li>
           <li><strong>Approval</strong> — if enabled, nothing trades until you approve. Approvals are on the Trades page. One approval covers the whole trading day, including any midday-rescored signals — you are never re-asked intraday.</li>
           <li><strong>Execution</strong> (daily, from 09:20) — places orders for approved buy signals at Trading&nbsp;212.</li>
@@ -43,18 +43,20 @@
         <h3>How a signal is scored</h3>
         <p>
           Every candidate stock gets a single <strong>conviction score from 0 to 10</strong> — the higher the number,
-          the stronger the case for buying it. That score is a weighted blend of eight separate checks. Each check
-          scores the stock from 0 to 1, that score is multiplied by the check's <em>weight</em> (how much it counts),
-          and the results are added up and scaled to 10.
+          the stronger the case for buying it. That score is a weighted blend of six separate chart checks (the
+          <strong>gate</strong>). Each check scores the stock from 0 to 1, that score is multiplied by the check's
+          <em>weight</em> (how much it counts), and the results are added up and scaled to 10.
         </p>
         <p class="muted small">
           The weights below are <strong>your account's current values</strong> and add up to 100%. They aren't fixed —
           the Refinement agent gradually shifts weight toward whichever checks have actually predicted your winning
-          trades. Tap any check to see what it means in plain terms.
+          trades. Tap any check to see what it means in plain terms. Two further checks — news sentiment and
+          fundamental momentum — sit <em>outside</em> this gate score; they size and veto the trade instead, and are
+          explained in the <strong>Risk &amp; your money</strong> tab.
         </p>
 
         <mat-accordion class="components">
-          @for (c of components; track c.name) {
+          @for (c of gateComponents; track c.name) {
             <mat-expansion-panel>
               <mat-expansion-panel-header>
                 <mat-panel-title>{{ c.name }}</mat-panel-title>
@@ -102,8 +104,28 @@
 
         <h3>Forward score: sizing tilt &amp; veto</h3>
         <p>
-          When the conviction funnel is enabled, a separate <strong>Forward score</strong> (news sentiment +
-          fundamentals, 0–10) fine-tunes each trade without ever creating one. Two Settings dials control it:
+          Separately from the gate, a <strong>Forward score</strong> (0–10) fine-tunes each trade without ever creating
+          one. It's a weighted blend of two checks — news sentiment and fundamental momentum — whose weights sum to
+          100% between themselves:
+        </p>
+
+        <mat-accordion class="components">
+          @for (c of forwardComponents; track c.name) {
+            <mat-expansion-panel>
+              <mat-expansion-panel-header>
+                <mat-panel-title>{{ c.name }}</mat-panel-title>
+                <mat-panel-description>
+                  <span class="weight-chip">{{ weightPct(c.weightKey) }}</span>
+                  <span class="measures">{{ c.measures }}</span>
+                </mat-panel-description>
+              </mat-expansion-panel-header>
+              <p>{{ c.plain }}</p>
+            </mat-expansion-panel>
+          }
+        </mat-accordion>
+
+        <p>
+          Two Settings dials turn that score into action:
           <strong>Sizing Aggressiveness</strong> ({{ risk()?.sizingAggressiveness ?? '—' }}) tilts position size up
           or down by the forward score (0 = off, every position gets base size), and the
           <strong>Forward Veto Floor</strong> ({{ risk()?.forwardVetoFloor ?? '—' }}) demotes a Buy to Watch when its

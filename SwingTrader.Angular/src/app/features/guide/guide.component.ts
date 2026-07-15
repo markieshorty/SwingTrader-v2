@@ -46,9 +46,13 @@ export class GuideComponent {
     return Math.ceil(guideHoldDays * 2.5);
   }
 
-  // The 8 conviction components in display order, each with a plain-English
-  // description of what it measures. The live weight is looked up by key.
-  readonly components: ComponentRow[] = [
+  // The 6 GATE components in display order, each with a plain-English
+  // description of what it measures. These are the checks that feed the 0–10
+  // conviction (gate) score which decides Buy / Watch / Hold / Avoid. Their
+  // weights sum to 100%. The live weight is looked up by key. The two FORWARD
+  // components (sentiment + fundamental) live in forwardComponents below — they
+  // don't affect the gate score, they drive position sizing and the veto.
+  readonly gateComponents: ComponentRow[] = [
     {
       name: 'RSI',
       weightKey: 'rsiWeight',
@@ -80,15 +84,6 @@ export class GuideComponent {
         'same move on light volume is easier to reverse. Higher-than-usual volume scores better.',
     },
     {
-      name: 'Sentiment',
-      weightKey: 'forwardSentimentWeight',
-      measures: 'What is the tone of recent news about the company?',
-      plain:
-        'Claude reads the company’s recent news headlines and rates the overall tone from very negative ' +
-        'to very positive. Good news (upgrades, strong results, deals) lifts the score; bad news ' +
-        '(downgrades, misses, scandals) lowers it.',
-    },
-    {
       name: 'Setup quality',
       weightKey: 'setupQualityWeight',
       measures: 'How reliable is the chart pattern that triggered the signal?',
@@ -116,12 +111,28 @@ export class GuideComponent {
         'have repeatedly defended. Bouncing up off support, or breaking cleanly above resistance, is ' +
         'constructive and scores well. Stalling just under resistance scores poorly.',
     },
+  ];
+
+  // The 2 FORWARD components. These do NOT feed the 0–10 gate/conviction score
+  // that decides Buy / Watch / Hold / Avoid. Instead they blend into a separate
+  // Forward score (their weights sum to 100% between themselves) that tilts
+  // position size and can veto a Buy — see the "Risk & your money" tab.
+  readonly forwardComponents: ComponentRow[] = [
+    {
+      name: 'Sentiment',
+      weightKey: 'forwardSentimentWeight',
+      measures: 'What is the tone of recent news about the company?',
+      plain:
+        'Claude reads the company’s recent news headlines and rates the overall tone from very negative ' +
+        'to very positive. Good news (upgrades, strong results, deals) lifts the score; bad news ' +
+        '(downgrades, misses, scandals) lowers it.',
+    },
     {
       name: 'Fundamental momentum',
       weightKey: 'forwardFundamentalWeight',
       measures: 'Is the underlying business improving?',
       plain:
-        'Unlike the other components (which read the chart), this looks at the business itself: whether ' +
+        'Unlike the gate components (which read the chart), this looks at the business itself: whether ' +
         'analysts are turning more positive, whether company insiders are buying their own stock, ' +
         'whether the company has a habit of beating earnings, and whether revenue forecasts are rising. ' +
         'A strengthening business scores higher.',
