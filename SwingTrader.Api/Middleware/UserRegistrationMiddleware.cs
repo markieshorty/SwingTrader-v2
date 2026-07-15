@@ -36,6 +36,7 @@ public class UserRegistrationMiddleware(RequestDelegate next)
         IWatchlistRepository watchlists,
         IStrategyWeightsRepository weights,
         IAccountRiskProfileRepository riskProfiles,
+        ISetupTacticsRepository setupTactics,
         INotificationRecipientRepository recipients)
     {
         if (context.User.Identity?.IsAuthenticated == true)
@@ -59,7 +60,7 @@ public class UserRegistrationMiddleware(RequestDelegate next)
                     // Re-check now that we hold the lock - a concurrent request
                     // may have already finished creating this user while we waited.
                     user = await users.FindAsync(userId);
-                    user ??= await RegisterNewUserAsync(context, userId, email, displayName, users, accounts, invites, watchlists, weights, riskProfiles, recipients);
+                    user ??= await RegisterNewUserAsync(context, userId, email, displayName, users, accounts, invites, watchlists, weights, riskProfiles, setupTactics, recipients);
                 }
                 finally
                 {
@@ -167,6 +168,7 @@ public class UserRegistrationMiddleware(RequestDelegate next)
         IWatchlistRepository watchlists,
         IStrategyWeightsRepository weights,
         IAccountRiskProfileRepository riskProfiles,
+        ISetupTacticsRepository setupTactics,
         INotificationRecipientRepository recipients)
     {
         var inviteToken = context.Request.Headers["X-Invite-Token"].FirstOrDefault();
@@ -193,6 +195,7 @@ public class UserRegistrationMiddleware(RequestDelegate next)
             await watchlists.SeedDefaultAsync(accountId);
             await weights.SeedDefaultAsync(accountId);
             await riskProfiles.SeedDefaultAsync(accountId);
+            await setupTactics.SeedDefaultAsync(accountId); // after risk profile — copies the Neutral book
 
             // Guarantees at least one person is subscribed to trade approval
             // emails the moment "Require approval" gets turned on - without

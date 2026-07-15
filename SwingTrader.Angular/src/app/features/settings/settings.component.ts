@@ -28,6 +28,10 @@ import {
   MarketRegimeName,
   NotificationRecipientDto,
   RiskProfileDto,
+  SetupTacticsDto,
+  SetupTacticsRowDto,
+  SetupTypeName,
+  UpdateSetupTacticsDto,
   StrategyWeightsDto,
   TradingMode,
   UpdateRiskProfileDto,
@@ -35,7 +39,15 @@ import {
 import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
 import { errorMessage } from '../../shared/utils/error-message.util';
 
-const TAB_NAMES = ['api-keys', 'trading', 'strategy', 'risk', 'notifications', 'account'] as const;
+const TAB_NAMES = ['api-keys', 'trading', 'strategy', 'risk', 'setups', 'notifications', 'account'] as const;
+
+const SETUP_LABELS: Record<SetupTypeName, string> = {
+  OversoldRecovery: 'Oversold recovery',
+  Breakout: 'Breakout',
+  MomentumContinuation: 'Momentum continuation',
+  VolumeSpike: 'Volume spike',
+  TrendFollowing: 'Trend following',
+};
 
 // The six GATE weights (sum to 1) — decide Buy/Watch/Hold/Avoid.
 const COMPONENT_WEIGHT_FIELDS: { key: keyof StrategyWeightsDto; label: string }[] = [
@@ -253,6 +265,40 @@ export class SettingsComponent {
 
   forwardWeightsSumValid = computed(() => Math.abs(this.forwardWeightsSum() - 1) < 0.001);
 
+  // Per-setup entry/exit tactics (docs/setup-tactics-plan). Editable working
+  // copies per row; saved per row via saveSetupRow().
+  setupTactics = signal<SetupTacticsDto | null>(null);
+  setupTacticsDraft = signal<SetupTacticsRowDto[]>([]);
+  setupLabel = (s: SetupTypeName): string => SETUP_LABELS[s];
+
+  private loadSetupTactics(): void {
+    this.api.getSetupTactics().subscribe({
+      next: (t) => {
+        this.setupTactics.set(t);
+        this.setupTacticsDraft.set(t.setups.map((r) => ({ ...r })));
+      },
+      error: () => {
+        this.setupTactics.set(null);
+        this.setupTacticsDraft.set([]);
+      },
+    });
+  }
+
+  updateSetupField(setup: SetupTypeName, key: keyof SetupTacticsRowDto, value: number): void {
+    this.setupTacticsDraft.update((rows) =>
+      rows.map((r) => (r.setupType === setup ? { ...r, [key]: value } : r)));
+  }
+
+  saveSetupRow(setup: SetupTypeName): void {
+    const row = this.setupTacticsDraft().find((r) => r.setupType === setup);
+    if (!row) return;
+    const payload: UpdateSetupTacticsDto = { ...row };
+    this.api.updateSetupTactics(payload).subscribe({
+      next: () => this.snackbar.open(`${SETUP_LABELS[setup]} tactics saved`, 'Dismiss', { duration: 3000 }),
+      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to save.'), 'Dismiss', { duration: 4000 }),
+    });
+  }
+
   riskProfile = signal<RiskProfileDto | null>(null);
   // Working copy the sliders bind to - saved explicitly via saveRiskProfile(),
   // so a user can cancel/reload without their in-progress drag committing.
@@ -317,6 +363,7 @@ export class SettingsComponent {
     this.loadMembers();
     this.loadWeights();
     this.loadRiskProfile();
+    this.loadSetupTactics();
     this.api.getMe().subscribe({ next: (me) => this.me.set({ email: me.email, displayName: me.displayName }) });
     this.selectedTabIndex.set(readTabIndexFromRoute(this.route, TAB_NAMES));
   }

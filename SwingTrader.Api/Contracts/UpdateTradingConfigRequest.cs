@@ -59,6 +59,14 @@ public record UpdateRiskProfileRequest(
     // Funnel F3: Forward-score floor under gate-passing Buys; 0 = veto off.
     decimal ForwardVetoFloor = 2.5m);
 
+public record UpdateSetupTacticsRequest(
+    string SetupType,
+    decimal StopLossPct,
+    decimal TargetPct,
+    int GuideHoldDays,
+    double TrailingActivationPct,
+    double TrailingDistancePct);
+
 public record CreateWatchlistRequest(string Name, WatchlistType Type, string? Description);
 
 public record UpdateWatchlistRequest(string Name, string? Description, bool TopMoversEnabled = false);

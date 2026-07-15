@@ -22,6 +22,7 @@ public class ExecutionService(
     IAccountRepository accountRepo,
     IPositionSizingService sizingService,
     IAccountRiskProfileRepository riskProfileRepo,
+    ISetupTacticsRepository setupTacticsRepo,
     INotificationRecipientRepository recipients,
     IEmailService emailService,
     IMemoryCache cache,
@@ -259,8 +260,19 @@ public class ExecutionService(
             // anchored regardless of how stale the signal's own price is.
             // Falls back to the signal's precomputed levels if this fails -
             // not worth blocking the trade over one quote call.
-            var stopLossPrice = signal.CalculatedStopLoss ?? signal.CurrentPrice * (1 - riskProfile.StopLossPct);
-            var targetPrice = signal.CalculatedTarget ?? signal.CurrentPrice * (1 + riskProfile.TargetPct);
+            // Entry/exit tactics come from the SETUP that triggered the signal
+            // (docs/setup-tactics-plan) - stop, target, guide-hold and trailing.
+            // The regime risk book stays the exposure envelope. Falls back to
+            // the risk book if this setup has no tactics row (e.g. Unknown).
+            var tactics = await setupTacticsRepo.GetAsync(accountId, signal.SetupType, ct);
+            var stopPct = tactics?.StopLossPct ?? riskProfile.StopLossPct;
+            var targetPct = tactics?.TargetPct ?? riskProfile.TargetPct;
+            var guideHoldDays = tactics?.GuideHoldDays ?? riskProfile.MaxHoldDays;
+            var trailingActivation = tactics?.TrailingActivationPct ?? riskProfile.TrailingActivationPct;
+            var trailingDistance = tactics?.TrailingDistancePct ?? riskProfile.TrailingDistancePct;
+
+            var stopLossPrice = signal.CalculatedStopLoss ?? signal.CurrentPrice * (1 - stopPct);
+            var targetPrice = signal.CalculatedTarget ?? signal.CurrentPrice * (1 + targetPct);
             try
             {
                 await rateLimiter.WaitAsync(ct);
@@ -268,7 +280,7 @@ public class ExecutionService(
                 if (freshQuote.CurrentPrice is > 0)
                 {
                     var (freshStop, freshTarget) = EntryLevelCalculator.Calculate(
-                        freshQuote.CurrentPrice.Value, riskProfile.StopLossPct, riskProfile.TargetPct);
+                        freshQuote.CurrentPrice.Value, stopPct, targetPct);
                     stopLossPrice = freshStop;
                     targetPrice = freshTarget;
                 }
@@ -339,13 +351,15 @@ public class ExecutionService(
                 // entry and how much it tilted the size (1 = untilted).
                 ForwardScoreAtEntry = signal.ForwardScore,
                 SizeMultiplier = sizing.AppliedMultiplier,
-                // Rules frozen at entry (thesis-as-contract) - profile changes
-                // only affect positions opened after them. See Trade.cs.
-                MaxHoldDaysAtEntry = riskProfile.MaxHoldDays,
+                // Rules frozen at entry (thesis-as-contract) - config changes
+                // only affect positions opened after them. See Trade.cs. Stop/
+                // target/hold/trailing come from the setup's tactics; the
+                // probation floor + momentum bar stay on the regime book.
+                MaxHoldDaysAtEntry = guideHoldDays,
                 MinHoldDaysAtEntry = riskProfile.MinHoldDays,
                 MomentumHealthThresholdAtEntry = riskProfile.MomentumHealthThreshold,
-                TrailingActivationPctAtEntry = riskProfile.TrailingActivationPct,
-                TrailingDistancePctAtEntry = riskProfile.TrailingDistancePct,
+                TrailingActivationPctAtEntry = trailingActivation,
+                TrailingDistancePctAtEntry = trailingDistance,
             };
             try
             {

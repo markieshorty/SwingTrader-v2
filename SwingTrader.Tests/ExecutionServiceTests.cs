@@ -31,6 +31,7 @@ public class ExecutionServiceTests
     private readonly IAccountRepository _accountRepo = Substitute.For<IAccountRepository>();
     private readonly IPositionSizingService _sizing = Substitute.For<IPositionSizingService>();
     private readonly IAccountRiskProfileRepository _riskProfileRepo = Substitute.For<IAccountRiskProfileRepository>();
+    private readonly ISetupTacticsRepository _setupTactics = Substitute.For<ISetupTacticsRepository>();
     private readonly INotificationRecipientRepository _recipients = Substitute.For<INotificationRecipientRepository>();
     private readonly IEmailService _email = Substitute.For<IEmailService>();
     private readonly IForexService _forex = Substitute.For<IForexService>();
@@ -45,7 +46,7 @@ public class ExecutionServiceTests
 
     private ExecutionService CreateSut() => new(
         _signalRepo, _tradeRepo, _portfolioRepo, _approvalRepo, _accountRepo, _sizing, _riskProfileRepo,
-        _recipients, _email, new MemoryCache(new MemoryCacheOptions()), _forex, _entryConfirmation, _activityLog,
+        _setupTactics, _recipients, _email, new MemoryCache(new MemoryCacheOptions()), _forex, _entryConfirmation, _activityLog,
         _regime, _rateLimiter, Options.Create(new ExecutionConfig()), NullLogger<ExecutionService>.Instance);
 
     private void SetupAccount(bool approvalRequired, TradingMode mode = TradingMode.Demo) =>

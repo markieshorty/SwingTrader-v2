@@ -191,6 +191,7 @@ builder.Services.AddScoped<IAccountInviteRepository, AccountInviteRepository>();
 builder.Services.AddScoped<IWatchlistRepository, WatchlistRepository>();
 builder.Services.AddScoped<IStrategyWeightsRepository, StrategyWeightsRepository>();
 builder.Services.AddScoped<IAccountRiskProfileRepository, AccountRiskProfileRepository>();
+builder.Services.AddScoped<ISetupTacticsRepository, SetupTacticsRepository>();
 builder.Services.AddScoped<IAdminLogRepository, AdminLogRepository>();
 builder.Services.AddScoped<IAdminRepository, AdminRepository>();
 builder.Services.AddScoped<IMonitoringRepository, MonitoringRepository>();
@@ -341,6 +342,7 @@ api.MapKeysEndpoints();
 api.MapStrategyWeightsEndpoints();
 api.MapStrategyLabEndpoints();
 api.MapRiskProfileEndpoints();
+api.MapSetupTacticsEndpoints();
 api.MapWatchlistEndpoints();
 api.MapIntelligenceEndpoints();
 

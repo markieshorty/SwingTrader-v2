@@ -292,3 +292,34 @@
     background: rgba(255, 255, 255, 0.3);
   }
 }
+
+.setup-tactics-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+  overflow-x: auto;
+}
+
+.setup-tactics-grid .st-head,
+.setup-tactics-grid .st-row {
+  display: grid;
+  grid-template-columns: 1.6fr repeat(5, 0.9fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-width: 720px;
+}
+
+.setup-tactics-grid .st-head {
+  font-size: 12px;
+  color: var(--st-muted, #888);
+  font-weight: 600;
+}
+
+.setup-tactics-grid .st-name {
+  font-weight: 600;
+}
+
+.setup-tactics-grid mat-form-field {
+  width: 100%;
+}

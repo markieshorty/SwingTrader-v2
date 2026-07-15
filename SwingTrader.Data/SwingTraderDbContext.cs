@@ -26,6 +26,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     public DbSet<JobLogEntry> JobLogEntries => Set<JobLogEntry>();
     public DbSet<NotificationRecipient> NotificationRecipients => Set<NotificationRecipient>();
     public DbSet<AccountRiskProfile> AccountRiskProfiles => Set<AccountRiskProfile>();
+    public DbSet<SetupTactics> SetupTactics => Set<SetupTactics>();
     public DbSet<AdminActionLog> AdminActionLogs => Set<AdminActionLog>();
     public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
     public DbSet<HistoricalCandle> HistoricalCandles => Set<HistoricalCandle>();
@@ -339,6 +340,15 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.FlatPositionPct).HasPrecision(5, 4).HasDefaultValue(0.10m);
             // One risk book per (account, regime).
             e.HasIndex(x => new { x.AccountId, x.Regime }).IsUnique();
+        });
+
+        modelBuilder.Entity<SetupTactics>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.StopLossPct).HasPrecision(5, 4);
+            e.Property(x => x.TargetPct).HasPrecision(5, 4);
+            // One tactics row per (account, setup).
+            e.HasIndex(x => new { x.AccountId, x.SetupType }).IsUnique();
         });
 
         // Sentiment archive (edge-plan Phase 4). Account-agnostic; the unique

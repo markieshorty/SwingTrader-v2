@@ -791,6 +791,42 @@ export interface RiskProfileRangeDto {
 
 export type MarketRegimeName = 'Bull' | 'Neutral' | 'Bear' | 'Crisis';
 
+export type SetupTypeName =
+  | 'OversoldRecovery'
+  | 'Breakout'
+  | 'MomentumContinuation'
+  | 'VolumeSpike'
+  | 'TrendFollowing';
+
+export interface SetupTacticsRowDto {
+  setupType: SetupTypeName;
+  stopLossPct: number;
+  targetPct: number;
+  guideHoldDays: number;
+  trailingActivationPct: number;
+  trailingDistancePct: number;
+}
+
+export interface SetupTacticsDto {
+  setups: SetupTacticsRowDto[];
+  allowedRanges: {
+    stopLossPct: RiskProfileRangeDto;
+    targetPct: RiskProfileRangeDto;
+    guideHoldDays: RiskProfileRangeDto;
+    trailingActivationPct: RiskProfileRangeDto;
+    trailingDistancePct: RiskProfileRangeDto;
+  };
+}
+
+export interface UpdateSetupTacticsDto {
+  setupType: SetupTypeName;
+  stopLossPct: number;
+  targetPct: number;
+  guideHoldDays: number;
+  trailingActivationPct: number;
+  trailingDistancePct: number;
+}
+
 export interface RiskProfileDto {
   lockedCapitalPct: number;
   maxOpenPositions: number;

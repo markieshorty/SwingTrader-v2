@@ -29,6 +29,8 @@ import {
   MarketRegimeName,
   RiskProfileDto,
   RunResultDto,
+  SetupTacticsDto,
+  UpdateSetupTacticsDto,
   SecondHopIntelligenceDto,
   SentimentArchiveStatsDto,
   SignalGroupDto,
@@ -432,6 +434,14 @@ export class ApiService {
   resetRiskProfile(regime: MarketRegimeName): Observable<RiskProfileDto> {
     const params = new HttpParams().set('regime', regime);
     return this.http.post<RiskProfileDto>(`${this.baseUrl}/api/risk-profile/reset`, {}, { params });
+  }
+
+  getSetupTactics(): Observable<SetupTacticsDto> {
+    return this.http.get<SetupTacticsDto>(`${this.baseUrl}/api/setup-tactics`);
+  }
+
+  updateSetupTactics(row: UpdateSetupTacticsDto): Observable<unknown> {
+    return this.http.put(`${this.baseUrl}/api/setup-tactics`, row);
   }
 
   setGlobalRefinementOptIn(enabled: boolean): Observable<unknown> {
