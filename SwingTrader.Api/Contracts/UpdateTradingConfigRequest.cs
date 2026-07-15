@@ -44,7 +44,6 @@ public record UpdateRiskProfileRequest(
     int EarningsGateDays,
     int MinHoldDays,
     decimal MomentumHealthThreshold,
-    int TargetWatchlistSize,
     // Which regime book this payload edits, and whether that book auto-pauses
     // new entries while it is the active regime.
     MarketRegime Regime = MarketRegime.Neutral,
@@ -66,6 +65,8 @@ public record UpdateSetupTacticsRequest(
     int GuideHoldDays,
     double TrailingActivationPct,
     double TrailingDistancePct);
+
+public record UpdateWatchlistTargetSizeRequest(int TargetWatchlistSize);
 
 public record CreateWatchlistRequest(string Name, WatchlistType Type, string? Description);
 

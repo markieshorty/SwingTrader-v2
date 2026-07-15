@@ -23,6 +23,27 @@
     </button>
   </div>
 
+  @if (targetSize() !== null) {
+    <mat-card class="panel ai-refresh-panel">
+      <h3>AI-managed refresh</h3>
+      <div class="slider-row">
+        <label>Watchlist Size: {{ targetSize() }} symbols</label>
+        <mat-slider [min]="targetSizeRange().min" [max]="targetSizeRange().max" step="1" discrete>
+          <input matSliderThumb [ngModel]="targetSize()" (ngModelChange)="targetSize.set($event)" [disabled]="!isOwner()" />
+        </mat-slider>
+      </div>
+      <p class="muted small">
+        How many symbols Claude picks for your AI-managed watchlist each weekly refresh. More symbols means more
+        candidates to scan but more Research/Monitor API calls every cycle — keep this lower if you're hitting provider
+        rate limits.
+      </p>
+      <button mat-raised-button color="primary" [disabled]="!isOwner() || !targetSizeDirty() || targetSizeSaving()"
+        (click)="saveTargetSize()">
+        {{ targetSizeSaving() ? 'Saving…' : 'Save' }}
+      </button>
+    </mat-card>
+  }
+
   @if (showCreateForm()) {
     <mat-card class="panel create-form">
       <mat-form-field appearance="outline" class="name-field">

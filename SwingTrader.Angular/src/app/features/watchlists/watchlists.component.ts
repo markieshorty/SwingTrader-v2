@@ -11,12 +11,14 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSliderModule } from '@angular/material/slider';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/services/api.service';
 import { EconomicLinkDto, UniverseSymbolDto, WatchlistDto, WatchlistItemDto, WatchlistType } from '../../core/models/dtos';
+// WatchlistTargetSizeDto used via api.service return type inference.
 import { errorMessage } from '../../shared/utils/error-message.util';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 
@@ -36,6 +38,7 @@ const MAX_TOTAL_ENABLED_SYMBOLS = 100;
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
+    MatSliderModule,
     MatChipsModule,
     MatTooltipModule,
     MatSlideToggleModule,
@@ -99,6 +102,16 @@ export class WatchlistsComponent {
   maxSymbols = MAX_SYMBOLS_PER_WATCHLIST;
   maxTotalSymbols = MAX_TOTAL_ENABLED_SYMBOLS;
 
+  // Account-level target size for the weekly AI-managed watchlist refresh
+  // (how many symbols Claude picks). Moved here from Risk Management - it's a
+  // watchlist concern, not a per-regime risk setting.
+  targetSize = signal<number | null>(null);
+  private targetSizeOriginal: number | null = null;
+  targetSizeRange = signal<{ min: number; max: number }>({ min: 10, max: 50 });
+  targetSizeSaving = signal(false);
+  targetSizeDirty = computed(() =>
+    this.targetSize() !== null && this.targetSize() !== this.targetSizeOriginal);
+
   // Second-hop economic links (docs/second-hop-plan): per-symbol viewer with
   // the Owner-only suppress toggle - the hallucinated-link kill switch.
   linksSymbol = signal<string | null>(null);
@@ -109,6 +122,14 @@ export class WatchlistsComponent {
     this.load();
     this.api.getAccountSettings().subscribe({
       next: (s) => this.isOwner.set(s.role === 'Owner'),
+      error: () => {},
+    });
+    this.api.getWatchlistTargetSize().subscribe({
+      next: (t) => {
+        this.targetSize.set(t.targetWatchlistSize);
+        this.targetSizeOriginal = t.targetWatchlistSize;
+        this.targetSizeRange.set({ min: t.min, max: t.max });
+      },
       error: () => {},
     });
     // ?links=SYMBOL deep-link (from the Intelligence second-hop tab): open
@@ -138,6 +159,23 @@ export class WatchlistsComponent {
     this.api.setEconomicLinkSuppressed(link.id, suppressed).subscribe({
       next: () => this.links.set(this.links().map((l) => (l.id === link.id ? { ...l, suppressed } : l))),
       error: (err) => this.snackbar.open(errorMessage(err, 'Failed to update the link.'), 'Dismiss', { duration: 4000 }),
+    });
+  }
+
+  saveTargetSize(): void {
+    const value = this.targetSize();
+    if (value === null || !this.targetSizeDirty()) return;
+    this.targetSizeSaving.set(true);
+    this.api.updateWatchlistTargetSize(value).subscribe({
+      next: () => {
+        this.targetSizeOriginal = value;
+        this.targetSizeSaving.set(false);
+        this.snackbar.open(`Watchlist size set to ${value} symbols.`, 'Dismiss', { duration: 3000 });
+      },
+      error: (err) => {
+        this.targetSizeSaving.set(false);
+        this.snackbar.open(errorMessage(err, 'Failed to save the watchlist size.'), 'Dismiss', { duration: 4000 });
+      },
     });
   }
 

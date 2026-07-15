@@ -851,7 +851,6 @@ export interface RiskProfileDto {
   earningsGateDays: number;
   minHoldDays: number;
   momentumHealthThreshold: number;
-  targetWatchlistSize: number;
   // Which regime book this payload is, whether it auto-pauses entries, and the
   // account's currently-detected live regime (drives the "active book" badge).
   regime: MarketRegimeName;
@@ -887,13 +886,20 @@ export interface RiskProfileDto {
     earningsGateDays: RiskProfileRangeDto;
     minHoldDays: RiskProfileRangeDto;
     momentumHealthThreshold: RiskProfileRangeDto;
-    targetWatchlistSize: RiskProfileRangeDto;
     stopLossPct: RiskProfileRangeDto;
     targetPct: RiskProfileRangeDto;
     flatPositionPct: RiskProfileRangeDto;
     sizingAggressiveness: RiskProfileRangeDto;
     forwardVetoFloor: RiskProfileRangeDto;
   };
+}
+
+// Account-level target for the weekly AI-managed watchlist refresh (how many
+// symbols Claude picks). Lives on the Watchlists page, not Risk Management.
+export interface WatchlistTargetSizeDto {
+  targetWatchlistSize: number;
+  min: number;
+  max: number;
 }
 
 export interface UpdateRiskProfileDto {
@@ -906,7 +912,6 @@ export interface UpdateRiskProfileDto {
   earningsGateDays: number;
   minHoldDays: number;
   momentumHealthThreshold: number;
-  targetWatchlistSize: number;
   // Which regime book to save, and whether it auto-pauses entries.
   regime: MarketRegimeName;
   autopauseTrading: boolean;

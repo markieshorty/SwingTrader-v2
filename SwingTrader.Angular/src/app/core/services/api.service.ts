@@ -31,6 +31,7 @@ import {
   RunResultDto,
   SetupTacticsDto,
   UpdateSetupTacticsDto,
+  WatchlistTargetSizeDto,
   SecondHopIntelligenceDto,
   SentimentArchiveStatsDto,
   SignalGroupDto,
@@ -438,6 +439,14 @@ export class ApiService {
 
   getSetupTactics(): Observable<SetupTacticsDto> {
     return this.http.get<SetupTacticsDto>(`${this.baseUrl}/api/setup-tactics`);
+  }
+
+  getWatchlistTargetSize(): Observable<WatchlistTargetSizeDto> {
+    return this.http.get<WatchlistTargetSizeDto>(`${this.baseUrl}/api/watchlists/target-size`);
+  }
+
+  updateWatchlistTargetSize(targetWatchlistSize: number): Observable<unknown> {
+    return this.http.put(`${this.baseUrl}/api/watchlists/target-size`, { targetWatchlistSize });
   }
 
   updateSetupTactics(row: UpdateSetupTacticsDto): Observable<unknown> {

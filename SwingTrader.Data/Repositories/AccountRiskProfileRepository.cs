@@ -118,7 +118,6 @@ public class AccountRiskProfileRepository(SwingTraderDbContext db) : IAccountRis
         dest.EarningsGateDays = src.EarningsGateDays;
         dest.MinHoldDays = src.MinHoldDays;
         dest.MomentumHealthThreshold = src.MomentumHealthThreshold;
-        dest.TargetWatchlistSize = src.TargetWatchlistSize;
         dest.AutopauseTrading = src.AutopauseTrading;
         dest.StopLossPct = src.StopLossPct;
         dest.TargetPct = src.TargetPct;

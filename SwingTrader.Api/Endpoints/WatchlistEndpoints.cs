@@ -27,6 +27,39 @@ public static class WatchlistEndpoints
         watchlistsGroup.MapGet("/enabled-symbols", async (IWatchlistRepository watchlists, IAccountContext ctx) =>
             Results.Ok(await watchlists.GetAllEnabledSymbolsAsync(ctx.AccountId)));
 
+        // Account-level target size for the weekly AI-managed watchlist refresh
+        // (how many symbols Claude picks). Lives on the Account, not the risk
+        // profile - it doesn't vary by market regime.
+        watchlistsGroup.MapGet("/target-size", async (IAccountRepository accounts, IAccountContext ctx, CancellationToken ct) =>
+        {
+            var account = await accounts.GetAsync(ctx.AccountId, ct);
+            if (account is null) return Results.NotFound();
+            return Results.Ok(new
+            {
+                account.TargetWatchlistSize,
+                Min = Core.Constants.CapitalRules.MinTargetWatchlistSize,
+                Max = Core.Constants.CapitalRules.MaxTargetWatchlistSize,
+            });
+        });
+
+        watchlistsGroup.MapPut("/target-size", async (
+            UpdateWatchlistTargetSizeRequest req, IAccountRepository accounts, IAccountContext ctx, CancellationToken ct) =>
+        {
+            if (ctx.Role != AccountRole.Owner) return Results.Forbid();
+            if (req.TargetWatchlistSize < Core.Constants.CapitalRules.MinTargetWatchlistSize
+                || req.TargetWatchlistSize > Core.Constants.CapitalRules.MaxTargetWatchlistSize)
+                return Results.BadRequest(new
+                {
+                    message = $"Watchlist size must be {Core.Constants.CapitalRules.MinTargetWatchlistSize}-{Core.Constants.CapitalRules.MaxTargetWatchlistSize} symbols.",
+                });
+
+            var account = await accounts.GetAsync(ctx.AccountId, ct);
+            if (account is null) return Results.NotFound();
+            account.TargetWatchlistSize = req.TargetWatchlistSize;
+            await accounts.UpdateAsync(account, ct);
+            return Results.Ok();
+        });
+
         // The full screening universe (symbol + company name) the AI-managed
         // watchlists draw from - shown on the Stock List Universe tab so users
         // can see the whole pool at their disposal. Not account-specific.

@@ -85,7 +85,6 @@ function toUpdateRiskProfileDto(profile: RiskProfileDto): UpdateRiskProfileDto {
     earningsGateDays: profile.earningsGateDays,
     minHoldDays: profile.minHoldDays,
     momentumHealthThreshold: profile.momentumHealthThreshold,
-    targetWatchlistSize: profile.targetWatchlistSize,
     regime: profile.regime,
     autopauseTrading: profile.autopauseTrading,
     stopLossPct: profile.stopLossPct,
@@ -328,7 +327,6 @@ export class SettingsComponent {
       original.earningsGateDays !== draft.earningsGateDays ||
       original.minHoldDays !== draft.minHoldDays ||
       original.momentumHealthThreshold !== draft.momentumHealthThreshold ||
-      original.targetWatchlistSize !== draft.targetWatchlistSize ||
       original.autopauseTrading !== draft.autopauseTrading
     );
   });
@@ -362,6 +360,29 @@ export class SettingsComponent {
     const activePct = 1 - draft.lockedCapitalPct;
     const maxPerTrade = total !== null ? total * draft.flatPositionPct : null;
     return { total, locked, active, activePct, maxPerTrade };
+  });
+
+  // Per-trade sizing preview. In Flat mode (or Funnel with aggressiveness 0)
+  // every position is the flat base. In Funnel mode with aggressiveness > 0 the
+  // Forward score tilts each position within a band of base × (1 ± MaxTilt ×
+  // aggressiveness) — mirrors PositionSizingService.ComputeForwardMultiplier
+  // (CapitalRules.MaxSizingTilt = 0.5).
+  sizingPreview = computed(() => {
+    const draft = this.riskProfileDraft();
+    const total = this.riskLivePreview()?.total ?? null;
+    if (!draft || total === null) return null;
+    const base = total * draft.flatPositionPct;
+    const MAX_TILT = 0.5;
+    const tiltPct = draft.sizingMode === 'Funnel' ? MAX_TILT * draft.sizingAggressiveness : 0;
+    return {
+      total,
+      base,
+      tilted: tiltPct > 0,
+      tiltPct,                       // fraction, e.g. 0.25 = ±25%
+      low: base * (1 - tiltPct),
+      high: base * (1 + tiltPct),
+      maxDeployed: base * draft.maxOpenPositions,
+    };
   });
 
   constructor() {

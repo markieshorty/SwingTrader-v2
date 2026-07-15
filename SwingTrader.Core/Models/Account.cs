@@ -1,3 +1,4 @@
+using SwingTrader.Core.Constants;
 using SwingTrader.Core.Enums;
 
 namespace SwingTrader.Core.Models;
@@ -11,6 +12,13 @@ public class Account : UnscopedEntity
     public bool GlobalRefinementOptIn { get; set; } = true;
     public TradingMode TradingMode { get; set; } = TradingMode.Demo;
     public bool ApprovalRequired { get; set; } = true;
+
+    // How many symbols Claude selects for the weekly AI-managed watchlist
+    // refresh (WatchlistSelectionService). Account-level, not per-regime: the
+    // watchlist universe doesn't change with the market regime. See
+    // CapitalRules.DefaultTargetWatchlistSize for the tradeoff (more symbols =
+    // more Research/Monitor API calls per cycle).
+    public int TargetWatchlistSize { get; set; } = CapitalRules.DefaultTargetWatchlistSize;
 
     // Pause switch for new-position executions ("entries"), held per mode so
     // pausing Demo (e.g. to sit out a rough market) doesn't also freeze Live

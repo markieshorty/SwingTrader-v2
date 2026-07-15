@@ -51,12 +51,6 @@ public class AccountRiskProfile : BaseEntity
     public PositionSizingMode SizingMode { get; set; } = PositionSizingMode.Flat;
     public decimal FlatPositionPct { get; set; } = CapitalRules.DefaultFlatPositionPct;
 
-    // How many symbols Claude selects for the weekly AI-managed watchlist
-    // refresh - previously a fixed WatchlistConfig value shared by every
-    // account. See CapitalRules.DefaultTargetWatchlistSize for the tradeoff
-    // (more symbols = more Research/Monitor API calls per cycle).
-    public int TargetWatchlistSize { get; set; } = CapitalRules.DefaultTargetWatchlistSize;
-
     // Auto-pause NEW entries whenever THIS regime's book is the active one
     // (see MarketRegimeService). Monitor engages the pause on entering a book
     // with this on and auto-resumes on moving to one with it off; open
@@ -149,10 +143,6 @@ public class AccountRiskProfile : BaseEntity
         if (MomentumHealthThreshold < CapitalRules.MinMomentumHealthThreshold || MomentumHealthThreshold > CapitalRules.MaxMomentumHealthThreshold)
             throw new ValidationException(
                 $"Momentum health threshold must be {CapitalRules.MinMomentumHealthThreshold:P0}-{CapitalRules.MaxMomentumHealthThreshold:P0}");
-
-        if (TargetWatchlistSize < CapitalRules.MinTargetWatchlistSize || TargetWatchlistSize > CapitalRules.MaxTargetWatchlistSize)
-            throw new ValidationException(
-                $"Watchlist size must be {CapitalRules.MinTargetWatchlistSize}-{CapitalRules.MaxTargetWatchlistSize} symbols");
 
         if (SizingAggressiveness < CapitalRules.MinSizingAggressiveness || SizingAggressiveness > CapitalRules.MaxSizingAggressiveness)
             throw new ValidationException(

@@ -316,17 +316,29 @@
             </mat-slider>
           </div>
           <p class="muted small">
-            Every position is this slice of the whole account. Locked capital is a hard ceiling (position&nbsp;% × max
-            positions can't exceed the un-locked share), and the cash buffer, position cap and daily circuit breaker all
-            still apply.
+            @if (draft.sizingMode === 'Funnel') {
+              The <strong>base</strong> slice of the whole account — Funnel then tilts each position up or down from it
+              by the Forward score (see the range below).
+            } @else {
+              Every position is this slice of the whole account.
+            }
+            Locked capital is a hard ceiling (position&nbsp;% × max positions can't exceed the un-locked share), and the
+            cash buffer, position cap and daily circuit breaker all still apply.
           </p>
-          @if (riskLivePreview(); as preview) {
-            @if (preview.total !== null) {
+          @if (sizingPreview(); as sizing) {
+            @if (sizing.tilted) {
               <p class="muted small">
-                <strong>Base per trade: {{ preview.total * draft.flatPositionPct | currency: 'GBP' }}</strong>
-                = {{ draft.flatPositionPct | percent: '1.0-0' }} of {{ preview.total | currency: 'GBP' }};
-                up to {{ preview.total * draft.flatPositionPct * draft.maxOpenPositions | currency: 'GBP' }} deployed
-                across {{ draft.maxOpenPositions }} positions.
+                <strong>Per trade: {{ sizing.low | currency: 'GBP' }} – {{ sizing.high | currency: 'GBP' }}</strong>
+                — base {{ sizing.base | currency: 'GBP' }} ({{ draft.flatPositionPct | percent: '1.0-0' }} of
+                {{ sizing.total | currency: 'GBP' }}), tilted ±{{ sizing.tiltPct | percent: '1.0-0' }} by the Forward
+                score at aggressiveness {{ draft.sizingAggressiveness | number: '1.1-1' }}; up to
+                {{ sizing.maxDeployed | currency: 'GBP' }} deployed across {{ draft.maxOpenPositions }} positions.
+              </p>
+            } @else {
+              <p class="muted small">
+                <strong>Base per trade: {{ sizing.base | currency: 'GBP' }}</strong>
+                = {{ draft.flatPositionPct | percent: '1.0-0' }} of {{ sizing.total | currency: 'GBP' }};
+                up to {{ sizing.maxDeployed | currency: 'GBP' }} deployed across {{ draft.maxOpenPositions }} positions.
               </p>
             }
           }
@@ -474,22 +486,6 @@
             entries on the Trading tab.
           </p>
 
-          <div class="slider-row">
-            <label>Watchlist Size: {{ draft.targetWatchlistSize }} symbols</label>
-            <mat-slider
-              [min]="profile.allowedRanges.targetWatchlistSize.min"
-              [max]="profile.allowedRanges.targetWatchlistSize.max"
-              step="1"
-              discrete
-            >
-              <input matSliderThumb [ngModel]="draft.targetWatchlistSize" (ngModelChange)="updateRiskDraftField('targetWatchlistSize', $event)" />
-            </mat-slider>
-          </div>
-          <p class="muted small">
-            How many symbols Claude picks for your AI-managed watchlist each weekly refresh. More symbols means more
-            candidates to scan but more Research/Monitor API calls every cycle — keep this lower if you're hitting
-            provider rate limits.
-          </p>
 
           <div class="slider-row">
             <label>Stop-Loss: {{ draft.stopLossPct | percent: '1.0-1' }} below entry</label>

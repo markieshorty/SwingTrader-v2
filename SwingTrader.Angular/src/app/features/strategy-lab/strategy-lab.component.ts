@@ -920,7 +920,6 @@ export class StrategyLabComponent implements OnDestroy {
           earningsGateDays: p.earningsGateDays,
           minHoldDays: p.minHoldDays,
           momentumHealthThreshold: p.momentumHealthThreshold,
-          targetWatchlistSize: p.targetWatchlistSize,
           autopauseTrading: autopause,
           stopLossPct: p.stopLossPct,
           targetPct: p.targetPct,
