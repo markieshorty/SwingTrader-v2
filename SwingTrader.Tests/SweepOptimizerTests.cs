@@ -109,8 +109,10 @@ public class SweepOptimizerTests
         // Every rule candidate keeps the tuned weights (only the rule changes)...
         ruleCandidates.Should().OnlyContain(c => c.Weights == tunedWeights && c.Rules != null);
         // ...and carries the prefix so it doesn't collide with the phase-1 label.
+        // (Label uses "P0", whose percent glyph spacing is culture-dependent, so
+        // match on the stem rather than the exact "5%" / "5 %" rendering.)
         ruleCandidates.Should().OnlyContain(c => c.Label!.StartsWith("Tuned + "));
-        ruleCandidates.Should().Contain(c => c.Label == "Tuned + Stop 5%");
+        ruleCandidates.Should().Contain(c => c.Label!.StartsWith("Tuned + Stop "));
     }
 
     [Fact]
