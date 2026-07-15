@@ -122,15 +122,16 @@ public class MonitorService(
             return new MonitorCycleResult(openTrades.Count, 0, flagged, true);
         }
 
-        // Step 1b — bear-market autopause/auto-resume. Long-only momentum
-        // bleeds in downtrends, so while the market regime classifies
-        // Bear/Crisis (a STRUCTURAL bear - see MarketRegimeService, not a
-        // 200dma touch) new entries are paused; unlike the circuit breaker
-        // this auto-resumes the moment the regime recovers. Only pauses with
-        // reason BearMarket are ever auto-resumed - a manual or circuit-
-        // breaker pause is never touched. Skipped when no Tiingo client was
-        // supplied (regime needs SPY history) or the check itself fails.
-        await CheckBearMarketPauseAsync(account, tiingo, finnhub, ct);
+        // Step 1b — detect the market regime, persist it (so the risk-profile
+        // repository resolves the ACTIVE regime book for every consumer), and
+        // apply that book's per-regime autopause. Entries pause while the
+        // active book has AutopauseTrading on (seeded for Bear/Crisis) and
+        // auto-resume the moment the regime moves to a book that permits them;
+        // unlike the circuit breaker, only reason RegimeAutopause is ever
+        // auto-resumed - a manual or circuit-breaker pause is never touched.
+        // Skipped when no Tiingo client was supplied (regime needs SPY history)
+        // or the check itself fails.
+        await CheckRegimeAutopauseAsync(account, tiingo, finnhub, ct);
 
         // Step 2 — check each position
         var riskProfile = await riskProfileRepo.GetAsync(accountId, ct);
@@ -273,58 +274,66 @@ public class MonitorService(
     // impossible while still freeing reserved capital the same session.
     private const int PendingReconcileGraceMinutes = 30;
 
-    private async Task CheckBearMarketPauseAsync(Account account, ITiingoClient? tiingo, IFinnhubClient finnhub, CancellationToken ct)
+    private async Task CheckRegimeAutopauseAsync(Account account, ITiingoClient? tiingo, IFinnhubClient finnhub, CancellationToken ct)
     {
         if (tiingo is null) return;
 
         try
         {
-            var mode = account.TradingMode;
-            var bearPaused = account.IsExecutionPaused(mode)
-                && account.ExecutionPauseReasonFor(mode) == ExecutionPauseReason.BearMarket;
-            var setting = (await riskProfileRepo.GetAsync(account.Id, ct)).AutopauseDuringBear;
-
-            // Nothing to do unless the setting is on or we own an active pause.
-            if (!setting && !bearPaused) return;
-
             var regime = await marketRegime.GetCurrentRegimeAsync(tiingo, finnhub, ct);
-            var isBear = regime.Regime is MarketRegime.Bear or MarketRegime.Crisis;
 
-            if (isBear && setting && !account.IsExecutionPaused(mode))
+            // Persist the detected regime so the risk-profile repository can
+            // resolve the ACTIVE book for every consumer - this crosses the
+            // API/Functions process boundary, where the in-memory regime cache
+            // doesn't reach.
+            if (account.CurrentMarketRegime != regime.Regime || account.RegimeUpdatedAt is null)
             {
-                account.PauseExecution(mode, ExecutionPauseReason.BearMarket, DateTime.UtcNow);
+                account.CurrentMarketRegime = regime.Regime;
+                account.RegimeUpdatedAt = DateTime.UtcNow;
+                await accountRepo.UpdateAsync(account, ct);
+            }
+
+            var mode = account.TradingMode;
+            var regimePaused = account.IsExecutionPaused(mode)
+                && account.ExecutionPauseReasonFor(mode) == ExecutionPauseReason.RegimeAutopause;
+
+            // The active regime's book decides whether entries pause.
+            var pauseWanted = (await riskProfileRepo.GetAsync(account.Id, regime.Regime, ct)).AutopauseTrading;
+
+            if (pauseWanted && !account.IsExecutionPaused(mode))
+            {
+                account.PauseExecution(mode, ExecutionPauseReason.RegimeAutopause, DateTime.UtcNow);
                 await accountRepo.UpdateAsync(account, ct);
                 await activityLog.LogAsync(account.Id, "SystemEvent", "Entries Auto-Paused", "Warning",
-                    $"{mode} entries auto-paused — bear market conditions ({regime.Label}). Will auto-resume when the market recovers.");
+                    $"{mode} entries auto-paused — {regime.Label}. Will auto-resume when the regime permits entries.");
                 await SendAlertAsync(account.Id,
-                    $"# 🐻 Bear market — new entries paused\n\n" +
+                    $"# ⏸️ Entries paused — {regime.Regime} regime\n\n" +
                     $"Market regime: **{regime.Label}**.\n\n" +
-                    $"New {mode} entries are paused while conditions persist; open positions are still managed " +
-                    $"(stops, targets and exits keep working). Entries resume automatically when the market recovers. " +
-                    $"You can disable this behaviour in Settings › Trading (\"Auto-pause during bear markets\").",
-                    "Acme Trading — entries paused (bear market)",
+                    $"New {mode} entries are paused because this regime's risk book has auto-pause on; open positions are still " +
+                    $"managed (stops, targets and exits keep working). Entries resume automatically when the regime moves to a " +
+                    $"book that permits them. You can change this per regime on the Risk Management page.",
+                    "Acme Trading — entries paused (market regime)",
                     NotificationCategory.CircuitBreaker);
-                logger.LogWarning("Bear-market autopause engaged for account {AccountId} ({Mode}): {Label}", account.Id, mode, regime.Label);
+                logger.LogWarning("Regime autopause engaged for account {AccountId} ({Mode}): {Label}", account.Id, mode, regime.Label);
             }
-            else if (bearPaused && (!isBear || !setting))
+            else if (regimePaused && !pauseWanted)
             {
                 account.ResumeExecution(mode);
                 await accountRepo.UpdateAsync(account, ct);
-                var why = !setting ? "the autopause setting was turned off" : $"market recovered ({regime.Label})";
                 await activityLog.LogAsync(account.Id, "SystemEvent", "Entries Auto-Resumed", "Info",
-                    $"{mode} entries auto-resumed — {why}.");
+                    $"{mode} entries auto-resumed — {regime.Label} permits entries.");
                 await SendAlertAsync(account.Id,
-                    $"# ✅ Entries resumed\n\n{mode} entries have auto-resumed — {why}.",
+                    $"# ✅ Entries resumed\n\n{mode} entries have auto-resumed — {regime.Label}.",
                     "Acme Trading — entries resumed",
                     NotificationCategory.CircuitBreaker);
-                logger.LogInformation("Bear-market autopause released for account {AccountId} ({Mode}): {Why}", account.Id, mode, why);
+                logger.LogInformation("Regime autopause released for account {AccountId} ({Mode}): {Label}", account.Id, mode, regime.Label);
             }
         }
         catch (Exception ex)
         {
             // A regime-fetch failure must never take down the monitor cycle -
-            // the pause state simply carries over to the next 5-minute check.
-            logger.LogWarning(ex, "Bear-market pause check failed for account {AccountId} — will retry next cycle", account.Id);
+            // the last-known regime and pause state carry to the next check.
+            logger.LogWarning(ex, "Regime autopause check failed for account {AccountId} — will retry next cycle", account.Id);
         }
     }
 

@@ -790,6 +790,8 @@ export interface RiskProfileRangeDto {
   max: number;
 }
 
+export type MarketRegimeName = 'Bull' | 'Neutral' | 'Bear' | 'Crisis';
+
 export interface RiskProfileDto {
   lockedCapitalPct: number;
   maxPositionPctOfActive: number;
@@ -806,7 +808,13 @@ export interface RiskProfileDto {
   minHoldDays: number;
   momentumHealthThreshold: number;
   targetWatchlistSize: number;
-  autopauseDuringBear: boolean;
+  // Which regime book this payload is, whether it auto-pauses entries, and the
+  // account's currently-detected live regime (drives the "active book" badge).
+  regime: MarketRegimeName;
+  currentRegime: MarketRegimeName;
+  regimeUpdatedAt: string | null;
+  availableRegimes: MarketRegimeName[];
+  autopauseTrading: boolean;
   stopLossPct: number;   // flat stop, fraction (0.05 = 5%) — replaced the per-setup table
   targetPct: number;     // flat take-profit, fraction — replaced the per-conviction table
   sizingMode: 'TierLadder' | 'Flat';
@@ -866,7 +874,9 @@ export interface UpdateRiskProfileDto {
   minHoldDays: number;
   momentumHealthThreshold: number;
   targetWatchlistSize: number;
-  autopauseDuringBear: boolean;
+  // Which regime book to save, and whether it auto-pauses entries.
+  regime: MarketRegimeName;
+  autopauseTrading: boolean;
   stopLossPct: number;
   targetPct: number;
   sizingMode: 'TierLadder' | 'Flat';

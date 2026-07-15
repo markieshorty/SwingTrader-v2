@@ -50,7 +50,10 @@ public record UpdateRiskProfileRequest(
     int MinHoldDays,
     decimal MomentumHealthThreshold,
     int TargetWatchlistSize,
-    bool AutopauseDuringBear = true,
+    // Which regime book this payload edits, and whether that book auto-pauses
+    // new entries while it is the active regime.
+    MarketRegime Regime = MarketRegime.Neutral,
+    bool AutopauseTrading = false,
     // Defaults keep older payloads (serialized without these) valid.
     decimal StopLossPct = 0.05m,
     decimal TargetPct = 0.08m,

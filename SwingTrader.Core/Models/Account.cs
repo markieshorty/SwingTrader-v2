@@ -26,6 +26,16 @@ public class Account : UnscopedEntity
     public DateTime? ExecutionPausedAtDemo { get; set; }
     public DateTime? ExecutionPausedAtLive { get; set; }
 
+    // The last market regime Monitor detected (MarketRegimeService). Persisted
+    // so it crosses the API/Functions process boundary (separate memory
+    // caches): the risk-profile repository resolves the ACTIVE regime book
+    // from this, making every live consumer regime-aware without threading
+    // market-data clients through them. Market-wide, but stored per account
+    // for simplicity - each account's Monitor writes the same value. Defaults
+    // to Neutral (the baseline book) until Monitor first runs.
+    public MarketRegime CurrentMarketRegime { get; set; } = MarketRegime.Neutral;
+    public DateTime? RegimeUpdatedAt { get; set; }
+
     // True when new executions are paused for the given mode.
     public bool IsExecutionPaused(TradingMode mode) =>
         mode == TradingMode.Live ? ExecutionPausedLive : ExecutionPausedDemo;

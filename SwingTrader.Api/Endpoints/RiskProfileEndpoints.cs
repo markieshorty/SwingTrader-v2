@@ -21,17 +21,26 @@ public static class RiskProfileEndpoints
             IStrategyWeightsRepository weightsRepo,
             IPortfolioRepository portfolioRepo,
             IAccountRepository accounts,
-            IAccountContext ctx) =>
+            IAccountContext ctx,
+            MarketRegime? regime) =>
         {
-            var profile = await riskProfileRepo.GetAsync(ctx.AccountId);
-            var weights = await weightsRepo.GetActiveWeightsAsync(ctx.AccountId);
             var account = await accounts.GetAsync(ctx.AccountId);
+            // Which book to show: the requested regime, else the account's
+            // currently-detected live regime.
+            var selectedRegime = regime ?? account?.CurrentMarketRegime ?? MarketRegime.Neutral;
+            var profile = await riskProfileRepo.GetAsync(ctx.AccountId, selectedRegime);
+            var weights = await weightsRepo.GetActiveWeightsAsync(ctx.AccountId);
             var snapshot = account is not null
                 ? await portfolioRepo.GetLatestSnapshotAsync(ctx.AccountId, account.TradingMode)
                 : null;
 
             return Results.Ok(new
             {
+                Regime = profile.Regime.ToString(),
+                CurrentRegime = (account?.CurrentMarketRegime ?? MarketRegime.Neutral).ToString(),
+                RegimeUpdatedAt = account?.RegimeUpdatedAt,
+                AvailableRegimes = new[] { "Bull", "Neutral", "Bear", "Crisis" },
+                profile.AutopauseTrading,
                 profile.LockedCapitalPct,
                 profile.MaxPositionPctOfActive,
                 profile.MaxOpenPositions,
@@ -47,7 +56,6 @@ public static class RiskProfileEndpoints
                 profile.MinHoldDays,
                 profile.MomentumHealthThreshold,
                 profile.TargetWatchlistSize,
-                profile.AutopauseDuringBear,
                 profile.StopLossPct,
                 profile.TargetPct,
                 SizingMode = profile.SizingMode.ToString(),
@@ -110,6 +118,7 @@ public static class RiskProfileEndpoints
                 await riskProfileRepo.UpdateAsync(new AccountRiskProfile
                 {
                     AccountId = ctx.AccountId,
+                    Regime = req.Regime,
                     LockedCapitalPct = req.LockedCapitalPct,
                     MaxPositionPctOfActive = req.MaxPositionPctOfActive,
                     MaxOpenPositions = req.MaxOpenPositions,
@@ -125,7 +134,7 @@ public static class RiskProfileEndpoints
                     MinHoldDays = req.MinHoldDays,
                     MomentumHealthThreshold = req.MomentumHealthThreshold,
                     TargetWatchlistSize = req.TargetWatchlistSize,
-                    AutopauseDuringBear = req.AutopauseDuringBear,
+                    AutopauseTrading = req.AutopauseTrading,
                     StopLossPct = req.StopLossPct,
                     TargetPct = req.TargetPct,
                     SizingMode = Enum.TryParse<PositionSizingMode>(req.SizingMode, ignoreCase: true, out var mode)
@@ -149,12 +158,13 @@ public static class RiskProfileEndpoints
 
         api.MapPost("/risk-profile/reset", async (
             IAccountRiskProfileRepository riskProfileRepo,
-            IAccountContext ctx) =>
+            IAccountContext ctx,
+            MarketRegime? regime) =>
         {
             if (ctx.Role != AccountRole.Owner)
                 return Results.Forbid();
 
-            var reset = await riskProfileRepo.ResetToDefaultsAsync(ctx.AccountId);
+            var reset = await riskProfileRepo.ResetToDefaultsAsync(ctx.AccountId, regime ?? MarketRegime.Neutral);
             return Results.Ok(reset);
         });
 

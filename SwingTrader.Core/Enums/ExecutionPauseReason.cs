@@ -11,10 +11,11 @@ public enum ExecutionPauseReason
     // stays paused until the owner reviews and manually resumes.
     CircuitBreaker = 1,
 
-    // Bear-market autopause (AccountRiskProfile.AutopauseDuringBear): entries
-    // paused while the market regime classifies Bear/Crisis. Unlike the
-    // circuit breaker this DOES auto-resume - Monitor lifts it as soon as the
-    // regime recovers (or the setting is switched off). Manual and
-    // circuit-breaker pauses are never touched by the auto-resume.
-    BearMarket = 2,
+    // Regime autopause: entries paused because the CURRENT market regime's
+    // risk book has AutopauseTrading on (by default Bear and Crisis). Unlike
+    // the circuit breaker this DOES auto-resume - Monitor lifts it as soon as
+    // the regime moves to a book that permits entries (or that book's toggle
+    // is switched off). Manual and circuit-breaker pauses are never touched by
+    // the auto-resume. Value kept at 2 (was BearMarket) so stored rows survive.
+    RegimeAutopause = 2,
 }

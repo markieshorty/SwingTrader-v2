@@ -25,6 +25,7 @@ import {
   ConnectionState,
   KeyStatusesDto,
   KeyTestResult,
+  MarketRegimeName,
   NotificationRecipientDto,
   RiskProfileDto,
   StrategyWeightsDto,
@@ -73,7 +74,8 @@ function toUpdateRiskProfileDto(profile: RiskProfileDto): UpdateRiskProfileDto {
     minHoldDays: profile.minHoldDays,
     momentumHealthThreshold: profile.momentumHealthThreshold,
     targetWatchlistSize: profile.targetWatchlistSize,
-    autopauseDuringBear: profile.autopauseDuringBear,
+    regime: profile.regime,
+    autopauseTrading: profile.autopauseTrading,
     stopLossPct: profile.stopLossPct,
     targetPct: profile.targetPct,
     sizingMode: profile.sizingMode,
@@ -247,6 +249,12 @@ export class SettingsComponent {
   // so a user can cancel/reload without their in-progress drag committing.
   riskProfileDraft = signal<UpdateRiskProfileDto | null>(null);
 
+  // The regime book currently being edited, and the live regime the account is
+  // actually in (drives the "active now" badge on the selector).
+  selectedRegime = signal<MarketRegimeName>('Neutral');
+  readonly regimeOptions: MarketRegimeName[] = ['Bull', 'Neutral', 'Bear', 'Crisis'];
+  currentRegime = computed(() => this.riskProfile()?.currentRegime ?? null);
+
   riskProfileDirty = computed(() => {
     const original = this.riskProfile();
     const draft = this.riskProfileDraft();
@@ -267,7 +275,7 @@ export class SettingsComponent {
       original.minHoldDays !== draft.minHoldDays ||
       original.momentumHealthThreshold !== draft.momentumHealthThreshold ||
       original.targetWatchlistSize !== draft.targetWatchlistSize ||
-      original.autopauseDuringBear !== draft.autopauseDuringBear
+      original.autopauseTrading !== draft.autopauseTrading
     );
   });
 
@@ -317,17 +325,43 @@ export class SettingsComponent {
     this.selectedTabIndex.set(readTabIndexFromRoute(this.route, TAB_NAMES));
   }
 
-  private loadRiskProfile(): void {
-    this.api.getRiskProfile().subscribe({
+  private loadRiskProfile(regime?: MarketRegimeName): void {
+    this.api.getRiskProfile(regime).subscribe({
       next: (profile) => {
         this.riskProfile.set(profile);
         this.riskProfileDraft.set(toUpdateRiskProfileDto(profile));
+        this.selectedRegime.set(profile.regime);
       },
       error: () => {
         this.riskProfile.set(null);
         this.riskProfileDraft.set(null);
       },
     });
+  }
+
+  // Switch which regime book is being edited. Unsaved edits to the current book
+  // are discarded (the sliders reload from the newly selected book).
+  selectRegime(regime: MarketRegimeName): void {
+    if (regime === this.selectedRegime()) return;
+    if (this.riskProfileDirty()) {
+      this.dialog
+        .open(ConfirmDialogComponent, {
+          data: {
+            title: 'Discard unsaved changes?',
+            message: `You have unsaved changes to the ${this.selectedRegime()} book. Switch to ${regime} and discard them?`,
+            cancelLabel: 'Stay',
+            confirmLabel: 'Discard & switch',
+            confirmColor: 'warn',
+          },
+          width: '420px',
+        })
+        .afterClosed()
+        .subscribe((confirmed) => {
+          if (confirmed) this.loadRiskProfile(regime);
+        });
+      return;
+    }
+    this.loadRiskProfile(regime);
   }
 
   updateRiskDraftField(key: keyof UpdateRiskProfileDto, value: number | boolean | string): void {
@@ -351,33 +385,6 @@ export class SettingsComponent {
     this.riskProfileDraft.set({ ...draft, [key]: value });
   }
 
-  // Saves immediately rather than waiting on the Risk Management tab's
-  // explicit Save button - it lives next to the manual pause toggle in
-  // Trading, and a toggle sitting next to an immediate-acting control
-  // shouldn't itself require a trip to another tab to take effect.
-  toggleAutopauseDuringBear(checked: boolean): void {
-    const draft = this.riskProfileDraft();
-    if (!draft) return;
-    // Can only be turned ON while manual pause is off - the toggle is
-    // disabled in the template for this case too, but guard here as well
-    // since this method also drives the auto-off when manual pause engages.
-    if (checked && this.executionPaused()) return;
-    const updated = { ...draft, autopauseDuringBear: checked };
-    this.riskProfileDraft.set(updated);
-    this.api.updateRiskProfile(updated).subscribe({
-      next: () => {
-        this.riskProfile.set(this.riskProfile() ? { ...this.riskProfile()!, autopauseDuringBear: checked } : null);
-        this.snackbar.open(
-          checked ? 'Bear-market autopause enabled' : 'Bear-market autopause disabled',
-          'Dismiss', { duration: 3000 });
-      },
-      error: (err) => {
-        this.riskProfileDraft.set({ ...updated, autopauseDuringBear: !checked }); // revert
-        this.snackbar.open(errorMessage(err, 'Failed to update.'), 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
-
   saveRiskProfile(): void {
     const draft = this.riskProfileDraft();
     if (!draft) return;
@@ -395,8 +402,8 @@ export class SettingsComponent {
     this.dialog
       .open(ConfirmDialogComponent, {
         data: {
-          title: 'Reset risk profile',
-          message: 'Reset risk profile to defaults? Your current settings will be lost.',
+          title: 'Reset risk book',
+          message: `Reset the ${this.selectedRegime()} risk book to its default posture? Your current settings for this regime will be lost.`,
           cancelLabel: 'Cancel',
           confirmLabel: 'Reset',
           confirmColor: 'warn',
@@ -406,7 +413,7 @@ export class SettingsComponent {
       .afterClosed()
       .subscribe((confirmed) => {
         if (!confirmed) return;
-        this.api.resetRiskProfile().subscribe({
+        this.api.resetRiskProfile(this.selectedRegime()).subscribe({
           next: () => {
             this.snackbar.open('Risk profile reset to defaults', 'Dismiss', { duration: 3000 });
             this.loadRiskProfile();
@@ -640,13 +647,6 @@ export class SettingsComponent {
     // A manual toggle always sets the reason to Manual server-side; reflect
     // that locally so a circuit-breaker note clears the moment they resume.
     this.executionPauseReason.set('Manual');
-
-    // Manual and auto pause can't both be "in control" at once - turning on
-    // manual pause takes precedence and turns bear-autopause off, rather than
-    // leaving it silently armed underneath a pause the user just set by hand.
-    if (paused && this.riskProfileDraft()?.autopauseDuringBear) {
-      this.toggleAutopauseDuringBear(false);
-    }
 
     this.api.setExecutionPaused(paused).subscribe({
       next: () =>

@@ -15,9 +15,11 @@ using Xunit;
 
 namespace SwingTrader.Tests;
 
-// Bear-market autopause: the monitor pauses new entries when the regime turns
-// structurally bearish (setting on by default), auto-resumes when the market
-// recovers, and never touches pauses it doesn't own (manual/circuit-breaker).
+// Regime autopause: each monitor cycle detects the market regime, and the
+// active regime's risk book decides whether new entries pause. It auto-resumes
+// when the regime moves to a book that permits entries, and never touches
+// pauses it doesn't own (manual/circuit-breaker). By default the Bear and
+// Crisis books auto-pause; Bull and Neutral don't.
 public class MonitorServiceBearPauseTests
 {
     private readonly ITradeRepository _tradeRepo = Substitute.For<ITradeRepository>();
@@ -45,7 +47,18 @@ public class MonitorServiceBearPauseTests
             new T212AccountSummaryCash(1000m, 0m, 0m),
             new T212AccountSummaryInvestments(0m, 0m, 0m, 0m)));
         _circuitBreaker.ShouldTriggerAsync(1, Arg.Any<T212AccountSummary?>(), Arg.Any<CancellationToken>()).Returns(false);
-        _riskProfileRepo.GetAsync(1, Arg.Any<CancellationToken>()).Returns(new AccountRiskProfile { AccountId = 1 });
+        // The active-book resolver (used by position monitoring, step 2).
+        _riskProfileRepo.GetAsync(1, Arg.Any<CancellationToken>())
+            .Returns(new AccountRiskProfile { AccountId = 1, Regime = MarketRegime.Neutral });
+        // Active book is resolved per regime: the default posture auto-pauses in
+        // Bear/Crisis and permits entries in Bull/Neutral.
+        _riskProfileRepo.GetAsync(1, Arg.Any<MarketRegime>(), Arg.Any<CancellationToken>())
+            .Returns(ci => new AccountRiskProfile
+            {
+                AccountId = 1,
+                Regime = ci.Arg<MarketRegime>(),
+                AutopauseTrading = ci.Arg<MarketRegime>() is MarketRegime.Bear or MarketRegime.Crisis,
+            });
         _tradeRepo.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade>());
         _tradeRepo.GetUnreconciledOrdersAsync(1, TradingMode.Demo).Returns(new List<Trade>());
     }
@@ -61,34 +74,34 @@ public class MonitorServiceBearPauseTests
             .Returns(new MarketRegimeResult(regime, 100m, 100m, 100m, 0m, regime.ToString()));
 
     [Fact]
-    public async Task BearRegime_SettingOn_PausesEntriesWithBearMarketReason()
+    public async Task DefensiveRegime_BookPausesOn_PausesEntriesWithRegimeReason()
     {
         SetupRegime(MarketRegime.Bear);
 
         await CreateSut().RunCycleAsync(1, _finnhub, _t212, _tiingo);
 
         _account.IsExecutionPaused(TradingMode.Demo).Should().BeTrue();
-        _account.ExecutionPauseReasonFor(TradingMode.Demo).Should().Be(ExecutionPauseReason.BearMarket);
+        _account.ExecutionPauseReasonFor(TradingMode.Demo).Should().Be(ExecutionPauseReason.RegimeAutopause);
         await _activityLog.Received(1).LogAsync(1, "SystemEvent", "Entries Auto-Paused", "Warning", Arg.Any<string>());
     }
 
     [Fact]
-    public async Task BearRegime_SettingOff_DoesNotPauseAndSkipsRegimeCall()
+    public async Task DefensiveRegime_BookPausesOff_DoesNotPause()
     {
-        _riskProfileRepo.GetAsync(1, Arg.Any<CancellationToken>())
-            .Returns(new AccountRiskProfile { AccountId = 1, AutopauseDuringBear = false });
+        // This account's Bear book permits entries.
+        _riskProfileRepo.GetAsync(1, MarketRegime.Bear, Arg.Any<CancellationToken>())
+            .Returns(new AccountRiskProfile { AccountId = 1, Regime = MarketRegime.Bear, AutopauseTrading = false });
         SetupRegime(MarketRegime.Bear);
 
         await CreateSut().RunCycleAsync(1, _finnhub, _t212, _tiingo);
 
         _account.IsExecutionPaused(TradingMode.Demo).Should().BeFalse();
-        await _regime.DidNotReceive().GetCurrentRegimeAsync(Arg.Any<ITiingoClient>(), Arg.Any<IFinnhubClient>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task BearPaused_MarketRecovers_AutoResumes()
+    public async Task RegimePaused_MovesToPermittingRegime_AutoResumes()
     {
-        _account.PauseExecution(TradingMode.Demo, ExecutionPauseReason.BearMarket, DateTime.UtcNow);
+        _account.PauseExecution(TradingMode.Demo, ExecutionPauseReason.RegimeAutopause, DateTime.UtcNow);
         SetupRegime(MarketRegime.Bull);
 
         await CreateSut().RunCycleAsync(1, _finnhub, _t212, _tiingo);
@@ -98,9 +111,9 @@ public class MonitorServiceBearPauseTests
     }
 
     [Fact]
-    public async Task BearPaused_StillBear_StaysPausedWithoutDuplicateAlerts()
+    public async Task RegimePaused_StillDefensive_StaysPausedWithoutDuplicateAlerts()
     {
-        _account.PauseExecution(TradingMode.Demo, ExecutionPauseReason.BearMarket, DateTime.UtcNow);
+        _account.PauseExecution(TradingMode.Demo, ExecutionPauseReason.RegimeAutopause, DateTime.UtcNow);
         SetupRegime(MarketRegime.Bear);
 
         await CreateSut().RunCycleAsync(1, _finnhub, _t212, _tiingo);
@@ -123,7 +136,7 @@ public class MonitorServiceBearPauseTests
     }
 
     [Fact]
-    public async Task NoTiingoClient_BearCheckSkippedEntirely()
+    public async Task NoTiingoClient_RegimeCheckSkippedEntirely()
     {
         SetupRegime(MarketRegime.Bear);
 

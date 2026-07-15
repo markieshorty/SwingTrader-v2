@@ -348,6 +348,8 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.StopLossPct).HasPrecision(5, 4).HasDefaultValue(0.05m);
             e.Property(x => x.TargetPct).HasPrecision(5, 4).HasDefaultValue(0.08m);
             e.Property(x => x.FlatPositionPct).HasPrecision(5, 4).HasDefaultValue(0.10m);
+            // One risk book per (account, regime).
+            e.HasIndex(x => new { x.AccountId, x.Regime }).IsUnique();
         });
 
         // Sentiment archive (edge-plan Phase 4). Account-agnostic; the unique

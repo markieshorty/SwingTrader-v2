@@ -123,30 +123,10 @@
         or hitting Save isn't needed.
       </p>
 
-      @if (riskProfileDraft(); as riskDraft) {
-        <div class="toggle-row">
-          <mat-slide-toggle
-            [checked]="riskDraft.autopauseDuringBear"
-            [disabled]="!isOwner() || executionPaused()"
-            (change)="toggleAutopauseDuringBear($event.checked)"
-          >
-            Autopause &amp; auto-resume during bear markets
-          </mat-slide-toggle>
-        </div>
-        <p class="muted small">
-          When the market regime turns structurally bearish (SPY below a falling 200-day average, a deep breach, or a
-          death cross), new entries pause automatically — and resume on their own when the market recovers. Open
-          positions are still managed (stops, targets and exits keep working) while paused. Long-only momentum
-          strategies bleed in downtrends; leaving this on is recommended. Applies immediately, like the manual pause
-          above — no Save needed.
-        </p>
-        @if (executionPaused()) {
-          <p class="muted small">
-            Unavailable while entries are manually paused above — turn manual pause off first if you want autopause
-            back on.
-          </p>
-        }
-      }
+      <p class="muted small">
+        Regime-based autopause is now configured <strong>per market regime</strong> on the Risk Management tab — each
+        regime's book has its own "auto-pause new entries" switch.
+      </p>
 
       <button mat-raised-button color="primary" [disabled]="!isOwner()" (click)="saveTradingConfig()">Save</button>
     </mat-card>
@@ -230,9 +210,42 @@
       <h3>Risk Management</h3>
       <p class="muted small">Adjust how much capital is put at risk and how positions are sized, within hard safety bounds.</p>
 
+      <div class="regime-selector">
+        <span class="regime-selector-label">Regime book:</span>
+        @for (r of regimeOptions; track r) {
+          <button type="button"
+            class="regime-chip"
+            [class.active]="selectedRegime() === r"
+            [disabled]="!isOwner()"
+            (click)="selectRegime(r)">
+            {{ r }}
+            @if (currentRegime() === r) { <span class="live-dot" title="Current live regime">live</span> }
+          </button>
+        }
+      </div>
+      <p class="muted small">
+        Each market regime has its own risk book. The system detects the live regime and switches to that book
+        automatically — you're editing the <strong>{{ selectedRegime() }}</strong> book.
+        @if (currentRegime()) { The market is currently <strong>{{ currentRegime() }}</strong>. }
+      </p>
+
       @if (riskProfile(); as profile) {
         @if (riskProfileDraft(); as draft) {
           <p class="risk-label">Current profile: <strong>{{ profile.riskLabel }}</strong></p>
+
+          <div class="toggle-row">
+            <mat-slide-toggle
+              [checked]="draft.autopauseTrading"
+              [disabled]="!isOwner()"
+              (change)="updateRiskDraftField('autopauseTrading', $event.checked)">
+              Auto-pause new entries while in the {{ selectedRegime() }} regime
+            </mat-slide-toggle>
+          </div>
+          <p class="muted small">
+            When on, new entries pause automatically whenever the market is in the {{ selectedRegime() }} regime and
+            resume when it leaves. Open positions are still managed (stops, targets and exits keep working) while
+            paused. Saved with this book via the Save button below.
+          </p>
 
           <h4>Capital Allocation</h4>
           <div class="slider-row">

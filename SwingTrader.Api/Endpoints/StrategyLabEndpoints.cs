@@ -508,7 +508,9 @@ public static class StrategyLabEndpoints
     {
         var prod = await weightsRepo.GetActiveWeightsAsync(accountId);
         if (prod is null) return null;
-        var profile = await riskProfileRepo.GetAsync(accountId, ct);
+        // Backtest autopause-during-bear mirrors the Bear regime book's toggle
+        // (the live "pause entries in a bear" decision now lives per book).
+        var bearBook = await riskProfileRepo.GetAsync(accountId, MarketRegime.Bear, ct);
         return new HistoricBacktestCandidate(
             "Production baseline",
             new HistoricBacktestWeights(
@@ -518,6 +520,6 @@ public static class StrategyLabEndpoints
             // Production policy: Breakout setups are hard-capped at Watch in
             // ResearchPipeline, so the baseline replays with them excluded.
             ExcludeBreakout: true,
-            AutopauseDuringBear: profile.AutopauseDuringBear);
+            AutopauseDuringBear: bearBook.AutopauseTrading);
     }
 }

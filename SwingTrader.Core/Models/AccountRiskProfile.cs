@@ -14,6 +14,13 @@ namespace SwingTrader.Core.Models;
 // edited via PUT /api/strategy-weights, not this entity.
 public class AccountRiskProfile : BaseEntity
 {
+    // Which market-regime book this row is. An account holds one row per
+    // MarketRegime (Bull/Neutral/Bear/Crisis); the live regime detector
+    // (MarketRegimeService) selects which book is active each cycle. The
+    // Neutral row is the account's baseline (the pre-regime single profile
+    // migrated into it). Unique per (AccountId, Regime).
+    public MarketRegime Regime { get; set; } = MarketRegime.Neutral;
+
     public decimal LockedCapitalPct { get; set; } = CapitalRules.LockedCapitalPct;
     public decimal MaxPositionPctOfActive { get; set; } = CapitalRules.MaxPositionPctOfActive;
     public int MaxOpenPositions { get; set; } = CapitalRules.MaxOpenPositions;
@@ -58,11 +65,13 @@ public class AccountRiskProfile : BaseEntity
     // (more symbols = more Research/Monitor API calls per cycle).
     public int TargetWatchlistSize { get; set; } = CapitalRules.DefaultTargetWatchlistSize;
 
-    // Auto-pause new entries while the market regime classifies Bear/Crisis
-    // (see MarketRegimeService - structural bear, not a 200dma touch), and
-    // auto-resume when it recovers. Long-only momentum bleeds in downtrends;
-    // on by default. Monitor still manages exits while paused.
-    public bool AutopauseDuringBear { get; set; } = true;
+    // Auto-pause NEW entries whenever THIS regime's book is the active one
+    // (see MarketRegimeService). Monitor engages the pause on entering a book
+    // with this on and auto-resumes on moving to one with it off; open
+    // positions are still managed while paused. Seeded on for the defensive
+    // books (Bear/Crisis), off for Bull/Neutral - long-only momentum bleeds in
+    // downtrends. Replaces the old account-wide AutopauseDuringBear toggle.
+    public bool AutopauseTrading { get; set; }
 
     // Funnel Phase F2 (docs/funnel-plan): how strongly the Forward score
     // tilts position size. 0 (default) = every position gets base size -

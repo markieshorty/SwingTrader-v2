@@ -335,13 +335,10 @@ export class StrategyLabComponent implements OnDestroy {
       },
       error: () => this.dataStatusLoading.set(false),
     });
-    // Prefill the bear-autopause dial from the account's live setting so an
-    // untouched Run simulates what production does today.
-    this.api.getRiskProfile().subscribe({
+    // Trading-rule defaults mirror the Neutral baseline book (what the backtest
+    // engine replays), so an untouched Run reproduces the production baseline.
+    this.api.getRiskProfile('Neutral').subscribe({
       next: (p) => {
-        this.productionAutopauseBear = p.autopauseDuringBear;
-        this.autopauseBear.set(p.autopauseDuringBear);
-        // Trading-rules defaults mirror the live profile (percent for display).
         this.profileRules = {
           maxHoldDays: p.maxHoldDays,
           maxOpenPositions: p.maxOpenPositions,
@@ -354,6 +351,15 @@ export class StrategyLabComponent implements OnDestroy {
           targetPct: Math.round(p.targetPct * 100),
         };
         this.resetRules();
+      },
+      error: () => {},
+    });
+    // The bear-autopause dial mirrors the Bear regime book (where the live
+    // "pause entries in a bear" decision now lives).
+    this.api.getRiskProfile('Bear').subscribe({
+      next: (b) => {
+        this.productionAutopauseBear = b.autopauseTrading;
+        this.autopauseBear.set(b.autopauseTrading);
       },
       error: () => {},
     });
@@ -882,9 +888,11 @@ export class StrategyLabComponent implements OnDestroy {
   // whole tested configuration, not just the weights.
   private syncAutopauseSetting(autopause: boolean | undefined): void {
     if (autopause === undefined || autopause === this.productionAutopauseBear) return;
-    this.api.getRiskProfile().subscribe({
+    // The tested autopause maps to the Bear regime book.
+    this.api.getRiskProfile('Bear').subscribe({
       next: (p) => {
         this.api.updateRiskProfile({
+          regime: 'Bear',
           lockedCapitalPct: p.lockedCapitalPct,
           maxPositionPctOfActive: p.maxPositionPctOfActive,
           maxOpenPositions: p.maxOpenPositions,
@@ -900,7 +908,7 @@ export class StrategyLabComponent implements OnDestroy {
           minHoldDays: p.minHoldDays,
           momentumHealthThreshold: p.momentumHealthThreshold,
           targetWatchlistSize: p.targetWatchlistSize,
-          autopauseDuringBear: autopause,
+          autopauseTrading: autopause,
           stopLossPct: p.stopLossPct,
           targetPct: p.targetPct,
           sizingMode: p.sizingMode,

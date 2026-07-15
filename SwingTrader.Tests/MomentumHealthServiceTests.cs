@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using SwingTrader.Agents.Monitor;
+using SwingTrader.Core.Enums;
 using SwingTrader.Core.Models;
 using SwingTrader.Data;
 using SwingTrader.Data.Repositories;
@@ -93,7 +94,10 @@ public class MomentumHealthServiceTests
         // while the live profile's 0.95 would call the same score Exit.
         var (service, db) = CreateService();
         await new AccountRiskProfileRepository(db).SeedDefaultAsync(1);
-        var profile = await db.AccountRiskProfiles.SingleAsync(p => p.AccountId == 1);
+        // The live active book (Neutral by default) - its threshold must be
+        // ignored in favour of the frozen one.
+        var profile = await db.AccountRiskProfiles.SingleAsync(
+            p => p.AccountId == 1 && p.Regime == MarketRegime.Neutral);
         profile.MomentumHealthThreshold = 0.95m;
         await db.SaveChangesAsync();
 

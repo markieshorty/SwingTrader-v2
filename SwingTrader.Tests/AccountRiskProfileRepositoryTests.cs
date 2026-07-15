@@ -1,6 +1,7 @@
 using SwingTrader.Core.Constants;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using SwingTrader.Core.Enums;
 using SwingTrader.Data;
 using SwingTrader.Data.Repositories;
 using System.ComponentModel.DataAnnotations;
@@ -23,7 +24,7 @@ public class AccountRiskProfileRepositoryTests
 
         await repo.SeedDefaultAsync(1);
 
-        var profile = await db.AccountRiskProfiles.SingleAsync(p => p.AccountId == 1);
+        var profile = await db.AccountRiskProfiles.SingleAsync(p => p.AccountId == 1 && p.Regime == MarketRegime.Neutral);
         profile.LockedCapitalPct.Should().Be(CapitalRules.LockedCapitalPct);
         profile.MaxOpenPositions.Should().Be(3);
     }
@@ -37,7 +38,8 @@ public class AccountRiskProfileRepositoryTests
         await repo.SeedDefaultAsync(1);
         await repo.SeedDefaultAsync(1);
 
-        (await db.AccountRiskProfiles.CountAsync(p => p.AccountId == 1)).Should().Be(1);
+        // Four regime books, seeded once - the second call adds nothing.
+        (await db.AccountRiskProfiles.CountAsync(p => p.AccountId == 1)).Should().Be(4);
     }
 
     [Fact]
@@ -50,7 +52,7 @@ public class AccountRiskProfileRepositoryTests
 
         profile.AccountId.Should().Be(1);
         profile.LockedCapitalPct.Should().Be(CapitalRules.LockedCapitalPct);
-        (await db.AccountRiskProfiles.CountAsync()).Should().Be(1);
+        (await db.AccountRiskProfiles.CountAsync()).Should().Be(4);
     }
 
     [Fact]
@@ -59,7 +61,7 @@ public class AccountRiskProfileRepositoryTests
         await using var db = CreateDb();
         var repo = new AccountRiskProfileRepository(db);
         await repo.SeedDefaultAsync(1);
-        var seeded = await db.AccountRiskProfiles.SingleAsync(p => p.AccountId == 1);
+        var seeded = await db.AccountRiskProfiles.SingleAsync(p => p.AccountId == 1 && p.Regime == MarketRegime.Neutral);
         seeded.MaxOpenPositions = 5;
         await db.SaveChangesAsync();
 
@@ -80,7 +82,7 @@ public class AccountRiskProfileRepositoryTests
 
         await repo.UpdateAsync(profile);
 
-        var updated = await db.AccountRiskProfiles.SingleAsync(p => p.AccountId == 1);
+        var updated = await db.AccountRiskProfiles.SingleAsync(p => p.AccountId == 1 && p.Regime == MarketRegime.Neutral);
         updated.LockedCapitalPct.Should().Be(0.60m);
         updated.MaxPositionPctOfActive.Should().Be(0.15m);
     }
@@ -104,7 +106,7 @@ public class AccountRiskProfileRepositoryTests
         }
 
         await using var verifyDb = CreateDb(dbName);
-        var stored = await verifyDb.AccountRiskProfiles.SingleAsync(p => p.AccountId == 1);
+        var stored = await verifyDb.AccountRiskProfiles.SingleAsync(p => p.AccountId == 1 && p.Regime == MarketRegime.Neutral);
         stored.LockedCapitalPct.Should().Be(CapitalRules.LockedCapitalPct);
     }
 
@@ -131,7 +133,7 @@ public class AccountRiskProfileRepositoryTests
         profile.MaxOpenPositions = 8;
         await repo.UpdateAsync(profile);
 
-        var reset = await repo.ResetToDefaultsAsync(1);
+        var reset = await repo.ResetToDefaultsAsync(1, MarketRegime.Neutral);
 
         reset.LockedCapitalPct.Should().Be(CapitalRules.LockedCapitalPct);
         reset.MaxOpenPositions.Should().Be(3);
@@ -152,7 +154,7 @@ public class AccountRiskProfileRepositoryTests
 
         await repo.UpdateAsync(profile);
 
-        var updated = await db.AccountRiskProfiles.SingleAsync(p => p.AccountId == 1);
+        var updated = await db.AccountRiskProfiles.SingleAsync(p => p.AccountId == 1 && p.Regime == MarketRegime.Neutral);
         updated.SizingAggressiveness.Should().Be(0.7m);
         updated.ForwardVetoFloor.Should().Be(3.5m);
     }
@@ -166,14 +168,15 @@ public class AccountRiskProfileRepositoryTests
         var profile = await repo.GetAsync(1);
         profile.SizingAggressiveness = 1.0m;
         profile.ForwardVetoFloor = 0.0m;
-        profile.AutopauseDuringBear = false;
+        profile.AutopauseTrading = true;
         await repo.UpdateAsync(profile);
 
-        var reset = await repo.ResetToDefaultsAsync(1);
+        var reset = await repo.ResetToDefaultsAsync(1, MarketRegime.Neutral);
 
         reset.SizingAggressiveness.Should().Be(0m);
         reset.ForwardVetoFloor.Should().Be(CapitalRules.DefaultForwardVetoFloor);
-        reset.AutopauseDuringBear.Should().BeTrue();
+        // Neutral's default posture does not auto-pause.
+        reset.AutopauseTrading.Should().BeFalse();
     }
 
     [Fact]
@@ -182,9 +185,9 @@ public class AccountRiskProfileRepositoryTests
         await using var db = CreateDb();
         var repo = new AccountRiskProfileRepository(db);
 
-        var reset = await repo.ResetToDefaultsAsync(1);
+        var reset = await repo.ResetToDefaultsAsync(1, MarketRegime.Neutral);
 
         reset.LockedCapitalPct.Should().Be(CapitalRules.LockedCapitalPct);
-        (await db.AccountRiskProfiles.CountAsync()).Should().Be(1);
+        (await db.AccountRiskProfiles.CountAsync()).Should().Be(4);
     }
 }

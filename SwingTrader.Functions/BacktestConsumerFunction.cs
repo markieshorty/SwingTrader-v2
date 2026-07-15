@@ -3,6 +3,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SwingTrader.Agents.Backtesting;
+using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
 using SwingTrader.Infrastructure.Configuration;
@@ -65,10 +66,10 @@ public class BacktestConsumerFunction(
                     c.Date.ToDateTime(TimeOnly.MinValue), c.Open, c.High, c.Low, c.Close, c.Volume)).ToArray(),
                 StringComparer.OrdinalIgnoreCase);
 
-            // The engine mirrors the account's live risk settings (hold cap,
-            // position slots, bear-market entry pause) so the Lab tests the
-            // strategy the account actually runs, not a hardcoded variant.
-            var profile = await riskProfileRepo.GetAsync(message.AccountId, ct);
+            // The engine mirrors the account's baseline (Neutral) risk book so
+            // the Lab tests a reproducible strategy rather than one that shifts
+            // with today's live regime. (Per-regime backtesting is Phase 2.)
+            var profile = await riskProfileRepo.GetAsync(message.AccountId, MarketRegime.Neutral, ct);
 
             // GICS-driven sector-ETF benchmarks for the RS component - the
             // SAME mapping live research uses. A universe outage degrades to

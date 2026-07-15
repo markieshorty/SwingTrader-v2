@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
@@ -26,6 +26,7 @@ import {
   PositionDto,
   RefinementStatusDto,
   RegimeDto,
+  MarketRegimeName,
   RiskProfileDto,
   RunResultDto,
   SecondHopIntelligenceDto,
@@ -419,16 +420,18 @@ export class ApiService {
     return this.http.post(`${this.baseUrl}/api/watchlists/${watchlistId}/symbols/${symbol}/force`, { force });
   }
 
-  getRiskProfile(): Observable<RiskProfileDto> {
-    return this.http.get<RiskProfileDto>(`${this.baseUrl}/api/risk-profile`);
+  getRiskProfile(regime?: MarketRegimeName): Observable<RiskProfileDto> {
+    const params = regime ? new HttpParams().set('regime', regime) : undefined;
+    return this.http.get<RiskProfileDto>(`${this.baseUrl}/api/risk-profile`, { params });
   }
 
   updateRiskProfile(profile: UpdateRiskProfileDto): Observable<unknown> {
     return this.http.put(`${this.baseUrl}/api/risk-profile`, profile);
   }
 
-  resetRiskProfile(): Observable<RiskProfileDto> {
-    return this.http.post<RiskProfileDto>(`${this.baseUrl}/api/risk-profile/reset`, {});
+  resetRiskProfile(regime: MarketRegimeName): Observable<RiskProfileDto> {
+    const params = new HttpParams().set('regime', regime);
+    return this.http.post<RiskProfileDto>(`${this.baseUrl}/api/risk-profile/reset`, {}, { params });
   }
 
   setGlobalRefinementOptIn(enabled: boolean): Observable<unknown> {
