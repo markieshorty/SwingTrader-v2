@@ -25,6 +25,14 @@ namespace SwingTrader.Agents.Backtesting;
 
 public sealed record DailyBar(DateTime Date, decimal Open, decimal High, decimal Low, decimal Close, decimal Volume);
 
+// Per-setup entry/exit tactics for the backtester, mirroring the live
+// SetupTactics row (docs/setup-tactics-plan). Plain values (not the EF entity)
+// so the engine stays free of persistence concerns; the caller reads the
+// account's SetupTactics once and hands the map in.
+public sealed record HistoricSetupTactics(
+    decimal StopLossPct, decimal TargetPct, int GuideHoldDays,
+    decimal TrailingActivationPct, decimal TrailingDistancePct);
+
 public sealed record HistoricConfig(
     StrategyWeights Weights,
     decimal BuyThreshold = 6.0m,
@@ -47,16 +55,22 @@ public sealed record HistoricConfig(
     // ExcludeBreakout (the original single-toggle behaviour); the Lab's
     // trading-rules panel can exclude any set.
     IReadOnlyCollection<SetupType>? ExcludedSetups = null,
-    // Trailing stop shape - mirrored from the risk profile (or a Lab rules
-    // override). Previously hardcoded 5%/3% constants, which silently
-    // diverged from live whenever the profile's values differed.
+    // Fallback trailing stop shape, used for any setup without an entry in
+    // SetupTactics below. Mirrors the risk profile (or a Lab rules override).
     decimal TrailingActivationPct = 0.05m,
     decimal TrailingDistancePct = 0.03m,
-    // Flat stop/target (fractions, e.g. 0.06 = 6%). Mirrors the live risk-
-    // profile settings (the old per-setup/per-conviction tables were removed
-    // 2026-07-12); defaults match CapitalRules.DefaultStopLossPct/TargetPct.
+    // Fallback flat stop/target (fractions, e.g. 0.06 = 6%), used for any setup
+    // without an entry in SetupTactics below. Defaults match
+    // CapitalRules.DefaultStopLossPct/TargetPct.
     decimal StopLossPct = 0.05m,
     decimal TargetPct = 0.08m,
+    // Per-setup entry/exit tactics (docs/setup-tactics-plan). When a signal's
+    // SetupType has an entry here, its stop/target/guide-hold/trailing come
+    // from it - exactly as live does via SetupTacticsRepository, frozen at
+    // entry. Setups not in the map fall back to the flat StopLossPct/TargetPct/
+    // MaxHoldDays/Trailing* above. Null = the whole map is absent (every setup
+    // uses the flat fallback - the pre-Phase-4 behaviour).
+    IReadOnlyDictionary<SetupType, HistoricSetupTactics>? SetupTactics = null,
     // Probation (momentum-health) simulation - mirrors the live two-phase
     // lifecycle: one check at MinHoldDays trading days, one grace day if
     // Borderline, forced exit if the thesis isn't playing out. On by default
@@ -64,14 +78,14 @@ public sealed record HistoricConfig(
     bool SimulateProbation = true,
     int MinHoldDays = 3,
     decimal MomentumHealthThreshold = 0.5m,
-    // Live-mirroring capital model (PositionSizingService). Null = the
-    // legacy flat PositionFraction sizing. When set, positions are budgeted
-    // exactly as live: pool = equity x ActiveCapitalPct (the capital tier),
-    // per-position cap = pool x MaxPositionPctOfActive, total deployment
-    // never exceeds the pool, and a CashBufferPct stays uninvested. NOTE the
-    // legacy default deploys up to MaxOpenPositions x 10% of equity, while a
-    // live Tier 1 account deploys at most ~10% TOTAL - flat-sized results
-    // overstate what a Tier 1 account would compound.
+    // Simulator-only "capital pool" sizing (no live equivalent - live uses
+    // flat or funnel-tilted per-position sizing). Null = the flat
+    // PositionFraction sizing. When set, positions are budgeted against a
+    // capped active-capital pool: pool = equity x ActiveCapitalPct, per-
+    // position cap = pool x MaxPositionPctOfActive, total deployment never
+    // exceeds the pool, and a CashBufferPct stays uninvested. NOTE flat sizing
+    // deploys up to MaxOpenPositions x PositionFraction of equity, so a small
+    // pool caps total exposure far tighter - the two aren't directly comparable.
     decimal? ActiveCapitalPct = null,
     decimal MaxPositionPctOfActive = 0.33m,
     decimal CashBufferPct = 0.02m);
@@ -80,7 +94,12 @@ public sealed record HistoricTrade(
     string Symbol, DateTime EntryDate, DateTime ExitDate, decimal EntryPrice, decimal ExitPrice,
     SetupType Setup, decimal Conviction, string ExitReason, decimal ReturnPct);
 
-public sealed record BucketStat(string Key, int Count, decimal WinRate, decimal AvgReturnPct);
+// AvgReturnPct IS the bucket's expectancy (mean return over all trades, wins
+// and losses). AvgHoldDays is the mean calendar days held - a per-setup
+// expectancy surface reads Count / WinRate / expectancy / hold together to see
+// which setups earn their capital and how long they tie it up. AvgHoldDays
+// defaults to 0 so pre-existing stored result JSON stays deserializable.
+public sealed record BucketStat(string Key, int Count, decimal WinRate, decimal AvgReturnPct, decimal AvgHoldDays = 0m);
 
 public sealed record HistoricResult(
     DateTime From, DateTime To,
@@ -126,6 +145,13 @@ public static class HistoricBacktester
         public required decimal Target;
         public required SetupType Setup;
         public required decimal Conviction;
+        // Exit tactics frozen at entry from the setup's tactics (or the flat
+        // fallback), mirroring live's thesis-as-contract: the guide-hold and
+        // trailing shape a position exits under never change mid-trade even if
+        // the account's tactics are edited afterwards.
+        public required int MaxHoldDays;
+        public required decimal TrailingActivationPct;
+        public required decimal TrailingDistancePct;
         public decimal? TrailingStop;
         // Probation state: RSI at scoring time (the live entry signal's
         // Rsi14), the last verdict, and whether the check cycle is finished
@@ -175,7 +201,7 @@ public static class HistoricBacktester
                 var bar = GetBar(bars, index, pos.Symbol, today);
                 if (bar is null) continue;
 
-                var (exitPrice, reason) = CheckExit(pos, bar, d, cfg.MaxHoldDays);
+                var (exitPrice, reason) = CheckExit(pos, bar, d);
 
                 // Momentum check: mirrors the live two-phase + runner lifecycle.
                 // Live runs the check during morning research and the exit fills
@@ -192,7 +218,7 @@ public static class HistoricBacktester
                     var isGraceRecheck = !pos.ProbationDone
                         && daysHeld == cfg.MinHoldDays + 1 && pos.ProbationVerdict == "Borderline";
                     var inProbation = !pos.ProbationDone && (daysHeld == cfg.MinHoldDays || isGraceRecheck);
-                    var inRunnerWindow = pos.ProbationDone && daysHeld > cfg.MaxHoldDays;
+                    var inRunnerWindow = pos.ProbationDone && daysHeld > pos.MaxHoldDays;
                     if (inProbation || inRunnerWindow)
                     {
                         var verdict = await ProbationVerdictAsync(
@@ -218,9 +244,9 @@ public static class HistoricBacktester
                         pos.Setup, pos.Conviction, reason!, Math.Round((proceeds - cost) / cost * 100m, 2)));
                     open.Remove(pos);
                 }
-                else if (bar.Close >= pos.EntryPrice * (1 + cfg.TrailingActivationPct))
+                else if (bar.Close >= pos.EntryPrice * (1 + pos.TrailingActivationPct))
                 {
-                    var newTrail = bar.Close * (1 - cfg.TrailingDistancePct);
+                    var newTrail = bar.Close * (1 - pos.TrailingDistancePct);
                     if (pos.TrailingStop is null || newTrail > pos.TrailingStop) pos.TrailingStop = newTrail;
                 }
             }
@@ -277,12 +303,24 @@ public static class HistoricBacktester
                     var qty = Math.Floor(budget / entryBar.Open * 1000m) / 1000m;
                     if (qty <= 0) continue;
 
-                    var (stop, target) = Core.Trading.EntryLevelCalculator.Calculate(entryBar.Open, cfg.StopLossPct, cfg.TargetPct);
+                    // Resolve the setup's tactics (stop/target/guide-hold/
+                    // trailing) - live does this via SetupTacticsRepository.
+                    // Any setup absent from the map falls back to the flat cfg
+                    // values, so a run without tactics behaves as pre-Phase-4.
+                    var tac = cfg.SetupTactics is not null && cfg.SetupTactics.TryGetValue(c.Setup, out var found) ? found : null;
+                    var stopPct = tac?.StopLossPct ?? cfg.StopLossPct;
+                    var targetPct = tac?.TargetPct ?? cfg.TargetPct;
+                    var guideHold = tac?.GuideHoldDays ?? cfg.MaxHoldDays;
+                    var trailAct = tac?.TrailingActivationPct ?? cfg.TrailingActivationPct;
+                    var trailDist = tac?.TrailingDistancePct ?? cfg.TrailingDistancePct;
+
+                    var (stop, target) = Core.Trading.EntryLevelCalculator.Calculate(entryBar.Open, stopPct, targetPct);
                     cash -= entryBar.Open * qty * (1 + CostPerSide);
                     open.Add(new Position
                     {
                         Symbol = c.Symbol, EntryDate = calendar[d + 1], EntryBarIndex = d + 1, EntryPrice = entryBar.Open,
                         Quantity = qty, StopLoss = stop, Target = target, Setup = c.Setup, Conviction = c.Conviction,
+                        MaxHoldDays = guideHold, TrailingActivationPct = trailAct, TrailingDistancePct = trailDist,
                         EntryRsi = c.Rsi,
                     });
                 }
@@ -319,7 +357,8 @@ public static class HistoricBacktester
             .GroupBy(keySelector)
             .Select(g => new BucketStat(g.Key!.ToString()!, g.Count(),
                 Math.Round((decimal)g.Count(t => t.ReturnPct > 0) / g.Count(), 4),
-                Math.Round(g.Average(t => t.ReturnPct), 2)))
+                Math.Round(g.Average(t => t.ReturnPct), 2),
+                Math.Round((decimal)g.Average(t => (t.ExitDate - t.EntryDate).TotalDays), 1)))
             .OrderByDescending(b => b.Count)
             .ToList();
 
@@ -341,7 +380,7 @@ public static class HistoricBacktester
             calmar);
     }
 
-    private static (decimal? ExitPrice, string? Reason) CheckExit(Position pos, DailyBar bar, int currentBarIndex, int maxHoldDays)
+    private static (decimal? ExitPrice, string? Reason) CheckExit(Position pos, DailyBar bar, int currentBarIndex)
     {
         if (bar.Open <= pos.StopLoss) return (bar.Open, "StopLoss(gap)");
         if (bar.Low <= pos.StopLoss) return (pos.StopLoss, "StopLoss");
@@ -355,7 +394,7 @@ public static class HistoricBacktester
         // Hard time cap = guide-hold x HoldCeilingMultiple (Phase 3): the
         // guide-hold is soft, so the absolute backstop mirrors live
         // PositionMonitorService. Trading days held = bar-index difference.
-        var hardCeiling = (int)Math.Ceiling(maxHoldDays * CapitalRules.HoldCeilingMultiple);
+        var hardCeiling = (int)Math.Ceiling(pos.MaxHoldDays * CapitalRules.HoldCeilingMultiple);
         if (currentBarIndex - pos.EntryBarIndex > hardCeiling) return (bar.Close, "TimeExit");
         return (null, null);
     }

@@ -1,3 +1,4 @@
+using SwingTrader.Core.Enums;
 using SwingTrader.Core.Models;
 
 namespace SwingTrader.Agents.Backtesting;
@@ -128,7 +129,11 @@ public static class SweepOptimizer
     public const int TargetCandidateCount = 400;
 
     public static List<HistoricBacktestCandidate> GenerateCandidates(
-        HistoricBacktestCandidate baseline, bool searchRules = false, HistoricTradingRules? productionRules = null)
+        HistoricBacktestCandidate baseline, bool searchRules = false, HistoricTradingRules? productionRules = null,
+        // The account's live per-setup tactics, so the rule search can nudge a
+        // single setup's guide-hold off its real current value. Null = skip the
+        // per-setup search (older callers / tests).
+        IReadOnlyDictionary<SetupType, HistoricSetupTactics>? accountTactics = null)
     {
         var candidates = new List<HistoricBacktestCandidate> { baseline with { Label = "Production baseline" } };
         var names = new[] { "RSI", "MACD", "Volume", "Setup quality", "Relative strength", "Price level" };
@@ -276,6 +281,33 @@ public static class SweepOptimizer
             AddRule("Let winners run (target 30%, trail +5%/3%, hold 30d)",
                 new HistoricTradingRules(MaxHoldDays: 30, TargetPct: 0.30m,
                     TrailingActivationPct: 0.05m, TrailingDistancePct: 0.03m));
+
+            // Per-setup GUIDE-HOLD search (docs/setup-tactics-plan Phase 4).
+            // Tests the motivating hypothesis directly - that a setup's ideal
+            // hold length differs by setup (e.g. breakouts may need to run
+            // longer than mean-reversion bounces). Deliberately bounded to the
+            // guide-hold dimension only, ≤3 nudges per setup, so the sweep stays
+            // within a sane candidate budget (the Basic-tier DB is untouched -
+            // every candidate replays the same in-memory bars - but wall-clock
+            // still scales with candidate count). Each nudges ONE setup's
+            // guide-hold off its live value, holding its other tactics and every
+            // other setup at baseline, so a winner is attributable to that
+            // setup + hold length.
+            if (accountTactics is not null)
+            {
+                foreach (var (setup, tac) in accountTactics.OrderBy(kv => kv.Key.ToString()))
+                {
+                    foreach (var mult in new[] { 0.5m, 1.5m, 2.0m })
+                    {
+                        var gh = Math.Clamp((int)Math.Round(tac.GuideHoldDays * mult), 5, 30);
+                        if (gh == tac.GuideHoldDays) continue;
+                        var ov = new HistoricSetupTacticsOverride(
+                            setup.ToString(), tac.StopLossPct, tac.TargetPct, gh,
+                            tac.TrailingActivationPct, tac.TrailingDistancePct);
+                        AddRule($"{setup} guide-hold {gh}d", new HistoricTradingRules(SetupTactics: [ov]));
+                    }
+                }
+            }
         }
 
         // Fill the remainder to TargetCandidateCount with deterministic

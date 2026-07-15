@@ -24,6 +24,7 @@ public class BacktestConsumerFunction(
     IBacktestRunRepository runs,
     IHistoricalCandleRepository candles,
     IAccountRiskProfileRepository riskProfileRepo,
+    ISetupTacticsRepository setupTacticsRepo,
     IUserHttpClientFactory clientFactory,
     IOptions<ClaudeConfig> claudeConfig,
     SwingTrader.Infrastructure.Market.IMarketUniverseService universe,
@@ -71,6 +72,17 @@ public class BacktestConsumerFunction(
             // with today's live regime. (Per-regime backtesting is Phase 2.)
             var profile = await riskProfileRepo.GetAsync(message.AccountId, MarketRegime.Neutral, ct);
 
+            // The account's live per-setup tactics, loaded ONCE (no per-candidate
+            // DB reads - the Basic-tier DB only sees this and the candle load per
+            // job). Seeds every candidate's baseline so an untouched run mirrors
+            // live; the Lab's tactics editor overlays overrides on top per-setup.
+            var accountTactics = (await setupTacticsRepo.GetAllAsync(message.AccountId, ct))
+                .ToDictionary(
+                    t => t.SetupType,
+                    t => new HistoricSetupTactics(
+                        t.StopLossPct, t.TargetPct, t.GuideHoldDays,
+                        (decimal)t.TrailingActivationPct, (decimal)t.TrailingDistancePct));
+
             // GICS-driven sector-ETF benchmarks for the RS component - the
             // SAME mapping live research uses. A universe outage degrades to
             // the engine's built-in override-or-SPY fallback, never fails the
@@ -87,11 +99,11 @@ public class BacktestConsumerFunction(
 
             run.ResultJson = request.Mode switch
             {
-                "ab" => await RunAbAsync(request, bars, profile, sectorEtfs, ct),
-                "sweep" => await RunSweepAsync(message.AccountId, run, request, bars, profile, sectorEtfs, ct),
-                "validate" => await RunValidateAsync(request, bars, profile, sectorEtfs, ct),
-                "montecarlo" => await RunMonteCarloAsync(request, bars, profile, sectorEtfs, ct),
-                _ => await RunSingleAsync(request, bars, profile, sectorEtfs, ct),
+                "ab" => await RunAbAsync(request, bars, profile, accountTactics, sectorEtfs, ct),
+                "sweep" => await RunSweepAsync(message.AccountId, run, request, bars, profile, accountTactics, sectorEtfs, ct),
+                "validate" => await RunValidateAsync(request, bars, profile, accountTactics, sectorEtfs, ct),
+                "montecarlo" => await RunMonteCarloAsync(request, bars, profile, accountTactics, sectorEtfs, ct),
+                _ => await RunSingleAsync(request, bars, profile, accountTactics, sectorEtfs, ct),
             };
             run.Status = "Completed";
             run.CompletedAt = DateTime.UtcNow;
@@ -110,7 +122,8 @@ public class BacktestConsumerFunction(
 
     private static HistoricConfig ToConfig(
         HistoricBacktestWeights w, decimal buyThreshold, bool excludeBreakout, bool autopauseDuringBear,
-        AccountRiskProfile profile, HistoricTradingRules? rules = null) =>
+        AccountRiskProfile profile, IReadOnlyDictionary<SetupType, HistoricSetupTactics> accountTactics,
+        HistoricTradingRules? rules = null) =>
         new(new StrategyWeights
         {
             RsiWeight = w.Rsi, MacdWeight = w.Macd, VolumeWeight = w.Volume,
@@ -143,7 +156,58 @@ public class BacktestConsumerFunction(
         // was removed): null keeps flat sizing; the two dials below only apply
         // when a Lab run explicitly sets ActiveCapitalPct.
         ActiveCapitalPct: rules?.ActiveCapitalPct,
-        MaxPositionPctOfActive: rules?.MaxPositionPctOfActive ?? 0.33m);
+        MaxPositionPctOfActive: rules?.MaxPositionPctOfActive ?? 0.33m,
+        // Per-setup tactics: the account's live set, with any Lab overrides
+        // overlaid. Built once per candidate from data already in memory - no
+        // DB touch.
+        SetupTactics: MergeTactics(accountTactics, rules));
+
+    // Builds the per-setup tactics map applied to a candidate, layering two
+    // kinds of override onto the account's live baseline:
+    //   1. UNIFORM rule overrides (rules.StopLossPct/TargetPct/MaxHoldDays/
+    //      Trailing*) - a single value the optimizer's rule-search or the Lab's
+    //      global fields set. Applied to EVERY setup, so "Stop 5%" means 5% on
+    //      all of them. Without this, per-setup tactics would silently swallow
+    //      those candidates and the rule search would be inert.
+    //   2. PER-SETUP overrides (rules.SetupTactics) - the Lab's tactics editor
+    //      / per-setup optimizer search, a full replace for each named setup.
+    // Null rules (an untouched baseline run) leaves the account map as-is, so
+    // the run mirrors live exactly.
+    private static IReadOnlyDictionary<SetupType, HistoricSetupTactics> MergeTactics(
+        IReadOnlyDictionary<SetupType, HistoricSetupTactics> baseline,
+        HistoricTradingRules? rules)
+    {
+        if (rules is null) return baseline;
+        var merged = new Dictionary<SetupType, HistoricSetupTactics>(baseline);
+
+        // 1. Uniform rule fields (only the ones this candidate actually set).
+        if (rules.StopLossPct is not null || rules.TargetPct is not null || rules.MaxHoldDays is not null
+            || rules.TrailingActivationPct is not null || rules.TrailingDistancePct is not null)
+        {
+            foreach (var setup in merged.Keys.ToList())
+            {
+                var b = merged[setup];
+                merged[setup] = b with
+                {
+                    StopLossPct = rules.StopLossPct ?? b.StopLossPct,
+                    TargetPct = rules.TargetPct ?? b.TargetPct,
+                    GuideHoldDays = rules.MaxHoldDays ?? b.GuideHoldDays,
+                    TrailingActivationPct = rules.TrailingActivationPct ?? b.TrailingActivationPct,
+                    TrailingDistancePct = rules.TrailingDistancePct ?? b.TrailingDistancePct,
+                };
+            }
+        }
+
+        // 2. Per-setup overrides win over the uniform layer.
+        foreach (var o in rules.SetupTactics ?? [])
+        {
+            if (!Enum.TryParse<SetupType>(o.Setup, ignoreCase: true, out var setup)) continue;
+            merged[setup] = new HistoricSetupTactics(
+                o.StopLossPct, o.TargetPct, o.GuideHoldDays,
+                o.TrailingActivationPct, o.TrailingDistancePct);
+        }
+        return merged;
+    }
 
     // Unknown names are ignored rather than failing the run - the list comes
     // from the UI, but the request JSON is stored and could be replayed after
@@ -158,10 +222,11 @@ public class BacktestConsumerFunction(
 
     private static async Task<string> RunSingleAsync(
         HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, AccountRiskProfile profile,
+        IReadOnlyDictionary<SetupType, HistoricSetupTactics> accountTactics,
         IReadOnlyDictionary<string, string>? sectorEtfs, CancellationToken ct)
     {
         var result = await HistoricBacktester.RunAsync(
-            bars, ToConfig(request.Weights, request.BuyThreshold, request.ExcludeBreakout, request.AutopauseDuringBear, profile, request.Rules), sectorEtfs, ct);
+            bars, ToConfig(request.Weights, request.BuyThreshold, request.ExcludeBreakout, request.AutopauseDuringBear, profile, accountTactics, request.Rules), sectorEtfs, ct);
         // Trade log stays out of the stored JSON - it can be thousands of
         // rows; the headline stats + buckets are what the UI shows.
         return JsonSerializer.Serialize(result with { TradeLog = [] }, CamelCase);
@@ -171,6 +236,7 @@ public class BacktestConsumerFunction(
     // labels ("Your dials" / "Production baseline") from queue time.
     private static async Task<string> RunAbAsync(
         HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, AccountRiskProfile profile,
+        IReadOnlyDictionary<SetupType, HistoricSetupTactics> accountTactics,
         IReadOnlyDictionary<string, string>? sectorEtfs, CancellationToken ct)
     {
         var candidates = request.Candidates
@@ -179,7 +245,7 @@ public class BacktestConsumerFunction(
         var results = new List<object>();
         foreach (var c in candidates)
         {
-            var r = await HistoricBacktester.RunAsync(bars, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile, c.Rules), sectorEtfs, ct);
+            var r = await HistoricBacktester.RunAsync(bars, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile, accountTactics, c.Rules), sectorEtfs, ct);
             results.Add(new
             {
                 label = c.Label,
@@ -199,6 +265,7 @@ public class BacktestConsumerFunction(
     // writeup never fails the sweep.
     private async Task<string> RunSweepAsync(
         int accountId, BacktestRun run, HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, AccountRiskProfile profile,
+        IReadOnlyDictionary<SetupType, HistoricSetupTactics> accountTactics,
         IReadOnlyDictionary<string, string>? sectorEtfs, CancellationToken ct)
     {
         var baseline = request.Candidates?.FirstOrDefault()
@@ -215,7 +282,7 @@ public class BacktestConsumerFunction(
             TargetPct: profile.TargetPct,
             MinHoldDays: profile.MinHoldDays,
             MomentumHealthThreshold: profile.MomentumHealthThreshold);
-        var candidates = SweepOptimizer.GenerateCandidates(baseline, request.SearchRules, productionRules);
+        var candidates = SweepOptimizer.GenerateCandidates(baseline, request.SearchRules, productionRules, accountTactics);
 
         // Progress the UI polls: total covers BOTH search pools (traditional
         // sweep + ML search) up front, completed ticks up per candidate below
@@ -231,7 +298,7 @@ public class BacktestConsumerFunction(
 
         // Baseline first - its drawdown sets the ceiling for everyone else.
         var baselineTrain = await HistoricBacktester.RunAsync(
-            train, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear, profile, baseline.Rules), sectorEtfs, ct);
+            train, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear, profile, accountTactics, baseline.Rules), sectorEtfs, ct);
         var baselineSummary = SweepOptimizer.Summarise(candidates[0], baselineTrain, trainSpy, baselineTrain.MaxDrawdownPct);
         run.CompletedCandidates = 1;
         await runs.UpdateAsync(run);
@@ -243,7 +310,7 @@ public class BacktestConsumerFunction(
             ct.ThrowIfCancellationRequested();
             // c.Rules rides into the engine config - null for weight variants
             // (production rules), set for the rule-search candidates.
-            var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile, c.Rules), sectorEtfs, ct);
+            var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile, accountTactics, c.Rules), sectorEtfs, ct);
             summaries.Add(SweepOptimizer.Summarise(c, r, trainSpy, baselineTrain.MaxDrawdownPct, baselineTrain.Trades));
             trainResults[c.Label] = r;
             logger.LogInformation("Sweep candidate '{Label}': {Trades} trades, {Adj}% adjusted expectancy", c.Label, r.Trades, summaries[^1].AdjustedExpectancyPct);
@@ -275,7 +342,7 @@ public class BacktestConsumerFunction(
             baseline,
             async (c, token) =>
             {
-                var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile), sectorEtfs, token);
+                var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile, accountTactics), sectorEtfs, token);
                 await progressGate.WaitAsync(token);
                 try
                 {
@@ -318,11 +385,11 @@ public class BacktestConsumerFunction(
 
         // Out-of-sample validation: winner and baseline on the held-out window.
         var winnerHoldout = await HistoricBacktester.RunAsync(
-            holdout, ToConfig(winnerSummary.Weights, winnerSummary.BuyThreshold, winnerSummary.ExcludeBreakout, winnerSummary.AutopauseDuringBear, profile, winnerSummary.Rules), sectorEtfs, ct);
+            holdout, ToConfig(winnerSummary.Weights, winnerSummary.BuyThreshold, winnerSummary.ExcludeBreakout, winnerSummary.AutopauseDuringBear, profile, accountTactics, winnerSummary.Rules), sectorEtfs, ct);
         var baselineHoldout = winnerSummary.Label == baselineSummary.Label
             ? winnerHoldout
             : await HistoricBacktester.RunAsync(
-                holdout, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear, profile, baseline.Rules), sectorEtfs, ct);
+                holdout, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear, profile, accountTactics, baseline.Rules), sectorEtfs, ct);
 
         var validation = SweepOptimizer.BuildValidation(
             trainResults[winnerSummary.Label], winnerHoldout, baselineHoldout, trainSpy, holdoutSpy);
@@ -341,6 +408,7 @@ public class BacktestConsumerFunction(
     // (needed because "held up" includes beating the baseline out-of-sample).
     private static async Task<string> RunValidateAsync(
         HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, AccountRiskProfile profile,
+        IReadOnlyDictionary<SetupType, HistoricSetupTactics> accountTactics,
         IReadOnlyDictionary<string, string>? sectorEtfs, CancellationToken ct)
     {
         var candidates = request.Candidates is { Count: 2 }
@@ -354,11 +422,11 @@ public class BacktestConsumerFunction(
         var holdoutSpy = holdout["SPY"];
 
         var userTrain = await HistoricBacktester.RunAsync(
-            train, ToConfig(user.Weights, user.BuyThreshold, user.ExcludeBreakout, user.AutopauseDuringBear, profile, user.Rules), sectorEtfs, ct);
+            train, ToConfig(user.Weights, user.BuyThreshold, user.ExcludeBreakout, user.AutopauseDuringBear, profile, accountTactics, user.Rules), sectorEtfs, ct);
         var userHoldout = await HistoricBacktester.RunAsync(
-            holdout, ToConfig(user.Weights, user.BuyThreshold, user.ExcludeBreakout, user.AutopauseDuringBear, profile, user.Rules), sectorEtfs, ct);
+            holdout, ToConfig(user.Weights, user.BuyThreshold, user.ExcludeBreakout, user.AutopauseDuringBear, profile, accountTactics, user.Rules), sectorEtfs, ct);
         var baselineHoldout = await HistoricBacktester.RunAsync(
-            holdout, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear, profile, baseline.Rules), sectorEtfs, ct);
+            holdout, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear, profile, accountTactics, baseline.Rules), sectorEtfs, ct);
 
         var validation = SweepOptimizer.BuildValidation(userTrain, userHoldout, baselineHoldout, trainSpy, holdoutSpy);
         return JsonSerializer.Serialize(new ValidateResult("validate", validation), CamelCase);
@@ -370,10 +438,11 @@ public class BacktestConsumerFunction(
     // train/holdout validate, which measures window (period) luck.
     private static async Task<string> RunMonteCarloAsync(
         HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, AccountRiskProfile profile,
+        IReadOnlyDictionary<SetupType, HistoricSetupTactics> accountTactics,
         IReadOnlyDictionary<string, string>? sectorEtfs, CancellationToken ct)
     {
         var cfg = ToConfig(request.Weights, request.BuyThreshold, request.ExcludeBreakout,
-            request.AutopauseDuringBear, profile, request.Rules);
+            request.AutopauseDuringBear, profile, accountTactics, request.Rules);
         var result = await HistoricBacktester.RunAsync(bars, cfg, sectorEtfs, ct);
 
         // The equity slice each resampled trade compounds against: flat-mode

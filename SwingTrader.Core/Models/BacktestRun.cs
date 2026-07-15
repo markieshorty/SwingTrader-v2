@@ -47,14 +47,27 @@ public record HistoricTradingRules(
     int? MaxOpenPositions = null,
     decimal? TrailingActivationPct = null,    // fraction, e.g. 0.05 = arm at +5%
     decimal? TrailingDistancePct = null,      // fraction, e.g. 0.03 = trail 3% below
-    decimal? StopLossPct = null,              // flat stop override; null = production setup table
-    decimal? TargetPct = null,                // flat target override; null = production conviction table
+    decimal? StopLossPct = null,              // flat fallback stop; per-setup tactics below win when present
+    decimal? TargetPct = null,                // flat fallback target; per-setup tactics below win when present
     bool? SimulateProbation = null,           // null = true (production always runs probation)
     int? MinHoldDays = null,                  // probation check day (trading days held)
     decimal? MomentumHealthThreshold = null,  // probation pass bar, 0..1
-    decimal? PositionFraction = null,         // legacy flat sizing: fraction of equity per trade (default 0.10)
-    decimal? ActiveCapitalPct = null,         // set = live-mirroring tier pool sizing (e.g. 0.10 = Tier 1)
-    decimal? MaxPositionPctOfActive = null);  // per-position share of the pool; null = risk profile's
+    decimal? PositionFraction = null,         // flat sizing: fraction of equity per trade (default 0.10)
+    decimal? ActiveCapitalPct = null,         // sim-only capital-pool sizing (no live equivalent)
+    decimal? MaxPositionPctOfActive = null,   // per-position share of the pool; null = risk profile's
+    // Per-setup entry/exit tactics (docs/setup-tactics-plan Phase 4). Null =
+    // use the account's live SetupTactics unchanged (an untouched run mirrors
+    // live). When the Lab's tactics editor is touched it sends the FULL edited
+    // set; each named setup's stop/target/guide-hold/trailing overrides the
+    // account default for that setup only.
+    List<HistoricSetupTacticsOverride>? SetupTactics = null);
+
+// One setup's entry/exit tactics for a Lab run (mirrors the live SetupTactics
+// row). Setup is the SetupType name; the rest are fractions / trading days.
+public record HistoricSetupTacticsOverride(
+    string Setup,
+    decimal StopLossPct, decimal TargetPct, int GuideHoldDays,
+    decimal TrailingActivationPct, decimal TrailingDistancePct);
 
 public record HistoricBacktestCandidate(
     string Label, HistoricBacktestWeights Weights, decimal BuyThreshold, bool ExcludeBreakout,
