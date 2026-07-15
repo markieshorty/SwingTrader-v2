@@ -21,7 +21,7 @@ public class StrategyLabServiceTests
 
     private StrategyLabService CreateSut() => new(_replay, _accounts, _weightsRepo);
 
-    private static LabWeights EqualWeights() => new(0.125m, 0.125m, 0.125m, 0.125m, 0.125m, 0.125m, 0.125m, 0.125m);
+    private static LabWeights EqualWeights() => new(0.17m, 0.17m, 0.17m, 0.17m, 0.16m, 0.16m);
 
     private int _nextId = 1;
 

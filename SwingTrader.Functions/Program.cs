@@ -15,7 +15,6 @@ using SwingTrader.Agents.Execution;
 using SwingTrader.Agents.Monitor;
 using SwingTrader.Agents.Refinement;
 using SwingTrader.Agents.Report;
-using SwingTrader.Agents.Risk;
 using SwingTrader.Agents.Research;
 using SwingTrader.Agents.Watchlist;
 using SwingTrader.Core.Interfaces;
@@ -73,7 +72,6 @@ builder.Services.AddScoped<IWatchlistHistoryRepository, WatchlistHistoryReposito
 builder.Services.AddScoped<IWorkerHeartbeatRepository, WorkerHeartbeatRepository>();
 builder.Services.AddScoped<IActivityLogRepository, ActivityLogRepository>();
 builder.Services.AddScoped<IRefinementSuggestionRepository, RefinementSuggestionRepository>();
-builder.Services.AddScoped<ITierEvaluationRepository, TierEvaluationRepository>();
 builder.Services.AddScoped<ISystemChecklistRepository, SystemChecklistRepository>();
 builder.Services.AddScoped<INotificationRecipientRepository, NotificationRecipientRepository>();
 
@@ -169,7 +167,6 @@ builder.Services.AddScoped<SwingTrader.Agents.SecondHop.IEconomicLinkService, Sw
 builder.Services.AddScoped<SwingTrader.Agents.SecondHop.ISecondHopScorer, SwingTrader.Agents.SecondHop.SecondHopScorer>();
 builder.Services.AddScoped<SwingTrader.Agents.SecondHop.IBellwetherSyncService, SwingTrader.Agents.SecondHop.BellwetherSyncService>();
 builder.Services.AddScoped<IApplyRefinementService, ApplyRefinementService>();
-builder.Services.AddScoped<ITierEvaluationService, TierEvaluationService>();
 builder.Services.AddScoped<IPositionSizingService, PositionSizingService>();
 builder.Services.AddScoped<IExecutionService, ExecutionService>();
 builder.Services.AddScoped<IEntryConfirmationService, EntryConfirmationService>();

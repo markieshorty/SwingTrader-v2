@@ -8,8 +8,8 @@ namespace SwingTrader.Api.Contracts;
 // weight mix can be re-scored exactly.
 
 public record LabWeights(
-    decimal Rsi, decimal Macd, decimal Volume, decimal Sentiment,
-    decimal SetupQuality, decimal RelativeStrength, decimal PriceLevel, decimal FundamentalMomentum);
+    decimal Rsi, decimal Macd, decimal Volume,
+    decimal SetupQuality, decimal RelativeStrength, decimal PriceLevel);
 
 public record StrategyLabRequest(
     // "own" (closed-trade replay) | "historic" (full market backtest - phase 2)

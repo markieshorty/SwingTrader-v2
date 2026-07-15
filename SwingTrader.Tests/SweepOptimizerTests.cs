@@ -12,13 +12,13 @@ namespace SwingTrader.Tests;
 public class SweepOptimizerTests
 {
     private static readonly HistoricBacktestWeights ProdWeights =
-        new(0.17m, 0.09m, 0.21m, 0.16m, 0.12m, 0.10m, 0.05m, 0.10m);
+        new(0.23m, 0.12m, 0.28m, 0.16m, 0.14m, 0.07m);
 
     private static HistoricBacktestCandidate Baseline() =>
         new("Production baseline", ProdWeights, 6.0m, true);
 
     private static decimal Sum(HistoricBacktestWeights w) =>
-        w.Rsi + w.Macd + w.Volume + w.Sentiment + w.SetupQuality + w.RelativeStrength + w.PriceLevel + w.FundamentalMomentum;
+        w.Rsi + w.Macd + w.Volume + w.SetupQuality + w.RelativeStrength + w.PriceLevel;
 
     private static HistoricResult Result(
         int trades, decimal expectancy, decimal maxDd, List<HistoricTrade>? log = null) =>
@@ -40,23 +40,12 @@ public class SweepOptimizerTests
     }
 
     [Fact]
-    public void GenerateCandidates_NeverMovesDeadComponentWeights()
+    public void GenerateCandidates_VariesAllSixGateWeights()
     {
-        // The historic engine scores Sentiment/FundamentalMomentum at a fixed
-        // neutral 0.5 (the only two not reconstructable from bars), so
-        // shifting weight into/out of them only dilutes conviction toward the
-        // midpoint - a candidate could win for reasons that don't transfer to
-        // production. Every candidate must hold the dead two at baseline.
+        // All six gate weights are searched now (sentiment/fundamental are no
+        // longer part of the gate).
         var candidates = SweepOptimizer.GenerateCandidates(Baseline());
 
-        candidates.Should().AllSatisfy(c =>
-        {
-            c.Weights.Sentiment.Should().Be(ProdWeights.Sentiment);
-            c.Weights.FundamentalMomentum.Should().Be(ProdWeights.FundamentalMomentum);
-        });
-
-        // And the live dials (now including RelStrength/PriceLevel, computed
-        // from stored bars) must actually vary across candidates.
         candidates.Select(c => (c.Weights.Rsi, c.Weights.Macd, c.Weights.Volume,
                 c.Weights.SetupQuality, c.Weights.RelativeStrength, c.Weights.PriceLevel))
             .Distinct().Count().Should().BeGreaterThan(10);
@@ -345,9 +334,9 @@ public class LabAnalysisPromptsTests
     public void ParseResponse_ValidJson_ReturnsAnalysisAndSuggestion()
     {
         const string raw = """
-            {"analysis": "The stop-loss bucket dominates.", "suggestion": {"rsi": 0.17, "macd": 0.09,
-             "volume": 0.26, "sentiment": 0.11, "setupQuality": 0.12, "relativeStrength": 0.10,
-             "priceLevel": 0.05, "fundamentalMomentum": 0.10, "buyThreshold": 6.5,
+            {"analysis": "The stop-loss bucket dominates.", "suggestion": {"rsi": 0.17, "macd": 0.12,
+             "volume": 0.26, "setupQuality": 0.19, "relativeStrength": 0.16,
+             "priceLevel": 0.10, "buyThreshold": 6.5,
              "excludeBreakout": true, "rationale": "Tests whether volume confirmation filters stop-outs."}}
             """;
 

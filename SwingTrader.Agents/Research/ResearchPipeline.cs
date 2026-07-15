@@ -126,12 +126,10 @@ public class ResearchPipeline(
         }
 
         // Stage 1 (the gate) is computed BEFORE any stage-2 fetching: it only
-        // needs the technical components, and under FunnelEnabled a sub-Watch
-        // gate skips stage 2 entirely (no Claude sentiment call, no
-        // fundamentals fetch) - the funnel's cost saving. Earnings adjustment
-        // belongs to the gate (docs/funnel-plan).
-        var funnelCfg = researchConfig.Value;
-        var funnelEnabled = funnelCfg.FunnelEnabled;
+        // needs the six technical components, and a sub-Watch gate skips stage 2
+        // entirely (no Claude sentiment call, no fundamentals fetch) - the
+        // funnel's cost saving. Earnings adjustment belongs to the gate
+        // (docs/funnel-plan).
         var technicalScores = ScoreComponents(ind, null, setupType, previousMacdHistogram);
         var gateScore = ApplyEarningsAdjustment(
             FunnelScores.Gate(weights, technicalScores.Rsi, technicalScores.Macd, technicalScores.Volume,
@@ -140,7 +138,7 @@ public class ResearchPipeline(
         // Watch threshold from the WEIGHTS row (the same source
         // DetermineRecommendationAsync classifies with), so a symbol that
         // could still classify Watch always gets its forward score.
-        var skipStageTwo = funnelEnabled && gateScore < weights.WatchThreshold;
+        var skipStageTwo = gateScore < weights.WatchThreshold;
 
         decimal? sentimentScore = null;
         var newsSummary = "Skipped — gate score below Watch threshold (funnel stage-2 skip).";
@@ -176,7 +174,7 @@ public class ResearchPipeline(
             var forward = FunnelScores.Forward(
                 sentimentScore is null ? null : componentScores.Sentiment,
                 fundamental?.Score,
-                funnelCfg.ForwardSentimentWeight, funnelCfg.ForwardFundamentalWeight);
+                weights.ForwardSentimentWeight, weights.ForwardFundamentalWeight);
             forwardScore = ApplyCatalystAdjustment(forward.Score, catalyst, out _);
             forwardDegraded = forward.Degraded;
         }
@@ -186,37 +184,15 @@ public class ResearchPipeline(
             WouldPassGate: gateScore >= weights.BuyThreshold,
             WouldBeVetoed: FunnelScores.ShouldVeto(forwardScore, forwardDegraded, riskProfile.ForwardVetoFloor));
 
-        // Which score drives: the flip. Enabled = the gate IS the conviction
-        // (ConvictionScore field keeps one meaning downstream - probation,
-        // reports, refinement buckets all keep working). Disabled = the
-        // legacy 8-component blend exactly as before, catalyst included.
-        decimal conviction;
-        string? earningsReasoning;
+        // The gate IS the conviction (the ConvictionScore field keeps one
+        // meaning downstream - probation, reports, refinement buckets all keep
+        // working). The catalyst note still rides along for auditability - it
+        // explains the Forward score shown next to the signal.
+        var conviction = gateScore;
+        var earningsReasoning = gateEarningsReasoning;
         string? catalystReasoning = null;
-        if (funnelEnabled)
-        {
-            conviction = gateScore;
-            earningsReasoning = gateEarningsReasoning;
-            // The catalyst note still rides along for auditability - it
-            // explains the Forward score shown next to the signal.
-            if (forwardScore is not null)
-                _ = ApplyCatalystAdjustment(0m, catalyst, out catalystReasoning);
-        }
-        else
-        {
-            conviction = ConvictionScorer.Calculate(
-                weights,
-                componentScores.Rsi,
-                componentScores.Macd,
-                componentScores.Volume,
-                componentScores.Sentiment,
-                componentScores.Setup,
-                relativeStrengthScore: rs?.Score ?? 0.5m,
-                priceLevelScore: priceLevel?.Score ?? 0.5m,
-                fundamentalMomentumScore: fundamental?.Score ?? 0.5m);
-            conviction = ApplyEarningsAdjustment(conviction, earningsCtx, out earningsReasoning);
-            conviction = ApplyCatalystAdjustment(conviction, catalyst, out catalystReasoning);
-        }
+        if (forwardScore is not null)
+            _ = ApplyCatalystAdjustment(0m, catalyst, out catalystReasoning);
 
         var recommendation = await DetermineRecommendationAsync(accountId, account.TradingMode, symbol, ind, conviction, weights, setupType);
 
@@ -227,7 +203,7 @@ public class ResearchPipeline(
         // not stop trading). The signal stays visible as Watch with
         // WouldBeVetoed=true so the scorecard can measure the counterfactual.
         string? vetoReasoning = null;
-        if (funnelEnabled && recommendation == Recommendation.Buy && shadow.WouldBeVetoed)
+        if (recommendation == Recommendation.Buy && shadow.WouldBeVetoed)
         {
             recommendation = Recommendation.Watch;
             vetoReasoning = $" Forward veto: score {forwardScore:0.0} below floor {riskProfile.ForwardVetoFloor:0.0}.";

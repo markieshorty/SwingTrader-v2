@@ -72,25 +72,23 @@ public static class ConvictionScorer
         return toMin + t * (toMax - toMin);
     }
 
-    // Final conviction calculation. relativeStrengthScore and priceLevelScore default to a
-    // neutral 0.5 — Phase 9a activates their weights immediately, so this default contributes
-    // to the score until Phases 9c/9d compute real values for those two components.
+    // The gate score: the six-component technical blend (0-10) that decides
+    // Buy/Watch/Hold/Avoid. relativeStrengthScore and priceLevelScore default
+    // to neutral 0.5 for callers that don't supply them. Sentiment and
+    // fundamental momentum are NOT part of the gate - they drive the funnel's
+    // Forward score instead (see FunnelScores.Forward).
     public static decimal Calculate(
         StrategyWeights weights,
-        decimal rsiScore, decimal macdScore, decimal volumeScore,
-        decimal sentimentScore, decimal setupScore,
-        decimal relativeStrengthScore = 0.5m, decimal priceLevelScore = 0.5m,
-        decimal fundamentalMomentumScore = 0.5m)
+        decimal rsiScore, decimal macdScore, decimal volumeScore, decimal setupScore,
+        decimal relativeStrengthScore = 0.5m, decimal priceLevelScore = 0.5m)
     {
         var raw =
             weights.RsiWeight * rsiScore +
             weights.MacdWeight * macdScore +
             weights.VolumeWeight * volumeScore +
-            weights.SentimentWeight * sentimentScore +
             weights.SetupQualityWeight * setupScore +
             weights.RelativeStrengthWeight * relativeStrengthScore +
-            weights.PriceLevelWeight * priceLevelScore +
-            weights.FundamentalMomentumWeight * fundamentalMomentumScore;
+            weights.PriceLevelWeight * priceLevelScore;
 
         return Math.Round(Math.Clamp(raw * 10m, 0m, 10m), 1);
     }

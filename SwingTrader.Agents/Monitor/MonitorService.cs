@@ -787,15 +787,6 @@ public class MonitorService(
             var totalValue = summary.TotalValue;
             var openValue = summary.Investments.CurrentValue;
 
-            // Carry the capital tier forward from the latest snapshot. This
-            // used to hardcode Tier1, which silently broke tier progression:
-            // Monitor adds a snapshot every 5-minute cycle, GetLatestSnapshotAsync
-            // returns the newest row, and both ExecutionService (position
-            // sizing) and TierEvaluationService (current-tier read + upgrade
-            // write) go through it - so any earned Tier2/Tier3 was clobbered
-            // back to Tier1 within one Monitor cycle of being applied.
-            var latest = await portfolioRepo.GetLatestSnapshotAsync(accountId, account.TradingMode);
-
             await portfolioRepo.AddAsync(new PortfolioSnapshot
             {
                 AccountId = accountId,
@@ -808,7 +799,6 @@ public class MonitorService(
                 LockedCapital = 0m,
                 ReserveCapital = 0m,
                 TotalPnl = 0m,
-                CurrentTier = latest?.CurrentTier ?? Core.Enums.CapitalTier.Tier1,
             });
         }
         catch (Exception ex)

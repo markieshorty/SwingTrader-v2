@@ -78,13 +78,13 @@ public class AccountRiskProfileRepositoryTests
         await repo.SeedDefaultAsync(1);
         var profile = await repo.GetAsync(1);
         profile.LockedCapitalPct = 0.60m;
-        profile.MaxPositionPctOfActive = 0.15m;
+        profile.FlatPositionPct = 0.12m;
 
         await repo.UpdateAsync(profile);
 
         var updated = await db.AccountRiskProfiles.SingleAsync(p => p.AccountId == 1 && p.Regime == MarketRegime.Neutral);
         updated.LockedCapitalPct.Should().Be(0.60m);
-        updated.MaxPositionPctOfActive.Should().Be(0.15m);
+        updated.FlatPositionPct.Should().Be(0.12m);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public class AccountRiskProfileRepositoryTests
         await repo.SeedDefaultAsync(1);
         var profile = await repo.GetAsync(1);
         profile.LockedCapitalPct = 0.55m;
-        profile.MaxOpenPositions = 8;
+        profile.MaxOpenPositions = 4; // 4 x 10% = 40% <= 45% un-locked
         await repo.UpdateAsync(profile);
 
         var reset = await repo.ResetToDefaultsAsync(1, MarketRegime.Neutral);

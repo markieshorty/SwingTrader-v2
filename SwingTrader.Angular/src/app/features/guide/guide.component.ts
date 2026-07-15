@@ -73,7 +73,7 @@ export class GuideComponent {
     },
     {
       name: 'Sentiment',
-      weightKey: 'sentimentWeight',
+      weightKey: 'forwardSentimentWeight',
       measures: 'What is the tone of recent news about the company?',
       plain:
         'Claude reads the company’s recent news headlines and rates the overall tone from very negative ' +
@@ -110,7 +110,7 @@ export class GuideComponent {
     },
     {
       name: 'Fundamental momentum',
-      weightKey: 'fundamentalMomentumWeight',
+      weightKey: 'forwardFundamentalWeight',
       measures: 'Is the underlying business improving?',
       plain:
         'Unlike the other components (which read the chart), this looks at the business itself: whether ' +

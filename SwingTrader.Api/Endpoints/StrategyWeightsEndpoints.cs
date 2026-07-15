@@ -31,9 +31,10 @@ public static class StrategyWeightsEndpoints
             try
             {
                 await weightsRepo.UpdateWeightsAsync(ctx.AccountId, new StrategyWeightsUpdate(
-                    req.RsiWeight, req.MacdWeight, req.VolumeWeight, req.SentimentWeight,
+                    req.RsiWeight, req.MacdWeight, req.VolumeWeight,
                     req.SetupQualityWeight, req.RelativeStrengthWeight, req.PriceLevelWeight,
-                    req.FundamentalMomentumWeight, req.BuyThreshold, req.WatchThreshold, req.StopLossPctDefault));
+                    req.ForwardSentimentWeight, req.ForwardFundamentalWeight,
+                    req.BuyThreshold, req.WatchThreshold, req.StopLossPctDefault));
 
                 // Any weights change (Settings sliders, Strategy Lab apply)
                 // invalidates a pending refinement suggestion: it was computed

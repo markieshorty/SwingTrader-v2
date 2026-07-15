@@ -39,7 +39,6 @@ public class PositionSizingService : IPositionSizingService
 
     public Task<PositionSizeResult> CalculateAsync(
         StockSignal signal,
-        CapitalTier currentTier,
         int currentOpenPositions,
         decimal availableCash,
         decimal totalPortfolioValue,
@@ -52,70 +51,38 @@ public class PositionSizingService : IPositionSizingService
             return Task.FromResult(new PositionSizeResult(false, 0, 0,
                 $"Max open positions ({riskProfile.MaxOpenPositions}) already reached"));
 
-        // Funnel F2: the Forward-score tilt on the per-position BASE budget.
-        // Applied before the cash/pool clamps, which stay supreme - the tilt
-        // redistributes within the risk budget, never expands it. Exactly 1
-        // while the aggressiveness dial is 0 (the default).
-        var multiplier = ComputeForwardMultiplier(
-            signal.ForwardScore, signal.ForwardScoreDegraded, riskProfile.SizingAggressiveness);
+        // Funnel tilt on the per-position base. Only Funnel mode tilts; Flat
+        // sizes every position equally. Exactly 1 when the aggressiveness dial
+        // is 0 or the forward score is missing/degraded. Applied before the
+        // clamps below, which stay supreme - the tilt redistributes within the
+        // risk budget, never expands it.
+        var multiplier = riskProfile.SizingMode == PositionSizingMode.Funnel
+            ? ComputeForwardMultiplier(signal.ForwardScore, signal.ForwardScoreDegraded, riskProfile.SizingAggressiveness)
+            : 1m;
 
-        // Flat mode (SizingMode override): every position is a fixed slice of
-        // the whole portfolio - the tier pool and MaxPositionPctOfActive are
-        // deliberately bypassed. The locked-capital ceiling is enforced
-        // structurally by AccountRiskProfile.Validate() (flat x maxPositions
-        // <= un-locked share); the position cap above, the cash buffer, and
-        // the daily circuit breaker all still apply.
-        if (riskProfile.SizingMode == PositionSizingMode.Flat)
-        {
-            var flatSpendable = availableCash - totalPortfolioValue * 0.02m;
-            if (flatSpendable <= 0)
-                return Task.FromResult(new PositionSizeResult(false, 0, 0,
-                    "Insufficient cash after applying 2% buffer"));
+        // Base per-position budget: a flat slice of the whole portfolio. The
+        // locked-capital ceiling is enforced structurally by
+        // AccountRiskProfile.Validate() (FlatPositionPct x maxPositions <=
+        // un-locked share). The cumulative un-locked cap, cash buffer, position
+        // cap above and the daily circuit breaker all still apply.
+        var baseBudget = totalPortfolioValue * riskProfile.FlatPositionPct * multiplier;
 
-            var flatBudget = Math.Min(totalPortfolioValue * riskProfile.FlatPositionPct * multiplier, flatSpendable);
-            return Task.FromResult(SizeFromBudget(signal, flatBudget, priceOverride, multiplier));
-        }
-
-        // Step 2 — determine active capital % for the current tier (cumulative)
-        var activeCapitalPct = currentTier switch
-        {
-            CapitalTier.Tier1 => CapitalRules.Tier1CapitalPct,
-            CapitalTier.Tier2 => CapitalRules.Tier2CapitalPct,
-            CapitalTier.Tier3 => CapitalRules.Tier3CapitalPct,
-            _ => CapitalRules.Tier1CapitalPct
-        };
-
-        // Step 3 — active capital pool = total portfolio value * active %
-        var activeCapital = totalPortfolioValue * activeCapitalPct;
-
-        // Step 4 — max position size = active capital * MaxPositionPctOfActive,
-        // tilted by the Forward-score multiplier (F2; 1 while the dial is 0).
-        var maxPositionBudget = activeCapital * riskProfile.MaxPositionPctOfActive * multiplier;
-
-        // Step 4b — cumulative active-capital cap. The per-position cap alone
-        // never bounded TOTAL deployment: at the config extremes (10 positions
-        // x 33% of active) the pool could be oversubscribed 3.3x, limited only
-        // by cash - defeating the tier system's whole purpose of ramping
-        // exposure with proven performance. The remaining headroom in the pool
-        // (active capital minus what's already deployed, including earlier
-        // placements this run) now also caps the budget.
-        var remainingActiveCapital = activeCapital - openPositionsValue;
-        if (remainingActiveCapital <= 0)
+        // Cumulative deployment cap: never let total deployed exceed the
+        // un-locked (deployable) share - the reserve behind LockedCapitalPct
+        // stays untouched even across the day's placements.
+        var deployable = totalPortfolioValue * (1m - riskProfile.LockedCapitalPct);
+        var remainingDeployable = deployable - openPositionsValue;
+        if (remainingDeployable <= 0)
             return Task.FromResult(new PositionSizeResult(false, 0, 0,
-                $"Active capital pool (£{activeCapital:F2} at {currentTier}) is fully deployed (£{openPositionsValue:F2} in open positions)"));
+                $"Deployable capital (£{deployable:F2}) is fully committed (£{openPositionsValue:F2} in open positions)"));
 
-        // Step 5 — apply 2% cash buffer: never spend more than (available - 2% of total)
-        var cashBuffer = totalPortfolioValue * 0.02m;
-        var spendableCash = availableCash - cashBuffer;
-
+        // 2% cash buffer: never spend more than (available - 2% of total)
+        var spendableCash = availableCash - totalPortfolioValue * 0.02m;
         if (spendableCash <= 0)
             return Task.FromResult(new PositionSizeResult(false, 0, 0,
                 "Insufficient cash after applying 2% buffer"));
 
-        // Step 6 — position budget is the least of: per-position cap, spendable
-        // cash, and the active pool's remaining headroom (step 4b)
-        var positionBudget = Math.Min(Math.Min(maxPositionBudget, spendableCash), remainingActiveCapital);
-
+        var positionBudget = Math.Min(Math.Min(baseBudget, spendableCash), remainingDeployable);
         return Task.FromResult(SizeFromBudget(signal, positionBudget, priceOverride, multiplier));
     }
 

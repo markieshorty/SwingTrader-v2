@@ -43,17 +43,18 @@ public class ComponentCorrelationServiceTests
     }
 
     [Fact]
-    public void Analyse_SuggestedWeights_IncludeFundamentalMomentumAndPassValidate()
+    public void Analyse_SuggestedWeights_CoverTheSixGateComponents_AndPassValidate()
     {
         var result = _sut.Analyse(BuildTrades(volumePredictsWinners: true), new StrategyWeights(), 0.05m);
 
-        // The old 7-component normalisation left the total at 1.10 and
-        // Validate() threw on apply.
+        // The six gate weights must normalise to sum 1.0 (and the forward blend
+        // is carried through) so an apply never trips Validate().
         var act = () => result.SuggestedWeights.Validate();
         act.Should().NotThrow();
 
-        result.Findings.Should().Contain(f => f.ComponentName == "FundamentalMomentum");
-        result.Findings.Should().HaveCount(8);
+        result.Findings.Should().NotContain(f => f.ComponentName == "Sentiment");
+        result.Findings.Should().NotContain(f => f.ComponentName == "FundamentalMomentum");
+        result.Findings.Should().HaveCount(6);
     }
 
     [Fact]
@@ -100,11 +101,9 @@ public class ComponentCorrelationServiceTests
         result.SuggestedWeights.RsiWeight.Should().BeApproximately(current.RsiWeight, 0.001m);
         result.SuggestedWeights.MacdWeight.Should().BeApproximately(current.MacdWeight, 0.001m);
         result.SuggestedWeights.VolumeWeight.Should().BeApproximately(current.VolumeWeight, 0.001m);
-        result.SuggestedWeights.SentimentWeight.Should().BeApproximately(current.SentimentWeight, 0.001m);
         result.SuggestedWeights.SetupQualityWeight.Should().BeApproximately(current.SetupQualityWeight, 0.001m);
         result.SuggestedWeights.RelativeStrengthWeight.Should().BeApproximately(current.RelativeStrengthWeight, 0.001m);
         result.SuggestedWeights.PriceLevelWeight.Should().BeApproximately(current.PriceLevelWeight, 0.001m);
-        result.SuggestedWeights.FundamentalMomentumWeight.Should().BeApproximately(current.FundamentalMomentumWeight, 0.001m);
     }
 
     [Fact]

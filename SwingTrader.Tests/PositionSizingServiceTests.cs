@@ -11,10 +11,9 @@ public class PositionSizingServiceTests
     private static StockSignal MakeSignal(decimal price = 100m) => new() { Symbol = "AAA", CurrentPrice = price };
 
     [Fact]
-    public async Task CalculateAsync_FlatMode_BudgetsFixedSliceOfPortfolio_IgnoringTier()
+    public async Task CalculateAsync_BudgetsFixedSliceOfPortfolio()
     {
-        // Flat 15% of a £10,000 account = £1,500/position - even at Tier 1,
-        // whose pool sizing would only have allowed £10,000 x 10% x 40% = £400.
+        // Flat 15% of a £10,000 account = £1,500 per position.
         var sut = new PositionSizingService();
         var profile = new AccountRiskProfile
         {
@@ -24,7 +23,7 @@ public class PositionSizingServiceTests
             LockedCapitalPct = 0.60m, // 15% x 2 = 30% <= 40% un-locked
         };
 
-        var result = await sut.CalculateAsync(MakeSignal(price: 100m), CapitalTier.Tier1, currentOpenPositions: 0,
+        var result = await sut.CalculateAsync(MakeSignal(price: 100m), currentOpenPositions: 0,
             availableCash: 10000m, totalPortfolioValue: 10000m, profile);
 
         result.CanTrade.Should().BeTrue();
@@ -32,43 +31,23 @@ public class PositionSizingServiceTests
     }
 
     [Fact]
-    public async Task CalculateAsync_FlatMode_CashBufferStillApplies()
+    public async Task CalculateAsync_CashBufferStillApplies()
     {
         // Only £300 cash on a £10,000 book: spendable = 300 - 200 buffer = £100,
         // well under the £1,500 flat budget.
         var sut = new PositionSizingService();
         var profile = new AccountRiskProfile
         {
-            SizingMode = PositionSizingMode.Flat,
             FlatPositionPct = 0.15m,
             MaxOpenPositions = 2,
             LockedCapitalPct = 0.60m,
         };
 
-        var result = await sut.CalculateAsync(MakeSignal(price: 10m), CapitalTier.Tier3, currentOpenPositions: 0,
+        var result = await sut.CalculateAsync(MakeSignal(price: 10m), currentOpenPositions: 0,
             availableCash: 300m, totalPortfolioValue: 10000m, profile);
 
         result.CanTrade.Should().BeTrue();
         result.EstimatedCost.Should().BeLessThanOrEqualTo(100m);
-    }
-
-    [Fact]
-    public async Task CalculateAsync_FlatMode_MaxOpenPositionsStillEnforced()
-    {
-        var sut = new PositionSizingService();
-        var profile = new AccountRiskProfile
-        {
-            SizingMode = PositionSizingMode.Flat,
-            FlatPositionPct = 0.15m,
-            MaxOpenPositions = 2,
-            LockedCapitalPct = 0.60m,
-        };
-
-        var result = await sut.CalculateAsync(MakeSignal(), CapitalTier.Tier3, currentOpenPositions: 2,
-            availableCash: 10000m, totalPortfolioValue: 10000m, profile);
-
-        result.CanTrade.Should().BeFalse();
-        result.RejectionReason.Should().Contain("Max open positions");
     }
 
     [Fact]
@@ -77,11 +56,11 @@ public class PositionSizingServiceTests
         var sut = new PositionSizingService();
         var profile = new AccountRiskProfile { MaxOpenPositions = 2 };
 
-        var result = await sut.CalculateAsync(MakeSignal(), CapitalTier.Tier1, currentOpenPositions: 2,
+        var result = await sut.CalculateAsync(MakeSignal(), currentOpenPositions: 2,
             availableCash: 10000m, totalPortfolioValue: 10000m, profile);
 
         result.CanTrade.Should().BeFalse();
-        result.RejectionReason.Should().Contain("2");
+        result.RejectionReason.Should().Contain("Max open positions");
     }
 
     [Fact]
@@ -90,41 +69,54 @@ public class PositionSizingServiceTests
         var sut = new PositionSizingService();
         var profile = new AccountRiskProfile { MaxOpenPositions = 5 };
 
-        var result = await sut.CalculateAsync(MakeSignal(), CapitalTier.Tier1, currentOpenPositions: 2,
+        var result = await sut.CalculateAsync(MakeSignal(), currentOpenPositions: 2,
             availableCash: 10000m, totalPortfolioValue: 10000m, profile);
 
         result.CanTrade.Should().BeTrue();
     }
 
     [Fact]
-    public async Task CalculateAsync_ActiveCapitalPoolFullyDeployed_Rejects()
+    public async Task CalculateAsync_DeployableShareFullyCommitted_Rejects()
     {
-        // Tier1 active pool = 10% of £10,000 = £1,000. With £1,000 already
-        // deployed the pool has no headroom - the per-position cap alone never
-        // bounded TOTAL deployment, so this used to pass on cash alone.
+        // Locked 60% -> deployable = £4,000. With £4,000 already in open
+        // positions there's no un-locked headroom left; the reserve behind
+        // locked capital must never be spent.
         var sut = new PositionSizingService();
-        var profile = new AccountRiskProfile { MaxOpenPositions = 10 };
+        var profile = new AccountRiskProfile { MaxOpenPositions = 10, LockedCapitalPct = 0.60m };
 
-        var result = await sut.CalculateAsync(MakeSignal(), CapitalTier.Tier1, currentOpenPositions: 3,
-            availableCash: 8000m, totalPortfolioValue: 10000m, profile, openPositionsValue: 1000m);
+        var result = await sut.CalculateAsync(MakeSignal(), currentOpenPositions: 3,
+            availableCash: 8000m, totalPortfolioValue: 10000m, profile, openPositionsValue: 4000m);
 
         result.CanTrade.Should().BeFalse();
-        result.RejectionReason.Should().Contain("fully deployed");
+        result.RejectionReason.Should().Contain("fully committed");
     }
 
     [Fact]
-    public async Task CalculateAsync_PartialActiveHeadroom_ClampsBudgetToRemainingPool()
+    public async Task CalculateAsync_PartialDeployableHeadroom_ClampsBudget()
     {
-        // Tier1 pool £1,000; £900 deployed -> £100 headroom, even though the
-        // per-position cap (33% of £1,000 = £330) and cash would allow more.
+        // Deployable £4,000; £3,900 already deployed -> £100 headroom, even
+        // though the flat budget (10% of £10,000 = £1,000) and cash allow more.
         var sut = new PositionSizingService();
-        var profile = new AccountRiskProfile { MaxOpenPositions = 10, MaxPositionPctOfActive = 0.33m };
+        var profile = new AccountRiskProfile { MaxOpenPositions = 10, LockedCapitalPct = 0.60m };
 
-        var result = await sut.CalculateAsync(MakeSignal(price: 100m), CapitalTier.Tier1, currentOpenPositions: 3,
-            availableCash: 8000m, totalPortfolioValue: 10000m, profile, openPositionsValue: 900m);
+        var result = await sut.CalculateAsync(MakeSignal(price: 100m), currentOpenPositions: 3,
+            availableCash: 8000m, totalPortfolioValue: 10000m, profile, openPositionsValue: 3900m);
 
         result.CanTrade.Should().BeTrue();
         result.EstimatedCost.Should().BeLessThanOrEqualTo(100m);
+    }
+
+    [Fact]
+    public async Task CalculateAsync_HigherFlatPositionPct_YieldsLargerBudget()
+    {
+        var sut = new PositionSizingService();
+        var tightProfile = new AccountRiskProfile { FlatPositionPct = 0.05m };
+        var looseProfile = new AccountRiskProfile { FlatPositionPct = 0.20m };
+
+        var tight = await sut.CalculateAsync(MakeSignal(), 0, 100000m, 100000m, tightProfile);
+        var loose = await sut.CalculateAsync(MakeSignal(), 0, 100000m, 100000m, looseProfile);
+
+        tight.EstimatedCost.Should().BeLessThan(loose.EstimatedCost);
     }
 
     [Fact]
@@ -133,34 +125,19 @@ public class PositionSizingServiceTests
         // Conviction-weighted sizing was tried and reverted (2026-07-10): the
         // backtest showed conviction isn't predictive above ~7 with current
         // weights, so scaling budget by it halved returns. Sizing must be
-        // conviction-agnostic until that changes - this pins the revert.
+        // conviction-agnostic - this pins the revert.
         var sut = new PositionSizingService();
         var profile = new AccountRiskProfile();
 
         var low = await sut.CalculateAsync(
-            new StockSignal { Symbol = "AAA", CurrentPrice = 100m, ConvictionScore = 6.0m },
-            CapitalTier.Tier3, 0, 100000m, 100000m, profile);
+            new StockSignal { Symbol = "AAA", CurrentPrice = 100m, ConvictionScore = 6.0m }, 0, 100000m, 100000m, profile);
         var high = await sut.CalculateAsync(
-            new StockSignal { Symbol = "AAA", CurrentPrice = 100m, ConvictionScore = 9.0m },
-            CapitalTier.Tier3, 0, 100000m, 100000m, profile);
+            new StockSignal { Symbol = "AAA", CurrentPrice = 100m, ConvictionScore = 9.0m }, 0, 100000m, 100000m, profile);
 
         low.EstimatedCost.Should().Be(high.EstimatedCost);
     }
 
-    [Fact]
-    public async Task CalculateAsync_HigherMaxPositionPctOfActive_YieldsLargerBudget()
-    {
-        var sut = new PositionSizingService();
-        var tightProfile = new AccountRiskProfile { MaxPositionPctOfActive = 0.05m };
-        var looseProfile = new AccountRiskProfile { MaxPositionPctOfActive = 0.30m };
-
-        var tight = await sut.CalculateAsync(MakeSignal(), CapitalTier.Tier3, 0, 100000m, 100000m, tightProfile);
-        var loose = await sut.CalculateAsync(MakeSignal(), CapitalTier.Tier3, 0, 100000m, 100000m, looseProfile);
-
-        tight.EstimatedCost.Should().BeLessThan(loose.EstimatedCost);
-    }
-
-    // ── Funnel F2: Forward-score sizing multiplier ───────────────────────────
+    // ── Funnel Forward-score sizing multiplier ───────────────────────────────
 
     [Theory]
     [InlineData(null, false, 1.0, 1.0)]   // no forward score -> exactly 1
@@ -177,18 +154,15 @@ public class PositionSizingServiceTests
             .Should().Be((decimal)expected);
 
     [Fact]
-    public async Task CalculateAsync_ForwardTilt_ScalesTheBudget_AndReportsTheMultiplier()
+    public async Task CalculateAsync_FunnelMode_ForwardTilt_ScalesTheBudget_AndReportsTheMultiplier()
     {
         var sut = new PositionSizingService();
-        var profile = new AccountRiskProfile { SizingAggressiveness = 1.0m };
-        StockSignal Sig(decimal? forward) => new()
-        {
-            Symbol = "AAA", CurrentPrice = 100m, ForwardScore = forward,
-        };
+        var profile = new AccountRiskProfile { SizingMode = PositionSizingMode.Funnel, SizingAggressiveness = 1.0m };
+        StockSignal Sig(decimal? forward) => new() { Symbol = "AAA", CurrentPrice = 100m, ForwardScore = forward };
 
-        var strong = await sut.CalculateAsync(Sig(10m), CapitalTier.Tier3, 0, 100000m, 100000m, profile);
-        var weak = await sut.CalculateAsync(Sig(0m), CapitalTier.Tier3, 0, 100000m, 100000m, profile);
-        var noScore = await sut.CalculateAsync(Sig(null), CapitalTier.Tier3, 0, 100000m, 100000m, profile);
+        var strong = await sut.CalculateAsync(Sig(10m), 0, 100000m, 100000m, profile);
+        var weak = await sut.CalculateAsync(Sig(0m), 0, 100000m, 100000m, profile);
+        var noScore = await sut.CalculateAsync(Sig(null), 0, 100000m, 100000m, profile);
 
         strong.AppliedMultiplier.Should().Be(1.5m);
         weak.AppliedMultiplier.Should().Be(0.5m);
@@ -198,15 +172,29 @@ public class PositionSizingServiceTests
     }
 
     [Fact]
-    public async Task CalculateAsync_ForwardTilt_NeverEscapesTheCashAndPoolClamps()
+    public async Task CalculateAsync_FlatMode_IgnoresAggressiveness()
+    {
+        // In Flat mode the funnel dial never moves size, even wide open with a
+        // maxed forward score.
+        var sut = new PositionSizingService();
+        var profile = new AccountRiskProfile { SizingMode = PositionSizingMode.Flat, SizingAggressiveness = 1.0m };
+        var strong = new StockSignal { Symbol = "AAA", CurrentPrice = 100m, ForwardScore = 10m };
+
+        var result = await sut.CalculateAsync(strong, 0, 100000m, 100000m, profile);
+
+        result.AppliedMultiplier.Should().Be(1m);
+    }
+
+    [Fact]
+    public async Task CalculateAsync_ForwardTilt_NeverEscapesTheCashClamp()
     {
         // A 1.5x tilt on a budget already limited by spendable cash must not
         // spend more cash - the tilt redistributes, the rails stay supreme.
         var sut = new PositionSizingService();
-        var profile = new AccountRiskProfile { SizingAggressiveness = 1.0m };
+        var profile = new AccountRiskProfile { SizingMode = PositionSizingMode.Funnel, SizingAggressiveness = 1.0m };
         var signal = new StockSignal { Symbol = "AAA", CurrentPrice = 10m, ForwardScore = 10m };
 
-        var result = await sut.CalculateAsync(signal, CapitalTier.Tier3, 0,
+        var result = await sut.CalculateAsync(signal, 0,
             availableCash: 300m, totalPortfolioValue: 10000m, profile);
 
         result.CanTrade.Should().BeTrue();
@@ -214,17 +202,17 @@ public class PositionSizingServiceTests
     }
 
     [Fact]
-    public async Task CalculateAsync_DialAtZero_IsIdenticalToPreF2Sizing()
+    public async Task CalculateAsync_FunnelDialAtZero_IsIdenticalToFlat()
     {
-        // The F2 deploy-safety property: aggressiveness 0 (the default) means
-        // a maxed-out forward score changes nothing at all.
+        // The deploy-safety property: aggressiveness 0 (the default) means a
+        // maxed forward score changes nothing at all.
         var sut = new PositionSizingService();
-        var profile = new AccountRiskProfile(); // SizingAggressiveness defaults 0
+        var profile = new AccountRiskProfile { SizingMode = PositionSizingMode.Funnel }; // aggressiveness defaults 0
         var withForward = new StockSignal { Symbol = "AAA", CurrentPrice = 100m, ForwardScore = 10m };
         var withoutForward = new StockSignal { Symbol = "AAA", CurrentPrice = 100m };
 
-        var a = await sut.CalculateAsync(withForward, CapitalTier.Tier1, 0, 10000m, 10000m, profile);
-        var b = await sut.CalculateAsync(withoutForward, CapitalTier.Tier1, 0, 10000m, 10000m, profile);
+        var a = await sut.CalculateAsync(withForward, 0, 10000m, 10000m, profile);
+        var b = await sut.CalculateAsync(withoutForward, 0, 10000m, 10000m, profile);
 
         a.EstimatedCost.Should().Be(b.EstimatedCost);
         a.AppliedMultiplier.Should().Be(1m);

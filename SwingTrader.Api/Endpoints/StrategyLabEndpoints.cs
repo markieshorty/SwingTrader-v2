@@ -27,8 +27,8 @@ public static class StrategyLabEndpoints
             IAccountContext ctx,
             CancellationToken ct) =>
         {
-            var sum = req.Weights.Rsi + req.Weights.Macd + req.Weights.Volume + req.Weights.Sentiment
-                + req.Weights.SetupQuality + req.Weights.RelativeStrength + req.Weights.PriceLevel + req.Weights.FundamentalMomentum;
+            var sum = req.Weights.Rsi + req.Weights.Macd + req.Weights.Volume
+                + req.Weights.SetupQuality + req.Weights.RelativeStrength + req.Weights.PriceLevel;
             if (Math.Abs(sum - 1.0m) > 0.01m)
                 return Results.BadRequest(new { message = $"Weights must sum to 1.0 (currently {sum:F2})." });
 
@@ -40,8 +40,8 @@ public static class StrategyLabEndpoints
                     return Results.Problem("Service Bus is not configured on this environment.", statusCode: StatusCodes.Status503ServiceUnavailable);
 
                 var userWeights = new HistoricBacktestWeights(
-                    req.Weights.Rsi, req.Weights.Macd, req.Weights.Volume, req.Weights.Sentiment,
-                    req.Weights.SetupQuality, req.Weights.RelativeStrength, req.Weights.PriceLevel, req.Weights.FundamentalMomentum);
+                    req.Weights.Rsi, req.Weights.Macd, req.Weights.Volume,
+                    req.Weights.SetupQuality, req.Weights.RelativeStrength, req.Weights.PriceLevel);
 
                 HistoricBacktestRequest historicRequest;
                 if (req.CompareBaseline)
@@ -150,8 +150,8 @@ public static class StrategyLabEndpoints
                 return Results.Problem("Service Bus is not configured on this environment.", statusCode: StatusCodes.Status503ServiceUnavailable);
 
             var userWeights = new HistoricBacktestWeights(
-                req.Weights.Rsi, req.Weights.Macd, req.Weights.Volume, req.Weights.Sentiment,
-                req.Weights.SetupQuality, req.Weights.RelativeStrength, req.Weights.PriceLevel, req.Weights.FundamentalMomentum);
+                req.Weights.Rsi, req.Weights.Macd, req.Weights.Volume,
+                req.Weights.SetupQuality, req.Weights.RelativeStrength, req.Weights.PriceLevel);
             var baseline = await SnapshotBaselineAsync(weightsRepo, riskProfileRepo, ctx.AccountId, ct);
             if (baseline is null)
                 return Results.BadRequest(new { message = "No active production weights found to validate against." });
@@ -191,8 +191,8 @@ public static class StrategyLabEndpoints
                 return Results.Problem("Service Bus is not configured on this environment.", statusCode: StatusCodes.Status503ServiceUnavailable);
 
             var userWeights = new HistoricBacktestWeights(
-                req.Weights.Rsi, req.Weights.Macd, req.Weights.Volume, req.Weights.Sentiment,
-                req.Weights.SetupQuality, req.Weights.RelativeStrength, req.Weights.PriceLevel, req.Weights.FundamentalMomentum);
+                req.Weights.Rsi, req.Weights.Macd, req.Weights.Volume,
+                req.Weights.SetupQuality, req.Weights.RelativeStrength, req.Weights.PriceLevel);
 
             var run = await runs.AddAsync(new BacktestRun
             {
@@ -274,8 +274,8 @@ public static class StrategyLabEndpoints
             if (ctx.Role != AccountRole.Owner)
                 return Results.Forbid();
 
-            var sum = req.Weights.Rsi + req.Weights.Macd + req.Weights.Volume + req.Weights.Sentiment
-                + req.Weights.SetupQuality + req.Weights.RelativeStrength + req.Weights.PriceLevel + req.Weights.FundamentalMomentum;
+            var sum = req.Weights.Rsi + req.Weights.Macd + req.Weights.Volume
+                + req.Weights.SetupQuality + req.Weights.RelativeStrength + req.Weights.PriceLevel;
             if (Math.Abs(sum - 1.0m) > 0.01m)
                 return Results.BadRequest(new { message = $"Weights must sum to 1.0 (currently {sum:F2})." });
 
@@ -289,9 +289,11 @@ public static class StrategyLabEndpoints
             var suggested = new StrategyWeights
             {
                 RsiWeight = req.Weights.Rsi, MacdWeight = req.Weights.Macd,
-                VolumeWeight = req.Weights.Volume, SentimentWeight = req.Weights.Sentiment,
+                VolumeWeight = req.Weights.Volume,
                 SetupQualityWeight = req.Weights.SetupQuality, RelativeStrengthWeight = req.Weights.RelativeStrength,
-                PriceLevelWeight = req.Weights.PriceLevel, FundamentalMomentumWeight = req.Weights.FundamentalMomentum,
+                PriceLevelWeight = req.Weights.PriceLevel,
+                ForwardSentimentWeight = current.ForwardSentimentWeight,
+                ForwardFundamentalWeight = current.ForwardFundamentalWeight,
                 BuyThreshold = req.BuyThreshold,
                 WatchThreshold = current.WatchThreshold,
                 StopLossPctDefault = current.StopLossPctDefault,
@@ -409,9 +411,11 @@ public static class StrategyLabEndpoints
                 var suggested = new StrategyWeights
                 {
                     RsiWeight = cfg.Weights.Rsi, MacdWeight = cfg.Weights.Macd, VolumeWeight = cfg.Weights.Volume,
-                    SentimentWeight = cfg.Weights.Sentiment, SetupQualityWeight = cfg.Weights.SetupQuality,
+                    SetupQualityWeight = cfg.Weights.SetupQuality,
                     RelativeStrengthWeight = cfg.Weights.RelativeStrength, PriceLevelWeight = cfg.Weights.PriceLevel,
-                    FundamentalMomentumWeight = cfg.Weights.FundamentalMomentum,
+                    // Forward blend isn't tuned in the Lab - carry live values forward.
+                    ForwardSentimentWeight = current.ForwardSentimentWeight,
+                    ForwardFundamentalWeight = current.ForwardFundamentalWeight,
                     BuyThreshold = cfg.BuyThreshold, WatchThreshold = current.WatchThreshold,
                     StopLossPctDefault = current.StopLossPctDefault, Source = "StrategyLab",
                 };
@@ -514,8 +518,8 @@ public static class StrategyLabEndpoints
         return new HistoricBacktestCandidate(
             "Production baseline",
             new HistoricBacktestWeights(
-                prod.RsiWeight, prod.MacdWeight, prod.VolumeWeight, prod.SentimentWeight,
-                prod.SetupQualityWeight, prod.RelativeStrengthWeight, prod.PriceLevelWeight, prod.FundamentalMomentumWeight),
+                prod.RsiWeight, prod.MacdWeight, prod.VolumeWeight,
+                prod.SetupQualityWeight, prod.RelativeStrengthWeight, prod.PriceLevelWeight),
             prod.BuyThreshold,
             // Production policy: Breakout setups are hard-capped at Watch in
             // ResearchPipeline, so the baseline replays with them excluded.

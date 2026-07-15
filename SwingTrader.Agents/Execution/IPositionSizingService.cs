@@ -23,13 +23,12 @@ public interface IPositionSizingService
     /// the caller passes the GBP-converted price so EstimatedCost comes back in the
     /// account's base currency (GBP), directly comparable to available GBP cash.
     /// <paramref name="openPositionsValue"/> is the GBP value already deployed in
-    /// open positions (including earlier placements in the same run) — the tier's
-    /// active-capital pool is enforced cumulatively against it, not just per
-    /// position.
+    /// open positions (including earlier placements in the same run) — the
+    /// un-locked (deployable) share is enforced cumulatively against it, not just
+    /// per position.
     /// </summary>
     Task<PositionSizeResult> CalculateAsync(
         StockSignal signal,
-        CapitalTier currentTier,
         int currentOpenPositions,
         decimal availableCash,
         decimal totalPortfolioValue,

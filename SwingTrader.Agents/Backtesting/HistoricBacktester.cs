@@ -388,7 +388,6 @@ public static class HistoricBacktester
             ConvictionScorer.ScoreRsi(ind.Rsi14),
             ConvictionScorer.ScoreMacd(ind.MacdHistogram, prev.Histogram),
             ConvictionScorer.ScoreVolume(ind.VolumeRatio),
-            sentimentScore: NeutralScore, // not reconstructible historically
             setupScore,
             relativeStrengthScore: rsScore ?? NeutralScore,
             priceLevelScore: priceLevel.Score);

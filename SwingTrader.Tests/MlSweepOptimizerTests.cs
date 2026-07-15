@@ -16,7 +16,7 @@ namespace SwingTrader.Tests;
 public class MlSweepOptimizerTests
 {
     private static readonly HistoricBacktestWeights ProdWeights =
-        new(0.17m, 0.09m, 0.21m, 0.16m, 0.12m, 0.10m, 0.05m, 0.10m);
+        new(0.23m, 0.12m, 0.28m, 0.16m, 0.14m, 0.07m);
 
     private static HistoricBacktestCandidate Baseline() =>
         new("Production baseline", ProdWeights, 6.0m, true);
@@ -69,8 +69,6 @@ public class MlSweepOptimizerTests
         evaluations.Should().AllSatisfy(e =>
         {
             LiveSum(e.Summary.Weights).Should().BeApproximately(liveBudget, 0.01m);
-            e.Summary.Weights.Sentiment.Should().Be(ProdWeights.Sentiment);
-            e.Summary.Weights.FundamentalMomentum.Should().Be(ProdWeights.FundamentalMomentum);
             e.Summary.BuyThreshold.Should().BeInRange(3.0m, 9.0m);
         });
     }

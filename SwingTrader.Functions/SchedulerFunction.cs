@@ -123,10 +123,6 @@ public class SchedulerFunction(
                     await EnqueueEveryTickAsync("monitor-jobs",
                         new MonitorJobMessage(account.Id, Guid.NewGuid().ToString("N"), nowEt), ct);
 
-                if (nowEt.Day == 1 && InWindow(nowEt, 9, 0, 23, 55))
-                    await TryEnqueueAsync(account.Id, "Risk", today, "risk-jobs",
-                        new RiskJobMessage(account.Id, Guid.NewGuid().ToString("N"), today), ct);
-
                 if (nowEt.Day == 15 && InWindow(nowEt, 8, 0, 23, 55))
                     await TryEnqueueAsync(account.Id, "Refinement", today, "refinement-jobs",
                         new RefinementJobMessage(account.Id, Guid.NewGuid().ToString("N"), today), ct);

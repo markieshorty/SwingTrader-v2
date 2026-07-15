@@ -11,28 +11,23 @@ public static class FunnelScores
 
     // Everything the pipeline persists per signal - the gate score
     // (earnings-adjusted), the forward score (catalyst-adjusted; null when
-    // stage-2 was skipped for a sub-Watch gate under FunnelEnabled), and the
+    // stage-2 was skipped for a sub-Watch gate), and the
     // at-signal-time decisions the funnel would make / has made.
     public sealed record FunnelShadow(
         decimal GateScore, decimal? ForwardScore, bool ForwardScoreDegraded,
         bool WouldPassGate, bool WouldBeVetoed);
 
-    // Stage 1: the six backtestable components only, with the two
-    // forward-looking components pinned at neutral 0.5. DELIBERATELY not a
-    // renormalized 6-weight blend: pinning the dead pair keeps this number
-    // bit-identical to what HistoricBacktester computes, so every historical
-    // sweep result, threshold and conviction-band analysis carries over
-    // without translation. This one-liner exists so the definition has a
-    // name, a home and tests.
+    // Stage 1: the six backtestable technical components blended by the gate
+    // weights (which sum to 1). This is exactly what HistoricBacktester
+    // computes, so sweep results, thresholds and conviction-band analysis stay
+    // comparable between backtest and live.
     public static decimal Gate(
         StrategyWeights weights,
         decimal rsiScore, decimal macdScore, decimal volumeScore, decimal setupScore,
         decimal relativeStrengthScore, decimal priceLevelScore) =>
         ConvictionScorer.Calculate(
-            weights, rsiScore, macdScore, volumeScore,
-            sentimentScore: 0.5m, setupScore,
-            relativeStrengthScore, priceLevelScore,
-            fundamentalMomentumScore: 0.5m);
+            weights, rsiScore, macdScore, volumeScore, setupScore,
+            relativeStrengthScore, priceLevelScore);
 
     // Stage 2: the forward-looking pair blended and rescaled to 0..10. A null
     // component (sentiment fetch failed, fundamentals unavailable) contributes

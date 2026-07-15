@@ -14,7 +14,6 @@ export interface PortfolioDto {
   todayPnl: number;
   todayPnlPercent: number;
   winRate30d: number;
-  currentTier: string;
 }
 
 export interface PositionDto {
@@ -310,14 +309,16 @@ export interface TradingConfigDto {
 }
 
 export interface StrategyWeightsDto {
+  // The six GATE weights (sum to 1) that decide Buy/Watch/Hold/Avoid.
   rsiWeight: number;
   macdWeight: number;
   volumeWeight: number;
-  sentimentWeight: number;
   setupQualityWeight: number;
   relativeStrengthWeight: number;
   priceLevelWeight: number;
-  fundamentalMomentumWeight: number;
+  // The forward-score blend (sum to 1) that drives sizing/veto.
+  forwardSentimentWeight: number;
+  forwardFundamentalWeight: number;
   buyThreshold: number;
   watchThreshold: number;
   stopLossPctDefault: number;
@@ -494,11 +495,9 @@ export interface LabWeightsDto {
   rsi: number;
   macd: number;
   volume: number;
-  sentiment: number;
   setupQuality: number;
   relativeStrength: number;
   priceLevel: number;
-  fundamentalMomentum: number;
 }
 
 // Historic-mode experiment overrides of the trading RULES. Null field = the
@@ -794,13 +793,8 @@ export type MarketRegimeName = 'Bull' | 'Neutral' | 'Bear' | 'Crisis';
 
 export interface RiskProfileDto {
   lockedCapitalPct: number;
-  maxPositionPctOfActive: number;
   maxOpenPositions: number;
   dailyLossCircuitBreakerPct: number;
-  tier1UnlockMinTrades: number;
-  tier1UnlockMinWinRate: number;
-  tier2UnlockMinTrades: number;
-  tier2UnlockMinWinRate: number;
   maxHoldDays: number;
   trailingActivationPct: number;
   trailingDistancePct: number;
@@ -817,8 +811,8 @@ export interface RiskProfileDto {
   autopauseTrading: boolean;
   stopLossPct: number;   // flat stop, fraction (0.05 = 5%) — replaced the per-setup table
   targetPct: number;     // flat take-profit, fraction — replaced the per-conviction table
-  sizingMode: 'TierLadder' | 'Flat';
-  flatPositionPct: number; // Flat mode: fraction of the whole portfolio per position
+  sizingMode: 'Flat' | 'Funnel';
+  flatPositionPct: number; // fraction of the whole portfolio per position
   // Funnel F2: Forward-score size tilt strength (0 = off, sizes untouched).
   sizingAggressiveness: number;
   // Funnel F3: Forward-score floor under gate-passing Buys (0 = veto off).
@@ -832,17 +826,11 @@ export interface RiskProfileDto {
     lockedCapital: number;
     activeCapital: number;
     maxPerTrade: number;
-    currentTier: string;
   } | null;
   allowedRanges: {
     lockedCapitalPct: RiskProfileRangeDto;
-    maxPositionPctOfActive: RiskProfileRangeDto;
     maxOpenPositions: RiskProfileRangeDto;
     dailyLossCircuitBreakerPct: RiskProfileRangeDto;
-    tier1UnlockMinTrades: RiskProfileRangeDto;
-    tier1UnlockMinWinRate: RiskProfileRangeDto;
-    tier2UnlockMinTrades: RiskProfileRangeDto;
-    tier2UnlockMinWinRate: RiskProfileRangeDto;
     maxHoldDays: RiskProfileRangeDto;
     trailingActivationPct: RiskProfileRangeDto;
     trailingDistancePct: RiskProfileRangeDto;
@@ -860,13 +848,8 @@ export interface RiskProfileDto {
 
 export interface UpdateRiskProfileDto {
   lockedCapitalPct: number;
-  maxPositionPctOfActive: number;
   maxOpenPositions: number;
   dailyLossCircuitBreakerPct: number;
-  tier1UnlockMinTrades: number;
-  tier1UnlockMinWinRate: number;
-  tier2UnlockMinTrades: number;
-  tier2UnlockMinWinRate: number;
   maxHoldDays: number;
   trailingActivationPct: number;
   trailingDistancePct: number;
@@ -879,7 +862,7 @@ export interface UpdateRiskProfileDto {
   autopauseTrading: boolean;
   stopLossPct: number;
   targetPct: number;
-  sizingMode: 'TierLadder' | 'Flat';
+  sizingMode: 'Flat' | 'Funnel';
   flatPositionPct: number;
   sizingAggressiveness: number;
   forwardVetoFloor: number;
@@ -1004,11 +987,9 @@ export interface HistoricWeightsDto {
   rsi: number;
   macd: number;
   volume: number;
-  sentiment: number;
   setupQuality: number;
   relativeStrength: number;
   priceLevel: number;
-  fundamentalMomentum: number;
 }
 
 // The A/B run's experimental risk-rule overrides. Any null field means the run

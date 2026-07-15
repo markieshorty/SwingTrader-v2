@@ -42,13 +42,6 @@ public enum TradeStatus
     Cancelled = 6
 }
 
-public enum CapitalTier
-{
-    Tier1,
-    Tier2,
-    Tier3
-}
-
 public enum EarningsSetupType
 {
     None,

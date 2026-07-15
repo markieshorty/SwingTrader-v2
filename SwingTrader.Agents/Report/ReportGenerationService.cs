@@ -688,7 +688,6 @@ public class ReportGenerationService(
         sb.AppendLine($"| Open positions | {portfolio.Positions.Count} |");
         sb.AppendLine($"| 30d win rate | {portfolio.Stats.WinRate:P0} ({portfolio.Stats.ClosedTradeCount} trades) |");
         sb.AppendLine($"| 30d exp. value | {portfolio.Stats.Ev:+0.00;-0.00}% per trade |");
-        sb.AppendLine($"| Capital tier | {portfolio.Snapshot?.CurrentTier.ToString() ?? "Tier1"} |");
         sb.AppendLine();
         sb.AppendLine("---");
         sb.AppendLine();

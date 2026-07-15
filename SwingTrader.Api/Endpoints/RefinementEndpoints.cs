@@ -100,11 +100,9 @@ public static class RefinementEndpoints
         ["rsi"] = w.RsiWeight,
         ["macd"] = w.MacdWeight,
         ["volume"] = w.VolumeWeight,
-        ["sentiment"] = w.SentimentWeight,
         ["setupQuality"] = w.SetupQualityWeight,
         ["relativeStrength"] = w.RelativeStrengthWeight,
         ["priceLevel"] = w.PriceLevelWeight,
-        ["fundamentalMomentum"] = w.FundamentalMomentumWeight,
     };
 
     static object MapSuggestion(RefinementSuggestion s)

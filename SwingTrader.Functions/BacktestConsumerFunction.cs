@@ -113,9 +113,9 @@ public class BacktestConsumerFunction(
         AccountRiskProfile profile, HistoricTradingRules? rules = null) =>
         new(new StrategyWeights
         {
-            RsiWeight = w.Rsi, MacdWeight = w.Macd, VolumeWeight = w.Volume, SentimentWeight = w.Sentiment,
+            RsiWeight = w.Rsi, MacdWeight = w.Macd, VolumeWeight = w.Volume,
             SetupQualityWeight = w.SetupQuality, RelativeStrengthWeight = w.RelativeStrength,
-            PriceLevelWeight = w.PriceLevel, FundamentalMomentumWeight = w.FundamentalMomentum,
+            PriceLevelWeight = w.PriceLevel,
         }, buyThreshold, excludeBreakout,
         // SPY-below-200dma entry pause approximates the live bear autopause.
         // Per-request/candidate (a Lab dial), not the profile setting - the
@@ -137,11 +137,13 @@ public class BacktestConsumerFunction(
         SimulateProbation: rules?.SimulateProbation ?? true,
         MinHoldDays: rules?.MinHoldDays ?? profile.MinHoldDays,
         MomentumHealthThreshold: rules?.MomentumHealthThreshold ?? profile.MomentumHealthThreshold,
-        PositionFraction: rules?.PositionFraction ?? 0.10m,
-        // Null keeps the legacy flat sizing (the long-standing engine
-        // behaviour); setting it switches to the live tier-pool model.
+        // Flat sizing mirrors live: each position is FlatPositionPct of equity.
+        PositionFraction: rules?.PositionFraction ?? profile.FlatPositionPct,
+        // Lab-only pool-sizing sim (no live equivalent since the tier ladder
+        // was removed): null keeps flat sizing; the two dials below only apply
+        // when a Lab run explicitly sets ActiveCapitalPct.
         ActiveCapitalPct: rules?.ActiveCapitalPct,
-        MaxPositionPctOfActive: rules?.MaxPositionPctOfActive ?? profile.MaxPositionPctOfActive);
+        MaxPositionPctOfActive: rules?.MaxPositionPctOfActive ?? 0.33m);
 
     // Unknown names are ignored rather than failing the run - the list comes
     // from the UI, but the request JSON is stored and could be replayed after

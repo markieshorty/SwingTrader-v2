@@ -28,9 +28,9 @@ public static class LabAnalysisPrompts
 
     public static string DescribeConfig(
         HistoricBacktestWeights w, decimal buyThreshold, bool excludeBreakout, bool? autopauseDuringBear = null) =>
-        $"RSI {w.Rsi:P0}, MACD {w.Macd:P0}, Volume {w.Volume:P0}, Sentiment {w.Sentiment:P0}, " +
+        $"RSI {w.Rsi:P0}, MACD {w.Macd:P0}, Volume {w.Volume:P0}, " +
         $"Setup quality {w.SetupQuality:P0}, Relative strength {w.RelativeStrength:P0}, " +
-        $"Price level {w.PriceLevel:P0}, Fundamental momentum {w.FundamentalMomentum:P0}; " +
+        $"Price level {w.PriceLevel:P0}; " +
         $"Buy threshold {buyThreshold:0.0}; Breakout setups {(excludeBreakout ? "excluded" : "allowed")}" +
         (autopauseDuringBear is null ? "" : $"; Bear-market entry pause (no entries while SPY < 200dma) {(autopauseDuringBear.Value ? "ON" : "OFF")}");
 
@@ -160,10 +160,10 @@ public static class LabAnalysisPrompts
             {
                 decimal W(string name) => s.TryGetProperty(name, out var v) && v.TryGetDecimal(out var d) ? d : 0m;
                 var weights = new HistoricBacktestWeights(
-                    W("rsi"), W("macd"), W("volume"), W("sentiment"),
-                    W("setupQuality"), W("relativeStrength"), W("priceLevel"), W("fundamentalMomentum"));
-                var sum = weights.Rsi + weights.Macd + weights.Volume + weights.Sentiment
-                    + weights.SetupQuality + weights.RelativeStrength + weights.PriceLevel + weights.FundamentalMomentum;
+                    W("rsi"), W("macd"), W("volume"),
+                    W("setupQuality"), W("relativeStrength"), W("priceLevel"));
+                var sum = weights.Rsi + weights.Macd + weights.Volume
+                    + weights.SetupQuality + weights.RelativeStrength + weights.PriceLevel;
                 if (Math.Abs(sum - 1.0m) <= 0.02m)
                 {
                     suggestion = new LabSuggestedConfig(

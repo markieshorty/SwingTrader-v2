@@ -26,7 +26,6 @@ public static class JobScheduleInfo
             ("Watchlist", NextWeeklyAt(nowEt, DayOfWeek.Sunday, 20, 0)),
             ("Report", NextWeekdayAt(nowEt, 8, 30)),
             ("Execution", NextWeekdayAt(nowEt, 9, 20)),
-            ("Risk", NextMonthlyDayAt(nowEt, 1, 9, 0)),
             ("Refinement", NextMonthlyDayAt(nowEt, 15, 8, 0)),
         }
         .Select(x => new NextRunDto(

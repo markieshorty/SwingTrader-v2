@@ -24,7 +24,6 @@ public record ExecutionJobMessage(int AccountId, string JobId, DateOnly TradeDat
 
 public record MonitorJobMessage(int AccountId, string JobId, DateTime CycleTime);
 
-public record RiskJobMessage(int AccountId, string JobId, DateOnly EvaluationDate);
 
 public record RefinementJobMessage(int AccountId, string JobId, DateOnly EvaluationDate);
 

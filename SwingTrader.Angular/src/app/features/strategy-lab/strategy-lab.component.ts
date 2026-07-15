@@ -117,42 +117,22 @@ export class StrategyLabComponent implements OnDestroy {
       });
   }
 
+  // The six gate weights (sentiment/fundamental drive the live Forward score,
+  // not the backtestable gate, so they're tuned in Settings, not here).
   readonly dials: WeightDial[] = [
     { key: 'rsi', label: 'RSI', hint: 'Dip-buying signal — favours pullbacks recovering from oversold' },
     { key: 'macd', label: 'MACD', hint: 'Momentum direction — rewards rising, positive momentum' },
     { key: 'volume', label: 'Volume', hint: 'Volume confirmation — rewards above-average participation' },
-    { key: 'sentiment', label: 'News sentiment', hint: "Claude's read of recent news for the stock" },
     { key: 'setupQuality', label: 'Setup quality', hint: 'How favourable the detected chart pattern is' },
     { key: 'relativeStrength', label: 'Relative strength', hint: 'Performance vs the stock’s sector ETF' },
     { key: 'priceLevel', label: 'Price level', hint: 'Position relative to support/resistance memory' },
-    { key: 'fundamentalMomentum', label: 'Fundamental momentum', hint: 'Earnings/revenue trajectory score' },
   ];
-
-  // Components the historic backtester cannot reconstruct from price/volume
-  // bars alone — they score a fixed neutral 0.5 during a historic run. Their
-  // weight therefore isn't ignored: it contributes weight×0.5 to every
-  // conviction score, so shifting weight onto them compresses all scores
-  // toward 5.0 and only changes selectivity vs the Buy threshold - pure
-  // dilution, measuring nothing about the component itself, and the result
-  // wouldn't transfer to production where these components have real data.
-  // The UI locks these dials while historic mode is selected.
-  private readonly noHistoricDataKeys: ReadonlySet<keyof LabWeightsDto> = new Set([
-    'sentiment', 'fundamentalMomentum',
-  ]);
-
-  lacksHistoricData(key: keyof LabWeightsDto): boolean {
-    return this.dataSource() === 'historic' && this.noHistoricDataKeys.has(key);
-  }
-
-  noHistoricDataLabels(): string {
-    return this.dials.filter((d) => this.noHistoricDataKeys.has(d.key)).map((d) => d.label).join(', ');
-  }
 
   // ── A/B Testing tab state ──────────────────────────────────────────────────
   dataSource = signal<'own' | 'historic'>('own');
   weights = signal<LabWeightsDto>({
-    rsi: 0.17, macd: 0.09, volume: 0.21, sentiment: 0.16,
-    setupQuality: 0.12, relativeStrength: 0.1, priceLevel: 0.05, fundamentalMomentum: 0.1,
+    rsi: 0.23, macd: 0.12, volume: 0.28,
+    setupQuality: 0.16, relativeStrength: 0.14, priceLevel: 0.07,
   });
   buyThreshold = signal(6.0);
   excludeBreakout = signal(true);
@@ -183,9 +163,9 @@ export class StrategyLabComponent implements OnDestroy {
   rulesSimulateProbation = signal(true);
   rulesMinHoldDays = signal(3);
   rulesHealthThreshold = signal(0.5);
-  // Position sizing. Flat = the engine's long-standing model (X% of equity
-  // per trade). Pool = mirrors live PositionSizingService: a tier-sized
-  // active-capital pool caps total deployment (Tier 1 = 10% of the account).
+  // Position sizing. Flat = mirrors live sizing (X% of equity per trade).
+  // Pool = a simulator-only alternative (no live equivalent): a capped
+  // active-capital pool limits total deployment.
   rulesSizingMode = signal<'flat' | 'pool'>('flat');
   rulesPositionFraction = signal(10);      // percent of equity per trade (flat mode)
   rulesActiveCapitalPct = signal(10);      // percent of equity in the pool (pool mode)
@@ -309,7 +289,7 @@ export class StrategyLabComponent implements OnDestroy {
   weightSum = computed(() => {
     const w = this.weights();
     return Math.round(
-      (w.rsi + w.macd + w.volume + w.sentiment + w.setupQuality + w.relativeStrength + w.priceLevel + w.fundamentalMomentum) * 100,
+      (w.rsi + w.macd + w.volume + w.setupQuality + w.relativeStrength + w.priceLevel) * 100,
     ) / 100;
   });
   sumOk = computed(() => Math.abs(this.weightSum() - 1.0) <= 0.01);
@@ -346,7 +326,7 @@ export class StrategyLabComponent implements OnDestroy {
           trailingDistance: Math.round(p.trailingDistancePct * 100),
           minHoldDays: p.minHoldDays,
           healthThreshold: p.momentumHealthThreshold,
-          maxPositionPctOfActive: p.maxPositionPctOfActive,
+          maxPositionPctOfActive: 0.33, // Lab pool-sizing sim default (no live equivalent)
           stopLossPct: Math.round(p.stopLossPct * 100),
           targetPct: Math.round(p.targetPct * 100),
         };
@@ -412,18 +392,15 @@ export class StrategyLabComponent implements OnDestroy {
   }
 
   setWeight(key: keyof LabWeightsDto, value: number): void {
-    if (this.lacksHistoricData(key)) return; // locked in historic mode
     this.weights.set({ ...this.weights(), [key]: value });
   }
 
-  // Scale weights so they sum to exactly 1.0 - saves the user hand-tuning
-  // dials to hit the sum-to-one requirement the Run button enforces. In
-  // historic mode the locked no-data dials keep their values; only the
-  // adjustable dials are scaled to fill the remainder.
+  // Scale all six gate weights so they sum to exactly 1.0 - saves the user
+  // hand-tuning dials to hit the sum-to-one requirement the Run button enforces.
   normaliseWeights(): void {
     const w = this.weights();
-    const adjustable = this.dials.filter((d) => !this.lacksHistoricData(d.key));
-    const lockedTotal = this.dials.filter((d) => this.lacksHistoricData(d.key)).reduce((s, d) => s + w[d.key], 0);
+    const adjustable = this.dials;
+    const lockedTotal = 0;
     const adjustableTotal = adjustable.reduce((s, d) => s + w[d.key], 0);
     const target = 1 - lockedTotal;
     if (adjustableTotal <= 0 || target <= 0) return;
@@ -443,9 +420,9 @@ export class StrategyLabComponent implements OnDestroy {
     const w = this.productionWeights();
     if (!w) return;
     this.weights.set({
-      rsi: w.rsiWeight, macd: w.macdWeight, volume: w.volumeWeight, sentiment: w.sentimentWeight,
+      rsi: w.rsiWeight, macd: w.macdWeight, volume: w.volumeWeight,
       setupQuality: w.setupQualityWeight, relativeStrength: w.relativeStrengthWeight,
-      priceLevel: w.priceLevelWeight, fundamentalMomentum: w.fundamentalMomentumWeight,
+      priceLevel: w.priceLevelWeight,
     });
     this.buyThreshold.set(w.buyThreshold);
     this.excludeBreakout.set(true);
@@ -894,13 +871,8 @@ export class StrategyLabComponent implements OnDestroy {
         this.api.updateRiskProfile({
           regime: 'Bear',
           lockedCapitalPct: p.lockedCapitalPct,
-          maxPositionPctOfActive: p.maxPositionPctOfActive,
           maxOpenPositions: p.maxOpenPositions,
           dailyLossCircuitBreakerPct: p.dailyLossCircuitBreakerPct,
-          tier1UnlockMinTrades: p.tier1UnlockMinTrades,
-          tier1UnlockMinWinRate: p.tier1UnlockMinWinRate,
-          tier2UnlockMinTrades: p.tier2UnlockMinTrades,
-          tier2UnlockMinWinRate: p.tier2UnlockMinWinRate,
           maxHoldDays: p.maxHoldDays,
           trailingActivationPct: p.trailingActivationPct,
           trailingDistancePct: p.trailingDistancePct,

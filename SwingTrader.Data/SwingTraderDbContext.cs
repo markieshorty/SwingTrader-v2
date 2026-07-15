@@ -16,7 +16,6 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     public DbSet<WatchlistHistory> WatchlistHistory => Set<WatchlistHistory>();
     public DbSet<TradeApproval> TradeApprovals => Set<TradeApproval>();
     public DbSet<StrategyWeights> StrategyWeights => Set<StrategyWeights>();
-    public DbSet<TierEvaluationRecord> TierEvaluationRecords => Set<TierEvaluationRecord>();
     public DbSet<WorkerHeartbeat> WorkerHeartbeats => Set<WorkerHeartbeat>();
     public DbSet<RefinementSuggestion> RefinementSuggestions => Set<RefinementSuggestion>();
     public DbSet<SystemChecklist> SystemChecklists => Set<SystemChecklist>();
@@ -253,11 +252,11 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.RsiWeight).HasPrecision(18, 8);
             e.Property(x => x.MacdWeight).HasPrecision(18, 8);
             e.Property(x => x.VolumeWeight).HasPrecision(18, 8);
-            e.Property(x => x.SentimentWeight).HasPrecision(18, 8);
             e.Property(x => x.SetupQualityWeight).HasPrecision(18, 8);
             e.Property(x => x.RelativeStrengthWeight).HasPrecision(18, 8);
             e.Property(x => x.PriceLevelWeight).HasPrecision(18, 8);
-            e.Property(x => x.FundamentalMomentumWeight).HasPrecision(18, 8);
+            e.Property(x => x.ForwardSentimentWeight).HasPrecision(18, 8);
+            e.Property(x => x.ForwardFundamentalWeight).HasPrecision(18, 8);
             e.Property(x => x.BuyThreshold).HasPrecision(18, 8);
             e.Property(x => x.WatchThreshold).HasPrecision(18, 8);
             e.Property(x => x.StopLossPctDefault).HasPrecision(18, 8);
@@ -266,33 +265,23 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             {
                 Id = 1,
                 AccountId = SystemAccountId,
-                RsiWeight = 0.17m,
-                MacdWeight = 0.09m,
-                VolumeWeight = 0.21m,
-                SentimentWeight = 0.16m,
-                SetupQualityWeight = 0.12m,
-                RelativeStrengthWeight = 0.10m,
-                PriceLevelWeight = 0.05m,
-                FundamentalMomentumWeight = 0.10m,
+                RsiWeight = 0.23m,
+                MacdWeight = 0.12m,
+                VolumeWeight = 0.28m,
+                SetupQualityWeight = 0.16m,
+                RelativeStrengthWeight = 0.14m,
+                PriceLevelWeight = 0.07m,
+                ForwardSentimentWeight = 0.60m,
+                ForwardFundamentalWeight = 0.40m,
                 BuyThreshold = 6.0m,
                 WatchThreshold = 5.0m,
                 StopLossPctDefault = 0.05m,
                 IsActive = true,
                 Source = "Default",
-                Notes = "Default starting weights (sum to 1.0) ported from the v1 system.",
+                Notes = "Default gate weights (6, sum to 1.0) + forward blend 60/40.",
                 CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                 UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
             });
-        });
-
-        modelBuilder.Entity<TierEvaluationRecord>(e =>
-        {
-            e.HasKey(x => x.Id);
-            e.Property(x => x.WinRate).HasPrecision(18, 8);
-            e.Property(x => x.AvgReturnPct).HasPrecision(18, 8);
-            e.Property(x => x.SharpeRatio).HasPrecision(18, 8);
-            e.Property(x => x.MaxDrawdownPct).HasPrecision(18, 8);
-            e.HasIndex(x => new { x.AccountId, x.EvaluatedAt });
         });
 
         modelBuilder.Entity<WorkerHeartbeat>(e =>

@@ -51,7 +51,6 @@ public static class RunEndpoints
                 "report" => ("report-jobs", new ReportJobMessage(ctx.AccountId, jobId, today)),
                 "execution" => ("execution-jobs", new ExecutionJobMessage(ctx.AccountId, jobId, today)),
                 "monitor" => ("monitor-jobs", new MonitorJobMessage(ctx.AccountId, jobId, nowEt)),
-                "risk" => ("risk-jobs", new RiskJobMessage(ctx.AccountId, jobId, today)),
                 "refinement" => ("refinement-jobs", new RefinementJobMessage(ctx.AccountId, jobId, today)),
                 _ => null,
             };
@@ -69,7 +68,6 @@ public static class RunEndpoints
             {
                 "research" => "Research",
                 "report" => "Report",
-                "risk" => "Risk",
                 "refinement" => "Refinement",
                 "watchlist" => "Watchlist",
                 _ => null,

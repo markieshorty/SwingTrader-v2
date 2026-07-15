@@ -18,7 +18,6 @@ var queues = [
   'report-jobs'
   'execution-jobs'
   'monitor-jobs'
-  'risk-jobs'
   'refinement-jobs'
   'candlesync-jobs'
   'backtest-jobs'

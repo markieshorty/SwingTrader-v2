@@ -42,13 +42,8 @@ public static class RiskProfileEndpoints
                 AvailableRegimes = new[] { "Bull", "Neutral", "Bear", "Crisis" },
                 profile.AutopauseTrading,
                 profile.LockedCapitalPct,
-                profile.MaxPositionPctOfActive,
                 profile.MaxOpenPositions,
                 profile.DailyLossCircuitBreakerPct,
-                profile.Tier1UnlockMinTrades,
-                profile.Tier1UnlockMinWinRate,
-                profile.Tier2UnlockMinTrades,
-                profile.Tier2UnlockMinWinRate,
                 profile.MaxHoldDays,
                 profile.TrailingActivationPct,
                 profile.TrailingDistancePct,
@@ -70,25 +65,16 @@ public static class RiskProfileEndpoints
                 {
                     TotalCapital = snapshot.TotalCapital,
                     LockedCapital = snapshot.TotalCapital * profile.LockedCapitalPct,
-                    // Computed from tier x total rather than read from the
-                    // snapshot: snapshot.ActiveCapital is only written by
-                    // execution runs, so an account that hasn't executed yet
-                    // showed GBP 0 "active capital" here - nonsense for a
-                    // settings preview that's explaining how sizing works.
-                    ActiveCapital = snapshot.TotalCapital * TierPct(snapshot.CurrentTier),
-                    MaxPerTrade = snapshot.TotalCapital * TierPct(snapshot.CurrentTier) * profile.MaxPositionPctOfActive,
-                    CurrentTier = snapshot.CurrentTier,
+                    // Deployable = the un-locked share (no tier pool now). Each
+                    // position is FlatPositionPct of the whole portfolio.
+                    ActiveCapital = snapshot.TotalCapital * (1m - profile.LockedCapitalPct),
+                    MaxPerTrade = snapshot.TotalCapital * profile.FlatPositionPct,
                 },
                 AllowedRanges = new
                 {
                     LockedCapitalPct = new { Min = CapitalRules.MinLockedCapitalPct, Max = CapitalRules.MaxLockedCapitalPct },
-                    MaxPositionPctOfActive = new { Min = CapitalRules.MinMaxPositionPctOfActive, Max = CapitalRules.MaxMaxPositionPctOfActive },
                     MaxOpenPositions = new { Min = CapitalRules.MinMaxOpenPositions, Max = CapitalRules.MaxMaxOpenPositions },
                     DailyLossCircuitBreakerPct = new { Min = CapitalRules.MinDailyLossCircuitBreakerPct, Max = CapitalRules.MaxDailyLossCircuitBreakerPct },
-                    Tier1UnlockMinTrades = new { Min = CapitalRules.MinTier1UnlockMinTrades, Max = CapitalRules.MaxTier1UnlockMinTrades },
-                    Tier1UnlockMinWinRate = new { Min = CapitalRules.MinTier1UnlockMinWinRate, Max = CapitalRules.MaxTier1UnlockMinWinRate },
-                    Tier2UnlockMinTrades = new { Min = CapitalRules.MinTier2UnlockMinTrades, Max = CapitalRules.MaxTier2UnlockMinTrades },
-                    Tier2UnlockMinWinRate = new { Min = CapitalRules.MinTier2UnlockMinWinRate, Max = CapitalRules.MaxTier2UnlockMinWinRate },
                     MaxHoldDays = new { Min = CapitalRules.MinMaxHoldDays, Max = CapitalRules.MaxMaxHoldDays },
                     TrailingActivationPct = new { Min = CapitalRules.MinTrailingActivationPct, Max = CapitalRules.MaxTrailingActivationPct },
                     TrailingDistancePct = new { Min = CapitalRules.MinTrailingDistancePct, Max = CapitalRules.MaxTrailingDistancePct },
@@ -120,13 +106,8 @@ public static class RiskProfileEndpoints
                     AccountId = ctx.AccountId,
                     Regime = req.Regime,
                     LockedCapitalPct = req.LockedCapitalPct,
-                    MaxPositionPctOfActive = req.MaxPositionPctOfActive,
                     MaxOpenPositions = req.MaxOpenPositions,
                     DailyLossCircuitBreakerPct = req.DailyLossCircuitBreakerPct,
-                    Tier1UnlockMinTrades = req.Tier1UnlockMinTrades,
-                    Tier1UnlockMinWinRate = req.Tier1UnlockMinWinRate,
-                    Tier2UnlockMinTrades = req.Tier2UnlockMinTrades,
-                    Tier2UnlockMinWinRate = req.Tier2UnlockMinWinRate,
                     MaxHoldDays = req.MaxHoldDays,
                     TrailingActivationPct = req.TrailingActivationPct,
                     TrailingDistancePct = req.TrailingDistancePct,
@@ -139,7 +120,7 @@ public static class RiskProfileEndpoints
                     TargetPct = req.TargetPct,
                     SizingMode = Enum.TryParse<PositionSizingMode>(req.SizingMode, ignoreCase: true, out var mode)
                         ? mode
-                        : PositionSizingMode.TierLadder,
+                        : PositionSizingMode.Flat,
                     FlatPositionPct = req.FlatPositionPct,
                     SizingAggressiveness = req.SizingAggressiveness,
                     ForwardVetoFloor = req.ForwardVetoFloor,
@@ -170,13 +151,4 @@ public static class RiskProfileEndpoints
 
         return api;
     }
-
-    // The tier's active-capital share of the whole account - the same mapping
-    // PositionSizingService uses to budget live positions.
-    private static decimal TierPct(CapitalTier tier) => tier switch
-    {
-        CapitalTier.Tier2 => CapitalRules.Tier2CapitalPct,
-        CapitalTier.Tier3 => CapitalRules.Tier3CapitalPct,
-        _ => CapitalRules.Tier1CapitalPct,
-    };
 }

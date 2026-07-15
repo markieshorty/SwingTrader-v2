@@ -26,7 +26,7 @@
           <li><strong>Approval</strong> — if enabled, nothing trades until you approve. Approvals are on the Trades page. One approval covers the whole trading day, including any midday-rescored signals — you are never re-asked intraday.</li>
           <li><strong>Execution</strong> (daily, from 09:20) — places orders for approved buy signals at Trading&nbsp;212.</li>
           <li><strong>Monitor</strong> (every 5 min, 09:30–16:00) — watches open positions and enforces stops, targets, trailing stops and exits.</li>
-          <li><strong>Risk</strong> (monthly) &amp; <strong>Refinement</strong> (monthly) — re-evaluate your capital tier and fine-tune the component weights.</li>
+          <li><strong>Refinement</strong> (monthly) — correlates each component's scores against your trade outcomes and proposes weight adjustments.</li>
         </ol>
         <p class="muted small">
           Approval is currently <strong>{{ approvalOn() ? 'ON' : 'OFF' }}</strong> for your account
@@ -89,17 +89,14 @@
         <table class="data-table">
           <tbody>
             <tr><td>Locked (never traded)</td><td class="num">{{ pct(risk()?.lockedCapitalPct) }}</td></tr>
-            <tr><td>Max size of any one position (of active capital)</td><td class="num">{{ pct(risk()?.maxPositionPctOfActive) }}</td></tr>
+            <tr><td>Position size (of the whole account)</td><td class="num">{{ pct(risk()?.flatPositionPct) }}</td></tr>
             <tr><td>Max open positions at once</td><td class="num">{{ risk()?.maxOpenPositions ?? '—' }}</td></tr>
             <tr><td>Daily-loss circuit breaker</td><td class="num">{{ pct(risk()?.dailyLossCircuitBreakerPct) }}</td></tr>
-            @if (risk()?.capitalBreakdown; as cap) {
-              <tr><td>Current capital tier</td><td class="num">{{ cap.currentTier }}</td></tr>
-            }
           </tbody>
         </table>
         <p class="muted small">
-          Capital unlocks in tiers as the strategy proves itself — early on only a small slice of the account is
-          "active" (tradeable); hitting win-rate and trade-count milestones unlocks more. The circuit breaker flags
+          Every position is a fixed slice of the whole account (in Funnel mode, tilted by the Forward score). Locked
+          capital is a protected reserve that's never traded and caps total deployment. The circuit breaker flags
           (does not auto-liquidate) if the portfolio drops that far in a single day.
         </p>
 
@@ -241,8 +238,6 @@
           <dd>The 0–10 blended score that decides Buy / Watch / Hold / Avoid. See the Conviction score tab.</dd>
           <dt>Market regime</dt>
           <dd>The overall market backdrop, derived from the S&amp;P 500 vs its moving averages and the VIX: <strong>Bull</strong>, <strong>Neutral</strong>, <strong>Bear</strong>, or <strong>Crisis</strong>. Used to contextualise performance.</dd>
-          <dt>Capital tier</dt>
-          <dd>How much of your account is "active" (tradeable). Rises as the strategy hits win-rate/trade-count milestones; falls if recent performance degrades.</dd>
           <dt>Refinement</dt>
           <dd>The monthly process that correlates each component's scores against your actual trade outcomes and proposes weight adjustments — statistically gated so it doesn't chase noise.</dd>
           <dt>Setup type</dt>

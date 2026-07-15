@@ -16,30 +16,16 @@ public class FunnelScoresTests
     private static readonly StrategyWeights Weights = new(); // production defaults, sum = 1.0
 
     [Fact]
-    public void Gate_IsBitIdenticalToConvictionScorerWithNeutralForwardPair()
+    public void Gate_IsTheSixWeightConvictionScore()
     {
-        // Across a spread of component values, Gate(...) must equal the full
-        // Calculate(...) call with sentiment/fundamental at exactly 0.5 -
-        // pinning, not renormalising, is the locked design decision.
+        // The gate IS the six-component technical blend - the same number
+        // HistoricBacktester computes, which is the whole point.
         foreach (var v in new[] { 0.0m, 0.25m, 0.5m, 0.75m, 1.0m })
         {
             var gate = FunnelScores.Gate(Weights, v, v, v, v, v, v);
-            var full = ConvictionScorer.Calculate(Weights, v, v, v, 0.5m, v, v, v, 0.5m);
+            var full = ConvictionScorer.Calculate(Weights, v, v, v, v, v, v);
             gate.Should().Be(full);
         }
-    }
-
-    [Fact]
-    public void Gate_IgnoresRealSentimentAndFundamentalEntirely()
-    {
-        // The same technical inputs must produce the same gate whatever the
-        // forward pair would have said - that separation IS the funnel.
-        var gate = FunnelScores.Gate(Weights, 0.8m, 0.7m, 0.9m, 1.0m, 0.6m, 0.4m);
-        var legacyEuphoric = ConvictionScorer.Calculate(Weights, 0.8m, 0.7m, 0.9m, 1.0m, 1.0m, 0.6m, 0.4m, 1.0m);
-        var legacyDire = ConvictionScorer.Calculate(Weights, 0.8m, 0.7m, 0.9m, 0.0m, 1.0m, 0.6m, 0.4m, 0.0m);
-
-        legacyEuphoric.Should().NotBe(legacyDire); // sanity: the pair matters to legacy
-        gate.Should().BeInRange(legacyDire, legacyEuphoric); // and gate sits at their neutral midpoint
     }
 
     [Fact]

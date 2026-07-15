@@ -77,11 +77,11 @@ public class StrategyWeightsRepository(SwingTraderDbContext db) : IStrategyWeigh
         active.RsiWeight = update.RsiWeight;
         active.MacdWeight = update.MacdWeight;
         active.VolumeWeight = update.VolumeWeight;
-        active.SentimentWeight = update.SentimentWeight;
         active.SetupQualityWeight = update.SetupQualityWeight;
         active.RelativeStrengthWeight = update.RelativeStrengthWeight;
         active.PriceLevelWeight = update.PriceLevelWeight;
-        active.FundamentalMomentumWeight = update.FundamentalMomentumWeight;
+        active.ForwardSentimentWeight = update.ForwardSentimentWeight;
+        active.ForwardFundamentalWeight = update.ForwardFundamentalWeight;
         active.BuyThreshold = update.BuyThreshold;
         active.WatchThreshold = update.WatchThreshold;
         active.StopLossPctDefault = update.StopLossPctDefault;
@@ -99,14 +99,14 @@ public class StrategyWeightsRepository(SwingTraderDbContext db) : IStrategyWeigh
         db.StrategyWeights.Add(new StrategyWeights
         {
             AccountId = accountId,
-            RsiWeight = 0.17m,
-            MacdWeight = 0.09m,
-            VolumeWeight = 0.21m,
-            SentimentWeight = 0.16m,
-            SetupQualityWeight = 0.12m,
-            RelativeStrengthWeight = 0.10m,
-            PriceLevelWeight = 0.05m,
-            FundamentalMomentumWeight = 0.10m,
+            RsiWeight = 0.23m,
+            MacdWeight = 0.12m,
+            VolumeWeight = 0.28m,
+            SetupQualityWeight = 0.16m,
+            RelativeStrengthWeight = 0.14m,
+            PriceLevelWeight = 0.07m,
+            ForwardSentimentWeight = 0.60m,
+            ForwardFundamentalWeight = 0.40m,
             BuyThreshold = 6.0m,
             WatchThreshold = 5.0m,
             StopLossPctDefault = 0.05m,

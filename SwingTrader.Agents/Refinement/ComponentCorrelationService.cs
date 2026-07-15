@@ -5,23 +5,17 @@ namespace SwingTrader.Agents.Refinement;
 
 public class ComponentCorrelationService : IComponentCorrelationService
 {
+    // The six GATE components. Sentiment and fundamental momentum aren't here:
+    // they drive the funnel's Forward score (sizing/veto), not the gate blend,
+    // so the correlation engine that re-weights the gate must not touch them.
     private static readonly (string Name, Func<StockSignal, decimal?> Selector, Func<StrategyWeights, decimal> WeightSelector)[] Components =
     [
         ("Rsi", s => s.RsiScore, w => w.RsiWeight),
         ("Macd", s => s.MacdScore, w => w.MacdWeight),
         ("Volume", s => s.VolumeScore, w => w.VolumeWeight),
-        ("Sentiment", s => s.SentimentComponentScore, w => w.SentimentWeight),
         ("SetupQuality", s => s.SetupQualityScore, w => w.SetupQualityWeight),
         ("RelativeStrength", s => s.RelativeStrengthScore, w => w.RelativeStrengthWeight),
         ("PriceLevel", s => s.PriceLevelScore, w => w.PriceLevelWeight),
-        // Was missing from this list while still carrying weight in
-        // StrategyWeights - the 7 analysed weights got normalised to sum to
-        // 1.0 on their own, leaving the total at 1.10 once the untouched
-        // FundamentalMomentum default was added back, which
-        // StrategyWeights.Validate() rejects - so applying ANY suggestion
-        // threw. It also meant fundamental momentum was the one component
-        // whose predictive value was never evaluated.
-        ("FundamentalMomentum", s => s.FundamentalMomentumScore, w => w.FundamentalMomentumWeight),
     ];
 
     public CorrelationAnalysisResult Analyse(
@@ -92,7 +86,7 @@ public class ComponentCorrelationService : IComponentCorrelationService
                 suggested, cappedDelta, reasoning));
         }
 
-        // Normalise so all 8 suggested weights sum to 1.0
+        // Normalise so the 6 suggested gate weights sum to 1.0
         var total = rawWeights.Values.Sum();
         var normalised = total > 0
             ? rawWeights.ToDictionary(kv => kv.Key, kv => kv.Value / total)
@@ -103,11 +97,12 @@ public class ComponentCorrelationService : IComponentCorrelationService
             RsiWeight = Round(normalised["Rsi"]),
             MacdWeight = Round(normalised["Macd"]),
             VolumeWeight = Round(normalised["Volume"]),
-            SentimentWeight = Round(normalised["Sentiment"]),
             SetupQualityWeight = Round(normalised["SetupQuality"]),
             RelativeStrengthWeight = Round(normalised["RelativeStrength"]),
             PriceLevelWeight = Round(normalised["PriceLevel"]),
-            FundamentalMomentumWeight = Round(normalised["FundamentalMomentum"]),
+            // Forward blend is not refined here - carry it forward unchanged.
+            ForwardSentimentWeight = currentWeights.ForwardSentimentWeight,
+            ForwardFundamentalWeight = currentWeights.ForwardFundamentalWeight,
             BuyThreshold = currentWeights.BuyThreshold,
             WatchThreshold = currentWeights.WatchThreshold,
             StopLossPctDefault = currentWeights.StopLossPctDefault,
@@ -125,11 +120,9 @@ public class ComponentCorrelationService : IComponentCorrelationService
                 "Rsi" => suggestedWeights.RsiWeight,
                 "Macd" => suggestedWeights.MacdWeight,
                 "Volume" => suggestedWeights.VolumeWeight,
-                "Sentiment" => suggestedWeights.SentimentWeight,
                 "SetupQuality" => suggestedWeights.SetupQualityWeight,
                 "RelativeStrength" => suggestedWeights.RelativeStrengthWeight,
                 "PriceLevel" => suggestedWeights.PriceLevelWeight,
-                "FundamentalMomentum" => suggestedWeights.FundamentalMomentumWeight,
                 _ => f.SuggestedWeight
             };
             return f with { SuggestedWeight = finalWeight, WeightDelta = finalWeight - f.CurrentWeight };
@@ -222,9 +215,8 @@ public class ComponentCorrelationService : IComponentCorrelationService
 
     private static void FixRoundingDrift(StrategyWeights w)
     {
-        var total = w.RsiWeight + w.MacdWeight + w.VolumeWeight + w.SentimentWeight +
-                    w.SetupQualityWeight + w.RelativeStrengthWeight + w.PriceLevelWeight +
-                    w.FundamentalMomentumWeight;
+        var total = w.RsiWeight + w.MacdWeight + w.VolumeWeight +
+                    w.SetupQualityWeight + w.RelativeStrengthWeight + w.PriceLevelWeight;
         var drift = 1.0m - total;
         if (Math.Abs(drift) < 0.0001m) return;
         w.VolumeWeight = Math.Round(w.VolumeWeight + drift, 4);

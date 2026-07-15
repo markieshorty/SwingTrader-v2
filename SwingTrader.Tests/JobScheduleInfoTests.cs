@@ -15,7 +15,7 @@ public class JobScheduleInfoTests
         var runs = JobScheduleInfo.GetNextRuns(MondayMorningUtc);
 
         runs.Select(r => r.JobType).Should().BeEquivalentTo(
-            ["Research", "Watchlist", "Report", "Execution", "Monitor", "Risk", "Refinement"]);
+            ["Research", "Watchlist", "Report", "Execution", "Monitor", "Refinement"]);
     }
 
     [Fact]
@@ -57,15 +57,6 @@ public class JobScheduleInfoTests
         var watchlist = runs.Single(r => r.JobType == "Watchlist");
         var etLabel = watchlist.NextRunLabel;
         etLabel.Should().StartWith("Sun");
-    }
-
-    [Fact]
-    public void GetNextRuns_RiskIsAlwaysTheFirstOfTheMonth()
-    {
-        var runs = JobScheduleInfo.GetNextRuns(MondayMorningUtc);
-
-        var risk = runs.Single(r => r.JobType == "Risk");
-        risk.NextRunLabel.Should().Contain(" 1 ");
     }
 
     [Fact]

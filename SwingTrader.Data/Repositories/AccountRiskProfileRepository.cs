@@ -110,13 +110,8 @@ public class AccountRiskProfileRepository(SwingTraderDbContext db) : IAccountRis
     private static void CopySettings(AccountRiskProfile src, AccountRiskProfile dest)
     {
         dest.LockedCapitalPct = src.LockedCapitalPct;
-        dest.MaxPositionPctOfActive = src.MaxPositionPctOfActive;
         dest.MaxOpenPositions = src.MaxOpenPositions;
         dest.DailyLossCircuitBreakerPct = src.DailyLossCircuitBreakerPct;
-        dest.Tier1UnlockMinTrades = src.Tier1UnlockMinTrades;
-        dest.Tier1UnlockMinWinRate = src.Tier1UnlockMinWinRate;
-        dest.Tier2UnlockMinTrades = src.Tier2UnlockMinTrades;
-        dest.Tier2UnlockMinWinRate = src.Tier2UnlockMinWinRate;
         dest.MaxHoldDays = src.MaxHoldDays;
         dest.TrailingActivationPct = src.TrailingActivationPct;
         dest.TrailingDistancePct = src.TrailingDistancePct;
@@ -145,6 +140,7 @@ public class AccountRiskProfileRepository(SwingTraderDbContext db) : IAccountRis
             case MarketRegime.Bull: // aggressive: more positions, room to run
                 p.LockedCapitalPct = 0.55m;
                 p.MaxOpenPositions = 5;
+                p.FlatPositionPct = 0.08m; // 5 x 8% = 40% <= 45% deployable
                 p.StopLossPct = 0.08m;
                 p.TargetPct = 0.20m;
                 p.MaxHoldDays = 20;
@@ -158,8 +154,8 @@ public class AccountRiskProfileRepository(SwingTraderDbContext db) : IAccountRis
 
             case MarketRegime.Bear: // defensive: less exposure, cut faster, paused
                 p.LockedCapitalPct = 0.80m;
-                p.MaxPositionPctOfActive = 0.15m;
                 p.MaxOpenPositions = 2;
+                p.FlatPositionPct = 0.05m; // 2 x 5% = 10% <= 20% deployable
                 p.StopLossPct = 0.05m;
                 p.TargetPct = 0.10m;
                 p.MaxHoldDays = 8;
@@ -169,8 +165,8 @@ public class AccountRiskProfileRepository(SwingTraderDbContext db) : IAccountRis
 
             case MarketRegime.Crisis: // lockdown: minimal exposure, paused
                 p.LockedCapitalPct = 0.90m;
-                p.MaxPositionPctOfActive = 0.10m;
                 p.MaxOpenPositions = 1;
+                p.FlatPositionPct = 0.05m; // 1 x 5% = 5% <= 10% deployable
                 p.StopLossPct = 0.05m;
                 p.TargetPct = 0.10m;
                 p.MaxHoldDays = 8;

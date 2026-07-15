@@ -31,11 +31,11 @@ public record StrategyWeightsUpdate(
     decimal RsiWeight,
     decimal MacdWeight,
     decimal VolumeWeight,
-    decimal SentimentWeight,
     decimal SetupQualityWeight,
     decimal RelativeStrengthWeight,
     decimal PriceLevelWeight,
-    decimal FundamentalMomentumWeight,
+    decimal ForwardSentimentWeight,
+    decimal ForwardFundamentalWeight,
     decimal BuyThreshold,
     decimal WatchThreshold,
     decimal StopLossPctDefault);

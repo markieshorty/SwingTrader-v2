@@ -94,9 +94,8 @@ public class HistoricBacktesterScoringTests
 
         HistoricConfig Config(decimal rs, decimal pl) => new(new StrategyWeights
         {
-            RsiWeight = 0.10m, MacdWeight = 0.10m, VolumeWeight = 0.10m, SentimentWeight = 0.05m,
-            SetupQualityWeight = 0.10m, RelativeStrengthWeight = rs, PriceLevelWeight = pl,
-            FundamentalMomentumWeight = 0.05m,
+            RsiWeight = 0.15m, MacdWeight = 0.15m, VolumeWeight = 0.15m,
+            SetupQualityWeight = 0.15m, RelativeStrengthWeight = rs, PriceLevelWeight = pl,
         });
 
         var rsHeavy = await HistoricBacktester.ScoreAsync(indicators, Config(0.45m, 0.05m), bars, index, "AAPL", today);

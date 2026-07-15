@@ -37,15 +37,20 @@ import { errorMessage } from '../../shared/utils/error-message.util';
 
 const TAB_NAMES = ['api-keys', 'trading', 'strategy', 'risk', 'notifications', 'account'] as const;
 
+// The six GATE weights (sum to 1) — decide Buy/Watch/Hold/Avoid.
 const COMPONENT_WEIGHT_FIELDS: { key: keyof StrategyWeightsDto; label: string }[] = [
   { key: 'rsiWeight', label: 'RSI' },
   { key: 'macdWeight', label: 'MACD' },
   { key: 'volumeWeight', label: 'Volume' },
-  { key: 'sentimentWeight', label: 'Sentiment' },
   { key: 'setupQualityWeight', label: 'Setup Quality' },
   { key: 'relativeStrengthWeight', label: 'Relative Strength' },
   { key: 'priceLevelWeight', label: 'Price Level' },
-  { key: 'fundamentalMomentumWeight', label: 'Fundamental Momentum' },
+];
+
+// The forward-score blend (sum to 1) — drives sizing/veto, not entry selection.
+const FORWARD_WEIGHT_FIELDS: { key: keyof StrategyWeightsDto; label: string }[] = [
+  { key: 'forwardSentimentWeight', label: 'Sentiment' },
+  { key: 'forwardFundamentalWeight', label: 'Fundamental Momentum' },
 ];
 
 const PROVIDER_LABELS: Partial<Record<ApiKeyProvider, string>> = {
@@ -60,13 +65,8 @@ const PROVIDER_LABELS: Partial<Record<ApiKeyProvider, string>> = {
 function toUpdateRiskProfileDto(profile: RiskProfileDto): UpdateRiskProfileDto {
   return {
     lockedCapitalPct: profile.lockedCapitalPct,
-    maxPositionPctOfActive: profile.maxPositionPctOfActive,
     maxOpenPositions: profile.maxOpenPositions,
     dailyLossCircuitBreakerPct: profile.dailyLossCircuitBreakerPct,
-    tier1UnlockMinTrades: profile.tier1UnlockMinTrades,
-    tier1UnlockMinWinRate: profile.tier1UnlockMinWinRate,
-    tier2UnlockMinTrades: profile.tier2UnlockMinTrades,
-    tier2UnlockMinWinRate: profile.tier2UnlockMinWinRate,
     maxHoldDays: profile.maxHoldDays,
     trailingActivationPct: profile.trailingActivationPct,
     trailingDistancePct: profile.trailingDistancePct,
@@ -235,6 +235,7 @@ export class SettingsComponent {
 
   weights = signal<StrategyWeightsDto | null>(null);
   componentWeightFields = COMPONENT_WEIGHT_FIELDS;
+  forwardWeightFields = FORWARD_WEIGHT_FIELDS;
 
   weightsSum = computed(() => {
     const w = this.weights();
@@ -243,6 +244,14 @@ export class SettingsComponent {
   });
 
   weightsSumValid = computed(() => Math.abs(this.weightsSum() - 1) < 0.001);
+
+  forwardWeightsSum = computed(() => {
+    const w = this.weights();
+    if (!w) return 0;
+    return FORWARD_WEIGHT_FIELDS.reduce((sum, f) => sum + (Number(w[f.key]) || 0), 0);
+  });
+
+  forwardWeightsSumValid = computed(() => Math.abs(this.forwardWeightsSum() - 1) < 0.001);
 
   riskProfile = signal<RiskProfileDto | null>(null);
   // Working copy the sliders bind to - saved explicitly via saveRiskProfile(),
@@ -261,13 +270,12 @@ export class SettingsComponent {
     if (!original || !draft) return false;
     return (
       original.lockedCapitalPct !== draft.lockedCapitalPct ||
-      original.maxPositionPctOfActive !== draft.maxPositionPctOfActive ||
       original.maxOpenPositions !== draft.maxOpenPositions ||
       original.dailyLossCircuitBreakerPct !== draft.dailyLossCircuitBreakerPct ||
-      original.tier1UnlockMinTrades !== draft.tier1UnlockMinTrades ||
-      original.tier1UnlockMinWinRate !== draft.tier1UnlockMinWinRate ||
-      original.tier2UnlockMinTrades !== draft.tier2UnlockMinTrades ||
-      original.tier2UnlockMinWinRate !== draft.tier2UnlockMinWinRate ||
+      original.sizingMode !== draft.sizingMode ||
+      original.flatPositionPct !== draft.flatPositionPct ||
+      original.sizingAggressiveness !== draft.sizingAggressiveness ||
+      original.forwardVetoFloor !== draft.forwardVetoFloor ||
       original.maxHoldDays !== draft.maxHoldDays ||
       original.trailingActivationPct !== draft.trailingActivationPct ||
       original.trailingDistancePct !== draft.trailingDistancePct ||
@@ -288,30 +296,18 @@ export class SettingsComponent {
     return draft.maxHoldDays - draft.minHoldDays < 2;
   });
 
-  // Template helper (Math isn't accessible in Angular templates): the Tier 2
-  // sliders use this to keep their min above the current Tier 1 draft value,
-  // enforcing the "Tier 2 must exceed Tier 1" rule visually, not just at save.
-  max(a: number, b: number): number {
-    return Math.max(a, b);
-  }
-
   riskLivePreview = computed(() => {
     const draft = this.riskProfileDraft();
     const breakdown = this.riskProfile()?.capitalBreakdown;
     if (!draft) return null;
-    // Active capital is set by the account's TIER (10% / 20% / 50% of the
-    // whole account at Tier 1 / 2 / 3), NOT by (total − locked). Locked
-    // capital is a protected reserve and a ceiling on max-position %; it does
-    // not shrink the tier pool that positions are actually sized from. Use the
-    // API's tier-based figures so this preview matches live sizing exactly
-    // (the old total−locked calc overstated it ~4× at Tier 1).
+    // Deployable (active) capital = the un-locked share (total − locked); each
+    // position is FlatPositionPct of the whole portfolio.
     const total = breakdown?.totalCapital ?? null;
-    const active = breakdown?.activeCapital ?? null; // the tier pool
-    const tier = breakdown?.currentTier ?? null;
     const locked = total !== null ? total * draft.lockedCapitalPct : null;
-    const activePct = total && active ? active / total : null;
-    const maxPerTrade = active !== null ? active * draft.maxPositionPctOfActive : null;
-    return { total, locked, active, activePct, tier, maxPerTrade };
+    const active = total !== null && locked !== null ? total - locked : null;
+    const activePct = 1 - draft.lockedCapitalPct;
+    const maxPerTrade = total !== null ? total * draft.flatPositionPct : null;
+    return { total, locked, active, activePct, maxPerTrade };
   });
 
   constructor() {
@@ -446,7 +442,11 @@ export class SettingsComponent {
     if (!weights) return;
 
     if (!this.weightsSumValid()) {
-      this.snackbar.open(`Component weights must sum to 1.0 — currently ${this.weightsSum().toFixed(3)}.`, 'Dismiss', { duration: 5000 });
+      this.snackbar.open(`Gate weights must sum to 1.0 — currently ${this.weightsSum().toFixed(3)}.`, 'Dismiss', { duration: 5000 });
+      return;
+    }
+    if (!this.forwardWeightsSumValid()) {
+      this.snackbar.open(`Forward weights must sum to 1.0 — currently ${this.forwardWeightsSum().toFixed(3)}.`, 'Dismiss', { duration: 5000 });
       return;
     }
 

@@ -70,7 +70,7 @@ public class BacktestApplyExtractorTests
 
         config.Should().NotBeNull();
         config!.Label.Should().Be("cand-7");
-        config.Weights.FundamentalMomentum.Should().Be(0.15m);
+        config.Weights.Rsi.Should().Be(0.15m);
         config.BuyThreshold.Should().Be(6.0m);
         config.Stats.Trades.Should().Be(140);
         config.Stats.ProfitFactor.Should().Be(1.4m);

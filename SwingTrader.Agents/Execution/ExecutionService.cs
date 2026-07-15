@@ -174,9 +174,6 @@ public class ExecutionService(
         // base currency (GBP), computed by T212 itself.
         var openPositionsValue = accountSummary.Investments.CurrentValue;
         var totalPortfolioValue = accountSummary.TotalValue;
-        var latestSnapshot = await portfolioRepo.GetLatestSnapshotAsync(accountId, account.TradingMode);
-        var currentTier = latestSnapshot?.CurrentTier ?? CapitalTier.Tier1;
-
         logger.LogInformation(
             "Execution starting for account {AccountId}: {Date} | Cash={Cash:F2} | OpenPositionsValue={Positions:F2} | TotalPortfolio={Portfolio:F2} | Signals={Count}",
             accountId, date, availableCash, openPositionsValue, totalPortfolioValue, signals.Count);
@@ -220,7 +217,7 @@ public class ExecutionService(
             }
 
             var sizing = await sizingService.CalculateAsync(
-                signal, currentTier, openTrades.Count, availableCash, totalPortfolioValue, riskProfile,
+                signal, openTrades.Count, availableCash, totalPortfolioValue, riskProfile,
                 priceOverride: signal.CurrentPrice * gbpUsd,
                 openPositionsValue: openPositionsValue + deployedThisRun);
 
@@ -411,18 +408,14 @@ public class ExecutionService(
         {
             try
             {
-                var activeCapitalPct = currentTier switch
-                {
-                    CapitalTier.Tier1 => Core.Constants.CapitalRules.Tier1CapitalPct,
-                    CapitalTier.Tier2 => Core.Constants.CapitalRules.Tier2CapitalPct,
-                    CapitalTier.Tier3 => Core.Constants.CapitalRules.Tier3CapitalPct,
-                    _ => Core.Constants.CapitalRules.Tier1CapitalPct
-                };
                 // Broker investments (pre-run, GBP) plus this run's placements
                 // (GBP estimated costs). The old expression summed Quantity x
                 // EntryPrice over ALL open trades, double-counting positions
                 // already inside the broker total - and in USD to boot.
                 var openValue = openPositionsValue + deployedThisRun;
+                // Deployable (active) = the un-locked share; locked capital is
+                // the protected reserve (no more tier pool between them).
+                var lockedCapital = totalPortfolioValue * riskProfile.LockedCapitalPct;
                 var snapshot = new PortfolioSnapshot
                 {
                     AccountId = accountId,
@@ -431,11 +424,10 @@ public class ExecutionService(
                     TotalCapital = totalPortfolioValue,
                     CashAvailable = availableCash,
                     OpenPositionsValue = openValue,
-                    ActiveCapital = totalPortfolioValue * activeCapitalPct,
-                    LockedCapital = totalPortfolioValue * riskProfile.LockedCapitalPct,
-                    ReserveCapital = totalPortfolioValue * (1 - activeCapitalPct - riskProfile.LockedCapitalPct),
+                    ActiveCapital = totalPortfolioValue - lockedCapital,
+                    LockedCapital = lockedCapital,
+                    ReserveCapital = 0,
                     TotalPnl = 0,
-                    CurrentTier = currentTier,
                 };
                 await portfolioRepo.AddAsync(snapshot);
             }

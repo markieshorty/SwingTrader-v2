@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SwingTrader.Data;
 
@@ -11,9 +12,11 @@ using SwingTrader.Data;
 namespace SwingTrader.Data.Migrations
 {
     [DbContext(typeof(SwingTraderDbContext))]
-    partial class SwingTraderDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260715105025_RemoveCapitalTierLadder")]
+    partial class RemoveCapitalTierLadder
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1390,11 +1393,7 @@ namespace SwingTrader.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<decimal>("ForwardFundamentalWeight")
-                        .HasPrecision(18, 8)
-                        .HasColumnType("decimal(18,8)");
-
-                    b.Property<decimal>("ForwardSentimentWeight")
+                    b.Property<decimal>("FundamentalMomentumWeight")
                         .HasPrecision(18, 8)
                         .HasColumnType("decimal(18,8)");
 
@@ -1417,6 +1416,10 @@ namespace SwingTrader.Data.Migrations
                         .HasColumnType("decimal(18,8)");
 
                     b.Property<decimal>("RsiWeight")
+                        .HasPrecision(18, 8)
+                        .HasColumnType("decimal(18,8)");
+
+                    b.Property<decimal>("SentimentWeight")
                         .HasPrecision(18, 8)
                         .HasColumnType("decimal(18,8)");
 
@@ -1456,19 +1459,19 @@ namespace SwingTrader.Data.Migrations
                             AccountId = 1,
                             BuyThreshold = 6.0m,
                             CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            ForwardFundamentalWeight = 0.40m,
-                            ForwardSentimentWeight = 0.60m,
+                            FundamentalMomentumWeight = 0.10m,
                             IsActive = true,
-                            MacdWeight = 0.12m,
-                            Notes = "Default gate weights (6, sum to 1.0) + forward blend 60/40.",
-                            PriceLevelWeight = 0.07m,
-                            RelativeStrengthWeight = 0.14m,
-                            RsiWeight = 0.23m,
-                            SetupQualityWeight = 0.16m,
+                            MacdWeight = 0.09m,
+                            Notes = "Default starting weights (sum to 1.0) ported from the v1 system.",
+                            PriceLevelWeight = 0.05m,
+                            RelativeStrengthWeight = 0.10m,
+                            RsiWeight = 0.17m,
+                            SentimentWeight = 0.16m,
+                            SetupQualityWeight = 0.12m,
                             Source = "Default",
                             StopLossPctDefault = 0.05m,
                             UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
-                            VolumeWeight = 0.28m,
+                            VolumeWeight = 0.21m,
                             WatchThreshold = 5.0m
                         });
                 });

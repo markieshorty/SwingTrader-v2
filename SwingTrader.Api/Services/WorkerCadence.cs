@@ -16,7 +16,6 @@ public static class WorkerCadence
         ["ResearchMidday"] = 1560,
         ["Report"] = 1560,        // daily
         ["Refinement"] = 46080,   // monthly (15th) - ~32 days
-        ["Risk"] = 46080,         // monthly (1st)
         ["Watchlist"] = 11520,    // weekly Sunday (~8 days)
         ["CandleSync"] = 11520,   // weekly Saturday (~8 days)
         ["FilingSync"] = 5760,    // weekdays 18:00 ET (~4 days, covers long weekends)

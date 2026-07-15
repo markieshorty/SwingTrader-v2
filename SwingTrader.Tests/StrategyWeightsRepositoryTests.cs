@@ -19,14 +19,12 @@ public class StrategyWeightsRepositoryTests
     private static StrategyWeights ValidWeights(int accountId, bool isActive = true, MarketRegime? regime = null) => new()
     {
         AccountId = accountId,
-        RsiWeight = 0.17m,
-        MacdWeight = 0.09m,
-        VolumeWeight = 0.21m,
-        SentimentWeight = 0.16m,
-        SetupQualityWeight = 0.12m,
-        RelativeStrengthWeight = 0.10m,
-        PriceLevelWeight = 0.05m,
-        FundamentalMomentumWeight = 0.10m,
+        RsiWeight = 0.23m,
+        MacdWeight = 0.12m,
+        VolumeWeight = 0.28m,
+        SetupQualityWeight = 0.16m,
+        RelativeStrengthWeight = 0.14m,
+        PriceLevelWeight = 0.07m,
         BuyThreshold = 6.0m,
         WatchThreshold = 5.0m,
         StopLossPctDefault = 0.05m,
@@ -118,9 +116,10 @@ public class StrategyWeightsRepositoryTests
         await repo.AddAsync(ValidWeights(1));
 
         await repo.UpdateWeightsAsync(1, new StrategyWeightsUpdate(
-            RsiWeight: 0.20m, MacdWeight: 0.10m, VolumeWeight: 0.20m, SentimentWeight: 0.15m,
-            SetupQualityWeight: 0.10m, RelativeStrengthWeight: 0.10m, PriceLevelWeight: 0.05m,
-            FundamentalMomentumWeight: 0.10m, BuyThreshold: 6.5m, WatchThreshold: 5.5m, StopLossPctDefault: 0.06m));
+            RsiWeight: 0.20m, MacdWeight: 0.10m, VolumeWeight: 0.30m,
+            SetupQualityWeight: 0.20m, RelativeStrengthWeight: 0.15m, PriceLevelWeight: 0.05m,
+            ForwardSentimentWeight: 0.60m, ForwardFundamentalWeight: 0.40m,
+            BuyThreshold: 6.5m, WatchThreshold: 5.5m, StopLossPctDefault: 0.06m));
 
         var active = await repo.GetActiveWeightsAsync(1);
         active!.RsiWeight.Should().Be(0.20m);
@@ -134,9 +133,10 @@ public class StrategyWeightsRepositoryTests
         var repo = new StrategyWeightsRepository(db);
 
         var act = async () => await repo.UpdateWeightsAsync(1, new StrategyWeightsUpdate(
-            RsiWeight: 0.20m, MacdWeight: 0.10m, VolumeWeight: 0.20m, SentimentWeight: 0.15m,
-            SetupQualityWeight: 0.10m, RelativeStrengthWeight: 0.10m, PriceLevelWeight: 0.05m,
-            FundamentalMomentumWeight: 0.10m, BuyThreshold: 6.5m, WatchThreshold: 5.5m, StopLossPctDefault: 0.06m));
+            RsiWeight: 0.20m, MacdWeight: 0.10m, VolumeWeight: 0.30m,
+            SetupQualityWeight: 0.20m, RelativeStrengthWeight: 0.15m, PriceLevelWeight: 0.05m,
+            ForwardSentimentWeight: 0.60m, ForwardFundamentalWeight: 0.40m,
+            BuyThreshold: 6.5m, WatchThreshold: 5.5m, StopLossPctDefault: 0.06m));
 
         await act.Should().ThrowAsync<InvalidOperationException>();
     }

@@ -19,5 +19,4 @@ public class PortfolioSnapshot : BaseEntity
     public decimal CashAvailable { get; set; }
     public decimal OpenPositionsValue { get; set; }
     public decimal TotalPnl { get; set; }
-    public CapitalTier CurrentTier { get; set; }
 }

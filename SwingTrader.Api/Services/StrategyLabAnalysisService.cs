@@ -33,8 +33,8 @@ public class StrategyLabAnalysisService(
         int accountId, LabAnalyseRequest req, CancellationToken ct)
     {
         var weights = new HistoricBacktestWeights(
-            req.Weights.Rsi, req.Weights.Macd, req.Weights.Volume, req.Weights.Sentiment,
-            req.Weights.SetupQuality, req.Weights.RelativeStrength, req.Weights.PriceLevel, req.Weights.FundamentalMomentum);
+            req.Weights.Rsi, req.Weights.Macd, req.Weights.Volume,
+            req.Weights.SetupQuality, req.Weights.RelativeStrength, req.Weights.PriceLevel);
 
         string userPrompt;
         if (req.DataSource.Equals("historic", StringComparison.OrdinalIgnoreCase))
@@ -99,9 +99,8 @@ public class StrategyLabAnalysisService(
                 : new LabAnalyseSuggestion(
                     suggested.Rationale,
                     new LabWeights(
-                        suggested.Weights.Rsi, suggested.Weights.Macd, suggested.Weights.Volume, suggested.Weights.Sentiment,
-                        suggested.Weights.SetupQuality, suggested.Weights.RelativeStrength, suggested.Weights.PriceLevel,
-                        suggested.Weights.FundamentalMomentum),
+                        suggested.Weights.Rsi, suggested.Weights.Macd, suggested.Weights.Volume,
+                        suggested.Weights.SetupQuality, suggested.Weights.RelativeStrength, suggested.Weights.PriceLevel),
                     suggested.BuyThreshold, suggested.ExcludeBreakout);
 
             return (new LabAnalyseResponse(analysis, suggestion), null);

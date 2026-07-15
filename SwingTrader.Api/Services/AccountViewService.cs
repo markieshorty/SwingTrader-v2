@@ -85,7 +85,6 @@ public class AccountViewService(
             TodayPnl = todayPnl,
             TodayPnlPercent = todayPnlPercent,
             WinRate30d = winRate30d,
-            snapshot.CurrentTier,
         };
     }
 

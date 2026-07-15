@@ -55,31 +55,14 @@
           }
         </div>
 
-        @if (dataSource() === 'historic') {
-          <p class="muted small no-data-note">
-            <mat-icon>lock</mat-icon>
-            <span>
-              <strong>{{ noHistoricDataLabels() }}</strong> are locked while backtesting against historic data. The
-              simulator can't reconstruct them, so they score a fixed neutral — moving their weight would only dilute
-              the components that <em>do</em> have data (dragging every conviction score toward the middle) without
-              testing anything about the component itself, and the result wouldn't carry over to production where
-              these components have real data. Switch to <em>own-data</em> mode to experiment with them.
-            </span>
-          </p>
-        }
-
         <div class="dials-grid">
           @for (dial of dials; track dial.key) {
-            <div class="dial" [class.no-historic-data]="lacksHistoricData(dial.key)">
+            <div class="dial">
               <div class="dial-label">
                 <span [matTooltip]="dial.hint">{{ dial.label }}</span>
-                @if (lacksHistoricData(dial.key)) {
-                  <mat-icon class="no-data-flag"
-                    matTooltip="Locked — no historic data for this component. It scores a fixed neutral in a historic backtest, so adjusting its weight would only dilute the live components without testing anything real.">lock</mat-icon>
-                }
                 <span class="value">{{ weights()[dial.key] | percent: '1.0-0' }}</span>
               </div>
-              <mat-slider min="0" max="0.45" step="0.01" discrete [disabled]="lacksHistoricData(dial.key)">
+              <mat-slider min="0" max="0.45" step="0.01" discrete>
                 <input matSliderThumb [ngModel]="weights()[dial.key]" (ngModelChange)="setWeight(dial.key, $event)" />
               </mat-slider>
             </div>
@@ -196,17 +179,16 @@
 
               <h4 class="rules-subhead">Position sizing</h4>
               <p class="muted small">
-                <strong>Flat</strong> is the simulator's long-standing model: every position gets a fixed slice of
-                equity. <strong>Live tier pool</strong> mirrors production sizing: an active-capital pool (Tier 1 =
-                10% of the account) caps <em>total</em> deployment, and each position takes at most a share of that
-                pool — expect far fewer pounds at work, which is what your live account actually does.
+                <strong>Flat</strong> mirrors live sizing: every position is a fixed slice of equity.
+                <strong>Capital pool</strong> is a simulator-only alternative (no live equivalent): a capped
+                active-capital pool limits <em>total</em> deployment, and each position takes at most a share of it.
               </p>
               <div class="rules-grid">
                 <mat-form-field appearance="outline" subscriptSizing="dynamic">
                   <mat-label>Sizing model</mat-label>
                   <mat-select [value]="rulesSizingMode()" (selectionChange)="rulesSizingMode.set($event.value)">
                     <mat-option value="flat">Flat (% of equity per trade)</mat-option>
-                    <mat-option value="pool">Live tier pool</mat-option>
+                    <mat-option value="pool">Capital pool (sim only)</mat-option>
                   </mat-select>
                 </mat-form-field>
                 @if (rulesSizingMode() === 'flat') {
@@ -217,7 +199,7 @@
                   </mat-form-field>
                 } @else {
                   <mat-form-field appearance="outline" subscriptSizing="dynamic"
-                    matTooltip="The tier's active-capital pool as % of the whole account. Tier 1 = 10, Tier 2 = 25, Tier 3 = 50.">
+                    matTooltip="Simulator-only: an active-capital pool as % of the whole account that caps total deployment.">
                     <mat-label>Active capital pool (% of account)</mat-label>
                     <input matInput type="number" min="5" max="100" [ngModel]="rulesActiveCapitalPct()"
                       (ngModelChange)="rulesActiveCapitalPct.set($event)" />

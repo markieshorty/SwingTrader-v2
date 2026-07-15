@@ -49,26 +49,4 @@ public class ResearchConfig
     public decimal MaxCatalystPenalty { get; set; } = 0.5m;
     public int CatalystMaxDaysAhead { get; set; } = 30;
 
-    // Funnel Phase F2 master switch. FALSE = F1 shadow behaviour: the legacy
-    // 8-component conviction drives recommendations and stage-2
-    // (sentiment/fundamentals) runs for every symbol. TRUE (flipped on by
-    // Mark, 15 Jul 2026) = the flip: the Gate score drives recommendations and
-    // becomes the stored ConvictionScore, stage-2 runs only for gate-passers
-    // (the ~80% Claude token saving), and the Forward score feeds the sizing
-    // multiplier (AccountRiskProfile.SizingAggressiveness) and the veto
-    // (AccountRiskProfile.ForwardVetoFloor) - both now per-regime dials.
-    // Those dials default to 0 on every book, so sizing/veto are inert until
-    // set per regime; the immediate change is gate-driven recs + the token
-    // saving. Both the Functions research path and the API's Intelligence
-    // display read this default (neither overrides it in app config), so
-    // flipping it here flips both consistently.
-    public bool FunnelEnabled { get; set; } = true;
-
-    // Funnel (docs/funnel-plan) forward-blend knobs. The blend favours
-    // sentiment (fresher by construction) over fundamentals (which lag via
-    // filings/aggregation). The veto floor itself lives on
-    // AccountRiskProfile.ForwardVetoFloor (F3) - it's per-account risk
-    // posture, like the other dials.
-    public decimal ForwardSentimentWeight { get; set; } = 0.60m;
-    public decimal ForwardFundamentalWeight { get; set; } = 0.40m;
 }

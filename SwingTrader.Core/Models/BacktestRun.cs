@@ -24,9 +24,11 @@ public class BacktestRun : BaseEntity
 // Shared request shape serialized into BacktestRun.RequestJson by the Strategy
 // Lab endpoint and deserialized by BacktestConsumerFunction - lives in Core so
 // Api and Functions use the identical type.
+// The six gate weights (sentiment & fundamental momentum drive the live
+// Forward score, not the backtestable gate, so they aren't swept here).
 public record HistoricBacktestWeights(
-    decimal Rsi, decimal Macd, decimal Volume, decimal Sentiment,
-    decimal SetupQuality, decimal RelativeStrength, decimal PriceLevel, decimal FundamentalMomentum);
+    decimal Rsi, decimal Macd, decimal Volume,
+    decimal SetupQuality, decimal RelativeStrength, decimal PriceLevel);
 
 // One named dial configuration inside a multi-candidate job (A/B comparison or
 // optimizer sweep). Baseline configs are snapshotted into the request at queue

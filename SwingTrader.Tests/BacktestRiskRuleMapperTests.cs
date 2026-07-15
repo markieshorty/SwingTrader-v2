@@ -15,7 +15,7 @@ public class BacktestRiskRuleMapperTests
             MaxHoldDays = 20, MinHoldDays = 5, MaxOpenPositions = 8,
             TrailingActivationPct = 0.05, TrailingDistancePct = 0.03,
             StopLossPct = 0.08m, TargetPct = 0.20m,
-            MomentumHealthThreshold = 0.4m, MaxPositionPctOfActive = 0.25m,
+            MomentumHealthThreshold = 0.4m, FlatPositionPct = 0.12m,
         };
 
         // Only three fields overridden by the A/B run.
@@ -32,7 +32,7 @@ public class BacktestRiskRuleMapperTests
         profile.MaxOpenPositions.Should().Be(8);
         profile.TrailingActivationPct.Should().Be(0.05);
         profile.TargetPct.Should().Be(0.20m);
-        profile.MaxPositionPctOfActive.Should().Be(0.25m);
+        profile.FlatPositionPct.Should().Be(0.12m); // mapper never touches it
     }
 
     [Fact]

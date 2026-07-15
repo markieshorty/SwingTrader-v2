@@ -42,11 +42,9 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
           <div><span class="k">RSI</span><span class="v">{{ w.rsi | percent: '1.0-0' }}</span></div>
           <div><span class="k">MACD</span><span class="v">{{ w.macd | percent: '1.0-0' }}</span></div>
           <div><span class="k">Volume</span><span class="v">{{ w.volume | percent: '1.0-0' }}</span></div>
-          <div><span class="k">Sentiment</span><span class="v">{{ w.sentiment | percent: '1.0-0' }}</span></div>
           <div><span class="k">Setup</span><span class="v">{{ w.setupQuality | percent: '1.0-0' }}</span></div>
           <div><span class="k">Rel. strength</span><span class="v">{{ w.relativeStrength | percent: '1.0-0' }}</span></div>
           <div><span class="k">Price level</span><span class="v">{{ w.priceLevel | percent: '1.0-0' }}</span></div>
-          <div><span class="k">Fundamentals</span><span class="v">{{ w.fundamentalMomentum | percent: '1.0-0' }}</span></div>
         </div>
       }
 

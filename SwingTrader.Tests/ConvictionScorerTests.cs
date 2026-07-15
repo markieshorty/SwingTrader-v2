@@ -106,11 +106,11 @@ public class ConvictionScorerTests
         ConvictionScorer.ScoreSetupQuality(setup).Should().Be(expected);
     }
 
+    // Six gate weights summing to 1.0 (sentiment/fundamental aren't part of the gate).
     private static StrategyWeights EqualWeights() => new()
     {
-        RsiWeight = 0.125m, MacdWeight = 0.125m, VolumeWeight = 0.125m, SentimentWeight = 0.125m,
-        SetupQualityWeight = 0.125m, RelativeStrengthWeight = 0.125m, PriceLevelWeight = 0.125m,
-        FundamentalMomentumWeight = 0.125m,
+        RsiWeight = 0.17m, MacdWeight = 0.17m, VolumeWeight = 0.17m,
+        SetupQualityWeight = 0.17m, RelativeStrengthWeight = 0.16m, PriceLevelWeight = 0.16m,
     };
 
     [Fact]
@@ -118,7 +118,7 @@ public class ConvictionScorerTests
     {
         var weights = EqualWeights();
 
-        var result = ConvictionScorer.Calculate(weights, 1.0m, 1.0m, 1.0m, 1.0m, 1.0m, 1.0m, 1.0m, 1.0m);
+        var result = ConvictionScorer.Calculate(weights, 1.0m, 1.0m, 1.0m, 1.0m, 1.0m, 1.0m);
 
         result.Should().Be(10.0m);
     }
@@ -128,7 +128,7 @@ public class ConvictionScorerTests
     {
         var weights = EqualWeights();
 
-        var result = ConvictionScorer.Calculate(weights, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m);
+        var result = ConvictionScorer.Calculate(weights, 0m, 0m, 0m, 0m, 0m, 0m);
 
         result.Should().Be(0.0m);
     }
@@ -136,14 +136,12 @@ public class ConvictionScorerTests
     [Fact]
     public void Calculate_UnspecifiedRelativeStrengthAndPriceLevel_DefaultToNeutral()
     {
-        // Phase 9a activated these weights immediately, ahead of 9c/9d computing
-        // real values - callers not yet passing them explicitly must still get
-        // a sensible neutral contribution, not zero (which would unfairly
-        // penalise every signal scored before those phases shipped).
+        // Callers not passing relative strength / price level must still get a
+        // sensible neutral 0.5 contribution, not zero.
         var weights = EqualWeights();
 
-        var withExplicitNeutral = ConvictionScorer.Calculate(weights, 1.0m, 1.0m, 1.0m, 1.0m, 1.0m, 0.5m, 0.5m, 1.0m);
-        var withDefaults = ConvictionScorer.Calculate(weights, 1.0m, 1.0m, 1.0m, 1.0m, 1.0m, fundamentalMomentumScore: 1.0m);
+        var withExplicitNeutral = ConvictionScorer.Calculate(weights, 1.0m, 1.0m, 1.0m, 1.0m, 0.5m, 0.5m);
+        var withDefaults = ConvictionScorer.Calculate(weights, 1.0m, 1.0m, 1.0m, 1.0m);
 
         withDefaults.Should().Be(withExplicitNeutral);
     }
@@ -156,7 +154,7 @@ public class ConvictionScorerTests
         var weights = EqualWeights();
         weights.RsiWeight = 5.0m;
 
-        var result = ConvictionScorer.Calculate(weights, 1.0m, 1.0m, 1.0m, 1.0m, 1.0m, 1.0m, 1.0m, 1.0m);
+        var result = ConvictionScorer.Calculate(weights, 1.0m, 1.0m, 1.0m, 1.0m, 1.0m, 1.0m);
 
         result.Should().Be(10.0m);
     }

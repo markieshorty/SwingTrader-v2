@@ -73,11 +73,9 @@ public static class ReplayEvaluator
             w.RsiWeight * (s.RsiScore ?? 0.5m) +
             w.MacdWeight * (s.MacdScore ?? 0.5m) +
             w.VolumeWeight * (s.VolumeScore ?? 0.5m) +
-            w.SentimentWeight * (s.SentimentComponentScore ?? 0.5m) +
             w.SetupQualityWeight * (s.SetupQualityScore ?? 0.5m) +
             w.RelativeStrengthWeight * (s.RelativeStrengthScore ?? 0.5m) +
-            w.PriceLevelWeight * (s.PriceLevelScore ?? 0.5m) +
-            w.FundamentalMomentumWeight * (s.FundamentalMomentumScore ?? 0.5m);
+            w.PriceLevelWeight * (s.PriceLevelScore ?? 0.5m);
         return Math.Round(Math.Clamp(raw * 10m, 0m, 10m), 1);
     }
 

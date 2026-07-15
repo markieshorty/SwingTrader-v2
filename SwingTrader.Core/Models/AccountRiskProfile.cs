@@ -22,13 +22,8 @@ public class AccountRiskProfile : BaseEntity
     public MarketRegime Regime { get; set; } = MarketRegime.Neutral;
 
     public decimal LockedCapitalPct { get; set; } = CapitalRules.LockedCapitalPct;
-    public decimal MaxPositionPctOfActive { get; set; } = CapitalRules.MaxPositionPctOfActive;
     public int MaxOpenPositions { get; set; } = CapitalRules.MaxOpenPositions;
     public decimal DailyLossCircuitBreakerPct { get; set; } = CapitalRules.DailyLossCircuitBreakerPct;
-    public int Tier1UnlockMinTrades { get; set; } = CapitalRules.Tier1UnlockMinTrades;
-    public decimal Tier1UnlockMinWinRate { get; set; } = CapitalRules.Tier1UnlockMinWinRate;
-    public int Tier2UnlockMinTrades { get; set; } = CapitalRules.Tier2UnlockMinTrades;
-    public decimal Tier2UnlockMinWinRate { get; set; } = CapitalRules.Tier2UnlockMinWinRate;
 
     // Trading behaviour — previously hardcoded in appsettings (MonitorConfig / EarningsConfig)
     public int MaxHoldDays { get; set; } = CapitalRules.DefaultMaxHoldDays;
@@ -49,14 +44,11 @@ public class AccountRiskProfile : BaseEntity
     public decimal StopLossPct { get; set; } = CapitalRules.DefaultStopLossPct;
     public decimal TargetPct { get; set; } = CapitalRules.DefaultTargetPct;
 
-    // Position sizing mode. TierLadder (default) budgets from the earned
-    // tier's active-capital pool; Flat budgets every position as
-    // FlatPositionPct of the whole portfolio - the deliberate "I understand
-    // the training wheels and I'm choosing to take them off" override. Tier
-    // evaluation keeps running either way; Flat only stops the
-    // tier from GATING size. Locked capital remains a hard ceiling in both
-    // modes (see Validate()).
-    public PositionSizingMode SizingMode { get; set; } = PositionSizingMode.TierLadder;
+    // Position sizing. Every position is FlatPositionPct of the whole portfolio;
+    // Flat (default) treats them all equally, Funnel tilts by the Forward score
+    // (SizingAggressiveness). Locked capital is a hard ceiling in both modes:
+    // Validate() requires FlatPositionPct x MaxOpenPositions <= 1 - locked.
+    public PositionSizingMode SizingMode { get; set; } = PositionSizingMode.Flat;
     public decimal FlatPositionPct { get; set; } = CapitalRules.DefaultFlatPositionPct;
 
     // How many symbols Claude selects for the weekly AI-managed watchlist
@@ -86,15 +78,14 @@ public class AccountRiskProfile : BaseEntity
     // score sits below this floor is demoted to Watch (asymmetric veto -
     // forward information can block, never create, a Buy). Degraded or
     // missing Forward scores never veto (fail-open, like every other data
-    // dependency). 0 disables the veto entirely. Only consulted while
-    // Research:FunnelEnabled is on.
+    // dependency). 0 disables the veto entirely.
     public decimal ForwardVetoFloor { get; set; } = CapitalRules.DefaultForwardVetoFloor;
 
     public string RiskLabel => LockedCapitalPct switch
     {
         >= 0.80m => "Very Conservative",
         >= 0.70m => "Conservative",
-        _ when MaxPositionPctOfActive >= 0.25m => "Moderate-Aggressive",
+        _ when FlatPositionPct >= 0.15m => "Moderate-Aggressive",
         _ => "Moderate",
     };
 
@@ -104,10 +95,6 @@ public class AccountRiskProfile : BaseEntity
             throw new ValidationException(
                 $"Locked capital must be {CapitalRules.MinLockedCapitalPct:P0}-{CapitalRules.MaxLockedCapitalPct:P0}");
 
-        if (MaxPositionPctOfActive < CapitalRules.MinMaxPositionPctOfActive || MaxPositionPctOfActive > CapitalRules.MaxMaxPositionPctOfActive)
-            throw new ValidationException(
-                $"Max position must be {CapitalRules.MinMaxPositionPctOfActive:P0}-{CapitalRules.MaxMaxPositionPctOfActive:P0} of active capital");
-
         if (MaxOpenPositions < CapitalRules.MinMaxOpenPositions || MaxOpenPositions > CapitalRules.MaxMaxOpenPositions)
             throw new ValidationException(
                 $"Max positions must be {CapitalRules.MinMaxOpenPositions}-{CapitalRules.MaxMaxOpenPositions}");
@@ -116,26 +103,7 @@ public class AccountRiskProfile : BaseEntity
             throw new ValidationException(
                 $"Circuit breaker must be {CapitalRules.MinDailyLossCircuitBreakerPct:P0}-{CapitalRules.MaxDailyLossCircuitBreakerPct:P0}");
 
-        if (Tier1UnlockMinTrades < CapitalRules.MinTier1UnlockMinTrades || Tier1UnlockMinTrades > CapitalRules.MaxTier1UnlockMinTrades)
-            throw new ValidationException(
-                $"Tier 1 min trades must be {CapitalRules.MinTier1UnlockMinTrades}-{CapitalRules.MaxTier1UnlockMinTrades}");
-
-        if (Tier1UnlockMinWinRate < CapitalRules.MinTier1UnlockMinWinRate || Tier1UnlockMinWinRate > CapitalRules.MaxTier1UnlockMinWinRate)
-            throw new ValidationException(
-                $"Tier 1 min win rate must be {CapitalRules.MinTier1UnlockMinWinRate:P0}-{CapitalRules.MaxTier1UnlockMinWinRate:P0}");
-
-        if (Tier2UnlockMinTrades <= Tier1UnlockMinTrades || Tier2UnlockMinTrades > CapitalRules.MaxTier2UnlockMinTrades)
-            throw new ValidationException(
-                $"Tier 2 min trades must exceed Tier 1 min trades and be at most {CapitalRules.MaxTier2UnlockMinTrades}");
-
-        if (Tier2UnlockMinWinRate <= Tier1UnlockMinWinRate || Tier2UnlockMinWinRate > CapitalRules.MaxTier2UnlockMinWinRate)
-            throw new ValidationException(
-                $"Tier 2 min win rate must exceed Tier 1 min win rate and be at most {CapitalRules.MaxTier2UnlockMinWinRate:P0}");
-
-        // Active capital sanity check
         var activePct = 1.0m - LockedCapitalPct;
-        if (MaxPositionPctOfActive > activePct)
-            throw new ValidationException("Max position exceeds available active capital");
 
         if (StopLossPct < CapitalRules.MinStopLossPct || StopLossPct > CapitalRules.MaxStopLossPct)
             throw new ValidationException(
@@ -152,11 +120,11 @@ public class AccountRiskProfile : BaseEntity
             throw new ValidationException(
                 $"Flat position size must be {CapitalRules.MinFlatPositionPct:P0}-{CapitalRules.MaxFlatPositionPct:P0}");
 
-        // Flat mode bypasses the tier pool but NEVER the locked-capital
-        // ceiling: full deployment must fit inside the un-locked share.
-        if (SizingMode == PositionSizingMode.Flat && FlatPositionPct * MaxOpenPositions > activePct)
+        // Full deployment must fit inside the un-locked share (both modes size
+        // from FlatPositionPct; Funnel only tilts within this budget).
+        if (FlatPositionPct * MaxOpenPositions > activePct)
             throw new ValidationException(
-                $"Flat sizing ({FlatPositionPct:P0} × {MaxOpenPositions} positions) exceeds the un-locked share of the account ({activePct:P0}) — lower the flat size, position count, or locked capital");
+                $"Position sizing ({FlatPositionPct:P0} × {MaxOpenPositions} positions) exceeds the un-locked share of the account ({activePct:P0}) — lower the position size, position count, or locked capital");
 
         if (MaxHoldDays < CapitalRules.MinMaxHoldDays || MaxHoldDays > CapitalRules.MaxMaxHoldDays)
             throw new ValidationException(

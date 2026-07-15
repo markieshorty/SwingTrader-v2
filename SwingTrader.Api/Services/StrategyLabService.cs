@@ -52,8 +52,8 @@ public class StrategyLabService(
         {
             var baselineResult = Evaluate(replayable, prod, prod.BuyThreshold, excludeBreakout: true);
             baseline = new LabBaseline(
-                new LabWeights(prod.RsiWeight, prod.MacdWeight, prod.VolumeWeight, prod.SentimentWeight,
-                    prod.SetupQualityWeight, prod.RelativeStrengthWeight, prod.PriceLevelWeight, prod.FundamentalMomentumWeight),
+                new LabWeights(prod.RsiWeight, prod.MacdWeight, prod.VolumeWeight,
+                    prod.SetupQualityWeight, prod.RelativeStrengthWeight, prod.PriceLevelWeight),
                 prod.BuyThreshold, ExcludeBreakout: true, baselineResult);
         }
 
@@ -62,9 +62,9 @@ public class StrategyLabService(
 
     private static StrategyWeights ToWeights(LabWeights w) => new()
     {
-        RsiWeight = w.Rsi, MacdWeight = w.Macd, VolumeWeight = w.Volume, SentimentWeight = w.Sentiment,
+        RsiWeight = w.Rsi, MacdWeight = w.Macd, VolumeWeight = w.Volume,
         SetupQualityWeight = w.SetupQuality, RelativeStrengthWeight = w.RelativeStrength,
-        PriceLevelWeight = w.PriceLevel, FundamentalMomentumWeight = w.FundamentalMomentum,
+        PriceLevelWeight = w.PriceLevel,
     };
 
     private static LabResult Evaluate(List<ReplayableTrade> trades, StrategyWeights w, decimal threshold, bool excludeBreakout)
@@ -126,8 +126,8 @@ public class StrategyLabService(
             req.Weights, req.BuyThreshold, !req.ExcludeBreakout);
 
         // Single-weight nudges (±0.05), renormalised
-        var names = new[] { "RSI", "MACD", "Volume", "Sentiment", "Setup quality", "Relative strength", "Price level", "Fundamental momentum" };
-        for (var i = 0; i < 8; i++)
+        var names = new[] { "RSI", "MACD", "Volume", "Setup quality", "Relative strength", "Price level" };
+        for (var i = 0; i < names.Length; i++)
         {
             foreach (var delta in new[] { 0.05m, -0.05m })
             {
@@ -136,7 +136,7 @@ public class StrategyLabService(
                 if (nv < 0.02m || nv > 0.45m) continue;
                 arr[i] = nv;
                 var sum = arr.Sum();
-                for (var k = 0; k < 8; k++) arr[k] = Math.Round(arr[k] / sum, 4);
+                for (var k = 0; k < arr.Length; k++) arr[k] = Math.Round(arr[k] / sum, 4);
                 Try($"{(delta > 0 ? "Increase" : "Decrease")} {names[i]} weight to {arr[i]:P0} (others rebalanced)",
                     FromArray(arr), req.BuyThreshold, req.ExcludeBreakout);
             }
@@ -150,8 +150,8 @@ public class StrategyLabService(
     }
 
     private static decimal[] ToArray(LabWeights w) =>
-        [w.Rsi, w.Macd, w.Volume, w.Sentiment, w.SetupQuality, w.RelativeStrength, w.PriceLevel, w.FundamentalMomentum];
+        [w.Rsi, w.Macd, w.Volume, w.SetupQuality, w.RelativeStrength, w.PriceLevel];
 
     private static LabWeights FromArray(decimal[] a) =>
-        new(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]);
+        new(a[0], a[1], a[2], a[3], a[4], a[5]);
 }

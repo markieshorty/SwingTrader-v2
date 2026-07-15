@@ -141,7 +141,8 @@
       </p>
 
       @if (weights(); as w) {
-        <h4>Component Weights (must sum to 1.0)</h4>
+        <h4>Gate Weights (must sum to 1.0)</h4>
+        <p class="muted small">The six technical components that decide Buy / Watch / Hold / Avoid.</p>
         <div class="weights-grid">
           @for (field of componentWeightFields; track field.key) {
             <mat-form-field appearance="outline" class="weight-field">
@@ -160,6 +161,31 @@
         </div>
         <p [class.warning]="!weightsSumValid()" [class.muted]="weightsSumValid()" class="small">
           Sum: {{ weightsSum() | number: '1.0-4' }} {{ weightsSumValid() ? '✓' : '— must equal 1.0' }}
+        </p>
+
+        <h4>Forward-Score Weights (must sum to 1.0)</h4>
+        <p class="muted small">
+          How news sentiment and fundamental momentum blend into the Forward score that drives per-regime
+          position sizing and the veto. Not part of entry selection.
+        </p>
+        <div class="weights-grid">
+          @for (field of forwardWeightFields; track field.key) {
+            <mat-form-field appearance="outline" class="weight-field">
+              <mat-label>{{ field.label }}</mat-label>
+              <input
+                matInput
+                type="number"
+                step="0.01"
+                min="0"
+                max="1"
+                [ngModel]="w[field.key]"
+                (ngModelChange)="updateWeightField(field.key, $event)"
+              />
+            </mat-form-field>
+          }
+        </div>
+        <p [class.warning]="!forwardWeightsSumValid()" [class.muted]="forwardWeightsSumValid()" class="small">
+          Sum: {{ forwardWeightsSum() | number: '1.0-4' }} {{ forwardWeightsSumValid() ? '✓' : '— must equal 1.0' }}
         </p>
 
         <h4>Thresholds &amp; Risk</h4>
@@ -273,87 +299,57 @@
           <mat-form-field appearance="outline" subscriptSizing="dynamic" class="sizing-mode-select">
             <mat-label>Sizing model</mat-label>
             <mat-select [value]="draft.sizingMode" (selectionChange)="updateRiskDraftField('sizingMode', $event.value)">
-              <mat-option value="TierLadder">Tier ladder (earn size with track record)</mat-option>
-              <mat-option value="Flat">Flat (fixed % of the whole account)</mat-option>
+              <mat-option value="Flat">Flat (every position the same size)</mat-option>
+              <mat-option value="Funnel">Funnel (size by conviction / Forward score)</mat-option>
             </mat-select>
           </mat-form-field>
 
-          @if (draft.sizingMode === 'Flat') {
-            <p class="muted small">
-              <strong>Flat sizing bypasses the tier ladder</strong> — every position is a fixed slice of the whole
-              account, regardless of tier. Locked capital remains a hard ceiling (flat&nbsp;% × max positions can't
-              exceed the un-locked share), and the cash buffer, position cap and daily circuit breaker all still apply.
-              Tier progress keeps being tracked; switch back anytime.
-            </p>
-            <div class="slider-row">
-              <label>Position Size: {{ draft.flatPositionPct | percent: '1.0-0' }} of the whole account</label>
-              <mat-slider
-                [min]="profile.allowedRanges.flatPositionPct.min"
-                [max]="profile.allowedRanges.flatPositionPct.max"
-                step="0.01"
-                discrete
-              >
-                <input matSliderThumb [ngModel]="draft.flatPositionPct" (ngModelChange)="updateRiskDraftField('flatPositionPct', $event)" />
-              </mat-slider>
-            </div>
-            @if (riskLivePreview(); as preview) {
-              @if (preview.total !== null) {
-                <p class="muted small">
-                  <strong>Max per trade: {{ preview.total * draft.flatPositionPct | currency: 'GBP' }}</strong>
-                  = {{ draft.flatPositionPct | percent: '1.0-0' }} of {{ preview.total | currency: 'GBP' }};
-                  up to {{ preview.total * draft.flatPositionPct * draft.maxOpenPositions | currency: 'GBP' }} deployed
-                  across {{ draft.maxOpenPositions }} positions.
-                </p>
-              }
-            }
-          } @else {
-            <div class="slider-row">
-              <label>Max Position Size: {{ draft.maxPositionPctOfActive | percent: '1.0-0' }} of active capital</label>
-              <mat-slider
-                [min]="profile.allowedRanges.maxPositionPctOfActive.min"
-                [max]="profile.allowedRanges.maxPositionPctOfActive.max"
-                step="0.01"
-                discrete
-              >
-                <input matSliderThumb [ngModel]="draft.maxPositionPctOfActive" (ngModelChange)="updateRiskDraftField('maxPositionPctOfActive', $event)" />
-              </mat-slider>
-            </div>
-            @if (riskLivePreview(); as preview) {
-              @if (preview.active !== null) {
-                <p class="muted small">
-                  <strong>Active capital{{ preview.tier ? ' (' + preview.tier + ')' : '' }}:
-                  {{ preview.active | currency: 'GBP' }}</strong>
-                  — {{ preview.activePct | percent: '1.0-0' }} of your {{ preview.total | currency: 'GBP' }} account.
-                  This is the pool positions are sized from, set by your capital <em>tier</em> — not the locked slider.
-                  It grows as you unlock higher tiers (Tier&nbsp;1 = 10%, Tier&nbsp;2 = 20%, Tier&nbsp;3 = 50% of the account).
-                </p>
-                <p class="muted small">
-                  <strong>Max per trade: {{ preview.maxPerTrade | currency: 'GBP' }}</strong>
-                  = {{ draft.maxPositionPctOfActive | percent: '1.0-0' }} of active capital.
-                </p>
-              } @else {
-                <p class="muted small">Max per trade appears once your account has its first portfolio snapshot.</p>
-              }
-            }
-          }
-
           <div class="slider-row">
-            <label>Sizing Aggressiveness: {{ draft.sizingAggressiveness | number: '1.1-1' }}</label>
+            <label>Position Size: {{ draft.flatPositionPct | percent: '1.0-0' }} of the whole account</label>
             <mat-slider
-              [min]="profile.allowedRanges.sizingAggressiveness.min"
-              [max]="profile.allowedRanges.sizingAggressiveness.max"
-              step="0.1"
+              [min]="profile.allowedRanges.flatPositionPct.min"
+              [max]="profile.allowedRanges.flatPositionPct.max"
+              step="0.01"
               discrete
             >
-              <input matSliderThumb [ngModel]="draft.sizingAggressiveness" (ngModelChange)="updateRiskDraftField('sizingAggressiveness', $event)" />
+              <input matSliderThumb [ngModel]="draft.flatPositionPct" (ngModelChange)="updateRiskDraftField('flatPositionPct', $event)" />
             </mat-slider>
           </div>
           <p class="muted small">
-            How strongly the <strong>Forward score</strong> (news sentiment + fundamentals) tilts each position's size.
-            At 0 (default) every position gets its base size. At 1, a high forward score sizes up to 1.5× base and a
-            weak one down to 0.5× — always inside the pool, cash-buffer and position caps above. Leave at 0 until the
-            scorecard shows the forward score is earning its keep.
+            Every position is this slice of the whole account. Locked capital is a hard ceiling (position&nbsp;% × max
+            positions can't exceed the un-locked share), and the cash buffer, position cap and daily circuit breaker all
+            still apply.
           </p>
+          @if (riskLivePreview(); as preview) {
+            @if (preview.total !== null) {
+              <p class="muted small">
+                <strong>Base per trade: {{ preview.total * draft.flatPositionPct | currency: 'GBP' }}</strong>
+                = {{ draft.flatPositionPct | percent: '1.0-0' }} of {{ preview.total | currency: 'GBP' }};
+                up to {{ preview.total * draft.flatPositionPct * draft.maxOpenPositions | currency: 'GBP' }} deployed
+                across {{ draft.maxOpenPositions }} positions.
+              </p>
+            }
+          }
+
+          @if (draft.sizingMode === 'Funnel') {
+            <div class="slider-row">
+              <label>Sizing Aggressiveness: {{ draft.sizingAggressiveness | number: '1.1-1' }}</label>
+              <mat-slider
+                [min]="profile.allowedRanges.sizingAggressiveness.min"
+                [max]="profile.allowedRanges.sizingAggressiveness.max"
+                step="0.1"
+                discrete
+              >
+                <input matSliderThumb [ngModel]="draft.sizingAggressiveness" (ngModelChange)="updateRiskDraftField('sizingAggressiveness', $event)" />
+              </mat-slider>
+            </div>
+            <p class="muted small">
+              How strongly the <strong>Forward score</strong> (news sentiment + fundamentals) tilts each position's size.
+              At 0 every position gets its base size. At 1, a high forward score sizes up to 1.5× base and a weak one down
+              to 0.5× — always inside the cash-buffer and position caps above. Leave at 0 until the scorecard shows the
+              forward score is earning its keep.
+            </p>
+          }
 
           <div class="slider-row">
             <label>Forward Veto Floor: {{ draft.forwardVetoFloor | number: '1.1-1' }}</label>
@@ -553,55 +549,6 @@
             </mat-slider>
           </div>
           <p class="muted small">Skip BUY signals when earnings are this many days away (0 = no gate).</p>
-
-          <details class="advanced-section">
-            <summary>Advanced: Tier Unlock Criteria</summary>
-            <div class="slider-row">
-              <label>Tier 1 → 2: Min Trades: {{ draft.tier1UnlockMinTrades }}</label>
-              <mat-slider
-                [min]="profile.allowedRanges.tier1UnlockMinTrades.min"
-                [max]="profile.allowedRanges.tier1UnlockMinTrades.max"
-                step="1"
-                discrete
-              >
-                <input matSliderThumb [ngModel]="draft.tier1UnlockMinTrades" (ngModelChange)="updateRiskDraftField('tier1UnlockMinTrades', $event)" />
-              </mat-slider>
-            </div>
-            <div class="slider-row">
-              <label>Tier 1 → 2: Min Win Rate: {{ draft.tier1UnlockMinWinRate | percent: '1.0-0' }}</label>
-              <mat-slider
-                [min]="profile.allowedRanges.tier1UnlockMinWinRate.min"
-                [max]="profile.allowedRanges.tier1UnlockMinWinRate.max"
-                step="0.01"
-                discrete
-              >
-                <input matSliderThumb [ngModel]="draft.tier1UnlockMinWinRate" (ngModelChange)="updateRiskDraftField('tier1UnlockMinWinRate', $event)" />
-              </mat-slider>
-            </div>
-            <div class="slider-row">
-              <label>Tier 2 → 3: Min Trades: {{ draft.tier2UnlockMinTrades }}</label>
-              <mat-slider
-                [min]="max(draft.tier1UnlockMinTrades + 1, profile.allowedRanges.tier2UnlockMinTrades.min)"
-                [max]="profile.allowedRanges.tier2UnlockMinTrades.max"
-                step="1"
-                discrete
-              >
-                <input matSliderThumb [ngModel]="draft.tier2UnlockMinTrades" (ngModelChange)="updateRiskDraftField('tier2UnlockMinTrades', $event)" />
-              </mat-slider>
-            </div>
-            <div class="slider-row">
-              <label>Tier 2 → 3: Min Win Rate: {{ draft.tier2UnlockMinWinRate | percent: '1.0-0' }}</label>
-              <mat-slider
-                [min]="max(draft.tier1UnlockMinWinRate + 0.01, profile.allowedRanges.tier2UnlockMinWinRate.min)"
-                [max]="profile.allowedRanges.tier2UnlockMinWinRate.max"
-                step="0.01"
-                discrete
-              >
-                <input matSliderThumb [ngModel]="draft.tier2UnlockMinWinRate" (ngModelChange)="updateRiskDraftField('tier2UnlockMinWinRate', $event)" />
-              </mat-slider>
-            </div>
-            <p class="muted small">Tier 2 → 3 must be a higher bar than Tier 1 → 2 (both criteria).</p>
-          </details>
 
           <div class="button-row">
             <button mat-raised-button color="primary" [disabled]="!isOwner()" (click)="saveRiskProfile()">Save</button>

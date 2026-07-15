@@ -35,18 +35,16 @@ public class ApplyRefinementServiceTests
     public async Task ApplyAsync_CopiesFundamentalMomentumWeight_AndPassesValidation()
     {
         // A realistic suggestion: weights normalised to sum to 1.0, with a
-        // FundamentalMomentumWeight that differs from the 0.10 class default
-        // so a missed copy is detectable.
+        // A PriceLevelWeight that differs from the class default so a missed
+        // copy is detectable. Six gate weights sum to 1.0.
         var suggested = new StrategyWeights
         {
             RsiWeight = 0.15m,
             MacdWeight = 0.10m,
-            VolumeWeight = 0.20m,
-            SentimentWeight = 0.15m,
-            SetupQualityWeight = 0.10m,
-            RelativeStrengthWeight = 0.10m,
-            PriceLevelWeight = 0.05m,
-            FundamentalMomentumWeight = 0.15m,
+            VolumeWeight = 0.25m,
+            SetupQualityWeight = 0.20m,
+            RelativeStrengthWeight = 0.15m,
+            PriceLevelWeight = 0.15m,
         };
 
         _suggestionRepo.GetByIdAsync(1, 7).Returns(new RefinementSuggestion
@@ -62,14 +60,13 @@ public class ApplyRefinementServiceTests
 
         result.Success.Should().BeTrue(result.Error);
         await _weightsRepo.Received(1).AddAsync(Arg.Is<StrategyWeights>(w =>
-            w.FundamentalMomentumWeight == 0.15m));
+            w.PriceLevelWeight == 0.15m));
     }
 
     private static StrategyWeights NormalisedWeights() => new()
     {
-        RsiWeight = 0.15m, MacdWeight = 0.10m, VolumeWeight = 0.20m, SentimentWeight = 0.15m,
-        SetupQualityWeight = 0.10m, RelativeStrengthWeight = 0.10m, PriceLevelWeight = 0.05m,
-        FundamentalMomentumWeight = 0.15m,
+        RsiWeight = 0.15m, MacdWeight = 0.10m, VolumeWeight = 0.25m,
+        SetupQualityWeight = 0.20m, RelativeStrengthWeight = 0.15m, PriceLevelWeight = 0.15m,
     };
 
     [Fact]

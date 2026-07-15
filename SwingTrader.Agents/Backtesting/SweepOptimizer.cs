@@ -104,15 +104,12 @@ public static class SweepOptimizer
     // half its train value AND beats the baseline on the same held-out window.
     public const decimal HoldupRetentionFactor = 0.5m;
 
-    // Weight-array indices, matching HistoricBacktestWeights field order.
-    // "Live" components are the ones the historic engine reconstructs from
-    // price/volume bars - since the engine gained relative strength (vs stored
-    // sector-ETF bars) and price level (support/resistance), only Sentiment
-    // and Fundamental momentum remain "dead" (fixed neutral 0.5).
+    // Weight-array indices, matching HistoricBacktestWeights field order. All
+    // six gate weights are searched (sentiment and fundamental momentum are no
+    // longer part of the gate - they drive the live Forward score instead).
     // Internal (not private) so MlSweepOptimizer's CMA-ES search shares the
-    // exact same live/dead split and renormalisation as the deterministic sweep.
-    internal static readonly int[] LiveIndices = [0, 1, 2, 4, 5, 6]; // RSI, MACD, Volume, Setup, RelStrength, PriceLevel
-    private static readonly int[] DeadIndices = [3, 7];             // Sentiment, FundMomentum
+    // exact same renormalisation as the deterministic sweep.
+    internal static readonly int[] LiveIndices = [0, 1, 2, 3, 4, 5]; // RSI, MACD, Volume, Setup, RelStrength, PriceLevel
 
     // Deterministic candidate generation: production baseline + variations
     // that redistribute weight ONLY among the live components, holding the
@@ -134,7 +131,7 @@ public static class SweepOptimizer
         HistoricBacktestCandidate baseline, bool searchRules = false, HistoricTradingRules? productionRules = null)
     {
         var candidates = new List<HistoricBacktestCandidate> { baseline with { Label = "Production baseline" } };
-        var names = new[] { "RSI", "MACD", "Volume", "Sentiment", "Setup quality", "Relative strength", "Price level", "Fundamental momentum" };
+        var names = new[] { "RSI", "MACD", "Volume", "Setup quality", "Relative strength", "Price level" };
         var baseArr = ToArray(baseline.Weights);
         var liveBudget = LiveIndices.Sum(i => baseArr[i]); // what the live dials must always sum to
 
@@ -497,10 +494,10 @@ public static class SweepOptimizer
     }
 
     internal static decimal[] ToArray(HistoricBacktestWeights w) =>
-        [w.Rsi, w.Macd, w.Volume, w.Sentiment, w.SetupQuality, w.RelativeStrength, w.PriceLevel, w.FundamentalMomentum];
+        [w.Rsi, w.Macd, w.Volume, w.SetupQuality, w.RelativeStrength, w.PriceLevel];
 
     internal static HistoricBacktestWeights FromArray(decimal[] a) =>
-        new(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]);
+        new(a[0], a[1], a[2], a[3], a[4], a[5]);
 
     // Scales only the live components so they sum to the fixed live budget
     // (total minus the untouched dead weights) - the overall sum stays exactly

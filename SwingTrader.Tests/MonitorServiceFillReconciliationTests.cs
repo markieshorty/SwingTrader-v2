@@ -539,23 +539,6 @@ public class MonitorServiceFillReconciliationTests
     }
 
     [Fact]
-    public async Task RunCycleAsync_SnapshotCarriesForwardEarnedTier_NotHardcodedTier1()
-    {
-        // Regression: Monitor's per-cycle snapshot hardcoded CurrentTier=Tier1,
-        // so an earned Tier2/Tier3 (applied by TierEvaluationService onto the
-        // then-latest snapshot) was clobbered back to Tier1 within one 5-minute
-        // cycle - ExecutionService sizes from the latest snapshot's tier, so
-        // tier progression silently never took effect.
-        SetupNoOpenPositions();
-        _portfolioRepo.GetLatestSnapshotAsync(1, TradingMode.Demo)
-            .Returns(new PortfolioSnapshot { CurrentTier = CapitalTier.Tier2 });
-
-        await CreateSut().RunCycleAsync(1, _finnhub, _t212);
-
-        await _portfolioRepo.Received(1).AddAsync(Arg.Is<PortfolioSnapshot>(s => s.CurrentTier == CapitalTier.Tier2));
-    }
-
-    [Fact]
     public async Task RunCycleAsync_CircuitBreakerTriggers_AutoPausesEntriesForCurrentModeAndLogs()
     {
         var account = new Account { Id = 1, TradingMode = TradingMode.Demo };
