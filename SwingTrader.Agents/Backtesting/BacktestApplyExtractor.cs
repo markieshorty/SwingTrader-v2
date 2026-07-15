@@ -7,8 +7,13 @@ namespace SwingTrader.Agents.Backtesting;
 // JSON so the Strategy Lab history tabs can re-apply it to live settings:
 //   A/B    -> candidates[0] (the user's own dials) from ResultJson, with the
 //             risk-rule overrides from RequestJson candidates[0].Rules.
-//   sweep  -> the validated winner from ResultJson. The sweep only tunes
-//             weights (never risk rules), so Rules is always null.
+//   sweep  -> the validated winner from ResultJson, including its Rules when a
+//             rule candidate won ("search for optimal trading rules" / the
+//             per-setup guide-hold search).
+// The returned Rules (HistoricTradingRules) carry both uniform overrides and
+// per-setup SetupTactics; the apply endpoint feeds them through
+// BacktestRiskRuleMapper (profile-level) and SetupTacticsRuleMapper (per-setup)
+// so a winning tactic lands where live execution reads it.
 // RequestJson is serialized PascalCase, ResultJson camelCase - all lookups
 // here are case-insensitive so both parse. Pure and defensive: any missing/
 // malformed shape returns null rather than throwing, so a half-written or
