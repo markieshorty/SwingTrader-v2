@@ -87,10 +87,14 @@
             </mat-slider>
           </div>
 
-          <mat-slide-toggle [checked]="excludeBreakout()" (change)="excludeBreakout.set($event.checked)"
-            matTooltip="Backtested: Breakout setups averaged -1.2%/trade; production currently excludes them">
-            Exclude Breakout setups
-          </mat-slide-toggle>
+          <mat-form-field appearance="outline" subscriptSizing="dynamic" class="setup-filter-select">
+            <mat-label>Setup filter</mat-label>
+            <mat-select [value]="excludeBreakout()" (selectionChange)="excludeBreakout.set($event.value)"
+              matTooltip="Restrict which setups the run considers. Breakouts trade live again — use this to study them in isolation.">
+              <mat-option [value]="false">All setups</mat-option>
+              <mat-option [value]="true">Exclude breakouts</mat-option>
+            </mat-select>
+          </mat-form-field>
 
           @if (dataSource() === 'historic') {
             <mat-checkbox [checked]="autopauseBear()" (change)="autopauseBear.set($event.checked)"

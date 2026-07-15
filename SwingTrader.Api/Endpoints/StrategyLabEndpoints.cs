@@ -521,9 +521,9 @@ public static class StrategyLabEndpoints
                 prod.RsiWeight, prod.MacdWeight, prod.VolumeWeight,
                 prod.SetupQualityWeight, prod.RelativeStrengthWeight, prod.PriceLevelWeight),
             prod.BuyThreshold,
-            // Production policy: Breakout setups are hard-capped at Watch in
-            // ResearchPipeline, so the baseline replays with them excluded.
-            ExcludeBreakout: true,
+            // Live no longer excludes Breakout setups (docs/setup-tactics-plan),
+            // so the production baseline replays with them included.
+            ExcludeBreakout: false,
             AutopauseDuringBear: bearBook.AutopauseTrading);
     }
 }

@@ -688,18 +688,13 @@ public class ResearchPipeline(
         if (ind.Rsi14 > 75)
             return Recommendation.Avoid;
 
-        // Breakout setups are capped at Watch - never Buy. Backtested Oct 2023 -
-        // Jul 2026 (446-trade baseline): Breakout trades averaged -1.20% (37%
-        // win rate) and were the single drag flipping the whole system negative;
-        // excluding them turned -5.2% into +14.1% (PF 0.96 -> 1.12). A penalty
-        // sweep showed the effect is dose-responsive and that the breakouts
-        // strong enough to survive a conviction penalty did even WORSE (-3.4%)
-        // - the pattern is buying exhaustion, and its "best" instances are the
-        // most stretched. The signal still gets classified/persisted as
-        // Breakout so dashboards and refinement keep learning from it.
-        if (setupType == SetupType.Breakout && conviction >= weights.WatchThreshold)
-            return Recommendation.Watch;
-
+        // NOTE: Breakout setups used to be hard-capped at Watch (never Buy) on
+        // the strength of a flat-exits backtest (avg -1.20%). That cap is
+        // removed (docs/setup-tactics-plan): the loss was measured under
+        // mean-reversion exit rules, and breakouts need setup-appropriate exits
+        // (wider stop, longer guide-hold, early-arming trail). They now classify
+        // like any other setup; whether they earn their keep is a per-setup
+        // exit-tuning question, not a blanket exclusion.
         if (conviction >= weights.BuyThreshold) return Recommendation.Buy;
         if (conviction >= weights.WatchThreshold) return Recommendation.Watch;
         if (conviction >= 3.0m) return Recommendation.Hold;
