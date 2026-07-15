@@ -628,7 +628,7 @@
         </p>
         <div class="search-rules-row">
           <mat-checkbox [(ngModel)]="searchRules" [disabled]="optimizing()"
-            matTooltip="Adds ~50 trading-rule candidates to the search: hold-day, stop, target, trailing-stop, probation and position-cap grids (one change at a time on your production weights), a few combined risk postures, plus a bounded per-setup guide-hold search (does each setup want a different hold length?). Rule candidates face the same guardrails and out-of-sample validation as every weight candidate — if one wins, Optimizer History can apply its rules to your live risk settings alongside the weights.">
+            matTooltip="Adds trading-rule candidates to the search: uniform hold-day, stop, target, trailing-stop, probation and position-cap grids, a few combined risk postures, PLUS a per-setup search of each setup's guide-hold, stop and target (does OversoldRecovery want a wider stop than Breakout?). Also runs a greedy second pass — the best weight mix with the rules re-searched on top. Thorough but slower (more candidates); rule candidates face the same out-of-sample validation as every weight candidate, and a winner's rules apply to live from Optimizer History.">
             Search for optimal trading rules
           </mat-checkbox>
         </div>

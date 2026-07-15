@@ -93,6 +93,23 @@ public class SweepOptimizerTests
             c.Rules != null && c.Rules.SetupTactics != null && c.Rules.SetupTactics.Count == 1
             && c.Rules.SetupTactics[0].Setup == "Breakout"
             && c.Rules.SetupTactics[0].GuideHoldDays != 10);
+
+        // The per-setup search also nudges stop and target (one dial at a time).
+        var stopCands = withSearch.Where(c => c.Label!.StartsWith("Breakout stop")).ToList();
+        var targetCands = withSearch.Where(c => c.Label!.StartsWith("Breakout target")).ToList();
+        stopCands.Should().NotBeEmpty();
+        targetCands.Should().NotBeEmpty();
+        // A stop nudge moves only the stop (target/guide-hold stay at baseline)
+        // and stays strictly below the target so the structure is valid.
+        stopCands.Should().OnlyContain(c =>
+            c.Rules!.SetupTactics![0].StopLossPct != 0.05m
+            && c.Rules.SetupTactics[0].TargetPct == 0.08m
+            && c.Rules.SetupTactics[0].GuideHoldDays == 10
+            && c.Rules.SetupTactics[0].StopLossPct < c.Rules.SetupTactics[0].TargetPct);
+        targetCands.Should().OnlyContain(c =>
+            c.Rules!.SetupTactics![0].TargetPct != 0.08m
+            && c.Rules.SetupTactics[0].StopLossPct == 0.05m
+            && c.Rules.SetupTactics[0].TargetPct > c.Rules.SetupTactics[0].StopLossPct);
     }
 
     [Fact]

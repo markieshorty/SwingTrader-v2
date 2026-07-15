@@ -1,3 +1,4 @@
+using SwingTrader.Core.Constants;
 using SwingTrader.Core.Enums;
 using SwingTrader.Core.Models;
 
@@ -332,28 +333,41 @@ public static class SweepOptimizer
             new HistoricTradingRules(MaxHoldDays: 30, TargetPct: 0.30m,
                 TrailingActivationPct: 0.05m, TrailingDistancePct: 0.03m));
 
-        // Per-setup GUIDE-HOLD search (docs/setup-tactics-plan Phase 4): each
-        // nudges ONE setup's guide-hold off its live value, holding its other
-        // tactics and every other setup at baseline, so a winner is attributable
-        // to that setup + hold length. Bounded to the guide-hold dimension only.
+        // Per-setup TACTICS search (docs/setup-tactics-plan Phase 4): nudges ONE
+        // setup's guide-hold / stop / target off its live value at a time, holding
+        // its other tactics and every OTHER setup at baseline, so a winner is
+        // attributable to that setup + dial. Bounded (~2-3 nudges per dial per
+        // setup) to keep the candidate budget sane. Stop/target target the
+        // stop-out-rate vs let-winners-run tradeoff a mean-reversion setup lives on.
         if (accountTactics is not null)
         {
             foreach (var (setup, tac) in accountTactics.OrderBy(kv => kv.Key.ToString()))
             {
-                // Distinct target hold-days: the ×1.5 and ×2.0 nudges can clamp
-                // to the same value (e.g. guide-hold 20 → 30 and 40→30), which
-                // would otherwise queue two identical candidates.
-                var targets = new[] { 0.5m, 1.5m, 2.0m }
-                    .Select(mult => Math.Clamp((int)Math.Round(tac.GuideHoldDays * mult), 5, 30))
-                    .Where(gh => gh != tac.GuideHoldDays)
-                    .Distinct();
-                foreach (var gh in targets)
-                {
-                    var ov = new HistoricSetupTacticsOverride(
-                        setup.ToString(), tac.StopLossPct, tac.TargetPct, gh,
-                        tac.TrailingActivationPct, tac.TrailingDistancePct);
-                    AddRule($"{setup} guide-hold {gh}d", new HistoricTradingRules(SetupTactics: [ov]));
-                }
+                var s = setup.ToString();
+                HistoricSetupTacticsOverride Ov(int guideHold, decimal stop, decimal target) =>
+                    new(s, stop, target, guideHold, tac.TrailingActivationPct, tac.TrailingDistancePct);
+
+                // Guide-hold: ×0.5/×1.5/×2.0, clamped, distinct (the top two can
+                // clamp to the same value, which would duplicate a candidate).
+                foreach (var gh in new[] { 0.5m, 1.5m, 2.0m }
+                    .Select(m => Math.Clamp((int)Math.Round(tac.GuideHoldDays * m), 5, 30))
+                    .Where(gh => gh != tac.GuideHoldDays).Distinct())
+                    AddRule($"{s} guide-hold {gh}d", new HistoricTradingRules(SetupTactics: [Ov(gh, tac.StopLossPct, tac.TargetPct)]));
+
+                // Stop: tighter/wider. Kept strictly below the setup's target so the
+                // stop/target structure stays valid. A wider stop is the direct lever
+                // against a high stop-out rate; a tighter one cuts the loss per stop.
+                foreach (var stop in new[] { 0.6m, 1.6m }
+                    .Select(m => Math.Round(Math.Clamp(tac.StopLossPct * m, CapitalRules.MinStopLossPct, CapitalRules.MaxStopLossPct), 2))
+                    .Where(v => v != tac.StopLossPct && v < tac.TargetPct).Distinct())
+                    AddRule($"{s} stop {stop:P0}", new HistoricTradingRules(SetupTactics: [Ov(tac.GuideHoldDays, stop, tac.TargetPct)]));
+
+                // Target: faster (bank sooner) / further (let winners run). Kept
+                // strictly above the setup's stop.
+                foreach (var target in new[] { 0.7m, 1.5m }
+                    .Select(m => Math.Round(Math.Clamp(tac.TargetPct * m, CapitalRules.MinTargetPct, CapitalRules.MaxTargetPct), 2))
+                    .Where(v => v != tac.TargetPct && v > tac.StopLossPct).Distinct())
+                    AddRule($"{s} target {target:P0}", new HistoricTradingRules(SetupTactics: [Ov(tac.GuideHoldDays, tac.StopLossPct, target)]));
             }
         }
 
