@@ -55,6 +55,11 @@ namespace SwingTrader.Data.Migrations
             // otherwise.
             migrationBuilder.Sql("UPDATE AccountRiskProfiles SET Regime = 1;");
             migrationBuilder.Sql("UPDATE Accounts SET CurrentMarketRegime = 1;");
+            // The renamed column carries the old account-wide AutopauseDuringBear
+            // value (defaulted ON). The migrated rows are now the NEUTRAL book,
+            // which must NOT auto-pause - clear it. The bear-market pause intent
+            // lives on the lazily-seeded Bear/Crisis books instead.
+            migrationBuilder.Sql("UPDATE AccountRiskProfiles SET AutopauseTrading = 0;");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AccountRiskProfiles_AccountId_Regime",
