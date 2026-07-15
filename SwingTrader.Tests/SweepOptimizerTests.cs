@@ -68,6 +68,34 @@ public class SweepOptimizerTests
     }
 
     [Fact]
+    public void GenerateCandidates_PerSetupGuideHoldSearch_OnlyWhenTacticsProvidedAndSearchRules()
+    {
+        var tactics = new Dictionary<SwingTrader.Core.Enums.SetupType, HistoricSetupTactics>
+        {
+            [SwingTrader.Core.Enums.SetupType.Breakout] =
+                new(0.05m, 0.08m, GuideHoldDays: 10, 0.05m, 0.03m),
+        };
+
+        // No per-setup candidates without the tactics map...
+        var noTactics = SweepOptimizer.GenerateCandidates(Baseline(), searchRules: true);
+        noTactics.Should().NotContain(c => c.Label!.StartsWith("Breakout guide-hold"));
+
+        // ...nor when searchRules is off...
+        var noSearch = SweepOptimizer.GenerateCandidates(Baseline(), searchRules: false, accountTactics: tactics);
+        noSearch.Should().NotContain(c => c.Label!.StartsWith("Breakout guide-hold"));
+
+        // ...but present, bounded and carrying a per-setup override when both on.
+        var withSearch = SweepOptimizer.GenerateCandidates(Baseline(), searchRules: true, accountTactics: tactics);
+        var perSetup = withSearch.Where(c => c.Label!.StartsWith("Breakout guide-hold")).ToList();
+        perSetup.Should().NotBeEmpty();
+        perSetup.Count.Should().BeLessThanOrEqualTo(3); // guide-hold dimension only, ≤3 nudges/setup
+        perSetup.Should().OnlyContain(c =>
+            c.Rules != null && c.Rules.SetupTactics != null && c.Rules.SetupTactics.Count == 1
+            && c.Rules.SetupTactics[0].Setup == "Breakout"
+            && c.Rules.SetupTactics[0].GuideHoldDays != 10);
+    }
+
+    [Fact]
     public void SplitBars_TrainEndsBeforeHoldoutEvaluationStarts_WithWarmupOverlap()
     {
         var start = new DateTime(2023, 1, 2);

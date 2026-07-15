@@ -79,6 +79,49 @@ public class HistoricBacktesterRulesTests
     }
 
     [Fact]
+    public async Task PerSetupTactics_TightStopOnOneSetup_StopsThatSetupOutMore()
+    {
+        var baseline = await HistoricBacktester.RunAsync(Market(), Config());
+        var dominant = baseline.TradeLog.GroupBy(t => t.Setup).OrderByDescending(g => g.Count()).First().Key;
+
+        // Same run, but the dominant setup gets a very tight per-setup stop while
+        // every other tactic stays at the flat default. Only that setup's trades
+        // should stop out more often.
+        var tactics = new Dictionary<SetupType, HistoricSetupTactics>
+        {
+            [dominant] = new(StopLossPct: 0.02m, TargetPct: 0.30m, GuideHoldDays: 10,
+                TrailingActivationPct: 0.05m, TrailingDistancePct: 0.03m),
+        };
+        var tuned = await HistoricBacktester.RunAsync(Market(), Config() with { SetupTactics = tactics });
+
+        int StopExits(HistoricResult r) =>
+            r.TradeLog.Count(t => t.Setup == dominant && t.ExitReason.StartsWith("StopLoss"));
+        StopExits(tuned).Should().BeGreaterThan(StopExits(baseline));
+    }
+
+    [Fact]
+    public async Task PerSetupTactics_SetupNotInMap_UsesFlatFallback()
+    {
+        // A map that names no real setup leaves every trade on the flat cfg
+        // values, so the result is identical to no map at all.
+        var withEmptyMap = await HistoricBacktester.RunAsync(
+            Market(), Config() with { SetupTactics = new Dictionary<SetupType, HistoricSetupTactics>() });
+        var withoutMap = await HistoricBacktester.RunAsync(Market(), Config());
+
+        withEmptyMap.Trades.Should().Be(withoutMap.Trades);
+        withEmptyMap.TotalReturnPct.Should().Be(withoutMap.TotalReturnPct);
+    }
+
+    [Fact]
+    public async Task BySetupBuckets_ReportAverageHoldDays()
+    {
+        var result = await HistoricBacktester.RunAsync(Market(), Config());
+
+        result.BySetup.Should().NotBeEmpty();
+        result.BySetup.Should().OnlyContain(b => b.AvgHoldDays > 0m);
+    }
+
+    [Fact]
     public async Task ExcludedSetupsNull_FallsBackToExcludeBreakoutToggle()
     {
         // With ExcludedSetups null and ExcludeBreakout false, Breakout entries

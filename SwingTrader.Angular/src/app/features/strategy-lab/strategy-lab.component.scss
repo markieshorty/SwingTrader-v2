@@ -415,6 +415,32 @@ h3 .bad {
   flex-wrap: wrap;
 }
 
+.setup-tactics-grid.lab {
+  margin: 4px 0 12px;
+  overflow-x: auto;
+
+  .st-head,
+  .st-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 1.4fr) repeat(5, minmax(72px, 1fr));
+    gap: 8px;
+    align-items: center;
+  }
+  .st-head {
+    padding: 2px 0 4px;
+    font-size: 0.7rem;
+  }
+  .st-row + .st-row {
+    border-top: 1px solid rgba(128, 128, 128, 0.12);
+  }
+  .st-name {
+    font-size: 0.85rem;
+  }
+  mat-form-field {
+    width: 100%;
+  }
+}
+
 .bucket-tables {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -435,7 +461,7 @@ h3 .bad {
     // (minmax(0, …)); the count and value columns size to their content and
     // never wrap - previously the fixed 70px value track overflowed into the
     // neighbouring table and long labels forced the count to wrap.
-    grid-template-columns: minmax(0, 1fr) max-content max-content;
+    grid-template-columns: minmax(0, 1fr) max-content max-content max-content max-content;
     gap: 12px;
     align-items: baseline;
     padding: 3px 0;

@@ -31,6 +31,8 @@ import {
   LabWeightsDto,
   StrategyLabResponseDto,
   MonteCarloResultDto,
+  SetupTacticsDto,
+  SetupTacticsRowDto,
   StrategyWeightsDto,
   SweepResultDto,
   ValidateResultDto,
@@ -170,6 +172,21 @@ export class StrategyLabComponent implements OnDestroy {
   rulesPositionFraction = signal(10);      // percent of equity per trade (flat mode)
   rulesActiveCapitalPct = signal(10);      // percent of equity in the pool (pool mode)
   rulesMaxPositionPctOfActive = signal(33); // percent of pool per position (pool mode)
+
+  // ── Per-setup tactics editor (Phase 4) ─────────────────────────────────────
+  // Prefilled from the account's live SetupTactics so an untouched grid mirrors
+  // live. Editing a row overrides that setup's stop/target/guide-hold/trailing
+  // for the "Your dials" candidate only; the baseline always replays live.
+  setupTacticsRanges = signal<SetupTacticsDto['allowedRanges'] | null>(null);
+  labTacticsDraft = signal<SetupTacticsRowDto[]>([]);
+  private labTacticsBaseline: SetupTacticsRowDto[] = [];
+  tacticsTouched = computed(() =>
+    JSON.stringify(this.labTacticsDraft()) !== JSON.stringify(this.labTacticsBaseline));
+
+  updateTacticField(setup: string, key: keyof SetupTacticsRowDto, value: number): void {
+    this.labTacticsDraft.update((rows) =>
+      rows.map((r) => (r.setupType === setup ? { ...r, [key]: value } : r)));
+  }
   private profileRules = {
     maxHoldDays: 10, maxOpenPositions: 3, trailingActivation: 5, trailingDistance: 3,
     minHoldDays: 3, healthThreshold: 0.5, maxPositionPctOfActive: 0.33,
@@ -188,7 +205,8 @@ export class StrategyLabComponent implements OnDestroy {
     || this.rulesMinHoldDays() !== this.profileRules.minHoldDays
     || this.rulesHealthThreshold() !== this.profileRules.healthThreshold
     || this.rulesSizingMode() !== 'flat'
-    || this.rulesPositionFraction() !== 10);
+    || this.rulesPositionFraction() !== 10
+    || this.tacticsTouched());
 
   // The trading-rules override payload, or null when the panel is untouched
   // (so the engine uses the live risk profile exactly as before). Shared by
@@ -213,6 +231,18 @@ export class StrategyLabComponent implements OnDestroy {
       positionFraction: this.rulesSizingMode() === 'flat' ? this.rulesPositionFraction() / 100 : null,
       activeCapitalPct: this.rulesSizingMode() === 'pool' ? this.rulesActiveCapitalPct() / 100 : null,
       maxPositionPctOfActive: this.rulesSizingMode() === 'pool' ? this.rulesMaxPositionPctOfActive() / 100 : null,
+      // Per-setup tactics only ride when the grid is edited; otherwise null so
+      // the engine uses the account's live SetupTactics unchanged.
+      setupTactics: this.tacticsTouched()
+        ? this.labTacticsDraft().map((r) => ({
+            setup: r.setupType,
+            stopLossPct: r.stopLossPct,
+            targetPct: r.targetPct,
+            guideHoldDays: r.guideHoldDays,
+            trailingActivationPct: r.trailingActivationPct,
+            trailingDistancePct: r.trailingDistancePct,
+          }))
+        : null,
     };
   }
 
@@ -231,6 +261,7 @@ export class StrategyLabComponent implements OnDestroy {
     this.rulesPositionFraction.set(10);
     this.rulesActiveCapitalPct.set(10);
     this.rulesMaxPositionPctOfActive.set(Math.round(this.profileRules.maxPositionPctOfActive * 100));
+    this.labTacticsDraft.set(this.labTacticsBaseline.map((r) => ({ ...r })));
   }
 
   running = signal(false);
@@ -331,6 +362,16 @@ export class StrategyLabComponent implements OnDestroy {
           targetPct: Math.round(p.targetPct * 100),
         };
         this.resetRules();
+      },
+      error: () => {},
+    });
+    // Per-setup tactics editor, prefilled from the account's live SetupTactics
+    // so an untouched grid replays exactly what production does per setup.
+    this.api.getSetupTactics().subscribe({
+      next: (t) => {
+        this.setupTacticsRanges.set(t.allowedRanges);
+        this.labTacticsBaseline = t.setups.map((r) => ({ ...r }));
+        this.labTacticsDraft.set(t.setups.map((r) => ({ ...r })));
       },
       error: () => {},
     });

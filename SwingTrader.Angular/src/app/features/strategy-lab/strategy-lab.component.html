@@ -129,8 +129,9 @@
                     }
                   </mat-select>
                 </mat-form-field>
-                <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                  <mat-label>Max hold days (trading days)</mat-label>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic"
+                  matTooltip="A SOFT guide-hold applied to every setup (per-setup overrides below win). Reaching it doesn't force a sale — a healthy position runs on; the hard time-exit is 2.5× this. Live uses per-setup guide-holds.">
+                  <mat-label>Guide hold — all setups (trading days)</mat-label>
                   <input matInput type="number" min="2" max="30" [ngModel]="rulesMaxHoldDays()"
                     (ngModelChange)="rulesMaxHoldDays.set($event)" />
                 </mat-form-field>
@@ -215,6 +216,53 @@
                   </mat-form-field>
                 }
               </div>
+              <h4 class="rules-subhead">Per-setup tactics (advanced)</h4>
+              <p class="muted small">
+                Each setup's own stop / target / guide-hold / trailing, prefilled from your live
+                <strong>Setups</strong> tab — this is exactly what production does. Edit a row to test different tactics
+                for that setup only (e.g. do breakouts do better with a longer guide-hold?). Overrides here win over the
+                uniform values above. Applies to <strong>Your dials</strong> only; the baseline always replays live.
+              </p>
+              @if (setupTacticsRanges(); as ranges) {
+                <div class="setup-tactics-grid lab">
+                  <div class="st-head muted small">
+                    <span>Setup</span><span>Stop %</span><span>Target %</span>
+                    <span>Guide hold (d)</span><span>Trail arm %</span><span>Trail dist %</span>
+                  </div>
+                  @for (row of labTacticsDraft(); track row.setupType) {
+                    <div class="st-row">
+                      <span class="st-name">{{ row.setupType }}</span>
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                        <input matInput type="number" step="0.5"
+                          [ngModel]="row.stopLossPct * 100"
+                          (ngModelChange)="updateTacticField(row.setupType, 'stopLossPct', $event / 100)" />
+                      </mat-form-field>
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                        <input matInput type="number" step="0.5"
+                          [ngModel]="row.targetPct * 100"
+                          (ngModelChange)="updateTacticField(row.setupType, 'targetPct', $event / 100)" />
+                      </mat-form-field>
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                        <input matInput type="number" step="1"
+                          [min]="ranges.guideHoldDays.min" [max]="ranges.guideHoldDays.max"
+                          [ngModel]="row.guideHoldDays"
+                          (ngModelChange)="updateTacticField(row.setupType, 'guideHoldDays', $event)" />
+                      </mat-form-field>
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                        <input matInput type="number" step="0.5"
+                          [ngModel]="row.trailingActivationPct * 100"
+                          (ngModelChange)="updateTacticField(row.setupType, 'trailingActivationPct', $event / 100)" />
+                      </mat-form-field>
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                        <input matInput type="number" step="0.5"
+                          [ngModel]="row.trailingDistancePct * 100"
+                          (ngModelChange)="updateTacticField(row.setupType, 'trailingDistancePct', $event / 100)" />
+                      </mat-form-field>
+                    </div>
+                  }
+                </div>
+              }
+
               <button mat-stroked-button (click)="resetRules()" [disabled]="!rulesTouched()">
                 <mat-icon>restart_alt</mat-icon> Reset rules to my live settings
               </button>
@@ -588,7 +636,7 @@
         </p>
         <div class="search-rules-row">
           <mat-checkbox [(ngModel)]="searchRules" [disabled]="optimizing()"
-            matTooltip="Adds ~35 trading-rule candidates to the search: hold-day, stop, target, trailing-stop, probation and position-cap grids, each tested one change at a time on your production weights, plus a few combined risk postures. Rule candidates face the same guardrails and out-of-sample validation as every weight candidate — if one wins, Optimizer History can apply its rules to your live risk settings alongside the weights.">
+            matTooltip="Adds ~50 trading-rule candidates to the search: hold-day, stop, target, trailing-stop, probation and position-cap grids (one change at a time on your production weights), a few combined risk postures, plus a bounded per-setup guide-hold search (does each setup want a different hold length?). Rule candidates face the same guardrails and out-of-sample validation as every weight candidate — if one wins, Optimizer History can apply its rules to your live risk settings alongside the weights.">
             Search for optimal trading rules
           </mat-checkbox>
         </div>
@@ -861,14 +909,18 @@
         <div class="bucket-row bucket-head muted small">
           <span></span>
           <span matTooltip="Number of trades in this group, out of {{ h.trades }} total">trades</span>
-          <span matTooltip="Average raw return per trade in this group (price change alone — not compared against SPY)">avg return</span>
+          <span matTooltip="Share of trades in this group that finished in profit">win%</span>
+          <span matTooltip="Average days a trade in this group was held (entry to exit)">hold</span>
+          <span matTooltip="Expectancy: average raw return per trade in this group (price change alone — not compared against SPY)">expectancy</span>
         </div>
         @for (row of bucket.rows; track row.key) {
           <div class="bucket-row">
             <span>{{ row.key }}</span>
             <span class="muted small" [matTooltip]="row.count + ' of ' + h.trades + ' trades were this type'">{{ row.count }} trades</span>
+            <span class="num muted small" matTooltip="Win rate within this group">{{ row.winRate | percent: '1.0-0' }}</span>
+            <span class="num muted small" matTooltip="Average days held in this group">{{ row.avgHoldDays | number: '1.0-1' }}d</span>
             <span class="num" [class.good]="row.avgReturnPct > 0" [class.bad]="row.avgReturnPct < 0"
-              [matTooltip]="'Averaged ' + (row.avgReturnPct | number: '1.2-2') + '% raw return per trade'">{{ row.avgReturnPct | number: '1.2-2' }}%</span>
+              [matTooltip]="'Expectancy ' + (row.avgReturnPct | number: '1.2-2') + '% raw return per trade'">{{ row.avgReturnPct | number: '1.2-2' }}%</span>
           </div>
         }
       </div>

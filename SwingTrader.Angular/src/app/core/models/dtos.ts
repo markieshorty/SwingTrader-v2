@@ -517,6 +517,19 @@ export interface LabTradingRulesDto {
   positionFraction: number | null;   // flat sizing: fraction of equity per trade
   activeCapitalPct: number | null;   // sim-only "capital pool" mode: pool as fraction of the whole account
   maxPositionPctOfActive: number | null; // sim-only: per-position share of the pool
+  // Per-setup entry/exit tactics (Phase 4). null = use the account's live
+  // SetupTactics unchanged (untouched run mirrors live). When the tactics
+  // editor is touched it sends the FULL edited set.
+  setupTactics: LabSetupTacticsOverrideDto[] | null;
+}
+
+export interface LabSetupTacticsOverrideDto {
+  setup: string;                 // SetupType name
+  stopLossPct: number;
+  targetPct: number;
+  guideHoldDays: number;
+  trailingActivationPct: number;
+  trailingDistancePct: number;
 }
 
 export interface StrategyLabRequestDto {
@@ -585,7 +598,8 @@ export interface LabBucketStatDto {
   key: string;
   count: number;
   winRate: number;
-  avgReturnPct: number;
+  avgReturnPct: number; // the bucket's expectancy (mean return over all trades)
+  avgHoldDays: number;  // mean calendar days held (0 for pre-existing stored runs)
 }
 
 export interface HistoricResultDto {
