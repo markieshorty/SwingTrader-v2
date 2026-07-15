@@ -39,6 +39,11 @@ using SwingTrader.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// EF Core logs every executed SQL statement at Information - not worth the
+// App Insights ingestion or telemetry overhead. Surface command-level problems
+// only (Warning and up).
+builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", Microsoft.Extensions.Logging.LogLevel.Warning);
+
 // Key Vault (production only — local dev uses dotnet user-secrets)
 // Wrapped in try/catch: a Key Vault outage or RBAC propagation delay should
 // degrade to an unhealthy /health/ready response, not crash the whole

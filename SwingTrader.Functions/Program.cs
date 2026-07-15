@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using Refit;
 using Serilog;
@@ -31,6 +32,13 @@ using SwingTrader.Infrastructure.Services;
 var builder = FunctionsApplication.CreateBuilder(args);
 
 builder.ConfigureFunctionsWebApplication();
+
+// EF Core logs every executed SQL statement at Information. During a research
+// run that's thousands of lines/hour flowing into App Insights (ingestion cost
+// + telemetry overhead) - the query text is never worth keeping. Surface only
+// command-level problems (Warning and up). Applied on the ILogger pipeline so
+// it filters before both Serilog and the OpenTelemetry exporter.
+builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", Microsoft.Extensions.Logging.LogLevel.Warning);
 
 builder.Configuration.AddEnvironmentVariables();
 var keyVaultUrl = builder.Configuration["KeyVaultUrl"];

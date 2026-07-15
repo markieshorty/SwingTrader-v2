@@ -108,7 +108,7 @@ public class ResearchPipeline(
         RelativeStrengthResult? rs = null;
         try
         {
-            rs = await relativeStrengthService.CalculateAsync(tiingo, symbol, ct);
+            rs = await relativeStrengthService.CalculateAsync(tiingo, symbol, ct, candles);
         }
         catch (Exception ex)
         {
@@ -118,7 +118,7 @@ public class ResearchPipeline(
         PriceLevelResult? priceLevel = null;
         try
         {
-            priceLevel = await priceLevelService.AnalyseAsync(symbol, candles[^1].Close, ct);
+            priceLevel = await priceLevelService.AnalyseAsync(symbol, candles[^1].Close, ct, candles);
         }
         catch (Exception ex)
         {

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
+using SwingTrader.Core.Models;
 using SwingTrader.Infrastructure.Configuration;
 
 namespace SwingTrader.Infrastructure.Market;
@@ -14,16 +15,21 @@ public class PriceLevelService(
     IOptions<PriceLevelConfig> config,
     ILogger<PriceLevelService> logger) : IPriceLevelService
 {
-    public async Task<PriceLevelResult> AnalyseAsync(string symbol, decimal currentPrice, CancellationToken ct)
+    public async Task<PriceLevelResult> AnalyseAsync(
+        string symbol, decimal currentPrice, CancellationToken ct,
+        IReadOnlyList<StockCandle>? stockCandles = null)
     {
         try
         {
             var cfg = config.Value;
+            var since = DateTime.UtcNow.AddDays(-cfg.LookbackDays);
 
-            var candles = (await candleRepo.GetCandlesAsync(
-                    symbol, "D",
-                    DateTime.UtcNow.AddDays(-cfg.LookbackDays),
-                    DateTime.UtcNow))
+            // Reuse the caller's in-memory bars when supplied (Research already
+            // loaded them), else read from the DB.
+            var source = stockCandles is not null
+                ? stockCandles.Where(c => c.Timestamp >= since)
+                : await candleRepo.GetCandlesAsync(symbol, "D", since, DateTime.UtcNow);
+            var candles = source
                 .OrderBy(c => c.Timestamp)
                 .Select(c => new PriceBar(c.High, c.Low, c.Close, c.Volume))
                 .ToList();

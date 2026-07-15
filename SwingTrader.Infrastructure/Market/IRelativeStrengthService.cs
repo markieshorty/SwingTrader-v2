@@ -1,3 +1,4 @@
+using SwingTrader.Core.Models;
 using SwingTrader.Infrastructure.HttpClients;
 
 namespace SwingTrader.Infrastructure.Market;
@@ -16,6 +17,10 @@ public interface IRelativeStrengthService
     // candles, ETF fetch failure) rather than a synthetic neutral 0.5 - a
     // fake score stored on the signal is indistinguishable from a genuine
     // 0.5 and pollutes the Refinement agent's score/outcome correlations.
-    // Callers treat null as neutral for conviction purposes.
-    Task<RelativeStrengthResult?> CalculateAsync(ITiingoClient tiingo, string symbol, CancellationToken ct);
+    // Callers treat null as neutral for conviction purposes. Pass
+    // <paramref name="stockCandles"/> (the symbol's already-loaded daily bars)
+    // to skip a redundant DB read - Research has them in memory already.
+    Task<RelativeStrengthResult?> CalculateAsync(
+        ITiingoClient tiingo, string symbol, CancellationToken ct,
+        IReadOnlyList<StockCandle>? stockCandles = null);
 }

@@ -8,21 +8,39 @@ public class CandleRepository(SwingTraderDbContext context) : ICandleRepository
 {
     public async Task SaveCandlesAsync(int accountId, IEnumerable<StockCandle> candles)
     {
-        foreach (var candle in candles)
-        {
-            var exists = await context.StockCandles.AnyAsync(c =>
-                c.Symbol == candle.Symbol &&
-                c.Resolution == candle.Resolution &&
-                c.Timestamp == candle.Timestamp);
+        var incoming = candles.ToList();
+        if (incoming.Count == 0) return;
 
-            if (!exists)
+        // Batch the dedupe check: ONE query per (symbol, resolution) group to
+        // read the timestamps already stored in the incoming range, then add
+        // only the missing bars. The previous per-candle AnyAsync was an N+1
+        // that fired ~60 existence queries per symbol every research run and
+        // hammered the Basic-tier (5 DTU) DB into a crawl.
+        var added = false;
+        foreach (var group in incoming.GroupBy(c => new { c.Symbol, c.Resolution }))
+        {
+            var symbol = group.Key.Symbol;
+            var resolution = group.Key.Resolution;
+            var min = group.Min(c => c.Timestamp);
+            var max = group.Max(c => c.Timestamp);
+
+            var existing = (await context.StockCandles
+                    .Where(c => c.Symbol == symbol && c.Resolution == resolution
+                             && c.Timestamp >= min && c.Timestamp <= max)
+                    .Select(c => c.Timestamp)
+                    .ToListAsync())
+                .ToHashSet();
+
+            foreach (var candle in group)
             {
+                if (existing.Contains(candle.Timestamp)) continue;
                 candle.AccountId = accountId;
                 context.StockCandles.Add(candle);
+                added = true;
             }
         }
 
-        await context.SaveChangesAsync();
+        if (added) await context.SaveChangesAsync();
     }
 
     public async Task<IReadOnlyList<StockCandle>> GetCandlesAsync(string symbol, string resolution, DateTime from, DateTime to) =>

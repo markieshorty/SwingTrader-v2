@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using SwingTrader.Core.Interfaces;
+using SwingTrader.Core.Models;
 using SwingTrader.Infrastructure.HttpClients;
 
 namespace SwingTrader.Infrastructure.Market;
@@ -14,16 +15,23 @@ public class RelativeStrengthService(
     // Null = "couldn't compute" (see IRelativeStrengthService) - previously a
     // synthetic neutral 0.5 result, which got persisted on the signal and
     // polluted Refinement's score/outcome correlations with fake data points.
-    public async Task<RelativeStrengthResult?> CalculateAsync(ITiingoClient tiingo, string symbol, CancellationToken ct)
+    public async Task<RelativeStrengthResult?> CalculateAsync(
+        ITiingoClient tiingo, string symbol, CancellationToken ct,
+        IReadOnlyList<StockCandle>? stockCandles = null)
     {
         try
         {
-            var stockCandles = (await candleRepo.GetCandlesAsync(
-                    symbol, "D", DateTime.UtcNow.AddDays(-10), DateTime.UtcNow))
+            // Reuse the caller's in-memory bars when supplied (Research already
+            // loaded them), else fall back to a DB read. Only the last ~10 days
+            // are needed for the 5-day return window.
+            var since = DateTime.UtcNow.AddDays(-10);
+            var candles = (stockCandles is not null
+                    ? stockCandles.Where(c => c.Timestamp >= since)
+                    : await candleRepo.GetCandlesAsync(symbol, "D", since, DateTime.UtcNow))
                 .OrderBy(c => c.Timestamp)
                 .ToList();
 
-            if (stockCandles.Count < RelativeStrengthCalculator.WindowDays)
+            if (candles.Count < RelativeStrengthCalculator.WindowDays)
             {
                 logger.LogWarning("Insufficient candles for {Symbol} to calculate relative strength", symbol);
                 return null;
@@ -62,7 +70,7 @@ public class RelativeStrengthService(
             // code the historic backtester runs, so live and backtest can
             // never drift apart.
             var outcome = RelativeStrengthCalculator.Compute(
-                stockCandles.Select(c => c.Close).ToList(), etfCloses);
+                candles.Select(c => c.Close).ToList(), etfCloses);
             if (outcome is null)
             {
                 logger.LogWarning("Insufficient ETF candles for {Etf} to calculate relative strength", etf);
