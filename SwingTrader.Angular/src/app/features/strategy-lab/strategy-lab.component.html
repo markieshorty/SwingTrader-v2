@@ -902,7 +902,7 @@
           <span></span>
           <span matTooltip="Number of trades in this group, out of {{ h.trades }} total">trades</span>
           <span matTooltip="Share of trades in this group that finished in profit">win%</span>
-          <span matTooltip="Average days a trade in this group was held (entry to exit)">hold</span>
+          <span matTooltip="Average trading days a trade in this group was held (same basis as the guide-hold)">hold</span>
           <span matTooltip="Expectancy: average raw return per trade in this group (price change alone — not compared against SPY)">expectancy</span>
         </div>
         @for (row of bucket.rows; track row.key) {

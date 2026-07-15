@@ -657,6 +657,9 @@ export interface SweepCandidateDto {
   // half, discounted to a lower confidence bound. More pessimistic than
   // adjustedExpectancyPct by design.
   robustScorePct: number;
+  // Full set of setups the candidate excluded (SetupType names) — restored by
+  // "Test winner in A/B". Absent on runs stored before this field existed.
+  excludedSetups?: string[];
 }
 
 export interface SweepValidationDto {

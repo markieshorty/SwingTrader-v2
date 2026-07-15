@@ -8,6 +8,7 @@ import { forkJoin } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
 import { RiskProfileDto, StrategyWeightsDto, TradingConfigDto } from '../../core/models/dtos';
+import { HOLD_CEILING_MULTIPLE } from '../../core/constants';
 
 interface ComponentRow {
   name: string;
@@ -39,11 +40,11 @@ export class GuideComponent {
   loaded = signal(false);
 
   // The absolute time-cap backstop: a runner is force-closed once it reaches
-  // 2.5x its guide hold (CapitalRules.HoldCeilingMultiple), rounded up. Kept in
-  // sync with the backend PositionMonitorService time exit.
+  // HOLD_CEILING_MULTIPLE x its guide hold, rounded up. Mirrors the backend
+  // PositionMonitorService time exit.
   hardHoldCeiling(guideHoldDays: number | null | undefined): number | null {
     if (guideHoldDays == null) return null;
-    return Math.ceil(guideHoldDays * 2.5);
+    return Math.ceil(guideHoldDays * HOLD_CEILING_MULTIPLE);
   }
 
   // The 6 GATE components in display order, each with a plain-English

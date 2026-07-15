@@ -36,7 +36,11 @@ public sealed record HistoricSetupTactics(
 public sealed record HistoricConfig(
     StrategyWeights Weights,
     decimal BuyThreshold = 6.0m,
-    bool ExcludeBreakout = true,           // production policy since 2026-07-10
+    // Legacy single-toggle breakout exclusion. Live no longer excludes any
+    // setup (Phase 1, breakouts trade again) and the Lab always passes an
+    // explicit value via ToConfig, so this default only affects direct callers
+    // (the console tool / tests). Superseded by ExcludedSetups below when set.
+    bool ExcludeBreakout = true,
     // Approximates production's bear-market autopause (on by default there):
     // entries are skipped while SPY is below its 200-day average. Coarser than
     // the live classifier (which also wants a falling MA / deep breach / death
@@ -92,13 +96,18 @@ public sealed record HistoricConfig(
 
 public sealed record HistoricTrade(
     string Symbol, DateTime EntryDate, DateTime ExitDate, decimal EntryPrice, decimal ExitPrice,
-    SetupType Setup, decimal Conviction, string ExitReason, decimal ReturnPct);
+    SetupType Setup, decimal Conviction, string ExitReason, decimal ReturnPct,
+    // TRADING days held (bar-index difference), matching how guide-hold and the
+    // time cap are counted - not calendar days, which run ~1.4x longer.
+    // Defaulted so pre-existing stored result JSON stays deserializable.
+    int TradingDaysHeld = 0);
 
 // AvgReturnPct IS the bucket's expectancy (mean return over all trades, wins
-// and losses). AvgHoldDays is the mean calendar days held - a per-setup
-// expectancy surface reads Count / WinRate / expectancy / hold together to see
-// which setups earn their capital and how long they tie it up. AvgHoldDays
-// defaults to 0 so pre-existing stored result JSON stays deserializable.
+// and losses). AvgHoldDays is the mean TRADING days held (matching how the
+// guide-hold is counted) - a per-setup expectancy surface reads Count /
+// WinRate / expectancy / hold together to see which setups earn their capital
+// and how long they tie it up. AvgHoldDays defaults to 0 so pre-existing
+// stored result JSON stays deserializable.
 public sealed record BucketStat(string Key, int Count, decimal WinRate, decimal AvgReturnPct, decimal AvgHoldDays = 0m);
 
 public sealed record HistoricResult(
@@ -241,7 +250,8 @@ public static class HistoricBacktester
                     var cost = pos.EntryPrice * pos.Quantity * (1 + CostPerSide);
                     cash += proceeds;
                     closed.Add(new HistoricTrade(pos.Symbol, pos.EntryDate, today, pos.EntryPrice, exitPrice.Value,
-                        pos.Setup, pos.Conviction, reason!, Math.Round((proceeds - cost) / cost * 100m, 2)));
+                        pos.Setup, pos.Conviction, reason!, Math.Round((proceeds - cost) / cost * 100m, 2),
+                        TradingDaysHeld: d - pos.EntryBarIndex));
                     open.Remove(pos);
                 }
                 else if (bar.Close >= pos.EntryPrice * (1 + pos.TrailingActivationPct))
@@ -358,7 +368,7 @@ public static class HistoricBacktester
             .Select(g => new BucketStat(g.Key!.ToString()!, g.Count(),
                 Math.Round((decimal)g.Count(t => t.ReturnPct > 0) / g.Count(), 4),
                 Math.Round(g.Average(t => t.ReturnPct), 2),
-                Math.Round((decimal)g.Average(t => (t.ExitDate - t.EntryDate).TotalDays), 1)))
+                Math.Round((decimal)g.Average(t => t.TradingDaysHeld), 1)))
             .OrderByDescending(b => b.Count)
             .ToList();
 

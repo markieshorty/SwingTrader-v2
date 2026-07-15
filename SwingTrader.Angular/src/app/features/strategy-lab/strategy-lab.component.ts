@@ -732,7 +732,9 @@ export class StrategyLabComponent implements OnDestroy {
   tryAnalysisSuggestion(s: LabAnalyseSuggestionDto): void {
     this.weights.set({ ...s.weights });
     this.buyThreshold.set(s.buyThreshold);
-    this.excludedSetups.set(s.excludeBreakout ? ['Breakout'] : []);
+    // Leave the excluded-setups selection as-is: suggestions vary the scoring
+    // dials, not which setups the run skips, so overwriting it here would
+    // silently drop a non-breakout exclusion the user had chosen.
     this.snackbar.open('Suggested dials loaded — hit Run Simulation to test the hypothesis.', 'Dismiss', { duration: 4000 });
   }
 
@@ -791,7 +793,9 @@ export class StrategyLabComponent implements OnDestroy {
   tryDials(s: LabSuggestionDto): void {
     this.weights.set({ ...s.weights });
     this.buyThreshold.set(s.buyThreshold);
-    this.excludedSetups.set(s.excludeBreakout ? ['Breakout'] : []);
+    // Own-data suggestions vary only the scoring dials; leave the excluded-
+    // setups selection untouched so a non-breakout exclusion isn't silently
+    // dropped when loading one.
     this.snackbar.open('Dials loaded — hit Run Simulation to see the full result.', 'Dismiss', { duration: 3000 });
   }
 
@@ -803,7 +807,9 @@ export class StrategyLabComponent implements OnDestroy {
   testWinnerInAb(sweep: SweepResultDto): void {
     this.weights.set({ ...sweep.winner.weights });
     this.buyThreshold.set(sweep.winner.buyThreshold);
-    this.excludedSetups.set(sweep.winner.excludeBreakout ? ['Breakout'] : []);
+    // Restore the winner's FULL exclusion set (falls back to the breakout bool
+    // for runs stored before excludedSetups was carried on the candidate).
+    this.excludedSetups.set(sweep.winner.excludedSetups ?? (sweep.winner.excludeBreakout ? ['Breakout'] : []));
     this.autopauseBear.set(sweep.winner.autopauseDuringBear);
     this.dataSource.set('historic');
     this.compareBaselineHistoric.set(true);

@@ -17,6 +17,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDialog } from '@angular/material/dialog';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
+import { HOLD_CEILING_MULTIPLE } from '../../core/constants';
 import { ConfirmDeleteDialogComponent } from '../../shared/components/confirm-delete-dialog/confirm-delete-dialog.component';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 import {
@@ -341,11 +342,11 @@ export class SettingsComponent {
   });
 
   // The absolute time-cap backstop: a runner is force-closed once it reaches
-  // 2.5x its guide hold (CapitalRules.HoldCeilingMultiple), rounded up. Kept in
-  // sync with the backend PositionMonitorService time exit.
+  // HOLD_CEILING_MULTIPLE x its guide hold, rounded up. Mirrors the backend
+  // PositionMonitorService time exit.
   hardHoldCeiling(guideHoldDays: number | null | undefined): number | null {
     if (guideHoldDays == null) return null;
-    return Math.ceil(guideHoldDays * 2.5);
+    return Math.ceil(guideHoldDays * HOLD_CEILING_MULTIPLE);
   }
 
   riskLivePreview = computed(() => {

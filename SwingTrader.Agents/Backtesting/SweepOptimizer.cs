@@ -38,7 +38,11 @@ public sealed record SweepCandidateResult(
     // Carried onto the winner so Optimizer History can re-apply the rules
     // alongside the weights. Defaulted (like RobustScorePct) so pre-existing
     // stored result JSON keeps deserializing.
-    HistoricTradingRules? Rules = null);
+    HistoricTradingRules? Rules = null,
+    // The full set of setups this candidate excluded (SetupType names), so
+    // "Test winner in A/B" restores the whole selection - not just breakout.
+    // Derived from Rules.ExcludedSetups or the legacy ExcludeBreakout toggle.
+    List<string>? ExcludedSetups = null);
 
 public sealed record SweepValidation(
     HistoricResult Train,                // winner's full result on the train window
@@ -488,7 +492,9 @@ public static class SweepOptimizer
             result.ProfitFactor, result.MaxDrawdownPct, result.TotalReturnPct,
             rejection is null, rejection,
             RobustScorePct: Math.Min(earlyLcb, lateLcb),
-            Rules: candidate.Rules);
+            Rules: candidate.Rules,
+            ExcludedSetups: candidate.Rules?.ExcludedSetups
+                ?? (candidate.ExcludeBreakout ? ["Breakout"] : []));
     }
 
     public static SweepValidation BuildValidation(
