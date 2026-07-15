@@ -381,6 +381,7 @@ public static class StrategyLabEndpoints
             IRefinementSuggestionRepository suggestionRepo,
             IApplyRefinementService applyService,
             IAccountRiskProfileRepository riskRepo,
+            ISetupTacticsRepository setupTacticsRepo,
             IAccountRepository accounts,
             IAccountContext ctx,
             CancellationToken ct) =>
@@ -449,9 +450,21 @@ public static class StrategyLabEndpoints
             var appliedRisk = false;
             if (req.ApplyRiskSettings && cfg.Rules is not null)
             {
+                // Profile-level rules (max positions, probation day, health
+                // floor) + the fallback stop/target/hold seed.
                 var profile = await riskRepo.GetAsync(ctx.AccountId, ct);
                 Agents.Backtesting.BacktestRiskRuleMapper.Apply(profile, cfg.Rules);
                 await riskRepo.UpdateAsync(profile, ct);
+
+                // Tactic winners (uniform or per-setup stop/target/guide-hold/
+                // trailing) must land on the SetupTactics rows - that's what
+                // live execution actually reads. Only rows that moved are saved;
+                // UpdateAsync validates each.
+                var tacticRows = await setupTacticsRepo.GetAllAsync(ctx.AccountId, ct);
+                var changedTactics = Agents.Backtesting.SetupTacticsRuleMapper.Apply(tacticRows, cfg.Rules);
+                foreach (var row in changedTactics)
+                    await setupTacticsRepo.UpdateAsync(row, ct);
+
                 appliedRisk = true;
             }
 

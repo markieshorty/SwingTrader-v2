@@ -67,7 +67,8 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
         <div class="apply-choices">
           @if (item.mode === 'ab' || item.hasRiskOverrides) {
             <mat-checkbox [(ngModel)]="applyWeights">Apply weights</mat-checkbox>
-            <mat-checkbox [(ngModel)]="applyRisk" [disabled]="!item.hasRiskOverrides">
+            <mat-checkbox [(ngModel)]="applyRisk" [disabled]="!item.hasRiskOverrides"
+              matTooltip="Writes this run's rule overrides to live: profile-level caps to Risk Management, and any stop/target/guide-hold/trailing tactics to the matching setups on the Setups tab.">
               Apply risk settings{{ item.hasRiskOverrides ? '' : ' (none in this run)' }}
             </mat-checkbox>
           } @else {
