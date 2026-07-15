@@ -55,12 +55,20 @@ public class SetupTacticsRepository(SwingTraderDbContext db) : ISetupTacticsRepo
     public async Task<List<SetupTactics>> GetAllAsync(int accountId, CancellationToken ct = default)
     {
         var rows = await db.SetupTactics.Where(t => t.AccountId == accountId).ToListAsync(ct);
-        if (rows.Count < TradableSetups.Length)
+        // Reseed if any tradable setup is MISSING - a plain count check misses
+        // the case where a stray non-tradable row (e.g. a mis-seeded Unknown)
+        // pads the count to 5 while TrendFollowing is absent.
+        if (TradableSetups.Any(s => rows.All(r => r.SetupType != s)))
         {
             await SeedDefaultAsync(accountId, ct);
             rows = await db.SetupTactics.Where(t => t.AccountId == accountId).ToListAsync(ct);
         }
-        return rows.OrderBy(t => Array.IndexOf(TradableSetups, t.SetupType)).ToList();
+        // Only tradable setups surface in the editor - a non-tradable row (like
+        // Unknown, which never trades) is filtered out rather than rendered as a
+        // blank-labelled row.
+        return rows.Where(r => TradableSetups.Contains(r.SetupType))
+            .OrderBy(t => Array.IndexOf(TradableSetups, t.SetupType))
+            .ToList();
     }
 
     public async Task UpdateAsync(SetupTactics tactics, CancellationToken ct = default)
