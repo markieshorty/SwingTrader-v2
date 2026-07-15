@@ -711,7 +711,29 @@ export interface MonteCarloResultDto {
   verdict: string;
 }
 
-export type BacktestResultDto = HistoricResultDto | AbResultDto | SweepResultDto | ValidateResultDto | MonteCarloResultDto;
+// Setup-contribution (leave-one-out ablation): each setup's marginal effect on
+// the production strategy, measured out-of-sample. Marginal = baseline − without;
+// positive means the setup ADDS edge, negative means it's a DRAG.
+export interface SetupAblationRowDto {
+  setup: string;
+  marginalTrainAdj: number;    // baseline − without, on the train window
+  marginalHoldoutAdj: number;  // baseline − without, on the held-out window (trust this)
+  holdoutAdjWithout: number;   // the strategy's held-out expectancy with the setup removed
+  holdoutTradesWithout: number;
+  holdoutMaxDrawdownWithout: number;
+  consistent: boolean;         // same sign on both windows = trustworthy verdict
+}
+
+export interface SetupAblationDto {
+  mode: 'ablation';
+  baselineTrainAdjustedPct: number;
+  baselineHoldoutAdjustedPct: number;
+  baselineHoldoutTrades: number;
+  baselineHoldoutMaxDrawdownPct: number;
+  setups: SetupAblationRowDto[];
+}
+
+export type BacktestResultDto = HistoricResultDto | AbResultDto | SweepResultDto | ValidateResultDto | MonteCarloResultDto | SetupAblationDto;
 
 export interface BacktestRunStatusDto {
   id: number;

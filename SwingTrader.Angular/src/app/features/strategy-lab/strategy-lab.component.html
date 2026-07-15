@@ -641,6 +641,76 @@
         </div>
       </mat-card>
 
+      <!-- Setup contribution (leave-one-out ablation) -->
+      <mat-card class="panel controls">
+        <h3>Which setups pay their way?</h3>
+        <p class="muted small">
+          Re-runs your <strong>production</strong> strategy with each setup removed in turn, on both the training and
+          held-out windows, and reports each setup's <strong>marginal</strong> effect — how much it adds to (or drags
+          from) market-adjusted expectancy. Unlike a setup's standalone average, this measures its contribution to the
+          whole strategy, out-of-sample. Trust setups whose sign is <em>consistent</em> across both windows.
+        </p>
+        <div class="meta-row">
+          <button mat-raised-button color="primary" [disabled]="ablationRunning() || !historicAvailable()" (click)="runSetupContribution()">
+            @if (ablationRunning()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>science</mat-icon> }
+            Analyse setup contribution
+          </button>
+          <span class="muted small">~{{ 2 + (allSetups.length * 2) }} simulations — a few minutes.</span>
+        </div>
+      </mat-card>
+
+      @if (ablationStatus(); as astat) {
+        <mat-card class="panel loading with-progress">
+          <div class="loading-row"><mat-spinner diameter="24"></mat-spinner><span>{{ astat }}</span></div>
+          @if (ablationProgress(); as p) {
+            <mat-progress-bar mode="determinate" [value]="(p.completed / p.total) * 100"></mat-progress-bar>
+            <span class="muted small progress-count">{{ p.completed }} / {{ p.total }} runs</span>
+          } @else {
+            <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+          }
+        </mat-card>
+      }
+
+      @if (ablationResult(); as ab) {
+        <mat-card class="panel results">
+          <h3><mat-icon>science</mat-icon> Setup contribution (out-of-sample)</h3>
+          <p class="muted small">
+            Baseline (all setups) on held-out data: <strong>{{ ab.baselineHoldoutAdjustedPct | number: '1.2-2' }}%</strong>/trade
+            market-adjusted over {{ ab.baselineHoldoutTrades }} trades. A setup's <strong>marginal</strong> is
+            baseline − (strategy without it): <span class="good">positive = the setup adds edge</span>,
+            negative = it's a drag. The held-out column is the one to trust.
+          </p>
+          <table class="history-table">
+              <thead>
+                <tr><th>Setup</th><th>Marginal (train)</th><th>Marginal (held-out)</th><th>Held-out trades w/o</th><th>Verdict</th></tr>
+              </thead>
+              <tbody>
+                @for (row of ab.setups; track row.setup) {
+                  <tr>
+                    <td>{{ row.setup }}</td>
+                    <td class="num" [class.good]="row.marginalTrainAdj > 0" [class.bad]="row.marginalTrainAdj < 0">
+                      {{ row.marginalTrainAdj > 0 ? '+' : '' }}{{ row.marginalTrainAdj | number: '1.2-2' }}%
+                    </td>
+                    <td class="num" [class.good]="row.marginalHoldoutAdj > 0" [class.bad]="row.marginalHoldoutAdj < 0">
+                      {{ row.marginalHoldoutAdj > 0 ? '+' : '' }}{{ row.marginalHoldoutAdj | number: '1.2-2' }}%
+                    </td>
+                    <td class="num muted">{{ row.holdoutTradesWithout }}</td>
+                    <td>
+                      @if (!row.consistent) { <span class="muted">Mixed — inconclusive</span> }
+                      @else if (row.marginalHoldoutAdj > 0) { <span class="good">Pulls its weight — keep</span> }
+                      @else { <span class="bad">Consistent drag — consider dropping</span> }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          <p class="muted small">
+            "Consistent drag" setups are candidates to exclude on the A/B tab's <em>Exclude setups</em> filter, or to
+            down-tune via per-setup tactics. Small held-out trade counts mean a noisier verdict — weigh them lightly.
+          </p>
+        </mat-card>
+      }
+
       @if (sweepStatus(); as ss) {
         <mat-card class="panel loading with-progress">
           <div class="loading-row">

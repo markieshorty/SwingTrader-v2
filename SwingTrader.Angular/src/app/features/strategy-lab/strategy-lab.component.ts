@@ -31,6 +31,7 @@ import {
   LabWeightsDto,
   StrategyLabResponseDto,
   MonteCarloResultDto,
+  SetupAblationDto,
   SetupTacticsDto,
   SetupTacticsRowDto,
   StrategyWeightsDto,
@@ -307,6 +308,12 @@ export class StrategyLabComponent implements OnDestroy {
   // card can say how stale it is. Cleared when a fresh run starts.
   sweepResultCompletedAt = signal<string | null>(null);
 
+  // ── Setup-contribution (leave-one-out ablation) state ──────────────────────
+  ablationRunning = signal(false);
+  ablationStatus = signal<string | null>(null);
+  ablationResult = signal<SetupAblationDto | null>(null);
+  ablationProgress = signal<{ completed: number; total: number } | null>(null);
+
   // ── Shared state ───────────────────────────────────────────────────────────
   dataStatus = signal<LabDataStatusDto | null>(null);
   dataStatusLoading = signal(true); // true until the first data-status fetch resolves
@@ -315,7 +322,7 @@ export class StrategyLabComponent implements OnDestroy {
   isOwner = signal(false);
   // One poll handle per job kind: an A/B run and an optimizer sweep can be in
   // flight at the same time, and starting one must not kill the other's poll.
-  private pollHandles = new Map<'ab' | 'sweep' | 'validate' | 'montecarlo', ReturnType<typeof setInterval>>();
+  private pollHandles = new Map<'ab' | 'sweep' | 'validate' | 'montecarlo' | 'ablation', ReturnType<typeof setInterval>>();
 
   weightSum = computed(() => {
     const w = this.weights();
@@ -633,6 +640,32 @@ export class StrategyLabComponent implements OnDestroy {
     });
   }
 
+  runSetupContribution(): void {
+    this.ablationRunning.set(true);
+    this.ablationResult.set(null);
+    this.ablationProgress.set(null);
+    this.api.runSetupContribution().subscribe({
+      next: (r) => this.startAblationPoll(r.backtestRunId),
+      error: (err) => {
+        this.snackbar.open(errorMessage(err, 'Failed to queue the setup-contribution run.'), 'Dismiss', { duration: 5000 });
+        this.ablationRunning.set(false);
+      },
+    });
+  }
+
+  private startAblationPoll(runId: number): void {
+    this.pollRun(
+      'ablation',
+      runId,
+      'Running — replaying the strategy with each setup removed in turn, on the training and held-out windows…',
+      this.ablationStatus,
+      (result) => {
+        if (result && 'mode' in result && result.mode === 'ablation') this.ablationResult.set(result);
+        this.ablationRunning.set(false);
+        this.ablationProgress.set(null);
+      });
+  }
+
   // Shared by a freshly-queued sweep and the tab-load reattach to one that
   // was already running server-side when the page was opened/refreshed.
   private startSweepPoll(runId: number): void {
@@ -657,7 +690,7 @@ export class StrategyLabComponent implements OnDestroy {
   // decides how to interpret the stored result. Restarting a job of the same
   // kind replaces its own poll; the other kind's poll is left running.
   private pollRun(
-    kind: 'ab' | 'sweep' | 'validate' | 'montecarlo',
+    kind: 'ab' | 'sweep' | 'validate' | 'montecarlo' | 'ablation',
     runId: number,
     runningText: string,
     status: ReturnType<typeof signal<string | null>>,
@@ -673,6 +706,9 @@ export class StrategyLabComponent implements OnDestroy {
           if (kind === 'sweep' && r.totalCandidates != null && r.completedCandidates != null) {
             this.sweepProgress.set({ completed: r.completedCandidates, total: r.totalCandidates });
           }
+          if (kind === 'ablation' && r.totalCandidates != null && r.completedCandidates != null) {
+            this.ablationProgress.set({ completed: r.completedCandidates, total: r.totalCandidates });
+          }
           if (r.status === 'Completed' || r.status === 'Failed') {
             clearInterval(timer);
             this.pollHandles.delete(kind);
@@ -684,6 +720,7 @@ export class StrategyLabComponent implements OnDestroy {
               if (kind === 'ab') this.running.set(false);
               else if (kind === 'validate') this.validating.set(false);
               else if (kind === 'montecarlo') this.monteCarloRunning.set(false);
+              else if (kind === 'ablation') { this.ablationRunning.set(false); this.ablationProgress.set(null); }
               else this.optimizing.set(false);
               if (kind === 'sweep') this.sweepProgress.set(null);
             }

@@ -103,6 +103,7 @@ public class BacktestConsumerFunction(
                 "sweep" => await RunSweepAsync(message.AccountId, run, request, bars, profile, accountTactics, sectorEtfs, ct),
                 "validate" => await RunValidateAsync(request, bars, profile, accountTactics, sectorEtfs, ct),
                 "montecarlo" => await RunMonteCarloAsync(request, bars, profile, accountTactics, sectorEtfs, ct),
+                "ablation" => await RunSetupAblationAsync(run, request, bars, profile, accountTactics, sectorEtfs, ct),
                 _ => await RunSingleAsync(request, bars, profile, accountTactics, sectorEtfs, ct),
             };
             run.Status = "Completed";
@@ -522,5 +523,82 @@ public class BacktestConsumerFunction(
             logger.LogWarning(ex, "Sweep explanation failed for account {AccountId} — result ships without a writeup", accountId);
             return null;
         }
+    }
+
+    // Setup-contribution (leave-one-out ablation): measures each setup's MARGINAL
+    // effect on the whole strategy rather than its noisy standalone average. Runs
+    // the all-setups baseline, then re-runs excluding one setup at a time, on both
+    // the train and held-out windows. A setup's marginal = baseline expectancy −
+    // expectancy-without-it: positive means the setup ADDS edge (removing it
+    // hurts), negative means it's a DRAG (removing it helps). Reporting both
+    // windows lets the user trust only setups whose sign is consistent across
+    // periods. Uses production dials as the base; ~2 + 2×setups backtests, all on
+    // the same in-memory bars (no extra DB load).
+    private async Task<string> RunSetupAblationAsync(
+        BacktestRun run, HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars,
+        AccountRiskProfile profile, IReadOnlyDictionary<SetupType, HistoricSetupTactics> accountTactics,
+        IReadOnlyDictionary<string, string>? sectorEtfs, CancellationToken ct)
+    {
+        var baseline = request.Candidates?.FirstOrDefault()
+            ?? throw new InvalidOperationException("Ablation request carries no baseline candidate.");
+
+        var (train, holdout) = SweepOptimizer.SplitBars(bars, HistoricBacktester.WarmupBars);
+        var trainSpy = train["SPY"];
+        var holdoutSpy = holdout["SPY"];
+
+        var setups = accountTactics.Keys.OrderBy(s => s.ToString()).ToList();
+        run.TotalCandidates = 2 + setups.Count * 2; // baseline (2 windows) + each setup (2 windows)
+        run.CompletedCandidates = 0;
+        await runs.UpdateAsync(run);
+
+        // A run with the given setups excluded (null = all setups = the baseline).
+        async Task<(HistoricResult Result, decimal Adjusted)> RunAsync(
+            Dictionary<string, DailyBar[]> window, DailyBar[] spy, SetupType? exclude)
+        {
+            var rules = exclude is { } s
+                ? new HistoricTradingRules(ExcludedSetups: [s.ToString()])
+                : baseline.Rules;
+            var cfg = ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout,
+                baseline.AutopauseDuringBear, profile, accountTactics, rules);
+            var r = await HistoricBacktester.RunAsync(window, cfg, sectorEtfs, ct);
+            run.CompletedCandidates++;
+            await runs.UpdateAsync(run);
+            return (r, SweepOptimizer.AdjustedExpectancy(r, spy));
+        }
+
+        var (baseTrainR, baseTrainAdj) = await RunAsync(train, trainSpy, null);
+        var (baseHoldR, baseHoldAdj) = await RunAsync(holdout, holdoutSpy, null);
+
+        var rows = new List<object>();
+        foreach (var setup in setups)
+        {
+            ct.ThrowIfCancellationRequested();
+            var (wTrainR, wTrainAdj) = await RunAsync(train, trainSpy, setup);
+            var (wHoldR, wHoldAdj) = await RunAsync(holdout, holdoutSpy, setup);
+            rows.Add(new
+            {
+                setup = setup.ToString(),
+                // Marginal contribution = baseline − without. + adds edge, − is a drag.
+                marginalTrainAdj = Math.Round(baseTrainAdj - wTrainAdj, 3),
+                marginalHoldoutAdj = Math.Round(baseHoldAdj - wHoldAdj, 3),
+                holdoutAdjWithout = Math.Round(wHoldAdj, 3),
+                holdoutTradesWithout = wHoldR.Trades,
+                holdoutMaxDrawdownWithout = wHoldR.MaxDrawdownPct,
+                // Consistent sign across both windows = trustworthy verdict.
+                consistent = Math.Sign(baseTrainAdj - wTrainAdj) == Math.Sign(baseHoldAdj - wHoldAdj),
+            });
+            logger.LogInformation("Ablation '{Setup}': marginal train {T}% / holdout {H}%", setup, Math.Round(baseTrainAdj - wTrainAdj, 3), Math.Round(baseHoldAdj - wHoldAdj, 3));
+        }
+
+        var result = new
+        {
+            mode = "ablation",
+            baselineTrainAdjustedPct = Math.Round(baseTrainAdj, 3),
+            baselineHoldoutAdjustedPct = Math.Round(baseHoldAdj, 3),
+            baselineHoldoutTrades = baseHoldR.Trades,
+            baselineHoldoutMaxDrawdownPct = baseHoldR.MaxDrawdownPct,
+            setups = rows,
+        };
+        return JsonSerializer.Serialize(result, CamelCase);
     }
 }

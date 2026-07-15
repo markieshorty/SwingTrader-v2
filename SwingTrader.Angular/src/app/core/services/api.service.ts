@@ -228,6 +228,10 @@ export class ApiService {
     return this.http.post<{ backtestRunId: number }>(`${this.baseUrl}/api/strategy-lab/optimize`, { searchRules });
   }
 
+  runSetupContribution(): Observable<{ backtestRunId: number }> {
+    return this.http.post<{ backtestRunId: number }>(`${this.baseUrl}/api/strategy-lab/setup-contribution`, {});
+  }
+
   // Claude analysis of a completed run — advisory only.
   analyseStrategyLabRun(request: LabAnalyseRequestDto): Observable<LabAnalyseResponseDto> {
     return this.http.post<LabAnalyseResponseDto>(`${this.baseUrl}/api/strategy-lab/analyse`, request);
