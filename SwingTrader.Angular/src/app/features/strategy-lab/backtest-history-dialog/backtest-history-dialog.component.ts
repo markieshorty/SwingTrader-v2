@@ -28,7 +28,7 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
       @if (item.stats; as st) {
         <div class="stat-grid">
           <div><span class="k">Trades</span><span class="v">{{ st.trades }}</span></div>
-          <div><span class="k">Win rate</span><span class="v">{{ st.winRatePct | number: '1.0-1' }}%</span></div>
+          <div><span class="k">Win rate</span><span class="v">{{ st.winRatePct | percent: '1.0-1' }}</span></div>
           <div><span class="k">Total return</span><span class="v">{{ st.totalReturnPct | number: '1.1-1' }}%</span></div>
           <div><span class="k">Max drawdown</span><span class="v">{{ st.maxDrawdownPct | number: '1.1-1' }}%</span></div>
           <div><span class="k">Profit factor</span><span class="v">{{ st.profitFactor | number: '1.2-2' }}</span></div>
@@ -68,7 +68,7 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
           @if (item.mode === 'ab' || item.hasRiskOverrides) {
             <mat-checkbox [(ngModel)]="applyWeights">Apply weights</mat-checkbox>
             <mat-checkbox [(ngModel)]="applyRisk" [disabled]="!item.hasRiskOverrides"
-              matTooltip="Writes this run's rule overrides to live: profile-level caps to Risk Management, and any stop/target/guide-hold/trailing tactics to the matching setups on the Setups tab.">
+              matTooltip="Writes this run's rule overrides to live: profile-level caps to Risk Management, any stop/target/guide-hold/trailing tactics to the matching setups on the Setups tab, and a bear-autopause change to the Bear regime book.">
               Apply risk settings{{ item.hasRiskOverrides ? '' : ' (none in this run)' }}
             </mat-checkbox>
           } @else {

@@ -816,7 +816,7 @@
                   <td>{{ item.completedAt | date: 'medium' }}</td>
                   <td>{{ item.label }}</td>
                   <td>{{ item.stats?.trades }}</td>
-                  <td>{{ item.stats?.winRatePct | number: '1.0-1' }}%</td>
+                  <td>{{ item.stats?.winRatePct | percent: '1.0-1' }}</td>
                   <td>{{ item.stats?.totalReturnPct | number: '1.1-1' }}%</td>
                   <td>{{ item.stats?.maxDrawdownPct | number: '1.1-1' }}%</td>
                   <td>{{ item.hasRiskOverrides ? 'Yes' : '—' }}</td>
@@ -847,7 +847,7 @@
                   <td>{{ item.completedAt | date: 'medium' }}</td>
                   <td>{{ item.label }}</td>
                   <td>{{ item.stats?.trades }}</td>
-                  <td>{{ item.stats?.winRatePct | number: '1.0-1' }}%</td>
+                  <td>{{ item.stats?.winRatePct | percent: '1.0-1' }}</td>
                   <td>{{ item.stats?.totalReturnPct | number: '1.1-1' }}%</td>
                   <td>{{ item.stats?.maxDrawdownPct | number: '1.1-1' }}%</td>
                 </tr>

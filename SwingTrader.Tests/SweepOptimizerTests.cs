@@ -96,6 +96,24 @@ public class SweepOptimizerTests
     }
 
     [Fact]
+    public void GenerateRuleCandidates_UsesBaseWeightsAndPrefix_ForTheGreedySecondPass()
+    {
+        // The greedy pass fixes the best WEIGHT mix and searches rules on top.
+        var tunedWeights = new HistoricBacktestWeights(0.30m, 0.08m, 0.10m, 0.30m, 0.08m, 0.14m);
+        var refineBase = new HistoricBacktestCandidate("Tuned weights", tunedWeights, 6.0m, true);
+
+        var ruleCandidates = SweepOptimizer.GenerateRuleCandidates(
+            refineBase, productionRules: null, accountTactics: null, labelPrefix: "Tuned + ");
+
+        ruleCandidates.Should().NotBeEmpty();
+        // Every rule candidate keeps the tuned weights (only the rule changes)...
+        ruleCandidates.Should().OnlyContain(c => c.Weights == tunedWeights && c.Rules != null);
+        // ...and carries the prefix so it doesn't collide with the phase-1 label.
+        ruleCandidates.Should().OnlyContain(c => c.Label!.StartsWith("Tuned + "));
+        ruleCandidates.Should().Contain(c => c.Label == "Tuned + Stop 5%");
+    }
+
+    [Fact]
     public void SplitBars_TrainEndsBeforeHoldoutEvaluationStarts_WithWarmupOverlap()
     {
         var start = new DateTime(2023, 1, 2);

@@ -28,7 +28,7 @@ import { RefinementSuggestionDto } from '../../../core/models/dtos';
 
       <p class="stats">
         {{ suggestion().tradeCountAnalysed }} trades analysed · {{ suggestion().winnerCount }} winners ·
-        {{ suggestion().loserCount }} losers · {{ suggestion().overallWinRate | number: '1.0-1' }}% win rate
+        {{ suggestion().loserCount }} losers · {{ suggestion().overallWinRate | percent: '1.0-1' }} win rate
       </p>
 
       @if (suggestion().unusualMarketConditions && suggestion().marketConditionWarning) {

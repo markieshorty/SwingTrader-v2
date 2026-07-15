@@ -28,7 +28,12 @@ public static class BacktestApplyExtractor
 
     public sealed record ApplyableConfig(
         string Label, HistoricBacktestWeights Weights, decimal BuyThreshold,
-        HistoricTradingRules? Rules, BacktestStats Stats);
+        HistoricTradingRules? Rules, BacktestStats Stats,
+        // The winner/candidate's bear-autopause value, and whether it differs
+        // from the run's baseline. AutopauseChanged makes an autopause-only
+        // winner count as a risk override so it becomes applyable; applying
+        // writes AutopauseDuringBear to the Bear regime book.
+        bool AutopauseDuringBear = true, bool AutopauseChanged = false);
 
     public static ApplyableConfig? Extract(string? mode, string? requestJson, string? resultJson)
     {
@@ -45,8 +50,12 @@ public static class BacktestApplyExtractor
                 var c0 = cands[0];
                 if (!TryParseWeights(c0, out var weights) || !TryProp(c0, "result", out var result)) return null;
                 var rules = ExtractAbRules(requestJson);
+                // Baseline autopause = the OTHER candidate (production side).
+                var userAutopause = Bool(c0, "autopauseDuringBear", true);
+                var baselineAutopause = cands.GetArrayLength() > 1 ? Bool(cands[1], "autopauseDuringBear", true) : userAutopause;
                 return new ApplyableConfig(
-                    Label(c0, "A"), weights, Decimal(c0, "buyThreshold"), rules, ParseStats(result));
+                    Label(c0, "A"), weights, Decimal(c0, "buyThreshold"), rules, ParseStats(result),
+                    userAutopause, userAutopause != baselineAutopause);
             }
 
             if (string.Equals(mode, "sweep", StringComparison.OrdinalIgnoreCase))
@@ -58,8 +67,11 @@ public static class BacktestApplyExtractor
                 var rules = TryProp(winner, "rules", out var r) && r.ValueKind == JsonValueKind.Object
                     ? r.Deserialize<HistoricTradingRules>(CaseInsensitive)
                     : null;
+                var winnerAutopause = Bool(winner, "autopauseDuringBear", true);
+                var baselineAutopause = ExtractSweepBaselineAutopause(requestJson, winnerAutopause);
                 return new ApplyableConfig(
-                    Label(winner, "Winner"), weights, Decimal(winner, "buyThreshold"), rules, ParseStats(winner));
+                    Label(winner, "Winner"), weights, Decimal(winner, "buyThreshold"), rules, ParseStats(winner),
+                    winnerAutopause, winnerAutopause != baselineAutopause);
             }
 
             return null;
@@ -115,6 +127,27 @@ public static class BacktestApplyExtractor
 
     private static decimal Decimal(JsonElement e, string name) =>
         TryProp(e, name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDecimal() : 0m;
+
+    private static bool Bool(JsonElement e, string name, bool fallback) =>
+        TryProp(e, name, out var v) && (v.ValueKind == JsonValueKind.True || v.ValueKind == JsonValueKind.False)
+            ? v.GetBoolean() : fallback;
+
+    // The sweep baseline's autopause lives on the request's first candidate
+    // (candidates[0] = the production snapshot). Falls back to the winner's own
+    // value (=> "unchanged") when the request can't be read.
+    private static bool ExtractSweepBaselineAutopause(string? requestJson, bool fallback)
+    {
+        if (string.IsNullOrWhiteSpace(requestJson)) return fallback;
+        try
+        {
+            using var doc = JsonDocument.Parse(requestJson);
+            if (TryProp(doc.RootElement, "candidates", out var cands)
+                && cands.ValueKind == JsonValueKind.Array && cands.GetArrayLength() > 0)
+                return Bool(cands[0], "autopauseDuringBear", fallback);
+        }
+        catch (JsonException) { }
+        return fallback;
+    }
 
     // Case-insensitive property lookup so PascalCase (request) and camelCase
     // (result) both resolve without two code paths.

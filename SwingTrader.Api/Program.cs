@@ -87,8 +87,12 @@ builder.Services.AddDbContext<SwingTraderDbContext>(options =>
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 
-// Health checks
+// Health checks. MigrationState is a singleton flipped once at startup (below);
+// MigrationHealthCheck reads it so a revision whose migrations failed stays
+// un-ready and never takes traffic.
+builder.Services.AddSingleton<MigrationState>();
 builder.Services.AddHealthChecks()
+    .AddCheck<MigrationHealthCheck>("migrations", tags: ["ready"])
     .AddCheck<DatabaseHealthCheck>("database", tags: ["ready"])
     .AddCheck<TradingApiHealthCheck>("trading212", tags: ["ready", "external"])
     .AddCheck<FinnhubHealthCheck>("finnhub", tags: ["ready", "external"])
@@ -280,13 +284,20 @@ var app = builder.Build();
 // response via DatabaseHealthCheck, not crash the whole process.
 using (var scope = app.Services.CreateScope())
 {
+    var migrationState = app.Services.GetRequiredService<MigrationState>();
     try
     {
         var db = scope.ServiceProvider.GetRequiredService<SwingTraderDbContext>();
         await db.Database.MigrateAsync();
+        migrationState.MarkApplied();
     }
     catch (Exception ex)
     {
+        // Deliberately don't crash - but readiness now stays Unhealthy (via
+        // MigrationHealthCheck) so Container Apps holds the previous working
+        // revision instead of routing traffic to code running against a stale
+        // schema. This is the guard the TargetWatchlistSize incident lacked.
+        migrationState.MarkFailed(ex.Message);
         Console.Error.WriteLine($"[Startup] Failed to apply EF migrations: {ex}");
     }
 }

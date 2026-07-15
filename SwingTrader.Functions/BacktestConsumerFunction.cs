@@ -371,6 +371,49 @@ public class BacktestConsumerFunction(
             .OrderByDescending(s => s.RobustScorePct)
             .FirstOrDefault();
 
+        // ── Greedy second pass (coordinate descent) ──────────────────────────
+        // The first pass only ever changes ONE axis at a time off the baseline
+        // (weights OR a rule), so it can't find a combined best-weights +
+        // best-rule config. When rule search is on, take the best WEIGHT mix
+        // found above, fix it, and re-run the rule/setup search on top of it.
+        // Any winner here compounds the two - the interaction the single-change
+        // passes structurally miss. Same guardrails, robust ranking and holdout
+        // validation apply. Skipped when no weight mix beat the baseline (there'd
+        // be nothing new to refine on - the rule search already ran off baseline).
+        var refinePrefixed = new List<SweepCandidateResult>();
+        if (request.SearchRules)
+        {
+            var bestWeightMix = summaries
+                .Where(s => s.MetConstraints && s.Weights != baseline.Weights)
+                .OrderByDescending(s => s.RobustScorePct)
+                .FirstOrDefault();
+            if (bestWeightMix is not null)
+            {
+                var refineBase = new HistoricBacktestCandidate(
+                    "Tuned weights", bestWeightMix.Weights, bestWeightMix.BuyThreshold,
+                    bestWeightMix.ExcludeBreakout, bestWeightMix.AutopauseDuringBear);
+                var refineCandidates = SweepOptimizer.GenerateRuleCandidates(
+                    refineBase, productionRules, accountTactics, labelPrefix: "Tuned + ");
+
+                run.TotalCandidates += refineCandidates.Count;
+                await runs.UpdateAsync(run);
+
+                foreach (var c in refineCandidates)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile, accountTactics, c.Rules), sectorEtfs, ct);
+                    var summary = SweepOptimizer.Summarise(c, r, trainSpy, baselineTrain.MaxDrawdownPct, baselineTrain.Trades);
+                    summaries.Add(summary);
+                    refinePrefixed.Add(summary);
+                    trainResults[c.Label] = r;
+                    logger.LogInformation("Greedy refine '{Label}': {Trades} trades, {Adj}% adjusted expectancy", c.Label, r.Trades, summary.AdjustedExpectancyPct);
+
+                    run.CompletedCandidates++;
+                    await runs.UpdateAsync(run);
+                }
+            }
+        }
+
         var winnerSummary = summaries
             .Where(s => s.MetConstraints)
             .OrderByDescending(s => s.RobustScorePct)
@@ -379,9 +422,11 @@ public class BacktestConsumerFunction(
 
         var winnerSource = winnerSummary.Label == baselineSummary.Label
             ? "Baseline (no candidate improved on it)"
-            : bestMlSearch is not null && winnerSummary.Label == bestMlSearch.Label
-                ? "ML search (CMA-ES)"
-                : "Traditional sweep";
+            : refinePrefixed.Any(s => s.Label == winnerSummary.Label)
+                ? "Greedy refine (best weights + rule)"
+                : bestMlSearch is not null && winnerSummary.Label == bestMlSearch.Label
+                    ? "ML search (CMA-ES)"
+                    : "Traditional sweep";
 
         // Out-of-sample validation: winner and baseline on the held-out window.
         var winnerHoldout = await HistoricBacktester.RunAsync(

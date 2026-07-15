@@ -34,7 +34,7 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
       <div class="stat-grid">
         <div><span class="k">Trades analysed</span><span class="v">{{ s.tradeCountAnalysed }}</span></div>
         <div><span class="k">Winners / losers</span><span class="v">{{ s.winnerCount }} / {{ s.loserCount }}</span></div>
-        <div><span class="k">Win rate</span><span class="v">{{ s.overallWinRate | number: '1.0-1' }}%</span></div>
+        <div><span class="k">Win rate</span><span class="v">{{ s.overallWinRate | percent: '1.0-1' }}</span></div>
         <div><span class="k">Market-adjusted</span><span class="v">{{ s.marketAdjustedWinRate | number: '1.0-1' }}%</span></div>
       </div>
 

@@ -243,76 +243,7 @@ public static class SweepOptimizer
         // constraints, robust-score ranking and holdout validation as every
         // weight candidate.
         if (searchRules)
-        {
-            void AddRule(string label, HistoricTradingRules rules) =>
-                candidates.Add(baseline with { Label = label, Rules = rules });
-
-            foreach (var v in new[] { 5, 8, 12, 15, 20, 30 })
-                if (v != productionRules?.MaxHoldDays)
-                    AddRule($"Max hold {v}d", new HistoricTradingRules(MaxHoldDays: v));
-
-            foreach (var v in new[] { 0.03m, 0.05m, 0.07m, 0.10m })
-                if (v != productionRules?.StopLossPct)
-                    AddRule($"Stop {v:P0}", new HistoricTradingRules(StopLossPct: v));
-
-            foreach (var v in new[] { 0.10m, 0.15m, 0.20m, 0.30m })
-                if (v != productionRules?.TargetPct)
-                    AddRule($"Target {v:P0}", new HistoricTradingRules(TargetPct: v));
-
-            foreach (var (act, dist) in new[] { (0.03m, 0.02m), (0.05m, 0.03m), (0.08m, 0.04m), (0.10m, 0.05m) })
-                if (act != productionRules?.TrailingActivationPct || dist != productionRules?.TrailingDistancePct)
-                    AddRule($"Trail +{act:P0}/{dist:P0}",
-                        new HistoricTradingRules(TrailingActivationPct: act, TrailingDistancePct: dist));
-
-            foreach (var v in new[] { 2, 3, 5 })
-                if (v != productionRules?.MinHoldDays)
-                    AddRule($"Probation {v}d", new HistoricTradingRules(MinHoldDays: v));
-
-            foreach (var v in new[] { 0.3m, 0.45m, 0.6m })
-                if (v != productionRules?.MomentumHealthThreshold)
-                    AddRule($"Health floor {v:0.00}", new HistoricTradingRules(MomentumHealthThreshold: v));
-
-            foreach (var v in new[] { 3, 5, 8 })
-                if (v != productionRules?.MaxOpenPositions)
-                    AddRule($"Max positions {v}", new HistoricTradingRules(MaxOpenPositions: v));
-
-            AddRule("Tight risk (stop 3%, target 10%, trail +3%/2%, hold 10d)",
-                new HistoricTradingRules(MaxHoldDays: 10, StopLossPct: 0.03m, TargetPct: 0.10m,
-                    TrailingActivationPct: 0.03m, TrailingDistancePct: 0.02m));
-            AddRule("Loose risk (stop 10%, target 30%, trail +10%/5%, hold 30d)",
-                new HistoricTradingRules(MaxHoldDays: 30, StopLossPct: 0.10m, TargetPct: 0.30m,
-                    TrailingActivationPct: 0.10m, TrailingDistancePct: 0.05m));
-            AddRule("Let winners run (target 30%, trail +5%/3%, hold 30d)",
-                new HistoricTradingRules(MaxHoldDays: 30, TargetPct: 0.30m,
-                    TrailingActivationPct: 0.05m, TrailingDistancePct: 0.03m));
-
-            // Per-setup GUIDE-HOLD search (docs/setup-tactics-plan Phase 4).
-            // Tests the motivating hypothesis directly - that a setup's ideal
-            // hold length differs by setup (e.g. breakouts may need to run
-            // longer than mean-reversion bounces). Deliberately bounded to the
-            // guide-hold dimension only, ≤3 nudges per setup, so the sweep stays
-            // within a sane candidate budget (the Basic-tier DB is untouched -
-            // every candidate replays the same in-memory bars - but wall-clock
-            // still scales with candidate count). Each nudges ONE setup's
-            // guide-hold off its live value, holding its other tactics and every
-            // other setup at baseline, so a winner is attributable to that
-            // setup + hold length.
-            if (accountTactics is not null)
-            {
-                foreach (var (setup, tac) in accountTactics.OrderBy(kv => kv.Key.ToString()))
-                {
-                    foreach (var mult in new[] { 0.5m, 1.5m, 2.0m })
-                    {
-                        var gh = Math.Clamp((int)Math.Round(tac.GuideHoldDays * mult), 5, 30);
-                        if (gh == tac.GuideHoldDays) continue;
-                        var ov = new HistoricSetupTacticsOverride(
-                            setup.ToString(), tac.StopLossPct, tac.TargetPct, gh,
-                            tac.TrailingActivationPct, tac.TrailingDistancePct);
-                        AddRule($"{setup} guide-hold {gh}d", new HistoricTradingRules(SetupTactics: [ov]));
-                    }
-                }
-            }
-        }
+            candidates.AddRange(GenerateRuleCandidates(baseline, productionRules, accountTactics));
 
         // Fill the remainder to TargetCandidateCount with deterministic
         // pseudo-random LIVE mixes (fixed seed - repeated sweeps on the same
@@ -343,6 +274,90 @@ public static class SweepOptimizer
         }
 
         return candidates;
+    }
+
+    // The trading-RULE + per-setup search candidates generated off a given base
+    // candidate (its weights held fixed, one rule/setup dial changed at a time).
+    // Phase 1 calls this with the production baseline. The greedy second pass
+    // (RunSweepAsync) calls it again with the best WEIGHT mix as the base and a
+    // label prefix, so the sweep can discover a combined best-weights + best-rule
+    // winner - which the one-change-at-a-time first pass alone cannot. Values
+    // equal to the base's production rules are skipped (they'd duplicate it).
+    public static List<HistoricBacktestCandidate> GenerateRuleCandidates(
+        HistoricBacktestCandidate baseCandidate,
+        HistoricTradingRules? productionRules,
+        IReadOnlyDictionary<SetupType, HistoricSetupTactics>? accountTactics,
+        string labelPrefix = "")
+    {
+        var result = new List<HistoricBacktestCandidate>();
+        void AddRule(string label, HistoricTradingRules rules) =>
+            result.Add(baseCandidate with { Label = labelPrefix + label, Rules = rules });
+
+        foreach (var v in new[] { 5, 8, 12, 15, 20, 30 })
+            if (v != productionRules?.MaxHoldDays)
+                AddRule($"Max hold {v}d", new HistoricTradingRules(MaxHoldDays: v));
+
+        foreach (var v in new[] { 0.03m, 0.05m, 0.07m, 0.10m })
+            if (v != productionRules?.StopLossPct)
+                AddRule($"Stop {v:P0}", new HistoricTradingRules(StopLossPct: v));
+
+        foreach (var v in new[] { 0.10m, 0.15m, 0.20m, 0.30m })
+            if (v != productionRules?.TargetPct)
+                AddRule($"Target {v:P0}", new HistoricTradingRules(TargetPct: v));
+
+        foreach (var (act, dist) in new[] { (0.03m, 0.02m), (0.05m, 0.03m), (0.08m, 0.04m), (0.10m, 0.05m) })
+            if (act != productionRules?.TrailingActivationPct || dist != productionRules?.TrailingDistancePct)
+                AddRule($"Trail +{act:P0}/{dist:P0}",
+                    new HistoricTradingRules(TrailingActivationPct: act, TrailingDistancePct: dist));
+
+        foreach (var v in new[] { 2, 3, 5 })
+            if (v != productionRules?.MinHoldDays)
+                AddRule($"Probation {v}d", new HistoricTradingRules(MinHoldDays: v));
+
+        foreach (var v in new[] { 0.3m, 0.45m, 0.6m })
+            if (v != productionRules?.MomentumHealthThreshold)
+                AddRule($"Health floor {v:0.00}", new HistoricTradingRules(MomentumHealthThreshold: v));
+
+        foreach (var v in new[] { 3, 5, 8 })
+            if (v != productionRules?.MaxOpenPositions)
+                AddRule($"Max positions {v}", new HistoricTradingRules(MaxOpenPositions: v));
+
+        AddRule("Tight risk (stop 3%, target 10%, trail +3%/2%, hold 10d)",
+            new HistoricTradingRules(MaxHoldDays: 10, StopLossPct: 0.03m, TargetPct: 0.10m,
+                TrailingActivationPct: 0.03m, TrailingDistancePct: 0.02m));
+        AddRule("Loose risk (stop 10%, target 30%, trail +10%/5%, hold 30d)",
+            new HistoricTradingRules(MaxHoldDays: 30, StopLossPct: 0.10m, TargetPct: 0.30m,
+                TrailingActivationPct: 0.10m, TrailingDistancePct: 0.05m));
+        AddRule("Let winners run (target 30%, trail +5%/3%, hold 30d)",
+            new HistoricTradingRules(MaxHoldDays: 30, TargetPct: 0.30m,
+                TrailingActivationPct: 0.05m, TrailingDistancePct: 0.03m));
+
+        // Per-setup GUIDE-HOLD search (docs/setup-tactics-plan Phase 4): each
+        // nudges ONE setup's guide-hold off its live value, holding its other
+        // tactics and every other setup at baseline, so a winner is attributable
+        // to that setup + hold length. Bounded to the guide-hold dimension only.
+        if (accountTactics is not null)
+        {
+            foreach (var (setup, tac) in accountTactics.OrderBy(kv => kv.Key.ToString()))
+            {
+                // Distinct target hold-days: the ×1.5 and ×2.0 nudges can clamp
+                // to the same value (e.g. guide-hold 20 → 30 and 40→30), which
+                // would otherwise queue two identical candidates.
+                var targets = new[] { 0.5m, 1.5m, 2.0m }
+                    .Select(mult => Math.Clamp((int)Math.Round(tac.GuideHoldDays * mult), 5, 30))
+                    .Where(gh => gh != tac.GuideHoldDays)
+                    .Distinct();
+                foreach (var gh in targets)
+                {
+                    var ov = new HistoricSetupTacticsOverride(
+                        setup.ToString(), tac.StopLossPct, tac.TargetPct, gh,
+                        tac.TrailingActivationPct, tac.TrailingDistancePct);
+                    AddRule($"{setup} guide-hold {gh}d", new HistoricTradingRules(SetupTactics: [ov]));
+                }
+            }
+        }
+
+        return result;
     }
 
     // A candidate whose live dials follow the given proportions of the live

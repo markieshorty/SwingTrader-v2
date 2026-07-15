@@ -353,7 +353,9 @@ public static class StrategyLabEndpoints
                     weights = cfg?.Weights,
                     buyThreshold = cfg?.BuyThreshold,
                     rules = cfg?.Rules,
-                    hasRiskOverrides = cfg?.Rules is not null,
+                    // A run has risk overrides to apply if it changed the exit/
+                    // tactic rules OR flipped the bear-autopause vs its baseline.
+                    hasRiskOverrides = cfg is not null && (cfg.Rules is not null || cfg.AutopauseChanged),
                     stats = cfg is null ? null : new
                     {
                         cfg.Stats.Trades,
@@ -397,7 +399,7 @@ public static class StrategyLabEndpoints
                 : run.RequestJson.Contains("\"Mode\":\"sweep\"") ? "sweep" : null;
             var cfg = Agents.Backtesting.BacktestApplyExtractor.Extract(mode, run.RequestJson, run.ResultJson);
             if (cfg is null) return Results.BadRequest(new { message = "This run has no applyable configuration." });
-            if (req.ApplyRiskSettings && cfg.Rules is null)
+            if (req.ApplyRiskSettings && cfg.Rules is null && !cfg.AutopauseChanged)
                 return Results.BadRequest(new { message = "This run has no risk-setting overrides to apply." });
 
             var account = await accounts.GetAsync(ctx.AccountId, ct);
@@ -437,7 +439,7 @@ public static class StrategyLabEndpoints
                     ComponentAnalysisJson = "[]",
                     AssessmentSummary =
                         $"Applied from {(mode == "ab" ? "A/B" : "optimizer")} run #{run.Id} ('{cfg.Label}'): " +
-                        $"{cfg.Stats.Trades} trades, {cfg.Stats.WinRatePct:0.#}% win rate, {cfg.Stats.TotalReturnPct:0.#}% total return.",
+                        $"{cfg.Stats.Trades} trades, {cfg.Stats.WinRatePct * 100:0.#}% win rate, {cfg.Stats.TotalReturnPct:0.#}% total return.",
                     ConfidenceLevel = RefinementConfidenceLevel.Medium,
                     Status = RefinementStatus.Pending,
                     IsShadowMode = false,
@@ -465,6 +467,17 @@ public static class StrategyLabEndpoints
                 foreach (var row in changedTactics)
                     await setupTacticsRepo.UpdateAsync(row, ct);
 
+                appliedRisk = true;
+            }
+
+            // A bear-autopause winner lands on the Bear regime book (where the
+            // live "pause new entries in a bear" decision lives). Independent of
+            // the rule/tactic apply above, so an autopause-only winner applies too.
+            if (req.ApplyRiskSettings && cfg.AutopauseChanged)
+            {
+                var bearBook = await riskRepo.GetAsync(ctx.AccountId, MarketRegime.Bear, ct);
+                bearBook.AutopauseTrading = cfg.AutopauseDuringBear;
+                await riskRepo.UpdateAsync(bearBook, ct);
                 appliedRisk = true;
             }
 
