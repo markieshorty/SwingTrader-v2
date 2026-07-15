@@ -842,17 +842,46 @@ export class StrategyLabComponent implements OnDestroy {
   // human sanity-check step before Apply. Deliberately does NOT start the
   // run: the user still presses Run.
   testWinnerInAb(sweep: SweepResultDto): void {
-    this.weights.set({ ...sweep.winner.weights });
-    this.buyThreshold.set(sweep.winner.buyThreshold);
-    // Restore the winner's FULL exclusion set (falls back to the breakout bool
-    // for runs stored before excludedSetups was carried on the candidate).
-    this.excludedSetups.set(sweep.winner.excludedSetups ?? (sweep.winner.excludeBreakout ? ['Breakout'] : []));
-    this.autopauseBear.set(sweep.winner.autopauseDuringBear);
+    const w = sweep.winner;
+    // Start from live-default rules, then layer the winner's overrides on top so
+    // the reproduced run matches the winner EXACTLY. Without this the form's
+    // (default) rules silently replace the winner's, and A/B / Validate / Monte
+    // Carlo would test a different config than the one that won.
+    this.resetRules();
+    this.weights.set({ ...w.weights });
+    this.buyThreshold.set(w.buyThreshold);
+    this.excludedSetups.set(w.excludedSetups ?? (w.excludeBreakout ? ['Breakout'] : []));
+    this.autopauseBear.set(w.autopauseDuringBear);
+
+    const r = w.rules;
+    if (r) {
+      // Uniform rule fields (percent fields are stored as fractions, shown ×100).
+      if (r.maxHoldDays != null) this.rulesMaxHoldDays.set(r.maxHoldDays);
+      if (r.maxOpenPositions != null) this.rulesMaxOpenPositions.set(r.maxOpenPositions);
+      if (r.stopLossPct != null) this.rulesStopLossPct.set(r.stopLossPct * 100);
+      if (r.targetPct != null) this.rulesTargetPct.set(r.targetPct * 100);
+      if (r.trailingActivationPct != null) this.rulesTrailingActivation.set(r.trailingActivationPct * 100);
+      if (r.trailingDistancePct != null) this.rulesTrailingDistance.set(r.trailingDistancePct * 100);
+      if (r.minHoldDays != null) this.rulesMinHoldDays.set(r.minHoldDays);
+      if (r.momentumHealthThreshold != null) this.rulesHealthThreshold.set(r.momentumHealthThreshold);
+      // Per-setup tactics: overlay each override onto the matching editor row.
+      if (r.setupTactics?.length) {
+        this.labTacticsDraft.update((rows) =>
+          rows.map((row) => {
+            const ov = r.setupTactics!.find((o) => o.setup === row.setupType);
+            return ov
+              ? { ...row, stopLossPct: ov.stopLossPct, targetPct: ov.targetPct, guideHoldDays: ov.guideHoldDays,
+                  trailingActivationPct: ov.trailingActivationPct, trailingDistancePct: ov.trailingDistancePct }
+              : row;
+          }));
+      }
+    }
+
     this.dataSource.set('historic');
     this.compareBaselineHistoric.set(true);
     this.labTabIndex.set(0);
     this.snackbar.open(
-      `Winner's dials ("${sweep.winner.label}") loaded — hit Run Simulation for the full-window head-to-head vs production.`,
+      `Winner's full config ("${w.label}") loaded — including its rule/setup overrides. Hit Run Simulation for the head-to-head vs production.`,
       'Dismiss', { duration: 6000 });
   }
 

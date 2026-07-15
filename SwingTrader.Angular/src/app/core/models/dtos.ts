@@ -660,6 +660,9 @@ export interface SweepCandidateDto {
   // Full set of setups the candidate excluded (SetupType names) — restored by
   // "Test winner in A/B". Absent on runs stored before this field existed.
   excludedSetups?: string[];
+  // The candidate's rule overrides (uniform + per-setup tactics), so "Test
+  // winner in A/B" reproduces the winner faithfully rather than dropping them.
+  rules?: LabTradingRulesDto | null;
 }
 
 export interface SweepValidationDto {
