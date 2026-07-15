@@ -298,6 +298,11 @@ export class StrategyLabComponent implements OnDestroy {
   private ranExcludeBreakout = false;
   private ranAutopauseBear = true;
   private lastHistoricRunId: number | null = null;
+  // The completed optimizer run - lets "Apply winner" reproduce the FULL
+  // winning config (weights + rule/tactic overrides + autopause) server-side,
+  // instead of the weights-only live-apply path which silently drops the very
+  // rule change that often won.
+  private lastSweepRunId: number | null = null;
 
   // ── Claude analysis (advisory only) ────────────────────────────────────────
   analysing = signal(false);
@@ -677,6 +682,7 @@ export class StrategyLabComponent implements OnDestroy {
   // Shared by a freshly-queued sweep and the tab-load reattach to one that
   // was already running server-side when the page was opened/refreshed.
   private startSweepPoll(runId: number): void {
+    this.lastSweepRunId = runId;
     this.pollRun(
       'sweep',
       runId,
@@ -806,15 +812,60 @@ export class StrategyLabComponent implements OnDestroy {
   }
 
   sweepDiffRows(sweep: SweepResultDto): DiffRow[] {
-    const rows = this.diffRows(
-      sweep.baseline.weights, sweep.baseline.buyThreshold, sweep.baseline.excludeBreakout,
-      sweep.winner.weights, sweep.winner.buyThreshold, sweep.winner.excludeBreakout);
+    // Weights + buy threshold.
+    const rows: DiffRow[] = this.dials.map((d) => ({
+      label: d.label,
+      oldVal: (sweep.baseline.weights[d.key] * 100).toFixed(0) + '%',
+      newVal: (sweep.winner.weights[d.key] * 100).toFixed(0) + '%',
+      changed: Math.abs(sweep.baseline.weights[d.key] - sweep.winner.weights[d.key]) >= 0.005,
+    }));
+    rows.push({
+      label: 'Buy threshold',
+      oldVal: sweep.baseline.buyThreshold.toFixed(1),
+      newVal: sweep.winner.buyThreshold.toFixed(1),
+      changed: sweep.baseline.buyThreshold !== sweep.winner.buyThreshold,
+    });
+    // Full excluded-setups list, not just the legacy breakout bool - a winner
+    // that drops VolumeSpike must show it or the diff lies about what won.
+    const oldEx = this.excludedLabel(sweep.baseline.excludedSetups, sweep.baseline.excludeBreakout);
+    const newEx = this.excludedLabel(sweep.winner.excludedSetups, sweep.winner.excludeBreakout);
+    rows.push({ label: 'Excluded setups', oldVal: oldEx, newVal: newEx, changed: oldEx !== newEx });
     rows.push({
       label: 'Bear autopause',
       oldVal: sweep.baseline.autopauseDuringBear ? 'On' : 'Off',
       newVal: sweep.winner.autopauseDuringBear ? 'On' : 'Off',
       changed: sweep.baseline.autopauseDuringBear !== sweep.winner.autopauseDuringBear,
     });
+    // The winning lever is often a rule/tactic change, not a weight - surface
+    // every override the winner carries so "what won" is never invisible.
+    rows.push(...this.ruleDiffRows(sweep.winner.rules));
+    return rows;
+  }
+
+  private excludedLabel(excluded: string[] | undefined, breakoutFallback: boolean): string {
+    const list = excluded ?? (breakoutFallback ? ['Breakout'] : []);
+    return list.length ? list.join(', ') : 'none';
+  }
+
+  // Renders the winner's trading-rule + per-setup-tactic overrides as diff rows.
+  // The baseline replays with the live risk profile (Rules == null), so the old
+  // side reads "live" - honest that we're showing the delta from production.
+  private ruleDiffRows(rules: LabTradingRulesDto | null | undefined): DiffRow[] {
+    const rows: DiffRow[] = [];
+    if (!rules) return rows;
+    const pct = (v: number) => (v * 100).toFixed(0) + '%';
+    const add = (label: string, newVal: string) => rows.push({ label, oldVal: 'live', newVal, changed: true });
+    if (rules.maxHoldDays != null) add('Guide hold (all setups)', `${rules.maxHoldDays}d`);
+    if (rules.stopLossPct != null) add('Stop (all setups)', pct(rules.stopLossPct));
+    if (rules.targetPct != null) add('Target (all setups)', pct(rules.targetPct));
+    if (rules.trailingActivationPct != null) add('Trail arm (all setups)', pct(rules.trailingActivationPct));
+    if (rules.trailingDistancePct != null) add('Trail distance (all setups)', pct(rules.trailingDistancePct));
+    if (rules.maxOpenPositions != null) add('Max open positions', `${rules.maxOpenPositions}`);
+    if (rules.minHoldDays != null) add('Probation day', `${rules.minHoldDays}d`);
+    if (rules.momentumHealthThreshold != null) add('Health floor', rules.momentumHealthThreshold.toFixed(2));
+    for (const t of rules.setupTactics ?? []) {
+      add(`${t.setup} tactics`, `stop ${pct(t.stopLossPct)} · target ${pct(t.targetPct)} · hold ${t.guideHoldDays}d`);
+    }
     return rows;
   }
 
@@ -915,27 +966,50 @@ export class StrategyLabComponent implements OnDestroy {
   }
 
   applySweepWinner(sweep: SweepResultDto): void {
+    if (this.lastSweepRunId == null) {
+      this.snackbar.open('This optimizer run is no longer loaded — re-run the sweep before applying.', 'Dismiss', { duration: 5000 });
+      return;
+    }
+    const w = sweep.winner;
+    // Apply the winner through the stored run so live reproduces it EXACTLY:
+    // weights + rule/tactic overrides + autopause, not just the weights.
+    const autopauseChanged = w.autopauseDuringBear !== sweep.baseline.autopauseDuringBear;
+    const hasRiskOverrides = !!w.rules || autopauseChanged;
     const extra = sweep.validation.heldUp
       ? ''
       : ' WARNING: this configuration did NOT hold up on held-out data — applying it is not recommended.';
-    const autopause = sweep.winner.autopauseDuringBear;
-    const autopauseNote = autopause !== this.productionAutopauseBear
-      ? ` This also turns the live bear-market autopause ${autopause ? 'ON' : 'OFF'}.`
+    const riskNote = hasRiskOverrides
+      ? ' This also applies its risk-rule and per-setup tactic overrides' +
+        (autopauseChanged ? ` and turns the live bear-market autopause ${w.autopauseDuringBear ? 'ON' : 'OFF'}.` : '.')
       : '';
-    this.applyConfig(sweep.winner.weights, sweep.winner.buyThreshold,
-      `This sets your LIVE strategy weights and Buy threshold (${sweep.winner.buyThreshold.toFixed(1)}) to the optimizer's ` +
-      `winning configuration ("${sweep.winner.label}").${autopauseNote}${extra} Are you sure?`,
-      autopause,
-      {
-        summary:
-          `Optimizer sweep winner "${sweep.winner.label}": market-adjusted expectancy ` +
-          `${sweep.validation.trainAdjustedExpectancyPct.toFixed(2)}%/trade on the tuning window, ` +
-          `${sweep.validation.holdoutAdjustedExpectancyPct.toFixed(2)}% on held-out data ` +
-          `(production baseline: ${sweep.validation.baselineHoldoutAdjustedExpectancyPct.toFixed(2)}% on the same held-out window) — ` +
-          `${sweep.validation.heldUp ? 'HELD UP out-of-sample' : 'did NOT hold up out-of-sample; applied against recommendation'}.`,
-        tradeCount: sweep.winner.trades,
-        winRate: sweep.winner.winRate,
-        confidence: sweep.validation.heldUp ? 2 : 0,
+    this.dialog
+      .open(ConfirmDialogComponent, {
+        data: {
+          title: 'Apply winner to production',
+          message:
+            `This sets your LIVE strategy weights and Buy threshold (${w.buyThreshold.toFixed(1)}) to the optimizer's ` +
+            `winning configuration ("${w.label}").${riskNote}${extra} Are you sure?`,
+          cancelLabel: 'Cancel',
+          confirmLabel: 'Apply to production',
+          confirmColor: 'warn',
+        },
+        width: '460px',
+      })
+      .afterClosed()
+      .subscribe((confirmed) => {
+        if (!confirmed) return;
+        this.api.applyBacktestRun(this.lastSweepRunId!, true, hasRiskOverrides).subscribe({
+          next: () => {
+            this.snackbar.open(
+              hasRiskOverrides
+                ? 'Applied — production now uses the winner’s weights AND its risk/tactic overrides. Recorded in the refinement history. ✅'
+                : 'Applied — production now uses the winner’s weights. Recorded in the refinement history. ✅',
+              'Dismiss', { duration: 4000 });
+            this.api.getStrategyWeights().subscribe({ next: (u) => this.productionWeights.set(u), error: () => {} });
+            if (autopauseChanged) this.productionAutopauseBear = w.autopauseDuringBear;
+          },
+          error: (err) => this.snackbar.open(errorMessage(err, 'Failed to apply the winner.'), 'Dismiss', { duration: 5000 }),
+        });
       });
   }
 
