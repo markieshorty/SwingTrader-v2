@@ -33,7 +33,7 @@ public sealed record HistoricConfig(
     // entries are skipped while SPY is below its 200-day average. Coarser than
     // the live classifier (which also wants a falling MA / deep breach / death
     // cross), but far closer to live behaviour than trading straight through a
-    // bear. Wired from the account's AutopauseDuringBear setting.
+    // bear. Wired from the account's Bear regime book AutopauseTrading toggle.
     bool RegimeFilter = false,
     decimal? BreakoutQualityOverride = null,
     bool ConvictionSizing = false,

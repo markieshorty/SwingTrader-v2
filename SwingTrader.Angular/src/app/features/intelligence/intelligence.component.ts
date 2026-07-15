@@ -18,8 +18,9 @@ import {
 
 // Read-only evidence page (docs/intelligence-page-plan): the funnel's shadow
 // record, filing-language deltas, and second-hop transmissions. Nothing here
-// mutates anything - it exists so the review-before-trust decisions (flipping
-// FunnelEnabled, raising FD/SH weights) are made with the evidence in view.
+// mutates anything - it exists so the review-before-trust decisions (e.g.
+// raising FD/SH weights) are made with the evidence in view. The funnel it
+// once gated the flip for is now always on; this remains its ongoing monitor.
 @Component({
   selector: 'app-intelligence',
   standalone: true,

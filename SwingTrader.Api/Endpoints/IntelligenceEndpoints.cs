@@ -17,9 +17,10 @@ public static class IntelligenceEndpoints
 {
     public static RouteGroupBuilder MapIntelligenceEndpoints(this RouteGroupBuilder api)
     {
-        // Tab 1 - Funnel shadow: THE evidence Mark reviews before flipping
-        // Research:FunnelEnabled. Aggregated stats + the divergence table +
-        // veto candidates, over a selectable window.
+        // Tab 1 - Funnel shadow: how the (now always-on) funnel diverges from
+        // the raw gate - aggregated stats + the divergence table + veto
+        // candidates, over a selectable window. Originally the evidence for the
+        // funnel flip; now the ongoing monitor of what the funnel is doing.
         api.MapGet("/intelligence/funnel-shadow", async (
             int? days, ISignalRepository signals, IAccountContext ctx, CancellationToken ct) =>
         {
@@ -164,7 +165,7 @@ public static class IntelligenceEndpoints
         return api;
     }
 
-    // What FunnelEnabled would ACTUALLY recommend for this signal - the raw
+    // What the funnel would ACTUALLY recommend for this signal - the raw
     // WouldPassGate threshold plus the overlay rules DetermineRecommendationAsync
     // applies regardless of which score feeds it. Without these the divergence
     // table overstates: e.g. a Breakout with gate 8.4 shows "gate says Buy" when

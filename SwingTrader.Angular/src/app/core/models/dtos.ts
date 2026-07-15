@@ -514,9 +514,9 @@ export interface LabTradingRulesDto {
   simulateProbation: boolean | null; // null = true (production always runs probation)
   minHoldDays: number | null;        // probation check day
   momentumHealthThreshold: number | null; // probation pass bar, 0..1
-  positionFraction: number | null;   // legacy flat sizing: fraction of equity per trade
-  activeCapitalPct: number | null;   // set = live-mirroring tier pool sizing (0.10 = Tier 1)
-  maxPositionPctOfActive: number | null; // per-position share of the pool
+  positionFraction: number | null;   // flat sizing: fraction of equity per trade
+  activeCapitalPct: number | null;   // sim-only "capital pool" mode: pool as fraction of the whole account
+  maxPositionPctOfActive: number | null; // sim-only: per-position share of the pool
 }
 
 export interface StrategyLabRequestDto {
