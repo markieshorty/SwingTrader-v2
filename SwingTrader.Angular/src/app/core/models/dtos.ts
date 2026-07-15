@@ -968,38 +968,6 @@ export interface TradeApprovalDto {
 
 // --- Intelligence page (docs/intelligence-page-plan) ---
 
-export interface FunnelDivergenceDto {
-  signalDate: string;
-  symbol: string;
-  companyName: string | null;
-  legacyConviction: number | null;
-  gateScore: number | null;
-  forwardScore: number | null;
-  legacyDecision: string;
-  gateDecision: string;
-}
-
-export interface FunnelVetoCandidateDto {
-  signalDate: string;
-  symbol: string;
-  companyName: string | null;
-  gateScore: number | null;
-  forwardScore: number | null;
-  sentiment: number | null;
-  fundamentals: number | null;
-}
-
-export interface FunnelShadowDto {
-  windowDays: number;
-  scored: number;
-  legacyBuys: number;
-  gateWouldBuy: number;
-  divergentCount: number;
-  wouldVetoCount: number;
-  divergent: FunnelDivergenceDto[];
-  vetoCandidates: FunnelVetoCandidateDto[];
-}
-
 export interface FilingDeltaRowDto {
   symbol: string;
   filedAt: string;

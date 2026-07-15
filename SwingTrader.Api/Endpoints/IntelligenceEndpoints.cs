@@ -17,62 +17,7 @@ public static class IntelligenceEndpoints
 {
     public static RouteGroupBuilder MapIntelligenceEndpoints(this RouteGroupBuilder api)
     {
-        // Tab 1 - Funnel shadow: how the (now always-on) funnel diverges from
-        // the raw gate - aggregated stats + the divergence table + veto
-        // candidates, over a selectable window. Originally the evidence for the
-        // funnel flip; now the ongoing monitor of what the funnel is doing.
-        api.MapGet("/intelligence/funnel-shadow", async (
-            int? days, ISignalRepository signals, IAccountContext ctx, CancellationToken ct) =>
-        {
-            var from = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-(days ?? 30)));
-            var scored = (await signals.GetSinceDateAsync(ctx.AccountId, from))
-                .Where(s => s.GateScore is not null)
-                .OrderByDescending(s => s.SignalDate)
-                .ToList();
-
-            var divergent = scored
-                .Where(s => (s.Recommendation == Recommendation.Buy) != (FunnelDecision(s) == "Buy"))
-                .Select(s => new
-                {
-                    s.SignalDate,
-                    s.Symbol,
-                    s.CompanyName,
-                    LegacyConviction = s.ConvictionScore,
-                    s.GateScore,
-                    s.ForwardScore,
-                    LegacyDecision = s.Recommendation.ToString(),
-                    GateDecision = FunnelDecision(s),
-                })
-                .ToList();
-
-            var vetoCandidates = scored
-                .Where(s => FunnelDecision(s) == "Buy" && s.WouldBeVetoed)
-                .Select(s => new
-                {
-                    s.SignalDate,
-                    s.Symbol,
-                    s.CompanyName,
-                    s.GateScore,
-                    s.ForwardScore,
-                    Sentiment = s.SentimentComponentScore,
-                    Fundamentals = s.FundamentalMomentumScore,
-                })
-                .ToList();
-
-            return Results.Ok(new
-            {
-                WindowDays = days ?? 30,
-                Scored = scored.Count,
-                LegacyBuys = scored.Count(s => s.Recommendation == Recommendation.Buy),
-                GateWouldBuy = scored.Count(s => FunnelDecision(s) == "Buy"),
-                DivergentCount = divergent.Count,
-                WouldVetoCount = vetoCandidates.Count,
-                Divergent = divergent,
-                VetoCandidates = vetoCandidates,
-            });
-        });
-
-        // Tab 2 - Filings: the FD1 audit trail. Negative deltas are the
+        // Tab 1 - Filings: the FD1 audit trail. Negative deltas are the
         // actionable half for a long-only book (Lazy Prices: language-
         // changers underperform), so held/Buy/Watch symbols are flagged and
         // the UI defaults to Warnings ordering. Every row carries EDGAR
@@ -139,7 +84,7 @@ public static class IntelligenceEndpoints
             });
         });
 
-        // Tab 3 - Second-hop: recent transmissions with their provenance
+        // Tab 2 - Second-hop: recent transmissions with their provenance
         // summaries - the hallucination check happens by reading these.
         api.MapGet("/intelligence/second-hop", async (
             int? days, ISignalRepository signals, IAccountContext ctx, CancellationToken ct) =>
@@ -163,23 +108,5 @@ public static class IntelligenceEndpoints
         });
 
         return api;
-    }
-
-    // What the funnel would ACTUALLY recommend for this signal - the raw
-    // WouldPassGate threshold plus the overlay rules DetermineRecommendationAsync
-    // applies regardless of which score feeds it. Without these the divergence
-    // table overstates: e.g. a Breakout with gate 8.4 shows "gate says Buy" when
-    // the flip would still cap it at Watch. Mirrors ResearchPipeline order:
-    // held -> Hold, RSI>75 -> Avoid, Breakout cap -> Watch, then threshold.
-    internal static string FunnelDecision(StockSignal s)
-    {
-        if (!s.WouldPassGate) return "No";
-        // A gate-passing signal with a legacy Hold means the held-position
-        // overlay fired (thresholds alone would have said Buy/Watch) - the
-        // funnel would Hold it too.
-        if (s.Recommendation == Recommendation.Hold) return "Hold";
-        if (s.Rsi14 > 75) return "Avoid";
-        if (s.SetupType == SetupType.Breakout) return "Watch";
-        return "Buy";
     }
 }

@@ -1,83 +1,5 @@
 <mat-tab-group>
-  <!-- Tab 1: Funnel shadow -->
-  <mat-tab label="Funnel shadow">
-    <div class="tab-body">
-      <div class="window-picker">
-        <mat-button-toggle-group [value]="funnelDays()" (change)="loadFunnel($event.value)" hideSingleSelectionIndicator>
-          <mat-button-toggle [value]="14">14d</mat-button-toggle>
-          <mat-button-toggle [value]="30">30d</mat-button-toggle>
-          <mat-button-toggle [value]="90">90d</mat-button-toggle>
-        </mat-button-toggle-group>
-      </div>
-
-      @if (!funnelLoaded()) {
-        <app-loading-spinner />
-      } @else {
-        @if (funnel(); as f) {
-        <div class="stat-row">
-          <mat-card class="stat"><span class="stat-value">{{ f.scored }}</span><span class="stat-label">Signals scored</span></mat-card>
-          <mat-card class="stat"><span class="stat-value">{{ f.legacyBuys }}</span><span class="stat-label">Legacy Buys</span></mat-card>
-          <mat-card class="stat"><span class="stat-value">{{ f.gateWouldBuy }}</span><span class="stat-label">Gate would Buy</span></mat-card>
-          <mat-card class="stat" [class.attention]="f.divergentCount > 0"><span class="stat-value">{{ f.divergentCount }}</span><span class="stat-label">Divergent</span></mat-card>
-          <mat-card class="stat"><span class="stat-value">{{ f.wouldVetoCount }}</span><span class="stat-label">Would veto</span></mat-card>
-        </div>
-
-        <h3>Divergences <span class="hint">— where the gate and the legacy blend disagree; this is the flip evidence</span></h3>
-        @if (f.divergent.length === 0) {
-          <p class="empty">No divergences in this window — the two systems agree on every scored signal.</p>
-        } @else {
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr><th>Date</th><th>Symbol</th><th>Legacy conviction</th><th>Gate score</th><th>Forward score</th><th>Legacy says</th><th>Gate says</th></tr>
-              </thead>
-              <tbody>
-                @for (row of f.divergent; track row.symbol + row.signalDate) {
-                  <tr>
-                    <td>{{ row.signalDate | date: 'dd MMM' }}</td>
-                    <td><span [matTooltip]="row.companyName ?? ''">{{ row.symbol }}</span></td>
-                    <td>{{ row.legacyConviction | number: '1.2-2' }}</td>
-                    <td>{{ row.gateScore | number: '1.2-2' }}</td>
-                    <td>{{ row.forwardScore | number: '1.2-2' }}</td>
-                    <td><span class="decision" [class.buy]="row.legacyDecision === 'Buy'">{{ row.legacyDecision }}</span></td>
-                    <td><span class="decision" [class.buy]="row.gateDecision === 'Buy'">{{ row.gateDecision }}</span></td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        }
-
-        <h3>Veto candidates <span class="hint">— gate-passers the forward score would have blocked</span></h3>
-        @if (f.vetoCandidates.length === 0) {
-          <p class="empty">No veto candidates in this window.</p>
-        } @else {
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr><th>Date</th><th>Symbol</th><th>Gate score</th><th>Forward score</th><th>Sentiment</th><th>Fundamentals</th></tr>
-              </thead>
-              <tbody>
-                @for (row of f.vetoCandidates; track row.symbol + row.signalDate) {
-                  <tr>
-                    <td>{{ row.signalDate | date: 'dd MMM' }}</td>
-                    <td><span [matTooltip]="row.companyName ?? ''">{{ row.symbol }}</span></td>
-                    <td>{{ row.gateScore | number: '1.2-2' }}</td>
-                    <td class="negative">{{ row.forwardScore | number: '1.2-2' }}</td>
-                    <td>{{ row.sentiment | number: '1.2-2' }}</td>
-                    <td>{{ row.fundamentals | number: '1.2-2' }}</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        }
-        }
-      }
-    </div>
-  </mat-tab>
-
-  <!-- Tab 2: Filings -->
+  <!-- Tab 1: Filings -->
   <mat-tab label="Filings">
     <div class="tab-body">
       <div class="window-picker">
@@ -141,7 +63,7 @@
     </div>
   </mat-tab>
 
-  <!-- Tab 3: Second-hop -->
+  <!-- Tab 2: Second-hop -->
   <mat-tab label="Second-hop">
     <div class="tab-body">
       <div class="window-picker">

@@ -12,15 +12,13 @@ import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner
 import {
   FilingDeltaRowDto,
   FilingsIntelligenceDto,
-  FunnelShadowDto,
   SecondHopIntelligenceDto,
 } from '../../core/models/dtos';
 
-// Read-only evidence page (docs/intelligence-page-plan): the funnel's shadow
-// record, filing-language deltas, and second-hop transmissions. Nothing here
-// mutates anything - it exists so the review-before-trust decisions (e.g.
-// raising FD/SH weights) are made with the evidence in view. The funnel it
-// once gated the flip for is now always on; this remains its ongoing monitor.
+// Read-only evidence page (docs/intelligence-page-plan): filing-language deltas
+// and second-hop transmissions. Nothing here mutates anything - it exists so
+// the review-before-trust decisions (e.g. raising FD/SH weights) are made with
+// the evidence in view.
 @Component({
   selector: 'app-intelligence',
   standalone: true,
@@ -41,10 +39,6 @@ import {
 export class IntelligenceComponent {
   private api = inject(ApiService);
 
-  funnel = signal<FunnelShadowDto | null>(null);
-  funnelLoaded = signal(false);
-  funnelDays = signal(30);
-
   filings = signal<FilingsIntelligenceDto | null>(null);
   filingsLoaded = signal(false);
   filingsDays = signal(90);
@@ -57,21 +51,8 @@ export class IntelligenceComponent {
   secondHopDays = signal(14);
 
   constructor() {
-    this.loadFunnel(30);
     this.loadFilings(90);
     this.loadSecondHop(14);
-  }
-
-  loadFunnel(days: number): void {
-    this.funnelDays.set(days);
-    this.funnelLoaded.set(false);
-    this.api.getFunnelShadow(days).subscribe({
-      next: (d) => {
-        this.funnel.set(d);
-        this.funnelLoaded.set(true);
-      },
-      error: () => this.funnelLoaded.set(true),
-    });
   }
 
   loadFilings(days: number): void {

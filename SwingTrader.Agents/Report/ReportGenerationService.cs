@@ -48,7 +48,7 @@ public class ReportGenerationService(
             ?? throw new InvalidOperationException($"Account {accountId} not found.");
 
         // Step 1
-        var (buys, watches, holds, avoids, funnel) = await LoadSignalsAsync(accountId, reportDate);
+        var (buys, watches, holds, avoids) = await LoadSignalsAsync(accountId, reportDate);
 
         if (buys.Count == 0 && watches.Count == 0 && holds == 0 && avoids.Count == 0)
         {
@@ -117,7 +117,7 @@ public class ReportGenerationService(
             logger.LogWarning(ex, "Filing-delta report read failed — line omitted");
         }
 
-        var markdown = BuildMarkdown(reportDate, buys, watches, holds, avoids, portfolio, market, narratives, cfg, gbpUsd, funnel, vetoedToday, vetoScorecard, filingDeltas);
+        var markdown = BuildMarkdown(reportDate, buys, watches, holds, avoids, portfolio, market, narratives, cfg, gbpUsd, vetoedToday, vetoScorecard, filingDeltas);
         if (approvalRequired)
         {
             var baseUrl = approvalConfig.Value.BaseUrl.TrimEnd('/');
@@ -130,30 +130,6 @@ public class ReportGenerationService(
     }
 
     // ── Step 1 ───────────────────────────────────────────────────────────────
-
-    // Funnel shadow (Phase F1): what the two-stage design WOULD have decided
-    // today vs what the legacy blend actually decided - the divergence
-    // evidence the F2 flip is gated on.
-    internal sealed record FunnelShadowStats(
-        int Scored, int LegacyBuys, int GateWouldBuy, List<string> DivergentSymbols, int WouldVeto);
-
-    internal static FunnelShadowStats ComputeFunnelShadowStats(IReadOnlyList<StockSignal> all)
-    {
-        var scored = all.Where(s => s.GateScore is not null).ToList();
-        var divergent = scored
-            .Where(s => (s.Recommendation == Recommendation.Buy) != s.WouldPassGate)
-            .Select(s => $"{s.Symbol}{(s.WouldPassGate ? "+" : "-")}") // + gate-only, - legacy-only
-            .OrderBy(s => s)
-            .ToList();
-        return new FunnelShadowStats(
-            scored.Count,
-            scored.Count(s => s.Recommendation == Recommendation.Buy),
-            scored.Count(s => s.WouldPassGate),
-            divergent,
-            // Only gate-passers: a veto on a stock the gate wouldn't buy is a
-            // no-op, and counting it would overstate how active the floor is.
-            scored.Count(s => s.WouldPassGate && s.WouldBeVetoed));
-    }
 
     // Funnel Phase F3: the veto's justification is the counterfactual - what
     // the vetoed signals went on to do vs the Buys that executed. Vetoed set
@@ -199,7 +175,7 @@ public class ReportGenerationService(
             buyReturns.Count > 0 ? Math.Round(buyReturns.Average(), 2) : null);
     }
 
-    private async Task<(List<StockSignal> buys, List<StockSignal> watches, int holds, List<StockSignal> avoids, FunnelShadowStats funnel)>
+    private async Task<(List<StockSignal> buys, List<StockSignal> watches, int holds, List<StockSignal> avoids)>
         LoadSignalsAsync(int accountId, DateOnly date)
     {
         var all = (await signalRepo.GetByDateAsync(accountId, date)).ToList();
@@ -218,12 +194,10 @@ public class ReportGenerationService(
         var avoids = all.Where(s => s.Recommendation == Recommendation.Avoid)
                         .ToList();
 
-        var funnel = ComputeFunnelShadowStats(all);
-
         logger.LogInformation("Signals loaded: {Buys} buys, {Watches} watches, {Holds} holds, {Avoids} avoids",
             buys.Count, watches.Count, holds, avoids.Count);
 
-        return (buys, watches, holds, avoids, funnel);
+        return (buys, watches, holds, avoids);
     }
 
     // ── Step 2 ───────────────────────────────────────────────────────────────
@@ -521,7 +495,7 @@ public class ReportGenerationService(
         DateOnly reportDate, List<StockSignal> buys, List<StockSignal> watches,
         int holds, List<StockSignal> avoids, PortfolioState portfolio,
         MarketContext market, ReportNarratives narratives, ReportConfig cfg,
-        decimal gbpUsd, FunnelShadowStats? funnel = null,
+        decimal gbpUsd,
         List<StockSignal>? vetoedToday = null, VetoScorecard? vetoScorecard = null,
         List<FilingDelta>? filingDeltas = null)
     {
@@ -710,21 +684,6 @@ public class ReportGenerationService(
                 return $"{a.Symbol} ({reason})";
             });
             sb.AppendLine(string.Join(", ", parts));
-        }
-
-        // Funnel shadow (Phase F1): the divergence evidence the F2 flip is
-        // gated on, one line per day. "+" = gate-only would-Buy, "-" =
-        // legacy-only Buy.
-        if (funnel is { Scored: > 0 })
-        {
-            sb.AppendLine();
-            var divergent = funnel.DivergentSymbols.Count == 0
-                ? "none"
-                : string.Join(", ", funnel.DivergentSymbols.Take(8)) +
-                  (funnel.DivergentSymbols.Count > 8 ? $" +{funnel.DivergentSymbols.Count - 8} more" : "");
-            sb.AppendLine(
-                $"*Funnel shadow: {funnel.Scored} scored · legacy Buy {funnel.LegacyBuys} · gate would-Buy {funnel.GateWouldBuy} · " +
-                $"divergent: {divergent} · would-veto {funnel.WouldVeto}.*");
         }
 
         // Funnel F3: today's veto candidates (gate-passers under the forward

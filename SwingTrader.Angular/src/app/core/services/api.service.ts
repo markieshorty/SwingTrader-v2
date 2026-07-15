@@ -14,7 +14,6 @@ import {
   BacktestHistoryItemDto,
   EconomicLinkDto,
   FilingsIntelligenceDto,
-  FunnelShadowDto,
   InviteResultDto,
   InsightsDetailSectionDto,
   KeyStatusesDto,
@@ -359,10 +358,6 @@ export class ApiService {
 
   getWatchlists(): Observable<WatchlistDto[]> {
     return this.http.get<WatchlistDto[]>(`${this.baseUrl}/api/watchlists`);
-  }
-
-  getFunnelShadow(days = 30): Observable<FunnelShadowDto> {
-    return this.http.get<FunnelShadowDto>(`${this.baseUrl}/api/intelligence/funnel-shadow`, { params: { days } });
   }
 
   getFilingsIntelligence(days = 90): Observable<FilingsIntelligenceDto> {
