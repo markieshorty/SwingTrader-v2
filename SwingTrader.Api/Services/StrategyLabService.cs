@@ -1,5 +1,6 @@
 using SwingTrader.Agents.Refinement;
 using SwingTrader.Api.Contracts;
+using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
 
@@ -28,13 +29,14 @@ public class StrategyLabService(
         var replayable = await tradeReplay.LoadAsync(accountId, account.TradingMode, DateTime.UtcNow.AddYears(-2), DateTime.UtcNow, ct);
 
         var weights = ToWeights(req.Weights);
-        var result = Evaluate(replayable, weights, req.BuyThreshold, req.ExcludeBreakout);
-        var suggestions = Search(replayable, req, result);
+        var excluded = ResolveExcludedSetups(req);
+        var result = Evaluate(replayable, weights, req.BuyThreshold, excluded);
+        var suggestions = Search(replayable, req, excluded, result);
         var trades = replayable
             .Select(t => new LabTradeOutcome(
                 t.Trade.Symbol, t.Trade.OpenedAt,
                 ReplayEvaluator.Conviction(t.Signal, weights), t.Signal.SetupType.ToString(), Math.Round(t.ReturnPct, 2),
-                ReplayEvaluator.WouldTake(t, weights, req.BuyThreshold, req.ExcludeBreakout)))
+                ReplayEvaluator.WouldTake(t, weights, req.BuyThreshold, excluded)))
             .OrderByDescending(t => t.OpenedAt)
             .ToList();
 
@@ -50,14 +52,30 @@ public class StrategyLabService(
         LabBaseline? baseline = null;
         if (req.CompareBaseline && await weightsRepo.GetActiveWeightsAsync(accountId) is { } prod)
         {
-            var baselineResult = Evaluate(replayable, prod, prod.BuyThreshold, excludeBreakout: true);
+            // Production excludes no setups since Phase 1 (breakouts trade live
+            // again), so the baseline replays with no exclusions.
+            var baselineResult = Evaluate(replayable, prod, prod.BuyThreshold, NoExclusions);
             baseline = new LabBaseline(
                 new LabWeights(prod.RsiWeight, prod.MacdWeight, prod.VolumeWeight,
                     prod.SetupQualityWeight, prod.RelativeStrengthWeight, prod.PriceLevelWeight),
-                prod.BuyThreshold, ExcludeBreakout: true, baselineResult);
+                prod.BuyThreshold, ExcludeBreakout: false, baselineResult);
         }
 
         return new StrategyLabResponse(result, suggestions, trades, warning, baseline);
+    }
+
+    private static readonly IReadOnlySet<SetupType> NoExclusions = new HashSet<SetupType>();
+
+    // The setups the run excludes: the explicit multiselect list when present,
+    // else the legacy single breakout toggle. Unknown names are ignored.
+    private static IReadOnlySet<SetupType> ResolveExcludedSetups(StrategyLabRequest req)
+    {
+        if (req.ExcludedSetups is null)
+            return req.ExcludeBreakout ? new HashSet<SetupType> { SetupType.Breakout } : NoExclusions;
+        return req.ExcludedSetups
+            .Select(n => Enum.TryParse<SetupType>(n, ignoreCase: true, out var s) ? s : (SetupType?)null)
+            .Where(s => s.HasValue).Select(s => s!.Value)
+            .ToHashSet();
     }
 
     private static StrategyWeights ToWeights(LabWeights w) => new()
@@ -67,9 +85,9 @@ public class StrategyLabService(
         PriceLevelWeight = w.PriceLevel,
     };
 
-    private static LabResult Evaluate(List<ReplayableTrade> trades, StrategyWeights w, decimal threshold, bool excludeBreakout)
+    private static LabResult Evaluate(List<ReplayableTrade> trades, StrategyWeights w, decimal threshold, IReadOnlySet<SetupType> excludedSetups)
     {
-        var o = ReplayEvaluator.Evaluate(trades, w, threshold, excludeBreakout);
+        var o = ReplayEvaluator.Evaluate(trades, w, threshold, excludedSetups);
 
         var summary = trades.Count == 0
             ? "Nothing to simulate yet."
@@ -96,20 +114,25 @@ public class StrategyLabService(
     // 1.0), and the breakout toggle. Suggestions must keep a floor of the
     // sample (avoid "perfect" configs that cherry-pick 3 trades) and beat the
     // user's run on average return.
-    private static List<LabSuggestion> Search(List<ReplayableTrade> trades, StrategyLabRequest req, LabResult baseline)
+    private static List<LabSuggestion> Search(List<ReplayableTrade> trades, StrategyLabRequest req, IReadOnlySet<SetupType> excluded, LabResult baseline)
     {
         if (trades.Count == 0) return [];
 
         var minKept = Math.Max(5, (int)(trades.Count * 0.4));
         var candidates = new List<LabSuggestion>();
+        // Suggestions vary weights/threshold only; they keep the run's own setup
+        // exclusions fixed (the user drives those from the multiselect). The
+        // ExcludeBreakout carried on each suggestion just mirrors the run so
+        // loading one doesn't silently change the breakout state.
+        var runExcludesBreakout = excluded.Contains(SetupType.Breakout);
 
-        void Try(string description, LabWeights w, decimal threshold, bool excludeBreakout)
+        void Try(string description, LabWeights w, decimal threshold)
         {
-            var r = Evaluate(trades, ToWeights(w), threshold, excludeBreakout);
+            var r = Evaluate(trades, ToWeights(w), threshold, excluded);
             if (r.TradesKept < minKept) return;
             var improvement = r.SimAvgReturnPct - baseline.SimAvgReturnPct;
             if (improvement <= 0.05m) return; // must be a real improvement
-            candidates.Add(new LabSuggestion(description, w, threshold, excludeBreakout,
+            candidates.Add(new LabSuggestion(description, w, threshold, runExcludesBreakout,
                 r.SimAvgReturnPct, r.SimWinRate, r.TradesKept, Math.Round(improvement, 2)));
         }
 
@@ -118,12 +141,8 @@ public class StrategyLabService(
         {
             var nt = Math.Clamp(req.BuyThreshold + t, 3.0m, 9.0m);
             if (nt != req.BuyThreshold)
-                Try($"{(t > 0 ? "Raise" : "Lower")} Buy threshold {req.BuyThreshold:0.0} → {nt:0.0}", req.Weights, nt, req.ExcludeBreakout);
+                Try($"{(t > 0 ? "Raise" : "Lower")} Buy threshold {req.BuyThreshold:0.0} → {nt:0.0}", req.Weights, nt);
         }
-
-        // Breakout toggle
-        Try(req.ExcludeBreakout ? "Allow Breakout setups again" : "Exclude Breakout setups",
-            req.Weights, req.BuyThreshold, !req.ExcludeBreakout);
 
         // Single-weight nudges (±0.05), renormalised
         var names = new[] { "RSI", "MACD", "Volume", "Setup quality", "Relative strength", "Price level" };
@@ -138,7 +157,7 @@ public class StrategyLabService(
                 var sum = arr.Sum();
                 for (var k = 0; k < arr.Length; k++) arr[k] = Math.Round(arr[k] / sum, 4);
                 Try($"{(delta > 0 ? "Increase" : "Decrease")} {names[i]} weight to {arr[i]:P0} (others rebalanced)",
-                    FromArray(arr), req.BuyThreshold, req.ExcludeBreakout);
+                    FromArray(arr), req.BuyThreshold);
             }
         }
 

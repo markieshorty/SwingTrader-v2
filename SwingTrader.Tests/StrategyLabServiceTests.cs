@@ -80,6 +80,24 @@ public class StrategyLabServiceTests
     }
 
     [Fact]
+    public async Task Run_ExcludedSetups_DropsEveryNamedSetup_NotJustBreakout()
+    {
+        AddTrade(returnPct: 5m, allComponentScores: 0.9m, setup: SetupType.Breakout);
+        AddTrade(returnPct: 5m, allComponentScores: 0.9m, setup: SetupType.VolumeSpike);
+        AddTrade(returnPct: 5m, allComponentScores: 0.9m, setup: SetupType.OversoldRecovery);
+
+        // The unified multiselect can exclude any setups, not only Breakout.
+        var response = await CreateSut().RunOwnDataAsync(1,
+            new StrategyLabRequest("own", EqualWeights(), 6.0m, ExcludeBreakout: false,
+                ExcludedSetups: ["Breakout", "VolumeSpike"]), default);
+
+        response!.Result.TradesKept.Should().Be(1); // only OversoldRecovery survives
+        response.Trades.Single(t => t.Setup == "Breakout").WouldTake.Should().BeFalse();
+        response.Trades.Single(t => t.Setup == "VolumeSpike").WouldTake.Should().BeFalse();
+        response.Trades.Single(t => t.Setup == "OversoldRecovery").WouldTake.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Run_SuggestionsOnlyOfferRealImprovementsWithSampleFloor()
     {
         // 10 trades: high-conviction ones lose, low-conviction ones win - so

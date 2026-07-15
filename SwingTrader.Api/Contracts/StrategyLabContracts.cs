@@ -16,7 +16,14 @@ public record StrategyLabRequest(
     string DataSource,
     LabWeights Weights,
     decimal BuyThreshold,
+    // Legacy single-toggle breakout exclusion. Superseded by ExcludedSetups
+    // (the Lab's one "Exclude setups" multiselect); kept so older payloads and
+    // the historic candidate's ExcludeBreakout field still deserialize. When
+    // ExcludedSetups is provided it wins.
     bool ExcludeBreakout,
+    // SetupType names to exclude from the run (own-data replay + historic). Null
+    // falls back to ExcludeBreakout for backward compatibility.
+    List<string>? ExcludedSetups = null,
     // A/B mode: also evaluate the current production dials over the same data
     // so the user sees both side by side. Cheap for own-data (a second
     // in-memory replay); for historic it doubles a multi-minute job, so the

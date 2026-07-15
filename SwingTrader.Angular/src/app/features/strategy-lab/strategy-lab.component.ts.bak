@@ -732,7 +732,7 @@ export class StrategyLabComponent implements OnDestroy {
   tryAnalysisSuggestion(s: LabAnalyseSuggestionDto): void {
     this.weights.set({ ...s.weights });
     this.buyThreshold.set(s.buyThreshold);
-    this.excludedSetups.set(s.excludeBreakout ? ['Breakout'] : []);
+    this.excludeBreakout.set(s.excludeBreakout);
     this.snackbar.open('Suggested dials loaded — hit Run Simulation to test the hypothesis.', 'Dismiss', { duration: 4000 });
   }
 
@@ -791,7 +791,7 @@ export class StrategyLabComponent implements OnDestroy {
   tryDials(s: LabSuggestionDto): void {
     this.weights.set({ ...s.weights });
     this.buyThreshold.set(s.buyThreshold);
-    this.excludedSetups.set(s.excludeBreakout ? ['Breakout'] : []);
+    this.excludeBreakout.set(s.excludeBreakout);
     this.snackbar.open('Dials loaded — hit Run Simulation to see the full result.', 'Dismiss', { duration: 3000 });
   }
 
@@ -803,7 +803,7 @@ export class StrategyLabComponent implements OnDestroy {
   testWinnerInAb(sweep: SweepResultDto): void {
     this.weights.set({ ...sweep.winner.weights });
     this.buyThreshold.set(sweep.winner.buyThreshold);
-    this.excludedSetups.set(sweep.winner.excludeBreakout ? ['Breakout'] : []);
+    this.excludeBreakout.set(sweep.winner.excludeBreakout);
     this.autopauseBear.set(sweep.winner.autopauseDuringBear);
     this.dataSource.set('historic');
     this.compareBaselineHistoric.set(true);

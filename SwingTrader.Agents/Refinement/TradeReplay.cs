@@ -79,13 +79,25 @@ public static class ReplayEvaluator
         return Math.Round(Math.Clamp(raw * 10m, 0m, 10m), 1);
     }
 
+    // Breakout-only overload (kept for RefinementService's replay check).
     public static bool WouldTake(ReplayableTrade t, StrategyWeights w, decimal buyThreshold, bool excludeBreakout) =>
-        (!excludeBreakout || t.Signal.SetupType != SetupType.Breakout)
+        WouldTake(t, w, buyThreshold, excludeBreakout ? BreakoutOnly : NoExclusions);
+
+    // General overload: skip any trade whose triggering setup is excluded. The
+    // Strategy Lab drives this from its single "Exclude setups" multiselect.
+    public static bool WouldTake(ReplayableTrade t, StrategyWeights w, decimal buyThreshold, IReadOnlySet<SetupType> excludedSetups) =>
+        !excludedSetups.Contains(t.Signal.SetupType)
         && Conviction(t.Signal, w) >= buyThreshold;
 
-    public static Outcome Evaluate(IReadOnlyList<ReplayableTrade> trades, StrategyWeights w, decimal buyThreshold, bool excludeBreakout)
+    private static readonly IReadOnlySet<SetupType> NoExclusions = new HashSet<SetupType>();
+    private static readonly IReadOnlySet<SetupType> BreakoutOnly = new HashSet<SetupType> { SetupType.Breakout };
+
+    public static Outcome Evaluate(IReadOnlyList<ReplayableTrade> trades, StrategyWeights w, decimal buyThreshold, bool excludeBreakout) =>
+        Evaluate(trades, w, buyThreshold, excludeBreakout ? BreakoutOnly : NoExclusions);
+
+    public static Outcome Evaluate(IReadOnlyList<ReplayableTrade> trades, StrategyWeights w, decimal buyThreshold, IReadOnlySet<SetupType> excludedSetups)
     {
-        var kept = trades.Where(t => WouldTake(t, w, buyThreshold, excludeBreakout)).ToList();
+        var kept = trades.Where(t => WouldTake(t, w, buyThreshold, excludedSetups)).ToList();
         var dropped = trades.Except(kept).ToList();
 
         static decimal Avg(List<ReplayableTrade> set) => set.Count > 0 ? Math.Round(set.Average(t => t.ReturnPct), 2) : 0m;
