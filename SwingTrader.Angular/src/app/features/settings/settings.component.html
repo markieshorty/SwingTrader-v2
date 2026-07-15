@@ -425,7 +425,7 @@
           </p>
 
           <div class="slider-row">
-            <label>Max Hold Days: {{ draft.maxHoldDays }} days</label>
+            <label>Default guide hold: {{ draft.maxHoldDays }} days</label>
             <mat-slider
               [min]="profile.allowedRanges.maxHoldDays.min"
               [max]="profile.allowedRanges.maxHoldDays.max"
@@ -435,13 +435,20 @@
               <input matSliderThumb [ngModel]="draft.maxHoldDays" (ngModelChange)="updateRiskDraftField('maxHoldDays', $event)" />
             </mat-slider>
           </div>
-          <p class="muted small">Exit a stalled position after this many days if neither stop nor target has been hit.</p>
+          <p class="muted small">
+            A <strong>soft</strong> checkpoint, not a hard deadline. Each setup has its own guide hold on the
+            <em>Setups</em> tab (this value seeds new setups and acts as a fallback). When a position passes its guide
+            hold it isn't sold automatically — a healthy one keeps running as a runner and the momentum check decides
+            its fate. The absolute backstop is 2.5× the guide hold ({{ hardHoldCeiling(draft.maxHoldDays) }} days here),
+            after which a stalled runner is force-closed to free up capital.
+          </p>
 
           @if (shortConfirmedPhaseWarning()) {
             <p class="warning small">
-              ⚠️ Short confirmed phase — with a {{ draft.minHoldDays }}-day probation and {{ draft.maxHoldDays }}-day
-              maximum, confirmed positions only have {{ draft.maxHoldDays - draft.minHoldDays }} day(s) to run after
-              passing the check. Consider increasing the maximum hold period.
+              ⚠️ Short confirmed phase — with a {{ draft.minHoldDays }}-day probation and a {{ draft.maxHoldDays }}-day
+              guide hold, confirmed positions only have {{ draft.maxHoldDays - draft.minHoldDays }} day(s) before the
+              guide-hold check kicks in. Winners can still run past it, but consider a longer guide hold if you want a
+              wider confirmed window.
             </p>
           }
 
@@ -570,7 +577,8 @@
       <p class="muted small">
         How each setup is <strong>entered and exited</strong> — stop, target, guide-hold and trailing. The regime books
         (Risk Management) control exposure; these control per-trade management. Frozen at entry, so edits only affect new
-        positions. Seeded identical to your current exits — differentiate them per setup as you learn.
+        positions. Seeded identical to your current exits — differentiate them per setup as you learn. The guide hold is a
+        <strong>soft</strong> checkpoint: a healthy position runs past it and is only force-closed at 2.5× the guide hold.
       </p>
 
       @if (setupTactics(); as st) {

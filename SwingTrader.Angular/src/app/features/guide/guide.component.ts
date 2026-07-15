@@ -38,6 +38,14 @@ export class GuideComponent {
   config = signal<(TradingConfigDto & { globalRefinementOptIn: boolean }) | null>(null);
   loaded = signal(false);
 
+  // The absolute time-cap backstop: a runner is force-closed once it reaches
+  // 2.5x its guide hold (CapitalRules.HoldCeilingMultiple), rounded up. Kept in
+  // sync with the backend PositionMonitorService time exit.
+  hardHoldCeiling(guideHoldDays: number | null | undefined): number | null {
+    if (guideHoldDays == null) return null;
+    return Math.ceil(guideHoldDays * 2.5);
+  }
+
   // The 8 conviction components in display order, each with a plain-English
   // description of what it measures. The live weight is looked up by key.
   readonly components: ComponentRow[] = [

@@ -109,7 +109,7 @@ export class TradeHistoryComponent {
         if (!t) return '';
         const parts: string[] = [];
         if (t.minHoldDaysAtEntry != null) parts.push(`probation ${t.minHoldDaysAtEntry}d`);
-        if (t.maxHoldDaysAtEntry != null) parts.push(`max ${t.maxHoldDaysAtEntry}d`);
+        if (t.maxHoldDaysAtEntry != null) parts.push(`guide ${t.maxHoldDaysAtEntry}d`);
         if (t.trailingActivationPctAtEntry != null && t.trailingDistancePctAtEntry != null)
           parts.push(`trail ${t.trailingDistancePctAtEntry}% after +${t.trailingActivationPctAtEntry}%`);
         return parts.length > 0 ? parts.join(' · ') : '-';

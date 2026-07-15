@@ -153,20 +153,26 @@
         </div>
 
         <div class="exit-rule">
-          <h4>Time exit — frees up stuck capital <span class="rule-val">{{ risk()?.maxHoldDays ?? '—' }} days</span></h4>
+          <h4>Guide hold — a soft checkpoint, not a hard deadline <span class="rule-val">~{{ risk()?.maxHoldDays ?? '—' }} days</span></h4>
           <p>
-            If a position hasn't hit its target or stop after {{ risk()?.maxHoldDays ?? '—' }} days, it's closed
-            anyway. Money tied up in a trade that's going nowhere can't fund a better opportunity — swing trades are
-            meant to play out over days, not months.
+            Each setup has a <em>guide hold</em> — the number of days a trade is expected to take to play out (set
+            per setup on the Settings page; the figure shown here is your typical regime value). Reaching it does
+            <strong>not</strong> force a sale: a position still showing healthy momentum keeps running as a
+            <em>runner</em>. What it does is hand the trade over to the daily momentum check below, which decides
+            whether to let it run or close it. As a final backstop, a runner is force-closed once it reaches
+            {{ hardHoldCeiling(risk()?.maxHoldDays) ?? '—' }} days
+            (2.5× the guide hold) so capital can never be tied up indefinitely.
           </p>
         </div>
 
         <div class="exit-rule">
-          <h4>Momentum health check — exits a broken thesis <span class="rule-val">from day {{ risk()?.minHoldDays ?? '—' }}</span></h4>
+          <h4>Momentum health check — carries runners, exits a broken thesis <span class="rule-val">from day {{ risk()?.minHoldDays ?? '—' }}</span></h4>
           <p>
             After a minimum hold of {{ risk()?.minHoldDays ?? '—' }} days, Monitor re-checks whether the reasons it
             bought still hold. If the momentum that justified the trade has clearly broken down, it exits early rather
-            than waiting for the full stop loss to trigger.
+            than waiting for the full stop loss to trigger. This same check is what decides a position's fate once it
+            passes its guide hold: still healthy → it keeps running as a runner; stalled → it's closed to free up the
+            capital.
           </p>
         </div>
 

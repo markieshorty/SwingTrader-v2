@@ -214,7 +214,7 @@ export class OpenPositionsComponent {
   contractLabel(position: PositionDto): string | null {
     const parts: string[] = [];
     if (position.minHoldDaysAtEntry !== null) parts.push(`probation ${position.minHoldDaysAtEntry}d`);
-    if (position.maxHoldDaysAtEntry !== null) parts.push(`max hold ${position.maxHoldDaysAtEntry}d`);
+    if (position.maxHoldDaysAtEntry !== null) parts.push(`guide hold ${position.maxHoldDaysAtEntry}d`);
     if (position.momentumHealthThresholdAtEntry !== null) parts.push(`health floor ${position.momentumHealthThresholdAtEntry}`);
     if (position.trailingActivationPctAtEntry !== null && position.trailingDistancePctAtEntry !== null)
       parts.push(`trail ${position.trailingDistancePctAtEntry}% after +${position.trailingActivationPctAtEntry}%`);

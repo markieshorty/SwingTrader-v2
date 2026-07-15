@@ -342,6 +342,14 @@ export class SettingsComponent {
     return draft.maxHoldDays - draft.minHoldDays < 2;
   });
 
+  // The absolute time-cap backstop: a runner is force-closed once it reaches
+  // 2.5x its guide hold (CapitalRules.HoldCeilingMultiple), rounded up. Kept in
+  // sync with the backend PositionMonitorService time exit.
+  hardHoldCeiling(guideHoldDays: number | null | undefined): number | null {
+    if (guideHoldDays == null) return null;
+    return Math.ceil(guideHoldDays * 2.5);
+  }
+
   riskLivePreview = computed(() => {
     const draft = this.riskProfileDraft();
     const breakdown = this.riskProfile()?.capitalBreakdown;
