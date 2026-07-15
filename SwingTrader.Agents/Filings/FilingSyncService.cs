@@ -12,7 +12,10 @@ using SwingTrader.Infrastructure.RateLimiting;
 
 namespace SwingTrader.Agents.Filings;
 
-public record FilingSyncResult(bool Configured, int FilingsStored, int DeltasScored, int Unchanged, int Failed, string Summary);
+public record FilingSyncResult(bool Configured, int FilingsStored, int DeltasScored, int Unchanged, int Failed, string Summary, int SkippedStale = 0);
+
+// Fidelity tier for a filing's diff, chosen from its age (see FilingDeltaConfig).
+public enum FilingScoreTier { SkipStale, Backfill, Live }
 
 public interface IFilingSyncService
 {
@@ -64,7 +67,8 @@ public class FilingSyncService(
 
         IClaudeClient? claude = null; // created lazily - most runs never need it
 
-        int stored = 0, scored = 0, unchanged = 0, failed = 0;
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        int stored = 0, scored = 0, unchanged = 0, failed = 0, skippedStale = 0;
         foreach (var symbol in symbols)
         {
             if (ct.IsCancellationRequested) break;
@@ -114,16 +118,35 @@ public class FilingSyncService(
                             continue;
                         }
 
+                        // Age-gate + model tiering: the diff-scoring call is
+                        // the only token cost, and a stale backfill diff is the
+                        // least valuable spend (it decays into the funnel at a
+                        // fraction of its weight). Skip the truly old ones - the
+                        // filing is still stored as next quarter's baseline.
+                        var tier = PickScoreTier(filing.FiledAt, today, cfg);
+                        if (tier == FilingScoreTier.SkipStale)
+                        {
+                            skippedStale++;
+                            logger.LogInformation(
+                                "Filing delta skipped (stale, {Age}d > {Cap}d): {Symbol} {Type} {Filed} — stored as baseline, not scored",
+                                today.DayNumber - filing.FiledAt.DayNumber, cfg.MaxScoringAgeDays, symbol, type, filing.FiledAt);
+                            continue;
+                        }
+
+                        var model = tier == FilingScoreTier.Live
+                            ? claudeConfig.Value.PremiumModel   // fresh filing: score it properly
+                            : claudeConfig.Value.Model;         // backfill: cheap fidelity (Haiku)
+
                         claude ??= await clientFactory.CreateClaudeAsync<IClaudeClient>(SwingTraderDbContext.SystemAccountId, ct);
-                        var delta = await ScoreDiffAsync(claude, symbol, type, changedSections, diffText, ct);
+                        var delta = await ScoreDiffAsync(claude, model, symbol, type, changedSections, diffText, ct);
                         delta.FilingId = filing.Id;
                         delta.Symbol = symbol;
                         delta.FiledAt = filing.FiledAt;
                         await filings.AddDeltaAsync(delta, ct);
                         scored++;
                         logger.LogInformation(
-                            "Filing delta scored: {Symbol} {Type} {Filed} — delta {Delta:+0.00;-0.00} ({Summary})",
-                            symbol, type, filing.FiledAt, delta.Delta, delta.Summary);
+                            "Filing delta scored: {Symbol} {Type} {Filed} — delta {Delta:+0.00;-0.00} [{Model}] ({Summary})",
+                            symbol, type, filing.FiledAt, delta.Delta, model, delta.Summary);
                     }
                 }
             }
@@ -134,9 +157,19 @@ public class FilingSyncService(
             }
         }
 
-        var summary = $"FilingSync: {stored} filings stored, {scored} deltas scored, {unchanged} unchanged, {failed} failed ({symbols.Count} symbols).";
+        var summary = $"FilingSync: {stored} filings stored, {scored} deltas scored, {skippedStale} stale skipped, {unchanged} unchanged, {failed} failed ({symbols.Count} symbols).";
         logger.LogInformation("{Summary}", summary);
-        return new FilingSyncResult(true, stored, scored, unchanged, failed, summary);
+        return new FilingSyncResult(true, stored, scored, unchanged, failed, summary, skippedStale);
+    }
+
+    // Fidelity tier from the filing's age at scoring time (FilingDeltaConfig).
+    // Fresh -> Sonnet, older backfill -> Haiku, stale -> not scored at all.
+    internal static FilingScoreTier PickScoreTier(DateOnly filedAt, DateOnly asOf, FilingDeltaConfig cfg)
+    {
+        var ageDays = asOf.DayNumber - filedAt.DayNumber;
+        if (ageDays > cfg.MaxScoringAgeDays) return FilingScoreTier.SkipStale;
+        if (ageDays > cfg.FreshScoringDays) return FilingScoreTier.Backfill;
+        return FilingScoreTier.Live;
     }
 
     private async Task<Filing> FetchAndExtractAsync(
@@ -230,7 +263,7 @@ public class FilingSyncService(
     }
 
     private async Task<FilingDelta> ScoreDiffAsync(
-        IClaudeClient claude, string symbol, string filingType, List<string> changedSections, string diffText, CancellationToken ct)
+        IClaudeClient claude, string model, string symbol, string filingType, List<string> changedSections, string diffText, CancellationToken ct)
     {
         var systemPrompt =
             "You are a forensic financial-filings analyst. Companies write SEC filings by copy-paste; " +
@@ -252,11 +285,11 @@ public class FilingSyncService(
 
         await claudeRateLimiter.WaitAsync(ct);
         var response = await claude.SendMessageAsync(new ClaudeRequest(
-            claudeConfig.Value.PremiumModel, claudeConfig.Value.MaxTokens, systemPrompt,
+            model, claudeConfig.Value.MaxTokens, systemPrompt,
             [new ClaudeMessage("user", userPrompt)]));
         var raw = response.Content.FirstOrDefault(c => c.Type == "text")?.Text ?? string.Empty;
 
-        return ParseDeltaResponse(raw, claudeConfig.Value.PremiumModel);
+        return ParseDeltaResponse(raw, model);
     }
 
     // Internal static so the clamping/parse rules are directly testable.

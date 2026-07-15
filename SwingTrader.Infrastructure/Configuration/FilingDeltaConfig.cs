@@ -35,4 +35,23 @@ public class FilingDeltaConfig
     // Stored section text cap (per section, chars) - filings can run to
     // megabytes; we keep enough for the next diff, not the whole document.
     public int MaxSectionChars { get; set; } = 400_000;
+
+    // Cost control on the diff-scoring Claude call - the ONLY token cost in
+    // this job (Mark, 15 Jul 2026, after a $12 / 3.3M-token backfill night:
+    // "I assumed these would calm down"). The spend is dominated by first-time
+    // backfills of newly watchlisted symbols, whose most-recent filing is
+    // often months old - and a delta decays with a ~one-quarter half-life, so
+    // a stale diff enters the funnel at a fraction of its weight anyway. So we
+    // tier the fidelity to the filing's age at scoring time:
+    //   age <= FreshScoringDays   -> PremiumModel (Sonnet): a genuinely new
+    //                                filing, scored properly.
+    //   age <= MaxScoringAgeDays  -> Model (Haiku): backfill fidelity at a
+    //                                fraction of the token cost.
+    //   older                     -> NOT scored: the filing is still STORED as
+    //                                a baseline (free - no tokens), so the NEXT
+    //                                quarter's fresh filing gets a full Sonnet
+    //                                diff against it. We just don't pay to score
+    //                                a stale diff nobody will meaningfully weight.
+    public int FreshScoringDays { get; set; } = 30;
+    public int MaxScoringAgeDays { get; set; } = 120;
 }

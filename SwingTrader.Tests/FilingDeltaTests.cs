@@ -4,6 +4,7 @@ using SwingTrader.Agents.Filings;
 using SwingTrader.Core.Models;
 using SwingTrader.Data;
 using SwingTrader.Data.Repositories;
+using SwingTrader.Infrastructure.Configuration;
 using Xunit;
 
 namespace SwingTrader.Tests;
@@ -139,6 +140,24 @@ public class FilingDeltaTests
         delta.Delta.Should().Be(-0.8m);
         delta.Categories.Should().Be("litigation,liquidity");
         delta.Summary.Should().Be("New going-concern language.");
+    }
+
+    // ── Age-gate + model tiering (cost control) ───────────────────────────────
+
+    [Theory]
+    [InlineData(0, FilingScoreTier.Live)]        // filed today: fresh -> Sonnet
+    [InlineData(30, FilingScoreTier.Live)]       // exactly the fresh cap: still fresh
+    [InlineData(31, FilingScoreTier.Backfill)]   // just past fresh: backfill -> Haiku
+    [InlineData(120, FilingScoreTier.Backfill)]  // exactly the max cap: still scored
+    [InlineData(121, FilingScoreTier.SkipStale)] // past the cap: stored but not scored
+    [InlineData(400, FilingScoreTier.SkipStale)] // ancient backfill: never scored
+    public void PickScoreTier_TiersByFilingAge(int ageDays, FilingScoreTier expected)
+    {
+        var cfg = new FilingDeltaConfig { FreshScoringDays = 30, MaxScoringAgeDays = 120 };
+        var filed = new DateOnly(2026, 1, 1);
+        var asOf = filed.AddDays(ageDays);
+
+        FilingSyncService.PickScoreTier(filed, asOf, cfg).Should().Be(expected);
     }
 
     // ── Repository ────────────────────────────────────────────────────────────
