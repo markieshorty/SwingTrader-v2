@@ -1,4 +1,5 @@
 using SwingTrader.Agents.Research;
+using SwingTrader.Core.Constants;
 using SwingTrader.Core.Enums;
 using SwingTrader.Core.Models;
 using SwingTrader.Infrastructure.Market;
@@ -176,25 +177,35 @@ public static class HistoricBacktester
 
                 var (exitPrice, reason) = CheckExit(pos, bar, d, cfg.MaxHoldDays);
 
-                // Probation: mirrors the live two-phase lifecycle. Live runs
-                // the check during morning research and the exit fills at
-                // market during the day - approximated here as the day's
-                // close. Ordinary stop/target/trailing exits (checked above)
-                // take priority, exactly as they would intraday.
-                if (exitPrice is null && cfg.SimulateProbation && !pos.ProbationDone)
+                // Momentum check: mirrors the live two-phase + runner lifecycle.
+                // Live runs the check during morning research and the exit fills
+                // at market during the day - approximated here as the day's
+                // close. Ordinary stop/target/trailing exits (above) take
+                // priority, exactly as they would intraday.
+                //  - Probation window: at MinHoldDays (+ one grace day).
+                //  - Runner window: every day PAST the guide-hold, a still-
+                //    healthy position keeps running, a stalled one exits
+                //    (docs/setup-tactics-plan Phase 3).
+                if (exitPrice is null && cfg.SimulateProbation)
                 {
                     var daysHeld = d - pos.EntryBarIndex;
-                    var isGraceRecheck = daysHeld == cfg.MinHoldDays + 1 && pos.ProbationVerdict == "Borderline";
-                    if (daysHeld == cfg.MinHoldDays || isGraceRecheck)
+                    var isGraceRecheck = !pos.ProbationDone
+                        && daysHeld == cfg.MinHoldDays + 1 && pos.ProbationVerdict == "Borderline";
+                    var inProbation = !pos.ProbationDone && (daysHeld == cfg.MinHoldDays || isGraceRecheck);
+                    var inRunnerWindow = pos.ProbationDone && daysHeld > cfg.MaxHoldDays;
+                    if (inProbation || inRunnerWindow)
                     {
                         var verdict = await ProbationVerdictAsync(
                             indicators, bars, index, pos, today, cfg.MomentumHealthThreshold, sectorEtfBySymbol);
                         // One grace day only - a still-Borderline recheck is an Exit.
                         if (isGraceRecheck && verdict == "Borderline") verdict = "Exit";
-                        pos.ProbationVerdict = verdict;
-                        pos.ProbationDone = verdict != "Borderline";
+                        if (inProbation)
+                        {
+                            pos.ProbationVerdict = verdict;
+                            pos.ProbationDone = verdict != "Borderline";
+                        }
                         if (verdict == "Exit")
-                            (exitPrice, reason) = (bar.Close, "Probation");
+                            (exitPrice, reason) = (bar.Close, inRunnerWindow ? "RunnerStalled" : "Probation");
                     }
                 }
 
@@ -341,9 +352,11 @@ public static class HistoricBacktester
             if (bar.Open <= trail) return (bar.Open, "Trailing(gap)");
             if (bar.Low <= trail) return (trail, "Trailing");
         }
-        // Trading days held = bar-index difference (bars are trading days),
-        // matching the live PositionMonitorService time-exit accounting.
-        if (currentBarIndex - pos.EntryBarIndex > maxHoldDays) return (bar.Close, "TimeExit");
+        // Hard time cap = guide-hold x HoldCeilingMultiple (Phase 3): the
+        // guide-hold is soft, so the absolute backstop mirrors live
+        // PositionMonitorService. Trading days held = bar-index difference.
+        var hardCeiling = (int)Math.Ceiling(maxHoldDays * CapitalRules.HoldCeilingMultiple);
+        if (currentBarIndex - pos.EntryBarIndex > hardCeiling) return (bar.Close, "TimeExit");
         return (null, null);
     }
 

@@ -29,6 +29,13 @@ public static class CapitalRules
     public const int DefaultMinHoldDays = 3;
     public const int AbsoluteMinHoldDays = 1;
 
+    // Guide-hold ceiling (docs/setup-tactics-plan Phase 3). A setup's GuideHold
+    // is a SOFT checkpoint: a position still showing healthy momentum past it
+    // keeps running (the daily momentum check exits stalled runners). This
+    // multiple of the guide-hold is the ABSOLUTE cap so a runner can't be held
+    // forever even if momentum keeps flickering healthy.
+    public const decimal HoldCeilingMultiple = 2.5m;
+
     public const decimal DefaultMomentumHealthThreshold = 0.35m;
     public const decimal MinMomentumHealthThreshold = 0.20m;
     public const decimal MaxMomentumHealthThreshold = 0.60m;

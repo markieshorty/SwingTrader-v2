@@ -195,50 +195,73 @@ public class ResearchConsumerFunction(
 
         foreach (var trade in openTrades)
         {
-            if (trade.Phase != TradePhase.Probation)
-                continue; // Confirmed positions aren't rechecked; Exiting positions are awaiting close.
+            if (trade.Phase == TradePhase.Exiting)
+                continue; // awaiting close.
 
-            // Trading days held, not calendar days: the probation window is
-            // "give the thesis N sessions to prove itself", so weekends and
-            // market holidays must not count toward it.
+            // Trading days held, not calendar days: the hold windows are "give
+            // the thesis N sessions", so weekends and market holidays must not
+            // count toward them.
             var daysHeld = marketCalendar.TradingDaysBetween(
                 DateOnly.FromDateTime(trade.OpenedAt), DateOnly.FromDateTime(today));
-            // The probation day frozen at buy time (thesis-as-contract) -
-            // profile changes can't retarget an open position's check day,
-            // which also closes the gap where lowering MinHoldDays past a
-            // position's current age made this equality never match and the
-            // position skipped probation entirely. Legacy trades (null) still
+            // Hold markers frozen at buy time (thesis-as-contract) - config
+            // changes can't retarget an open position. Legacy trades (null)
             // follow the live profile.
             var minHoldDays = trade.MinHoldDaysAtEntry ?? profile.MinHoldDays;
-            var isGraceDayRecheck = daysHeld == minHoldDays + 1 && trade.MomentumHealthVerdict == "Borderline";
-            if (daysHeld != minHoldDays && !isGraceDayRecheck)
+            var guideHoldDays = trade.MaxHoldDaysAtEntry ?? profile.MaxHoldDays;
+
+            // WHEN to run the momentum check:
+            //  - Probation phase: at MinHoldDays (+ one grace day for Borderline).
+            //  - Confirmed phase: every day PAST the guide-hold - the "runner"
+            //    window, where a still-healthy position keeps running and a
+            //    stalled one exits (docs/setup-tactics-plan Phase 3).
+            bool inGraceDay;
+            bool shouldCheck;
+            if (trade.Phase == TradePhase.Probation)
+            {
+                inGraceDay = daysHeld == minHoldDays + 1 && trade.MomentumHealthVerdict == "Borderline";
+                shouldCheck = daysHeld == minHoldDays || inGraceDay;
+            }
+            else // Confirmed
+            {
+                inGraceDay = false;
+                shouldCheck = daysHeld > guideHoldDays;
+            }
+            if (!shouldCheck)
                 continue;
 
             var result = await momentumHealth.CalculateAsync(accountId, trade, ct);
 
-            // One grace day is enough — a still-Borderline verdict on the
-            // recheck day is treated the same as a fresh Exit rather than
-            // extending probation indefinitely.
-            var verdict = isGraceDayRecheck && result.Verdict == "Borderline" ? "Exit" : result.Verdict;
+            // One grace day is enough during probation — a still-Borderline
+            // recheck is treated as Exit. In the runner window a Borderline
+            // verdict just keeps the position running one more day.
+            var verdict = inGraceDay && result.Verdict == "Borderline" ? "Exit" : result.Verdict;
 
             trade.MomentumHealthScore = result.Score;
             trade.MomentumHealthVerdict = verdict;
             trade.MomentumHealthReasoning = result.Reasoning;
             trade.MomentumHealthCheckedAt = DateTime.UtcNow;
 
+            var isRunner = trade.Phase == TradePhase.Confirmed;
             if (verdict == "Confirmed")
             {
                 trade.Phase = TradePhase.Confirmed;
                 trade.PhaseConfirmedAt = DateTime.UtcNow;
-                logger.LogInformation(
-                    "{Symbol} (account {AccountId}) momentum confirmed (score {Score:F2}) — letting run to day {Max}",
-                    trade.Symbol, accountId, result.Score, profile.MaxHoldDays);
+                if (isRunner)
+                    logger.LogInformation(
+                        "{Symbol} (account {AccountId}) runner still healthy past guide-hold {Guide}d (score {Score:F2}) — continuing",
+                        trade.Symbol, accountId, guideHoldDays, result.Score);
+                else
+                    logger.LogInformation(
+                        "{Symbol} (account {AccountId}) momentum confirmed (score {Score:F2}) — letting it run",
+                        trade.Symbol, accountId, result.Score);
             }
             else if (verdict == "Exit")
             {
                 trade.Phase = TradePhase.Exiting;
                 logger.LogInformation(
-                    "{Symbol} (account {AccountId}) failing momentum check (score {Score:F2}) — queued for automatic exit",
+                    isRunner
+                        ? "{Symbol} (account {AccountId}) runner stalled past guide-hold (score {Score:F2}) — queued for exit"
+                        : "{Symbol} (account {AccountId}) failing momentum check (score {Score:F2}) — queued for automatic exit",
                     trade.Symbol, accountId, result.Score);
             }
             else

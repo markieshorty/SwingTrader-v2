@@ -1,3 +1,4 @@
+using SwingTrader.Core.Constants;
 using SwingTrader.Core.Models;
 using SwingTrader.Infrastructure.Market;
 
@@ -48,13 +49,17 @@ public class PositionMonitorService(IMarketCalendarService marketCalendar) : IPo
                 ExitReason.None, currentPrice, newTrail));
         }
 
-        // Step 4 — time exit (thesis stalled, neither stop nor target hit).
-        // Count TRADING days held, not calendar days: a weekend or holiday
-        // shouldn't burn the hold budget when the market was shut and the
-        // thesis had no chance to play out.
+        // Step 4 — hard time cap. maxHoldDays is now a SOFT guide-hold: a
+        // position still showing healthy momentum past it keeps running (the
+        // daily momentum check in ResearchConsumer exits stalled runners). This
+        // is the absolute backstop - guide-hold x HoldCeilingMultiple - so a
+        // runner can't be held forever even if momentum keeps flickering
+        // healthy. Count TRADING days, not calendar days, so weekends/holidays
+        // don't burn the budget when the market was shut.
         var daysHeld = marketCalendar.TradingDaysBetween(
             DateOnly.FromDateTime(trade.OpenedAt), DateOnly.FromDateTime(DateTime.UtcNow));
-        if (daysHeld > maxHoldDays
+        var hardCeiling = (int)Math.Ceiling(maxHoldDays * CapitalRules.HoldCeilingMultiple);
+        if (daysHeld > hardCeiling
             && currentPrice > trade.StopLossPrice
             && currentPrice < trade.TargetPrice)
         {

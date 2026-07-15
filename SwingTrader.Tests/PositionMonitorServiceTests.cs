@@ -122,9 +122,11 @@ public class PositionMonitorServiceTests
     {
         // 102 is deliberately below the 5%-activation threshold (105) so the
         // trailing stop never arms and Step 4 (time exit) is actually reached.
-        // 25 calendar days back is comfortably >10 trading days even with
-        // holidays, so the trading-day count clears maxHoldDays=10.
-        var trade = MakeTrade(entry: 100m, stopLoss: 90m, target: 200m, openedAt: DateTime.UtcNow.AddDays(-25));
+        // maxHoldDays is now a SOFT guide-hold: the hard time cap is
+        // guide-hold x HoldCeilingMultiple (10 x 2.5 = 25 trading days). 60
+        // calendar days back clears 25 trading days comfortably even with
+        // weekends/holidays.
+        var trade = MakeTrade(entry: 100m, stopLoss: 90m, target: 200m, openedAt: DateTime.UtcNow.AddDays(-60));
 
         var result = await _sut.CheckPositionAsync(trade, currentPrice: 102m, maxHoldDays: 10, trailingActivationPct: 0.05, trailingDistancePct: 0.03);
 

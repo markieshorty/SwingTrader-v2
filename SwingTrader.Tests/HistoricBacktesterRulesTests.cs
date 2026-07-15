@@ -99,9 +99,11 @@ public class HistoricBacktesterRulesTests
         var shortHold = await HistoricBacktester.RunAsync(Market(), Config() with { MaxHoldDays = 2 });
 
         int MaxSpanDays(HistoricResult r) => r.TradeLog.Max(t => (t.ExitDate - t.EntryDate).Days);
-        // Bars are consecutive calendar days in this fixture, so the held span
-        // maps 1:1 to bar-index distance: a 2-bar cap must exit within 3 days.
-        MaxSpanDays(shortHold).Should().BeLessThanOrEqualTo(3);
+        // MaxHoldDays is now a SOFT guide-hold; the hard time cap is
+        // guide-hold x HoldCeilingMultiple. Bars are consecutive calendar days
+        // in this fixture, so a 2-day guide-hold caps at ceil(2 x 2.5) = 5,
+        // exiting the bar after (span 6).
+        MaxSpanDays(shortHold).Should().BeLessThanOrEqualTo(6);
         MaxSpanDays(longHold).Should().BeGreaterThan(MaxSpanDays(shortHold));
     }
 
