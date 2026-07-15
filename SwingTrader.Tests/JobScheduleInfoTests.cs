@@ -15,7 +15,7 @@ public class JobScheduleInfoTests
         var runs = JobScheduleInfo.GetNextRuns(MondayMorningUtc);
 
         runs.Select(r => r.JobType).Should().BeEquivalentTo(
-            ["Research", "Watchlist", "Report", "Execution", "Monitor", "Risk", "Refinement", "Readiness"]);
+            ["Research", "Watchlist", "Report", "Execution", "Monitor", "Risk", "Refinement"]);
     }
 
     [Fact]

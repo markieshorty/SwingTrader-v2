@@ -20,7 +20,6 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     public DbSet<WorkerHeartbeat> WorkerHeartbeats => Set<WorkerHeartbeat>();
     public DbSet<RefinementSuggestion> RefinementSuggestions => Set<RefinementSuggestion>();
     public DbSet<SystemChecklist> SystemChecklists => Set<SystemChecklist>();
-    public DbSet<ReadinessSnapshot> ReadinessSnapshots => Set<ReadinessSnapshot>();
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<AppUser> AppUsers => Set<AppUser>();
     public DbSet<AccountInvite> AccountInvites => Set<AccountInvite>();
@@ -327,14 +326,6 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
                 new SystemChecklist { Id = 1, AccountId = SystemAccountId, CheckName = "AccountIdVerified", CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
                 new SystemChecklist { Id = 2, AccountId = SystemAccountId, CheckName = "LiveTradingConfirmed", CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
             );
-        });
-
-        modelBuilder.Entity<ReadinessSnapshot>(e =>
-        {
-            e.HasKey(x => x.Id);
-            e.Property(x => x.ObservedWinRate).HasPrecision(18, 8);
-            e.Property(x => x.TradesPerWeekWeighted).HasPrecision(18, 8);
-            e.HasIndex(x => new { x.AccountId, x.SnapshotDate }).IsUnique();
         });
 
         modelBuilder.Entity<UserApiKey>(e =>

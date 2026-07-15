@@ -27,7 +27,7 @@ import { errorMessage } from '../../shared/utils/error-message.util';
 
 const SIGNAL_TAB_NAMES = ['buy', 'watch', 'hold', 'avoid'] as const;
 
-const AGENTS = ['Research', 'Watchlist', 'Report', 'Execution', 'Monitor', 'Risk', 'Refinement', 'Readiness'] as const;
+const AGENTS = ['Research', 'Watchlist', 'Report', 'Execution', 'Monitor', 'Risk', 'Refinement'] as const;
 
 @Component({
   selector: 'app-dashboard',

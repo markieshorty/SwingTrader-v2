@@ -100,38 +100,6 @@ public enum MarketRegime
     Crisis
 }
 
-public enum DataMaturityLevel
-{
-    EarlyStage,    // < 30 scored trades
-    Developing,    // 30-60 trades
-    Established,   // 60-100 trades
-    Mature         // 100+ trades
-}
-
-public enum ReadinessStatus
-{
-    NotReady,
-    Approaching,   // > 70% of criteria met
-    Ready,         // all criteria met
-    AlreadyEnabled,
-    NoDataRequirement
-}
-
-public enum FeatureRiskLevel
-{
-    Low,      // additive, safe to enable
-    Medium,   // changes behaviour
-    High      // involves real money
-}
-
-public enum MilestoneStatus
-{
-    Completed,
-    Estimated,
-    MarketDependent, // Bear regime — can't estimate
-    RequiresCode     // Phase 8 — not yet built
-}
-
 public enum AnalystTrend
 {
     StronglyBullish,

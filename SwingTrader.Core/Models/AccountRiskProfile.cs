@@ -46,7 +46,7 @@ public class AccountRiskProfile : BaseEntity
     // tier's active-capital pool; Flat budgets every position as
     // FlatPositionPct of the whole portfolio - the deliberate "I understand
     // the training wheels and I'm choosing to take them off" override. Tier
-    // evaluation and readiness keep running either way; Flat only stops the
+    // evaluation keeps running either way; Flat only stops the
     // tier from GATING size. Locked capital remains a hard ceiling in both
     // modes (see Validate()).
     public PositionSizingMode SizingMode { get; set; } = PositionSizingMode.TierLadder;

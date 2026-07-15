@@ -24,7 +24,6 @@ import {
   NotificationRecipientDto,
   PortfolioDto,
   PositionDto,
-  ReadinessReportDto,
   RefinementStatusDto,
   RegimeDto,
   RiskProfileDto,
@@ -112,16 +111,6 @@ export class ApiService {
     });
   }
 
-  getReadiness(): Observable<ReadinessReportDto> {
-    return this.http.get<ReadinessReportDto>(`${this.baseUrl}/api/readiness`);
-  }
-
-  completeChecklist(checkName: string, notes?: string): Observable<void> {
-    return this.http.post<void>(`${this.baseUrl}/api/readiness/complete-checklist`, {
-      checkName,
-      notes,
-    });
-  }
 
   runAgent(agent: string): Observable<RunResultDto> {
     return this.http.post<RunResultDto>(`${this.baseUrl}/run/${agent}`, {});

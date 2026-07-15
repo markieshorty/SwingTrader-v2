@@ -13,7 +13,6 @@ using Refit;
 using Serilog;
 using SwingTrader.Agents.Execution;
 using SwingTrader.Agents.Monitor;
-using SwingTrader.Agents.Readiness;
 using SwingTrader.Agents.Refinement;
 using SwingTrader.Agents.Report;
 using SwingTrader.Agents.Risk;
@@ -75,7 +74,6 @@ builder.Services.AddScoped<IWorkerHeartbeatRepository, WorkerHeartbeatRepository
 builder.Services.AddScoped<IActivityLogRepository, ActivityLogRepository>();
 builder.Services.AddScoped<IRefinementSuggestionRepository, RefinementSuggestionRepository>();
 builder.Services.AddScoped<ITierEvaluationRepository, TierEvaluationRepository>();
-builder.Services.AddScoped<IReadinessSnapshotRepository, ReadinessSnapshotRepository>();
 builder.Services.AddScoped<ISystemChecklistRepository, SystemChecklistRepository>();
 builder.Services.AddScoped<INotificationRecipientRepository, NotificationRecipientRepository>();
 
@@ -172,7 +170,6 @@ builder.Services.AddScoped<SwingTrader.Agents.SecondHop.ISecondHopScorer, SwingT
 builder.Services.AddScoped<SwingTrader.Agents.SecondHop.IBellwetherSyncService, SwingTrader.Agents.SecondHop.BellwetherSyncService>();
 builder.Services.AddScoped<IApplyRefinementService, ApplyRefinementService>();
 builder.Services.AddScoped<ITierEvaluationService, TierEvaluationService>();
-builder.Services.AddScoped<IReadinessAssessmentService, ReadinessAssessmentService>();
 builder.Services.AddScoped<IPositionSizingService, PositionSizingService>();
 builder.Services.AddScoped<IExecutionService, ExecutionService>();
 builder.Services.AddScoped<IEntryConfirmationService, EntryConfirmationService>();

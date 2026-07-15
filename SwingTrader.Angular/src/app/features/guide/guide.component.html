@@ -27,7 +27,6 @@
           <li><strong>Execution</strong> (daily, from 09:20) — places orders for approved buy signals at Trading&nbsp;212.</li>
           <li><strong>Monitor</strong> (every 5 min, 09:30–16:00) — watches open positions and enforces stops, targets, trailing stops and exits.</li>
           <li><strong>Risk</strong> (monthly) &amp; <strong>Refinement</strong> (monthly) — re-evaluate your capital tier and fine-tune the component weights.</li>
-          <li><strong>Readiness</strong> (daily) — records how close each feature is to being trusted with more capital.</li>
         </ol>
         <p class="muted small">
           Approval is currently <strong>{{ approvalOn() ? 'ON' : 'OFF' }}</strong> for your account
@@ -193,7 +192,7 @@
           You're currently in <strong>{{ currentMode() }}</strong> mode.
           <strong>Demo</strong> trades practice money against Trading&nbsp;212's demo environment;
           <strong>Live</strong> trades real money. They use different API credentials and are kept entirely separate —
-          trades, reports, readiness, refinement and P&amp;L for one mode never mix into the other.
+          trades, reports, refinement and P&amp;L for one mode never mix into the other.
         </p>
         <ul>
           <li>Each mode needs its own Trading&nbsp;212 <strong>key + secret</strong> pair (demo keys are rejected by the live endpoint and vice-versa).</li>
@@ -244,8 +243,6 @@
           <dd>The overall market backdrop, derived from the S&amp;P 500 vs its moving averages and the VIX: <strong>Bull</strong>, <strong>Neutral</strong>, <strong>Bear</strong>, or <strong>Crisis</strong>. Used to contextualise performance.</dd>
           <dt>Capital tier</dt>
           <dd>How much of your account is "active" (tradeable). Rises as the strategy hits win-rate/trade-count milestones; falls if recent performance degrades.</dd>
-          <dt>Readiness</dt>
-          <dd>A per-feature scorecard of how close the system is to being trusted with a given capability (e.g. live trading, refinement), based on your accumulated trade history.</dd>
           <dt>Refinement</dt>
           <dd>The monthly process that correlates each component's scores against your actual trade outcomes and proposes weight adjustments — statistically gated so it doesn't chase noise.</dd>
           <dt>Setup type</dt>

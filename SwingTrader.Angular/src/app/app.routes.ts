@@ -71,13 +71,6 @@ export const routes: Routes = [
     title: 'Strategy Lab',
   },
   {
-    path: 'readiness',
-    canActivate: [authGuard, approvalGuard, onboardingGuard],
-    loadComponent: () =>
-      import('./features/readiness/readiness.component').then((m) => m.ReadinessComponent),
-    title: 'Readiness',
-  },
-  {
     path: 'watchlists',
     canActivate: [authGuard, approvalGuard, onboardingGuard],
     loadComponent: () =>

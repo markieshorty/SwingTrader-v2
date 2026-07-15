@@ -239,49 +239,6 @@ export interface ApplyResultDto {
   message: string;
 }
 
-export interface FeatureCriterionDto {
-  label: string;
-  met: boolean;
-}
-
-export interface FeatureCardDto {
-  featureName: string;
-  status: 'NotReady' | 'Approaching' | 'Ready' | 'AlreadyEnabled' | 'NoDataRequirement';
-  riskLevel: 'Low' | 'Medium' | 'High';
-  criteria: FeatureCriterionDto[];
-  assessment: string;
-  estimatedReadyDateRange: string | null;
-  actionHint: string;
-}
-
-export interface TrajectoryWeekDto {
-  weekStarting: string;
-  tradeCount: number;
-  winRate: number;
-  speedIndicator: 'Up' | 'Down' | 'Flat';
-}
-
-export interface MilestoneDto {
-  label: string;
-  estimatedDateRange: string | null;
-  completed: boolean;
-  status: 'Completed' | 'Estimated' | 'MarketDependent' | 'RequiresCode';
-}
-
-export interface ReadinessReportDto {
-  maturityLevel: 'EarlyStage' | 'Developing' | 'Established' | 'Mature';
-  scoredClosedTrades: number;
-  observedWinRate: number;
-  winRateConfidenceIntervalLow: number | null;
-  winRateConfidenceIntervalHigh: number | null;
-  features: FeatureCardDto[];
-  regimeBullProgress: number;
-  regimeNeutralProgress: number;
-  regimeBearProgress: number;
-  trajectory: TrajectoryWeekDto[];
-  milestones: MilestoneDto[];
-}
-
 export interface RunResultDto {
   success: boolean;
   message: string;
