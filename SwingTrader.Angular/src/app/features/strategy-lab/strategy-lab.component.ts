@@ -392,10 +392,15 @@ export class StrategyLabComponent implements OnDestroy {
   // Loads a regime book's envelope into the Trading-rules panel as a starting
   // point (bug: position size wasn't prefilled at all; now it is). Only the
   // uniform rule fields change - excluded setups and per-setup tactics stay put.
+  // True when the live Default master book is on: every sim uses it regardless
+  // of the regime frame picked, so the Lab surfaces a note.
+  defaultRegimeOn = signal(false);
+
   loadRegimeIntoRules(regime: MarketRegimeName): void {
     this.rulesRegime.set(regime);
     this.api.getRiskProfile(regime).subscribe({
       next: (p) => {
+        this.defaultRegimeOn.set(p.defaultRegimeEnabled);
         this.profileRules = {
           maxHoldDays: p.maxHoldDays,
           maxOpenPositions: p.maxOpenPositions,

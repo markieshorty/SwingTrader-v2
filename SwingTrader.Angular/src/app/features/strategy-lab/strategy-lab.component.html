@@ -108,6 +108,13 @@
               </mat-select>
             </mat-form-field>
 
+            @if (defaultRegimeOn()) {
+              <p class="muted small">
+                <strong>Your Default risk book is ON</strong> — it governs all live trading, so this run replays under
+                the Default book regardless of the regime selected above (the per-regime envelope is overridden).
+              </p>
+            }
+
             @if (autopauseRows().length > 0) {
               <div class="autopause-overrides">
                 <span class="muted small">Autopause (trial override — your column only; the baseline uses live books):</span>
