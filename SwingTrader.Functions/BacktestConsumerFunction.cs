@@ -154,6 +154,9 @@ public class BacktestConsumerFunction(
         MomentumHealthThreshold: rules?.MomentumHealthThreshold ?? profile.MomentumHealthThreshold,
         // Flat sizing mirrors live: each position is FlatPositionPct of equity.
         PositionFraction: rules?.PositionFraction ?? profile.FlatPositionPct,
+        // Locked-capital reserve caps total deployment to the un-locked share,
+        // mirroring live. Every backtest now honours it (was ignored before).
+        LockedCapitalPct: profile.LockedCapitalPct,
         // Lab-only pool-sizing sim (no live equivalent since the tier ladder
         // was removed): null keeps flat sizing; the two dials below only apply
         // when a Lab run explicitly sets ActiveCapitalPct.
@@ -319,7 +322,7 @@ public class BacktestConsumerFunction(
                 {
                     RegimeBooks = books.ToDictionary(
                         kv => kv.Key,
-                        kv => new RegimeEnvelope(Autopause(kv.Key), kv.Value.MaxOpenPositions, kv.Value.FlatPositionPct)),
+                        kv => new RegimeEnvelope(Autopause(kv.Key), kv.Value.MaxOpenPositions, kv.Value.FlatPositionPct, kv.Value.LockedCapitalPct)),
                 };
         }
         var regime = Enum.TryParse<MarketRegime>(regimeMode, ignoreCase: true, out var parsed) ? parsed : MarketRegime.Neutral;
@@ -737,7 +740,7 @@ public class BacktestConsumerFunction(
         {
             RegimeBooks = books.ToDictionary(
                 kv => kv.Key,
-                kv => new RegimeEnvelope(kv.Value.AutopauseTrading, kv.Value.MaxOpenPositions, kv.Value.FlatPositionPct)),
+                kv => new RegimeEnvelope(kv.Value.AutopauseTrading, kv.Value.MaxOpenPositions, kv.Value.FlatPositionPct, kv.Value.LockedCapitalPct)),
         };
         var mixed = await HistoricBacktester.RunAsync(bars, mixedCfg, sectorEtfs, ct);
         rows.Add(Row("Mixed (regime-switch)", mixed));

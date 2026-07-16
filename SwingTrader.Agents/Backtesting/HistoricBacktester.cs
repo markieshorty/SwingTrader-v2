@@ -104,13 +104,18 @@ public sealed record HistoricConfig(
     // regime, so a book with autopause on means pause entries the WHOLE period -
     // not the SPY-vs-200 proxy RegimeFilter uses when the regime is unknown.
     // True => no new entries at all. (Mixed uses per-regime envelopes instead.)
-    bool ForceAutopause = false);
+    bool ForceAutopause = false,
+    // Protected reserve never traded: total deployment can't exceed the un-locked
+    // share of equity (mirrors live's Locked Capital). Per-regime in Mixed via
+    // the envelope below. 0 = the whole account is tradeable (legacy behaviour).
+    decimal LockedCapitalPct = 0m);
 
 // The slice of a regime risk book the backtest switches on per simulated day.
 // Exit tactics are per-setup and frozen at entry, so only the entry-time
-// exposure envelope varies by regime here (v1: autopause + position cap + flat
-// size; probation and pool-sizing stay from the base config).
-public readonly record struct RegimeEnvelope(bool Autopause, int MaxOpenPositions, decimal PositionFraction);
+// exposure envelope varies by regime here: autopause + position cap + flat size
+// + locked-capital reserve (probation and pool-sizing stay from the base config).
+public readonly record struct RegimeEnvelope(
+    bool Autopause, int MaxOpenPositions, decimal PositionFraction, decimal LockedCapitalPct);
 
 public sealed record HistoricTrade(
     string Symbol, DateTime EntryDate, DateTime ExitDate, decimal EntryPrice, decimal ExitPrice,
@@ -305,15 +310,17 @@ public static class HistoricBacktester
                     var entryBar = GetBar(bars, index, c.Symbol, calendar[d + 1]);
                     if (entryBar is null || entryBar.Open <= 0) continue;
 
+                    var deployedValue = open.Sum(p =>
+                        (GetBar(bars, index, p.Symbol, today)?.Close ?? p.EntryPrice) * p.Quantity);
+
                     decimal budget;
                     if (cfg.ActiveCapitalPct is { } activePct)
                     {
-                        // Live-mirroring sizing (PositionSizingService): the
-                        // tier pool bounds both the per-position budget and
-                        // TOTAL deployment, and a cash buffer stays parked.
+                        // Lab-only pool sizing (no live equivalent): the pool bounds
+                        // both the per-position budget and TOTAL deployment, and a
+                        // cash buffer stays parked. The pool IS the usable-capital
+                        // definition here, so Locked Capital doesn't also apply.
                         var activePool = equity * activePct;
-                        var deployedValue = open.Sum(p =>
-                            (GetBar(bars, index, p.Symbol, today)?.Close ?? p.EntryPrice) * p.Quantity);
                         var remainingPool = activePool - deployedValue;
                         if (remainingPool <= 0) break; // pool fully deployed
                         var spendableCash = cash / (1 + CostPerSide) - equity * cfg.CashBufferPct;
@@ -321,7 +328,14 @@ public static class HistoricBacktester
                     }
                     else
                     {
-                        budget = Math.Min(equity * env.PositionFraction, cash / (1 + CostPerSide));
+                        // Flat sizing mirrors live: PositionFraction of equity per
+                        // trade, with TOTAL deployment capped at the un-locked share
+                        // (Locked Capital is a protected reserve, never traded).
+                        // Per-regime in Mixed; 0 = whole account tradeable (legacy).
+                        var usableCapital = equity * (1m - env.LockedCapitalPct);
+                        var remainingUsable = usableCapital - deployedValue;
+                        if (remainingUsable <= 0m) break; // reserve fully committed
+                        budget = Math.Min(Math.Min(equity * env.PositionFraction, cash / (1 + CostPerSide)), remainingUsable);
                     }
                     if (cfg.ConvictionSizing)
                     {
@@ -626,14 +640,14 @@ public static class HistoricBacktester
             // ForceAutopause pauses unconditionally (a forced autopausing book);
             // otherwise the legacy SPY-vs-200 proxy for the live bear autopause.
             var autopause = cfg.ForceAutopause || (cfg.RegimeFilter && !SpyAboveSma200(spy, d));
-            return new RegimeEnvelope(autopause, cfg.MaxOpenPositions, cfg.PositionFraction);
+            return new RegimeEnvelope(autopause, cfg.MaxOpenPositions, cfg.PositionFraction, cfg.LockedCapitalPct);
         }
         var regime = RegimeAt(spy, d);
         if (cfg.RegimeBooks.TryGetValue(regime, out var book)) return book;
         // Regime with no supplied book (e.g. Crisis without a Crisis entry) falls
         // back to Neutral, then to the flat scalars.
         if (cfg.RegimeBooks.TryGetValue(MarketRegime.Neutral, out var neutral)) return neutral;
-        return new RegimeEnvelope(false, cfg.MaxOpenPositions, cfg.PositionFraction);
+        return new RegimeEnvelope(false, cfg.MaxOpenPositions, cfg.PositionFraction, cfg.LockedCapitalPct);
     }
 
     // Historical regime at bar d from SPY closes (price-structure only - no VIX
