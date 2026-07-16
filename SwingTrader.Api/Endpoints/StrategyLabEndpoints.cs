@@ -170,6 +170,43 @@ public static class StrategyLabEndpoints
             return Results.Ok(new { backtestRunId = run.Id });
         });
 
+        // Regime comparison: runs the live production strategy over the full
+        // period under each regime book forced throughout, plus a Mixed run that
+        // switches book by the regime detected at each simulated day. Shows
+        // whether a regime mix beats a single master ruleset. The baseline
+        // honours the per-setup live switch so it reflects the book traded.
+        api.MapPost("/strategy-lab/regime-compare", async (
+            IBacktestRunRepository runs,
+            IStrategyWeightsRepository weightsRepo,
+            IAccountRiskProfileRepository riskProfileRepo,
+            ISetupTacticsRepository setupTacticsRepo,
+            [FromServices] ServiceBusClient? serviceBus,
+            IAccountContext ctx,
+            CancellationToken ct) =>
+        {
+            if (serviceBus is null)
+                return Results.Problem("Service Bus is not configured on this environment.", statusCode: StatusCodes.Status503ServiceUnavailable);
+
+            var baseline = await SnapshotBaselineAsync(weightsRepo, riskProfileRepo, ctx.AccountId, ct, setupTacticsRepo);
+            if (baseline is null)
+                return Results.BadRequest(new { message = "No active production weights found to compare." });
+
+            var run = await runs.AddAsync(new BacktestRun
+            {
+                AccountId = ctx.AccountId,
+                RequestJson = JsonSerializer.Serialize(new HistoricBacktestRequest(
+                    baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout,
+                    Mode: "regime",
+                    Candidates: [baseline])),
+            });
+
+            await using var sender = serviceBus.CreateSender("backtest-jobs");
+            await sender.SendMessageAsync(new ServiceBusMessage(JsonSerializer.Serialize(
+                new BacktestJobMessage(ctx.AccountId, Guid.NewGuid().ToString("N"), run.Id))), ct);
+
+            return Results.Ok(new { backtestRunId = run.Id });
+        });
+
         // Out-of-sample validation of the CURRENT form dials+rules: the
         // optimizer's train/holdout split + hold-up verdict, on demand. This
         // exists because hand-tuned configs are in-sample by construction -

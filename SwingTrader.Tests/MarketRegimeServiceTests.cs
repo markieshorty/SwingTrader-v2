@@ -139,6 +139,42 @@ public class MarketRegimeServiceTests
         result.Regime.Should().Be(MarketRegime.Neutral);
     }
 
+    // ── ClassifyFromCloses: historical, price-structure-only (backtester) ──────
+
+    [Fact]
+    public void ClassifyFromCloses_InsufficientHistory_ReturnsNull()
+    {
+        var closes = Enumerable.Repeat(100m, 150).ToList();
+        MarketRegimeService.ClassifyFromCloses(closes).Should().BeNull();
+    }
+
+    [Fact]
+    public void ClassifyFromCloses_PriceAboveAverages_IsBull()
+    {
+        // Steady uptrend: last close sits above both the 50- and 200-day MAs.
+        var closes = Enumerable.Range(0, 220).Select(i => 50m + i * 0.5m).ToList();
+        MarketRegimeService.ClassifyFromCloses(closes).Should().Be(MarketRegime.Bull);
+    }
+
+    [Fact]
+    public void ClassifyFromCloses_DeepBreachBelow200Ma_IsBear()
+    {
+        // Flat at 100, final close collapses well below the 200-day average.
+        var closes = Enumerable.Repeat(100m, 219).Append(50m).ToList();
+        MarketRegimeService.ClassifyFromCloses(closes).Should().Be(MarketRegime.Bear);
+    }
+
+    [Fact]
+    public void ClassifyFromCloses_NoVix_NeverReturnsCrisis()
+    {
+        // Without a VIX reading, Crisis (VIX-driven) can't be detected - the
+        // backtester's Mixed mode relies on this being price-structure only.
+        var flat = Enumerable.Repeat(100m, 220).ToList();
+        var crash = Enumerable.Repeat(100m, 219).Append(40m).ToList();
+        MarketRegimeService.ClassifyFromCloses(flat).Should().NotBe(MarketRegime.Crisis);
+        MarketRegimeService.ClassifyFromCloses(crash).Should().NotBe(MarketRegime.Crisis);
+    }
+
     [Fact]
     public async Task GetCurrentRegimeAsync_SecondCall_UsesCacheNotSecondTiingoCall()
     {

@@ -104,6 +104,7 @@ public class BacktestConsumerFunction(
                 "validate" => await RunValidateAsync(request, bars, profile, accountTactics, sectorEtfs, ct),
                 "montecarlo" => await RunMonteCarloAsync(request, bars, profile, accountTactics, sectorEtfs, ct),
                 "ablation" => await RunSetupAblationAsync(run, request, bars, profile, accountTactics, sectorEtfs, ct),
+                "regime" => await RunRegimeComparisonAsync(run, request, bars, message.AccountId, accountTactics, sectorEtfs, ct),
                 _ => await RunSingleAsync(request, bars, profile, accountTactics, sectorEtfs, ct),
             };
             run.Status = "Completed";
@@ -598,6 +599,85 @@ public class BacktestConsumerFunction(
             baselineHoldoutTrades = baseHoldR.Trades,
             baselineHoldoutMaxDrawdownPct = baseHoldR.MaxDrawdownPct,
             setups = rows,
+        };
+        return JsonSerializer.Serialize(result, CamelCase);
+    }
+
+    // Regime comparison: runs the account's production strategy over the FULL
+    // period five ways - each regime book forced across the whole history, plus
+    // "Mixed" where the engine switches book by the regime detected at each day
+    // (docs regime-lab). Answers "is a regime mix worth it, or is one book best?"
+    // One candle load, five in-memory engine passes (no extra DB/Claude cost).
+    // Crisis is price-structure-undetectable without historical VIX, so in Mixed
+    // it never fires - the forced-Crisis column still stress-tests that book.
+    private async Task<string> RunRegimeComparisonAsync(
+        BacktestRun run, HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars,
+        int accountId, IReadOnlyDictionary<SetupType, HistoricSetupTactics> accountTactics,
+        IReadOnlyDictionary<string, string>? sectorEtfs, CancellationToken ct)
+    {
+        var baseline = request.Candidates?.FirstOrDefault()
+            ?? throw new InvalidOperationException("Regime comparison carries no baseline candidate.");
+
+        var regimes = new[] { MarketRegime.Bull, MarketRegime.Neutral, MarketRegime.Bear, MarketRegime.Crisis };
+        var books = new Dictionary<MarketRegime, AccountRiskProfile>();
+        foreach (var regime in regimes)
+            books[regime] = await riskProfileRepo.GetAsync(accountId, regime, ct);
+
+        run.TotalCandidates = regimes.Length + 1; // four forced + Mixed
+        run.CompletedCandidates = 0;
+        await runs.UpdateAsync(run);
+
+        static object Row(string mode, HistoricResult r) => new
+        {
+            mode,
+            trades = r.Trades,
+            winRate = r.WinRate,                 // fraction; UI formats as a percent
+            expectancyPct = Math.Round(r.ExpectancyPct, 3),
+            totalReturnPct = Math.Round(r.TotalReturnPct, 1),
+            maxDrawdownPct = Math.Round(r.MaxDrawdownPct, 1),
+            calmarRatio = Math.Round(r.CalmarRatio, 2),
+        };
+
+        var rows = new List<object>();
+
+        // Forced single-book runs: the whole period under one regime's envelope
+        // (its autopause, position cap and flat size), same strategy throughout.
+        foreach (var regime in regimes)
+        {
+            ct.ThrowIfCancellationRequested();
+            var book = books[regime];
+            var cfg = ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout,
+                book.AutopauseTrading, book, accountTactics, baseline.Rules);
+            var r = await HistoricBacktester.RunAsync(bars, cfg, sectorEtfs, ct);
+            rows.Add(Row($"Force {regime}", r));
+            run.CompletedCandidates++;
+            await runs.UpdateAsync(run);
+            logger.LogInformation("Regime compare Force {Regime}: {Trades} trades, {Exp}%/trade, {Ret}% total",
+                regime, r.Trades, Math.Round(r.ExpectancyPct, 2), Math.Round(r.TotalReturnPct, 1));
+        }
+
+        // Mixed: envelope switches per simulated day by the detected regime. Base
+        // config from Neutral for the regime-invariant strategy fields; every
+        // book's envelope supplied so the engine can pick per day.
+        var neutral = books[MarketRegime.Neutral];
+        var mixedCfg = ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout,
+            neutral.AutopauseTrading, neutral, accountTactics, baseline.Rules)
+            with
+        {
+            RegimeBooks = books.ToDictionary(
+                kv => kv.Key,
+                kv => new RegimeEnvelope(kv.Value.AutopauseTrading, kv.Value.MaxOpenPositions, kv.Value.FlatPositionPct)),
+        };
+        var mixed = await HistoricBacktester.RunAsync(bars, mixedCfg, sectorEtfs, ct);
+        rows.Add(Row("Mixed (regime-switch)", mixed));
+        run.CompletedCandidates++;
+        await runs.UpdateAsync(run);
+
+        var result = new
+        {
+            mode = "regime",
+            spyReturnPct = Math.Round(mixed.SpyReturnPct, 1),
+            rows,
         };
         return JsonSerializer.Serialize(result, CamelCase);
     }

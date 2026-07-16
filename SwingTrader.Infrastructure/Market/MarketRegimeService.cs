@@ -80,7 +80,25 @@ public class MarketRegimeService(
     // only). The strict-entry/looser-exit asymmetry doubles as hysteresis for
     // the bear autopause: it takes structural damage to pause, and only a
     // reclaim of the 200dma (or trend repair) to resume.
-    private static MarketRegime ClassifyRegime(
+    // Classifies the regime at a HISTORICAL point from SPY closes ending on the
+    // target date (oldest→newest). Used by the backtester to switch regime books
+    // per simulated day. VIX history isn't available, so this is price-structure
+    // only: Crisis (VIX-driven) can't be detected here - callers that need it
+    // must supply VIX. Returns null when there isn't enough history (<200 bars),
+    // so the caller can fall back to a default regime.
+    public static MarketRegime? ClassifyFromCloses(IReadOnlyList<decimal> closes, decimal? vix = null)
+    {
+        if (closes.Count < 200) return null;
+        var spyPrice = closes[^1];
+        var spyMa50 = closes.Skip(closes.Count - 50).Take(50).Average();
+        var spyMa200 = closes.Skip(closes.Count - 200).Take(200).Average();
+        decimal? spyMa200Prior = closes.Count >= 220
+            ? closes.Skip(closes.Count - 220).Take(200).Average()
+            : null;
+        return ClassifyRegime(spyPrice, spyMa50, spyMa200, spyMa200Prior, vix);
+    }
+
+    public static MarketRegime ClassifyRegime(
         decimal spyPrice, decimal spyMa50, decimal spyMa200, decimal? spyMa200Prior, decimal? vix)
     {
         if (vix > 35m) return MarketRegime.Crisis;

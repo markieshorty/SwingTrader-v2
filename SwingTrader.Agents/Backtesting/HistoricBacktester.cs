@@ -92,7 +92,20 @@ public sealed record HistoricConfig(
     // pool caps total exposure far tighter - the two aren't directly comparable.
     decimal? ActiveCapitalPct = null,
     decimal MaxPositionPctOfActive = 0.33m,
-    decimal CashBufferPct = 0.02m);
+    decimal CashBufferPct = 0.02m,
+    // Per-regime "Mixed" mode: when present, the exposure ENVELOPE (autopause,
+    // max open positions, flat position size) is resolved from the market
+    // regime detected at each simulated day, mirroring how live switches risk
+    // books as the market moves. Null = single fixed envelope (the flat scalars
+    // above), which is Force-a-single-book and the legacy behaviour. Per-setup
+    // exit tactics stay frozen-at-entry and regime-independent either way.
+    IReadOnlyDictionary<MarketRegime, RegimeEnvelope>? RegimeBooks = null);
+
+// The slice of a regime risk book the backtest switches on per simulated day.
+// Exit tactics are per-setup and frozen at entry, so only the entry-time
+// exposure envelope varies by regime here (v1: autopause + position cap + flat
+// size; probation and pool-sizing stay from the base config).
+public readonly record struct RegimeEnvelope(bool Autopause, int MaxOpenPositions, decimal PositionFraction);
 
 public sealed record HistoricTrade(
     string Symbol, DateTime EntryDate, DateTime ExitDate, decimal EntryPrice, decimal ExitPrice,
@@ -261,9 +274,11 @@ public static class HistoricBacktester
                 }
             }
 
-            // Enter new positions tomorrow at the open
-            var regimeOk = !cfg.RegimeFilter || SpyAboveSma200(spy, d);
-            if (open.Count < cfg.MaxOpenPositions && regimeOk)
+            // Enter new positions tomorrow at the open. The exposure envelope
+            // (autopause, position cap, size) is resolved per-day: in Mixed mode
+            // from the regime detected at this bar, else from the fixed config.
+            var env = ResolveEnvelope(cfg, spy, d);
+            if (open.Count < env.MaxOpenPositions && !env.Autopause)
             {
                 // Explicit exclusion set wins; otherwise the original
                 // single-toggle behaviour (ExcludeBreakout) applies.
@@ -281,7 +296,7 @@ public static class HistoricBacktester
 
                 foreach (var c in candidates.OrderByDescending(c => c.Conviction).Take(MaxOrdersPerDay))
                 {
-                    if (open.Count >= cfg.MaxOpenPositions) break;
+                    if (open.Count >= env.MaxOpenPositions) break;
                     var entryBar = GetBar(bars, index, c.Symbol, calendar[d + 1]);
                     if (entryBar is null || entryBar.Open <= 0) continue;
 
@@ -301,7 +316,7 @@ public static class HistoricBacktester
                     }
                     else
                     {
-                        budget = Math.Min(equity * cfg.PositionFraction, cash / (1 + CostPerSide));
+                        budget = Math.Min(equity * env.PositionFraction, cash / (1 + CostPerSide));
                     }
                     if (cfg.ConvictionSizing)
                     {
@@ -593,6 +608,33 @@ public static class HistoricBacktester
         var sma = 0m;
         for (var k = i - 199; k <= i; k++) sma += spy[k].Close;
         return spy[i].Close > sma / 200m;
+    }
+
+    // The exposure envelope in force on simulated day d. Mixed mode (RegimeBooks
+    // present) resolves it from the regime detected at this bar; otherwise the
+    // fixed config scalars, with the legacy SPY-vs-200 autopause proxy preserved
+    // exactly (skip entries only when RegimeFilter is on AND SPY is sub-200).
+    private static RegimeEnvelope ResolveEnvelope(HistoricConfig cfg, DailyBar[] spy, int d)
+    {
+        if (cfg.RegimeBooks is null)
+            return new RegimeEnvelope(cfg.RegimeFilter && !SpyAboveSma200(spy, d), cfg.MaxOpenPositions, cfg.PositionFraction);
+        var regime = RegimeAt(spy, d);
+        if (cfg.RegimeBooks.TryGetValue(regime, out var book)) return book;
+        // Regime with no supplied book (e.g. Crisis without a Crisis entry) falls
+        // back to Neutral, then to the flat scalars.
+        if (cfg.RegimeBooks.TryGetValue(MarketRegime.Neutral, out var neutral)) return neutral;
+        return new RegimeEnvelope(false, cfg.MaxOpenPositions, cfg.PositionFraction);
+    }
+
+    // Historical regime at bar d from SPY closes (price-structure only - no VIX
+    // history, so Crisis never triggers here; Mixed treats it as Bear/Neutral by
+    // structure). Only the last ~220 closes matter for the 50/200-day MAs.
+    private static MarketRegime RegimeAt(DailyBar[] spy, int d)
+    {
+        var start = Math.Max(0, d - 219);
+        var window = new List<decimal>(d - start + 1);
+        for (var i = start; i <= d && i < spy.Length; i++) window.Add(spy[i].Close);
+        return MarketRegimeService.ClassifyFromCloses(window) ?? MarketRegime.Neutral;
     }
 
     private static DailyBar? GetBar(

@@ -564,6 +564,12 @@ h3 .bad {
     cursor: pointer;
     &:hover { background: rgba(128, 128, 128, 0.08); }
   }
+
+  // Highlights the winning row in the regime comparison (best total return).
+  tr.best-row {
+    background: rgba(76, 175, 80, 0.12);
+    td:first-child { font-weight: 600; }
+  }
 }
 
 .muted.small { font-size: 12px; margin: 0 0 8px; }

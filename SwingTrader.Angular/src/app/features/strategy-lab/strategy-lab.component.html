@@ -867,6 +867,81 @@
       }
     </mat-tab>
 
+    <!-- Regimes: is one master ruleset enough, or does a regime mix win? -->
+    <mat-tab label="Regimes" [disabled]="!dataStatusLoading() && !historicAvailable()">
+      <div class="tab-body">
+        <mat-card class="panel controls">
+          <h3>One ruleset, or a regime mix?</h3>
+          <p class="muted small">
+            Runs your <strong>production</strong> strategy over the full period five ways: each regime risk book
+            (Bull / Neutral / Bear / Crisis) forced across the <em>whole</em> history, plus <strong>Mixed</strong>,
+            which switches book by the market regime detected at each day — the faithful, live-like run. If a single
+            book beats Mixed, you don't need regime-switching; if Mixed wins, the mix earns its keep. Only the exposure
+            envelope (autopause, position cap, size) varies by regime; your per-setup exit tactics are unchanged.
+          </p>
+          <div class="meta-row">
+            <button mat-raised-button color="primary" [disabled]="regimeRunning() || !historicAvailable()" (click)="runRegimeComparison()">
+              @if (regimeRunning()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>compare_arrows</mat-icon> }
+              Run regime comparison
+            </button>
+            <span class="muted small">5 simulations — a few minutes.</span>
+          </div>
+          <p class="muted small">
+            Note: without historical VIX, <strong>Crisis</strong> can't be detected day-to-day, so it never fires in
+            Mixed — the forced-Crisis column still stress-tests that book.
+          </p>
+        </mat-card>
+
+        @if (regimeStatus(); as rstat) {
+          <mat-card class="panel loading with-progress">
+            <div class="loading-row"><mat-spinner diameter="24"></mat-spinner><span>{{ rstat }}</span></div>
+            @if (regimeProgress(); as p) {
+              <mat-progress-bar mode="determinate" [value]="(p.completed / p.total) * 100"></mat-progress-bar>
+              <span class="muted small progress-count">{{ p.completed }} / {{ p.total }} runs</span>
+            } @else {
+              <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+            }
+          </mat-card>
+        }
+
+        @if (regimeResult(); as rc) {
+          <mat-card class="panel results">
+            <h3><mat-icon>compare_arrows</mat-icon> Regime comparison</h3>
+            <p class="muted small">
+              Same strategy, five envelope treatments, over the full period (SPY buy-and-hold:
+              <strong>{{ rc.spyReturnPct | number: '1.1-1' }}%</strong>). The best total return is highlighted — if it's
+              a single Force row, one book is enough; if it's Mixed, the regime switch adds value.
+            </p>
+            <table class="history-table">
+              <thead>
+                <tr><th>Mode</th><th>Trades</th><th>Win %</th><th>Expectancy</th><th>Total return</th><th>Max DD</th><th>Calmar</th></tr>
+              </thead>
+              <tbody>
+                @for (row of rc.rows; track row.mode) {
+                  <tr [class.best-row]="row.totalReturnPct === bestRegimeReturn()">
+                    <td>{{ row.mode }}</td>
+                    <td class="num muted">{{ row.trades }}</td>
+                    <td class="num">{{ row.winRate | percent: '1.0-0' }}</td>
+                    <td class="num" [class.good]="row.expectancyPct > 0" [class.bad]="row.expectancyPct < 0">
+                      {{ row.expectancyPct > 0 ? '+' : '' }}{{ row.expectancyPct | number: '1.2-2' }}%
+                    </td>
+                    <td class="num">{{ row.totalReturnPct | number: '1.1-1' }}%</td>
+                    <td class="num muted">{{ row.maxDrawdownPct | number: '1.1-1' }}%</td>
+                    <td class="num">{{ row.calmarRatio | number: '1.2-2' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+            <p class="muted small">
+              Expectancy is the trade's own price return (entry to exit); total return is compared against SPY
+              buy-and-hold. To make a winning single book your live master ruleset, disable the other regime books in
+              Settings — Neutral then governs whatever the market does.
+            </p>
+          </mat-card>
+        }
+      </div>
+    </mat-tab>
+
     <!-- A/B History: past A/B runs, click to view stats/weights/risk and apply -->
     <mat-tab label="A/B History">
       <div class="tab-body">

@@ -736,7 +736,26 @@ export interface SetupAblationDto {
   setups: SetupAblationRowDto[];
 }
 
-export type BacktestResultDto = HistoricResultDto | AbResultDto | SweepResultDto | ValidateResultDto | MonteCarloResultDto | SetupAblationDto;
+// Regime comparison: the production strategy over the full period under each
+// regime book forced throughout, plus a Mixed run that switches book by the
+// regime detected at each day. Answers "one master ruleset, or a regime mix?"
+export interface RegimeComparisonRowDto {
+  mode: string;            // "Force Bull" … "Force Crisis", "Mixed (regime-switch)"
+  trades: number;
+  winRate: number;         // fraction
+  expectancyPct: number;   // %/trade
+  totalReturnPct: number;
+  maxDrawdownPct: number;
+  calmarRatio: number;
+}
+
+export interface RegimeComparisonDto {
+  mode: 'regime';
+  spyReturnPct: number;
+  rows: RegimeComparisonRowDto[];
+}
+
+export type BacktestResultDto = HistoricResultDto | AbResultDto | SweepResultDto | ValidateResultDto | MonteCarloResultDto | SetupAblationDto | RegimeComparisonDto;
 
 export interface BacktestRunStatusDto {
   id: number;

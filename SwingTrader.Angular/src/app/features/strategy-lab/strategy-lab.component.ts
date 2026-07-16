@@ -32,6 +32,7 @@ import {
   StrategyLabResponseDto,
   MonteCarloResultDto,
   SetupAblationDto,
+  RegimeComparisonDto,
   SetupTacticsDto,
   SetupTacticsRowDto,
   StrategyWeightsDto,
@@ -95,8 +96,9 @@ export class StrategyLabComponent implements OnDestroy {
   // Tabs: 0 A/B Testing · 1 Optimizer · 2 A/B History · 3 Optimizer History.
   onLabTab(index: number): void {
     this.labTabIndex.set(index);
-    if (index === 2) this.loadHistory('ab');
-    if (index === 3) this.loadHistory('sweep');
+    // Tab order: 0 A/B, 1 Optimizer, 2 Regimes, 3 A/B History, 4 Optimizer History.
+    if (index === 3) this.loadHistory('ab');
+    if (index === 4) this.loadHistory('sweep');
   }
 
   loadHistory(mode: 'ab' | 'sweep', force = false): void {
@@ -333,6 +335,12 @@ export class StrategyLabComponent implements OnDestroy {
   ablationResult = signal<SetupAblationDto | null>(null);
   ablationProgress = signal<{ completed: number; total: number } | null>(null);
 
+  // ── Regime comparison state ────────────────────────────────────────────────
+  regimeRunning = signal(false);
+  regimeStatus = signal<string | null>(null);
+  regimeResult = signal<RegimeComparisonDto | null>(null);
+  regimeProgress = signal<{ completed: number; total: number } | null>(null);
+
   // ── Shared state ───────────────────────────────────────────────────────────
   dataStatus = signal<LabDataStatusDto | null>(null);
   dataStatusLoading = signal(true); // true until the first data-status fetch resolves
@@ -341,7 +349,7 @@ export class StrategyLabComponent implements OnDestroy {
   isOwner = signal(false);
   // One poll handle per job kind: an A/B run and an optimizer sweep can be in
   // flight at the same time, and starting one must not kill the other's poll.
-  private pollHandles = new Map<'ab' | 'sweep' | 'validate' | 'montecarlo' | 'ablation', ReturnType<typeof setInterval>>();
+  private pollHandles = new Map<'ab' | 'sweep' | 'validate' | 'montecarlo' | 'ablation' | 'regime', ReturnType<typeof setInterval>>();
 
   weightSum = computed(() => {
     const w = this.weights();
@@ -689,6 +697,39 @@ export class StrategyLabComponent implements OnDestroy {
       });
   }
 
+  runRegimeComparison(): void {
+    this.regimeRunning.set(true);
+    this.regimeResult.set(null);
+    this.regimeProgress.set(null);
+    this.api.runRegimeComparison().subscribe({
+      next: (r) => this.startRegimePoll(r.backtestRunId),
+      error: (err) => {
+        this.snackbar.open(errorMessage(err, 'Failed to queue the regime comparison.'), 'Dismiss', { duration: 5000 });
+        this.regimeRunning.set(false);
+      },
+    });
+  }
+
+  private startRegimePoll(runId: number): void {
+    this.pollRun(
+      'regime',
+      runId,
+      'Running — replaying your strategy under each regime book forced across the full period, plus the per-day Mixed run…',
+      this.regimeStatus,
+      (result) => {
+        if (result && 'mode' in result && result.mode === 'regime') this.regimeResult.set(result);
+        this.regimeRunning.set(false);
+        this.regimeProgress.set(null);
+      });
+  }
+
+  // Highest total return across the compared modes - drives the "best" highlight
+  // so the one-vs-mix verdict is obvious at a glance.
+  bestRegimeReturn = computed(() => {
+    const rows = this.regimeResult()?.rows ?? [];
+    return rows.length ? Math.max(...rows.map((r) => r.totalReturnPct)) : null;
+  });
+
   // Shared by a freshly-queued sweep and the tab-load reattach to one that
   // was already running server-side when the page was opened/refreshed.
   private startSweepPoll(runId: number): void {
@@ -714,7 +755,7 @@ export class StrategyLabComponent implements OnDestroy {
   // decides how to interpret the stored result. Restarting a job of the same
   // kind replaces its own poll; the other kind's poll is left running.
   private pollRun(
-    kind: 'ab' | 'sweep' | 'validate' | 'montecarlo' | 'ablation',
+    kind: 'ab' | 'sweep' | 'validate' | 'montecarlo' | 'ablation' | 'regime',
     runId: number,
     runningText: string,
     status: ReturnType<typeof signal<string | null>>,
@@ -733,6 +774,9 @@ export class StrategyLabComponent implements OnDestroy {
           if (kind === 'ablation' && r.totalCandidates != null && r.completedCandidates != null) {
             this.ablationProgress.set({ completed: r.completedCandidates, total: r.totalCandidates });
           }
+          if (kind === 'regime' && r.totalCandidates != null && r.completedCandidates != null) {
+            this.regimeProgress.set({ completed: r.completedCandidates, total: r.totalCandidates });
+          }
           if (r.status === 'Completed' || r.status === 'Failed') {
             clearInterval(timer);
             this.pollHandles.delete(kind);
@@ -745,6 +789,7 @@ export class StrategyLabComponent implements OnDestroy {
               else if (kind === 'validate') this.validating.set(false);
               else if (kind === 'montecarlo') this.monteCarloRunning.set(false);
               else if (kind === 'ablation') { this.ablationRunning.set(false); this.ablationProgress.set(null); }
+              else if (kind === 'regime') { this.regimeRunning.set(false); this.regimeProgress.set(null); }
               else this.optimizing.set(false);
               if (kind === 'sweep') this.sweepProgress.set(null);
             }
