@@ -103,6 +103,7 @@ public class ComponentCorrelationService : IComponentCorrelationService
             // Forward blend is not refined here - carry it forward unchanged.
             ForwardSentimentWeight = currentWeights.ForwardSentimentWeight,
             ForwardFundamentalWeight = currentWeights.ForwardFundamentalWeight,
+            ForwardFilingWeight = currentWeights.ForwardFilingWeight,
             BuyThreshold = currentWeights.BuyThreshold,
             WatchThreshold = currentWeights.WatchThreshold,
             StopLossPctDefault = currentWeights.StopLossPctDefault,

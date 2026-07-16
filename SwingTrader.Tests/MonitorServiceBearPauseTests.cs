@@ -66,7 +66,9 @@ public class MonitorServiceBearPauseTests
     private MonitorService CreateSut() => new(
         _tradeRepo, _portfolioRepo, _circuitBreaker, _positionMonitor, _riskProfileRepo,
         _positionExit, _recipients, _emailService, _accountRepo, _activityLog, _regime,
+        Substitute.For<IFilingRepository>(),
         Options.Create(new ExecutionConfig { DelayBetweenOrdersSeconds = 0 }),
+        Options.Create(new SwingTrader.Infrastructure.Configuration.FilingDeltaConfig()),
         NullLogger<MonitorService>.Instance);
 
     private void SetupRegime(MarketRegime regime) =>

@@ -29,21 +29,35 @@ public static class FunnelScores
             weights, rsiScore, macdScore, volumeScore, setupScore,
             relativeStrengthScore, priceLevelScore);
 
-    // Stage 2: the forward-looking pair blended and rescaled to 0..10. A null
-    // component (sentiment fetch failed, fundamentals unavailable) contributes
+    // Stage 2: the forward-looking components blended and rescaled to 0..10. A
+    // null sentiment/fundamental (fetch failed, data unavailable) contributes
     // neutral 0.5 and marks the result Degraded - a degraded score may still
     // size (multiplier falls back to 1 in F2) but must never veto (F3).
+    //
+    // Filing (FD2) is deliberately DIFFERENT: most symbols have no fresh scored
+    // 10-K/10-Q delta on any given day, so a null filing component contributes
+    // neutral 0.5 WITHOUT degrading - otherwise the veto would be disabled for
+    // nearly the whole watchlist every day. "No filing news" is the normal
+    // state, not an outage.
     public static ForwardResult Forward(
         decimal? sentimentComponent01, decimal? fundamentalMomentum01,
-        decimal sentimentWeight, decimal fundamentalWeight)
+        decimal sentimentWeight, decimal fundamentalWeight,
+        decimal? filingComponent01 = null, decimal filingWeight = 0m)
     {
         var degraded = sentimentComponent01 is null || fundamentalMomentum01 is null;
         var blend01 =
             sentimentWeight * (sentimentComponent01 ?? 0.5m) +
-            fundamentalWeight * (fundamentalMomentum01 ?? 0.5m);
+            fundamentalWeight * (fundamentalMomentum01 ?? 0.5m) +
+            filingWeight * (filingComponent01 ?? 0.5m);
         var score = Math.Round(Math.Clamp(blend01 * 10m, 0m, 10m), 1);
         return new ForwardResult(score, degraded);
     }
+
+    // Maps the signed, time-decayed filing delta (-1..+1, 0 = no change /
+    // fully decayed) onto the same 0..1 component scale the other forward
+    // inputs use. Null in = null out (no scored filing at all).
+    public static decimal? FilingComponent01(decimal? effectiveDelta) =>
+        effectiveDelta is { } d ? (Math.Clamp(d, -1m, 1m) + 1m) / 2m : null;
 
     // Phase F3: the asymmetric veto predicate. True only for a real (non-null,
     // non-degraded) Forward score strictly below the floor - degraded or

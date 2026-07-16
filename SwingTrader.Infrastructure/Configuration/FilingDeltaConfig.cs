@@ -54,4 +54,10 @@ public class FilingDeltaConfig
     //                                a stale diff nobody will meaningfully weight.
     public int FreshScoringDays { get; set; } = 30;
     public int MaxScoringAgeDays { get; set; } = 120;
+
+    // Distress quarantine (FD3): a rules-based flag (8-K item 3.01/1.03/4.02
+    // or going-concern language in a 10-K/10-Q) blocks new Buys and exits open
+    // positions in the symbol for this many days after the filing date.
+    // ~90 days spans a typical exchange cure period and one earnings cycle.
+    public int DistressWindowDays { get; set; } = 90;
 }

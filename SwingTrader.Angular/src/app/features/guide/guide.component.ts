@@ -138,6 +138,17 @@ export class GuideComponent {
         'whether the company has a habit of beating earnings, and whether revenue forecasts are rising. ' +
         'A strengthening business scores higher.',
     },
+    {
+      name: 'Filing language',
+      weightKey: 'forwardFilingWeight',
+      measures: 'Did the company quietly change what its SEC filings say?',
+      plain:
+        'Companies write their annual and quarterly SEC reports largely by copy-paste, so when the wording ' +
+        'actually changes, it is deliberate. Claude compares each new 10-K/10-Q against the previous one and ' +
+        'scores what changed: new or expanded risk language scores negative, risks removed or language ' +
+        'de-hedged scores positive. The score fades over roughly a quarter. Most days most companies have ' +
+        'no fresh filing — that simply counts as neutral.',
+    },
   ];
 
   // Weights are stored 0–1 and sum to 1.0; show as whole-ish percentages.

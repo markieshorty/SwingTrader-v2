@@ -64,6 +64,7 @@ const COMPONENT_WEIGHT_FIELDS: { key: keyof StrategyWeightsDto; label: string }[
 const FORWARD_WEIGHT_FIELDS: { key: keyof StrategyWeightsDto; label: string }[] = [
   { key: 'forwardSentimentWeight', label: 'Sentiment' },
   { key: 'forwardFundamentalWeight', label: 'Fundamental Momentum' },
+  { key: 'forwardFilingWeight', label: 'Filing Language' },
 ];
 
 const PROVIDER_LABELS: Partial<Record<ApiKeyProvider, string>> = {

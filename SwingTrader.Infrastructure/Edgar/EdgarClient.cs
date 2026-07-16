@@ -20,8 +20,12 @@ public interface IEdgarClient
     Task<string> GetDocumentAsync(string cik, string accessionNumber, string primaryDocument, CancellationToken ct);
 }
 
+// Items: the 8-K item codes for this filing (comma-separated, e.g.
+// "3.01,9.01"), straight from the submissions JSON's parallel `items` array.
+// Empty for 10-K/10-Q. This is what makes rules-based distress detection
+// (FD3) free - the codes arrive in a fetch we already make.
 public sealed record EdgarFilingRef(
-    string AccessionNumber, string FilingType, DateOnly FiledAt, string PrimaryDocument);
+    string AccessionNumber, string FilingType, DateOnly FiledAt, string PrimaryDocument, string Items = "");
 
 // Thin EDGAR HTTP wrapper. No API key; the SEC requires a declared User-Agent
 // and caps fair use at 10 req/s - every call is paced by EdgarDelayMs and the
@@ -70,7 +74,9 @@ public class EdgarClient(
             if (!DateOnly.TryParse(recent.FilingDate.ElementAtOrDefault(i), out var filed)) continue;
             var primary = recent.PrimaryDocument.ElementAtOrDefault(i);
             if (string.IsNullOrWhiteSpace(primary)) continue;
-            results.Add(new EdgarFilingRef(recent.AccessionNumber[i], form, filed, primary));
+            // items is optional in the payload (and empty for 10-K/10-Q).
+            var items = recent.Items?.ElementAtOrDefault(i) ?? "";
+            results.Add(new EdgarFilingRef(recent.AccessionNumber[i], form, filed, primary, items));
         }
         return results;
     }
@@ -105,5 +111,6 @@ public class EdgarClient(
         [property: JsonPropertyName("accessionNumber")] List<string> AccessionNumber,
         [property: JsonPropertyName("form")] List<string> Form,
         [property: JsonPropertyName("filingDate")] List<string> FilingDate,
-        [property: JsonPropertyName("primaryDocument")] List<string> PrimaryDocument);
+        [property: JsonPropertyName("primaryDocument")] List<string> PrimaryDocument,
+        [property: JsonPropertyName("items")] List<string>? Items = null);
 }

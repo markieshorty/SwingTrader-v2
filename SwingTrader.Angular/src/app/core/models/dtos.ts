@@ -319,6 +319,7 @@ export interface StrategyWeightsDto {
   // The forward-score blend (sum to 1) that drives sizing/veto.
   forwardSentimentWeight: number;
   forwardFundamentalWeight: number;
+  forwardFilingWeight: number;
   buyThreshold: number;
   watchThreshold: number;
   stopLossPctDefault: number;
@@ -1080,12 +1081,24 @@ export interface FilingDeltaRowDto {
   edgarUrl: string;
 }
 
+// FD3: a rules-based distress flag (8-K delisting/bankruptcy/non-reliance or
+// going-concern language). While active it blocks Buys and exits positions.
+export interface DistressFlagRowDto {
+  symbol: string;
+  reason: string;
+  source: string;
+  filedAt: string;
+  isActive: boolean;
+  isHeld: boolean;
+}
+
 export interface FilingsIntelligenceDto {
   windowDays: number;
   filingsChecked: number;
   changed: number;
   unchanged: number;
   deltas: FilingDeltaRowDto[];
+  distressFlags: DistressFlagRowDto[];
 }
 
 export interface SecondHopRowDto {

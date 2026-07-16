@@ -28,6 +28,24 @@ public class Filing
     public DateTime CreatedAt { get; set; }
 }
 
+// A rules-based corporate-distress flag (docs/filing-delta-plan Phase FD3) -
+// detected from structured EDGAR data with NO Claude involvement: 8-K item
+// codes (3.01 delisting notice, 1.03 bankruptcy, 4.02 non-reliance on prior
+// financials) and going-concern language in 10-K/10-Q sections we already
+// extract. Platform-level like Filing. While a flag is "active" (FiledAt
+// within FilingDeltaConfig.DistressWindowDays) the symbol is quarantined:
+// research demotes a Buy to Watch, and the monitor exits an open position.
+public class DistressFlag
+{
+    public long Id { get; set; }
+    public string Symbol { get; set; } = string.Empty;
+    public string AccessionNumber { get; set; } = string.Empty; // dedupe key with Reason
+    public string Reason { get; set; } = string.Empty;          // e.g. "8-K Item 3.01: delisting notice"
+    public string Source { get; set; } = string.Empty;          // "8-K" | "10-K" | "10-Q"
+    public DateOnly FiledAt { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
 // The scored diff between a filing and the previous filing of the same type
 // for the same symbol. Delta 0 + null summary = "unchanged" (the common
 // copy-paste quarter, detected by hash, no Claude involved).

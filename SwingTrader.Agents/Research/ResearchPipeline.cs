@@ -164,6 +164,28 @@ public class ResearchPipeline(
 
         var componentScores = ScoreComponents(ind, sentimentScore, setupType, previousMacdHistogram);
 
+        // Filing-delta (FD2): the most recent scored filing-language change,
+        // decayed to today. Looked up BEFORE the forward blend so it can carry
+        // its ForwardFilingWeight share; also persisted for the scorecard.
+        // Strictly best-effort - no filing data is a neutral component (never
+        // degraded: "no filing news" is the normal state), never a failed run.
+        decimal? filingDeltaScore = null;
+        string? filingDeltaSummary = null;
+        try
+        {
+            if (await filingRepo.GetLatestNonZeroDeltaAsync(symbol, ct) is { } latestDelta)
+            {
+                filingDeltaScore = Filings.FilingDeltaMath.EffectiveScore(
+                    latestDelta.Delta, latestDelta.FiledAt, DateOnly.FromDateTime(DateTime.UtcNow),
+                    filingDeltaConfig.Value.HalfLifeTradingDays);
+                filingDeltaSummary = latestDelta.Summary;
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Filing-delta lookup failed for {Symbol} — filing component omitted", symbol);
+        }
+
         // Stage 2 (the forward score): catalyst adjustment belongs here -
         // forward-looking information adjusting the forward-looking score.
         // Null when stage 2 was skipped (sub-Watch gate can't trade, so
@@ -175,7 +197,8 @@ public class ResearchPipeline(
             var forward = FunnelScores.Forward(
                 sentimentScore is null ? null : componentScores.Sentiment,
                 fundamental?.Score,
-                weights.ForwardSentimentWeight, weights.ForwardFundamentalWeight);
+                weights.ForwardSentimentWeight, weights.ForwardFundamentalWeight,
+                FunnelScores.FilingComponent01(filingDeltaScore), weights.ForwardFilingWeight);
             forwardScore = ApplyCatalystAdjustment(forward.Score, catalyst, out _);
             forwardDegraded = forward.Degraded;
         }
@@ -212,30 +235,34 @@ public class ResearchPipeline(
                 symbol, forwardScore, riskProfile.ForwardVetoFloor);
         }
 
-        // All adjustment notes ride the same reasoning-append slot.
-        var adjustmentReasoning = (earningsReasoning ?? string.Empty) + (catalystReasoning ?? string.Empty) + (vetoReasoning ?? string.Empty);
-
-        // Filing-delta shadow (docs/filing-delta-plan FD1): the most recent
-        // scored filing-language change, decayed to today. Persisted for the
-        // scorecard; drives NOTHING until ForwardFilingWeight > 0 (FD2).
-        // Strictly best-effort - no filing data is degraded-null, never a
-        // failed research run.
-        decimal? filingDeltaScore = null;
-        string? filingDeltaSummary = null;
-        try
+        // Distress veto (FD3): an active rules-based distress flag (8-K
+        // delisting/bankruptcy/non-reliance, or going-concern language)
+        // quarantines the symbol - a Buy demotes to Watch regardless of how
+        // good the chart looks. Unlike the forward veto this is a FACT, not a
+        // prediction, so no floor and no fail-open on the veto itself; but a
+        // repo failure fails open (no flag data must never block trading).
+        if (recommendation == Recommendation.Buy)
         {
-            if (await filingRepo.GetLatestNonZeroDeltaAsync(symbol, ct) is { } latestDelta)
+            try
             {
-                filingDeltaScore = Filings.FilingDeltaMath.EffectiveScore(
-                    latestDelta.Delta, latestDelta.FiledAt, DateOnly.FromDateTime(DateTime.UtcNow),
-                    filingDeltaConfig.Value.HalfLifeTradingDays);
-                filingDeltaSummary = latestDelta.Summary;
+                var activeSince = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-filingDeltaConfig.Value.DistressWindowDays);
+                var flags = await filingRepo.GetActiveDistressFlagsAsync(symbol, activeSince, ct);
+                if (flags.Count > 0)
+                {
+                    recommendation = Recommendation.Watch;
+                    vetoReasoning += $" Distress veto: {flags[0].Reason} (filed {flags[0].FiledAt:yyyy-MM-dd}).";
+                    logger.LogWarning("Distress veto for {Symbol}: {Reason} (filed {Filed}) — Buy demoted to Watch",
+                        symbol, flags[0].Reason, flags[0].FiledAt);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Distress-flag lookup failed for {Symbol} — veto skipped (fail-open)", symbol);
             }
         }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Filing-delta lookup failed for {Symbol} — shadow score omitted", symbol);
-        }
+
+        // All adjustment notes ride the same reasoning-append slot.
+        var adjustmentReasoning = (earningsReasoning ?? string.Empty) + (catalystReasoning ?? string.Empty) + (vetoReasoning ?? string.Empty);
 
         // Second-hop shadow (docs/second-hop-plan SH1): linked-company events
         // propagated to this symbol. Skipped with stage 2 under the funnel

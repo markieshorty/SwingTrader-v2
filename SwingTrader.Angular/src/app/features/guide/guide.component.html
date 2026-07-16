@@ -50,9 +50,9 @@
         <p class="muted small">
           The weights below are <strong>your account's current values</strong> and add up to 100%. They aren't fixed —
           the Refinement agent gradually shifts weight toward whichever checks have actually predicted your winning
-          trades. Tap any check to see what it means in plain terms. Two further checks — news sentiment and
-          fundamental momentum — sit <em>outside</em> this gate score; they size and veto the trade instead, and are
-          explained in the <strong>Risk &amp; your money</strong> tab.
+          trades. Tap any check to see what it means in plain terms. Three further checks — news sentiment,
+          fundamental momentum and filing language — sit <em>outside</em> this gate score; they size and veto the trade
+          instead, and are explained in the <strong>Risk &amp; your money</strong> tab.
         </p>
 
         <mat-accordion class="components">
@@ -141,8 +141,8 @@
         <h3>Forward score: sizing tilt &amp; veto</h3>
         <p>
           Separately from the gate, a <strong>Forward score</strong> (0–10) fine-tunes each trade without ever creating
-          one. It's a weighted blend of two checks — news sentiment and fundamental momentum — whose weights sum to
-          100% between themselves:
+          one. It's a weighted blend of three checks — news sentiment, fundamental momentum and filing language — whose
+          weights sum to 100% between themselves:
         </p>
 
         <mat-accordion class="components">
@@ -167,6 +167,17 @@
           <strong>Forward Veto Floor</strong> ({{ risk()?.forwardVetoFloor ?? '—' }}) demotes a Buy to Watch when its
           forward score falls below the floor (0 = off). A missing or degraded forward score never vetoes and never
           tilts — data outages fail open. All the hard limits above still apply after any tilt.
+        </p>
+
+        <h3>Distress quarantine — the doomed-stock guard</h3>
+        <p>
+          Separately from any score, a small set of hard red flags <strong>quarantines</strong> a company outright:
+          an SEC 8-K announcing a <em>delisting notice</em>, <em>bankruptcy or receivership</em>, or that prior
+          financial statements <em>can no longer be relied on</em> — plus <em>going-concern</em> language appearing in
+          its annual/quarterly report. These are detected from the filings themselves (no AI judgement involved).
+          While a flag is active (~90 days from the filing), a Buy signal is demoted to Watch <strong>and any open
+          position in the name is sold</strong> — a company fighting for survival is not a swing-trade candidate,
+          however good the chart looks.
         </p>
 
         <h3>How positions are exited</h3>

@@ -413,6 +413,7 @@ public static class StrategyLabEndpoints
                 PriceLevelWeight = req.Weights.PriceLevel,
                 ForwardSentimentWeight = current.ForwardSentimentWeight,
                 ForwardFundamentalWeight = current.ForwardFundamentalWeight,
+                ForwardFilingWeight = current.ForwardFilingWeight,
                 BuyThreshold = req.BuyThreshold,
                 WatchThreshold = current.WatchThreshold,
                 StopLossPctDefault = current.StopLossPctDefault,
@@ -538,6 +539,7 @@ public static class StrategyLabEndpoints
                     // Forward blend isn't tuned in the Lab - carry live values forward.
                     ForwardSentimentWeight = current.ForwardSentimentWeight,
                     ForwardFundamentalWeight = current.ForwardFundamentalWeight,
+                    ForwardFilingWeight = current.ForwardFilingWeight,
                     BuyThreshold = cfg.BuyThreshold, WatchThreshold = current.WatchThreshold,
                     StopLossPctDefault = current.StopLossPctDefault, Source = "StrategyLab",
                 };

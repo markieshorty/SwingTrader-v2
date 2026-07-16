@@ -15,13 +15,18 @@ public class StrategyWeights : BaseEntity
     public decimal RelativeStrengthWeight { get; set; } = 0.14m;
     public decimal PriceLevelWeight { get; set; } = 0.07m;
 
-    // Forward-score blend (funnel Phase F2/F3): how the two forward-looking
+    // Forward-score blend (funnel Phase F2/F3): how the forward-looking
     // components combine into the 0-10 Forward score that drives the per-regime
     // sizing tilt and veto. Configurable (was a hardcoded 0.60/0.40 in
     // ResearchConfig); must sum to 1.0. Deliberately NOT part of the gate blend
     // and NOT swept by the optimizer/A-B (the backtest doesn't exercise it).
-    public decimal ForwardSentimentWeight { get; set; } = 0.60m;
-    public decimal ForwardFundamentalWeight { get; set; } = 0.40m;
+    // Filing (FD2): the decayed 10-K/10-Q language-delta score. Most symbols
+    // have no fresh scored filing on a given day - that contributes a neutral
+    // 0.5 WITHOUT degrading the score (unlike sentiment/fundamental outages),
+    // so the veto keeps working for the majority no-filing case.
+    public decimal ForwardSentimentWeight { get; set; } = 0.45m;
+    public decimal ForwardFundamentalWeight { get; set; } = 0.30m;
+    public decimal ForwardFilingWeight { get; set; } = 0.25m;
 
     public decimal BuyThreshold { get; set; } = 6.0m;
     public decimal WatchThreshold { get; set; } = 5.0m;
@@ -41,7 +46,7 @@ public class StrategyWeights : BaseEntity
             throw new InvalidOperationException(
                 $"Gate weights must sum to 1.0 — got {gate:F4}. Adjust weights before saving.");
 
-        var forward = ForwardSentimentWeight + ForwardFundamentalWeight;
+        var forward = ForwardSentimentWeight + ForwardFundamentalWeight + ForwardFilingWeight;
         if (Math.Abs(forward - 1.0m) > 0.001m)
             throw new InvalidOperationException(
                 $"Forward weights must sum to 1.0 — got {forward:F4}. Adjust weights before saving.");

@@ -12,7 +12,7 @@ using SwingTrader.Infrastructure.RateLimiting;
 
 namespace SwingTrader.Agents.Filings;
 
-public record FilingSyncResult(bool Configured, int FilingsStored, int DeltasScored, int Unchanged, int Failed, string Summary, int SkippedStale = 0);
+public record FilingSyncResult(bool Configured, int FilingsStored, int DeltasScored, int Unchanged, int Failed, string Summary, int SkippedStale = 0, int DistressFlagged = 0);
 
 // Fidelity tier for a filing's diff, chosen from its age (see FilingDeltaConfig).
 public enum FilingScoreTier { SkipStale, Backfill, Live }
@@ -42,6 +42,10 @@ public class FilingSyncService(
     ILogger<FilingSyncService> logger) : IFilingSyncService
 {
     private static readonly string[] FilingTypes = ["10-K", "10-Q"];
+    // 8-Ks ride the SAME submissions fetch (their item codes are in the JSON we
+    // already pull) - they're never diffed or Claude-scored, only pattern-matched
+    // for distress item codes (FD3).
+    private static readonly string[] FetchTypes = ["10-K", "10-Q", "8-K"];
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
     public async Task<FilingSyncResult> SyncAsync(CancellationToken ct = default)
@@ -68,7 +72,7 @@ public class FilingSyncService(
         IClaudeClient? claude = null; // created lazily - most runs never need it
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        int stored = 0, scored = 0, unchanged = 0, failed = 0, skippedStale = 0;
+        int stored = 0, scored = 0, unchanged = 0, failed = 0, skippedStale = 0, distressFlagged = 0;
         foreach (var symbol in symbols)
         {
             if (ct.IsCancellationRequested) break;
@@ -80,7 +84,13 @@ public class FilingSyncService(
 
             try
             {
-                var recent = await edgar.GetRecentFilingsAsync(cik, FilingTypes, ct);
+                var recent = await edgar.GetRecentFilingsAsync(cik, FetchTypes, ct);
+
+                // FD3: 8-K distress item codes (delisting / bankruptcy /
+                // non-reliance). Rules-only, zero tokens, zero extra HTTP -
+                // the item codes came with the submissions JSON above. Only
+                // filings still inside the quarantine window are worth a row.
+                distressFlagged += await FlagDistressFromEightKsAsync(symbol, recent, today, cfg, ct);
 
                 foreach (var type in FilingTypes)
                 {
@@ -102,6 +112,24 @@ public class FilingSyncService(
                         var filing = await FetchAndExtractAsync(symbol, cik, filingRef, cfg, ct);
                         filing = await filings.AddAsync(filing, ct);
                         stored++;
+
+                        // FD3: going-concern language in the MD&A we just
+                        // extracted (free - the text is already in hand). Only
+                        // flag filings still inside the quarantine window.
+                        if (DistressDetector.HasGoingConcernLanguage(filing.MdaText)
+                            && today.DayNumber - filing.FiledAt.DayNumber <= cfg.DistressWindowDays
+                            && await filings.AddDistressFlagAsync(new DistressFlag
+                            {
+                                Symbol = symbol,
+                                AccessionNumber = filing.AccessionNumber,
+                                Reason = $"{type}: going-concern language (substantial doubt) in MD&A",
+                                Source = type,
+                                FiledAt = filing.FiledAt,
+                            }, ct))
+                        {
+                            distressFlagged++;
+                            logger.LogWarning("DISTRESS flag: {Symbol} {Type} {Filed} — going-concern language in MD&A", symbol, type, filing.FiledAt);
+                        }
 
                         if (previous is null || filing.ParseFailed || previous.ParseFailed)
                             continue; // nothing comparable - no delta row, degraded-null downstream
@@ -157,9 +185,38 @@ public class FilingSyncService(
             }
         }
 
-        var summary = $"FilingSync: {stored} filings stored, {scored} deltas scored, {skippedStale} stale skipped, {unchanged} unchanged, {failed} failed ({symbols.Count} symbols).";
+        var summary = $"FilingSync: {stored} filings stored, {scored} deltas scored, {skippedStale} stale skipped, {unchanged} unchanged, {distressFlagged} distress flagged, {failed} failed ({symbols.Count} symbols).";
         logger.LogInformation("{Summary}", summary);
-        return new FilingSyncResult(true, stored, scored, unchanged, failed, summary, skippedStale);
+        return new FilingSyncResult(true, stored, scored, unchanged, failed, summary, skippedStale, distressFlagged);
+    }
+
+    // FD3: scan a symbol's recent 8-Ks for distress item codes. Pure pattern
+    // match on data already fetched; idempotent via the repo's (accession,
+    // reason) dedupe. Returns how many NEW flags were raised.
+    private async Task<int> FlagDistressFromEightKsAsync(
+        string symbol, IReadOnlyList<EdgarFilingRef> recent, DateOnly today, FilingDeltaConfig cfg, CancellationToken ct)
+    {
+        var flagged = 0;
+        foreach (var eightK in recent.Where(f => f.FilingType == "8-K"))
+        {
+            if (today.DayNumber - eightK.FiledAt.DayNumber > cfg.DistressWindowDays) continue; // already inactive
+            foreach (var reason in DistressDetector.DetectFromItems(eightK.Items))
+            {
+                if (await filings.AddDistressFlagAsync(new DistressFlag
+                {
+                    Symbol = symbol,
+                    AccessionNumber = eightK.AccessionNumber,
+                    Reason = reason,
+                    Source = "8-K",
+                    FiledAt = eightK.FiledAt,
+                }, ct))
+                {
+                    flagged++;
+                    logger.LogWarning("DISTRESS flag: {Symbol} 8-K {Filed} — {Reason}", symbol, eightK.FiledAt, reason);
+                }
+            }
+        }
+        return flagged;
     }
 
     // Fidelity tier from the filing's age at scoring time (FilingDeltaConfig).

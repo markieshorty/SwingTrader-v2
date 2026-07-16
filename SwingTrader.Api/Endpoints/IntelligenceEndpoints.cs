@@ -74,6 +74,26 @@ public static class IntelligenceEndpoints
                 .OrderBy(r => r.Delta) // most negative first - the Warnings default
                 .ToList();
 
+            // Distress flags (FD3): the rules-based quarantine list - every
+            // active flag is blocking Buys (and exiting positions) right now,
+            // so it leads the tab rather than hiding in the delta rows.
+            var activeSince = today.AddDays(-cfg.DistressWindowDays);
+            var distress = (await filings.GetActiveDistressFlagsAsync(
+                    heldSymbols.Concat(activeToday).Distinct(StringComparer.OrdinalIgnoreCase).ToList(), activeSince, ct))
+                .Concat(await filings.GetDistressFlagsSinceAsync(since, ct))
+                .DistinctBy(f => (f.AccessionNumber, f.Reason))
+                .OrderByDescending(f => f.FiledAt)
+                .Select(f => new
+                {
+                    f.Symbol,
+                    f.Reason,
+                    f.Source,
+                    f.FiledAt,
+                    IsActive = f.FiledAt >= activeSince,
+                    IsHeld = heldSymbols.Contains(f.Symbol),
+                })
+                .ToList();
+
             return Results.Ok(new
             {
                 WindowDays = days ?? 90,
@@ -81,6 +101,7 @@ public static class IntelligenceEndpoints
                 Changed = rows.Count,
                 Unchanged = views.Count - rows.Count,
                 Deltas = rows,
+                DistressFlags = distress,
             });
         });
 

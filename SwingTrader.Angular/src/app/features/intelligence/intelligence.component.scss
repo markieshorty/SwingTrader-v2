@@ -125,3 +125,40 @@ h3 {
   font-size: 0.9rem;
   line-height: 1.45;
 }
+
+// FD3 distress quarantine panel - leads the Filings tab when any flag exists.
+.distress-panel {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border-left: 4px solid var(--st-negative, #d32f2f);
+
+  h4 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 4px;
+    color: var(--st-negative, #d32f2f);
+  }
+
+  .hint {
+    margin: 0 0 8px;
+    font-size: 0.85rem;
+    color: var(--st-muted);
+  }
+}
+
+.distress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--st-border);
+  font-size: 0.9rem;
+
+  .symbol { font-weight: 600; }
+  .reason { color: var(--st-muted); }
+  .spacer { flex: 1; }
+  .filing-meta { font-size: 0.8rem; color: var(--st-muted); white-space: nowrap; }
+
+  &.inactive { opacity: 0.55; }
+}

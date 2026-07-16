@@ -74,4 +74,47 @@ public class FilingRepository(SwingTraderDbContext db) : IFilingRepository
 
     public Task<int> CountFilingsSinceAsync(DateTime sinceUtc, CancellationToken ct = default) =>
         db.Filings.CountAsync(f => f.CreatedAt >= sinceUtc, ct);
+
+    public async Task<bool> AddDistressFlagAsync(DistressFlag flag, CancellationToken ct = default)
+    {
+        flag.Symbol = flag.Symbol.ToUpperInvariant();
+        flag.CreatedAt = DateTime.UtcNow;
+        // Idempotent per (accession, reason) so daily sync re-runs never
+        // duplicate: the same 8-K seen tomorrow is the same flag.
+        if (await db.DistressFlags.AnyAsync(
+                d => d.AccessionNumber == flag.AccessionNumber && d.Reason == flag.Reason, ct))
+            return false;
+        db.DistressFlags.Add(flag);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException)
+        {
+            db.Entry(flag).State = EntityState.Detached; // racing sync inserted it first
+            return false;
+        }
+        return true;
+    }
+
+    public Task<List<DistressFlag>> GetActiveDistressFlagsAsync(string symbol, DateOnly activeSince, CancellationToken ct = default) =>
+        db.DistressFlags
+            .Where(d => d.Symbol == symbol.ToUpper() && d.FiledAt >= activeSince)
+            .OrderByDescending(d => d.FiledAt)
+            .ToListAsync(ct);
+
+    public Task<List<DistressFlag>> GetActiveDistressFlagsAsync(IReadOnlyCollection<string> symbols, DateOnly activeSince, CancellationToken ct = default)
+    {
+        var upper = symbols.Select(s => s.ToUpperInvariant()).ToList();
+        return db.DistressFlags
+            .Where(d => upper.Contains(d.Symbol) && d.FiledAt >= activeSince)
+            .OrderByDescending(d => d.FiledAt)
+            .ToListAsync(ct);
+    }
+
+    public Task<List<DistressFlag>> GetDistressFlagsSinceAsync(DateTime sinceUtc, CancellationToken ct = default) =>
+        db.DistressFlags
+            .Where(d => d.CreatedAt >= sinceUtc)
+            .OrderByDescending(d => d.FiledAt)
+            .ToListAsync(ct);
 }

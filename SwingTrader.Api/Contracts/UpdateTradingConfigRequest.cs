@@ -30,6 +30,7 @@ public record UpdateStrategyWeightsRequest(
     decimal PriceLevelWeight,
     decimal ForwardSentimentWeight,
     decimal ForwardFundamentalWeight,
+    decimal ForwardFilingWeight,
     decimal BuyThreshold,
     decimal WatchThreshold,
     decimal StopLossPctDefault);

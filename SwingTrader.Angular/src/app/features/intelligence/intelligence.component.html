@@ -23,6 +23,33 @@
           <span class="hint">— unchanged filings cost nothing and mean the hash gate is doing its job</span>
         </p>
 
+        <!-- FD3: the distress quarantine list. Rules-based (8-K item codes /
+             going-concern language), no AI judgement - an active flag blocks
+             Buys and exits any open position, so it leads the tab. -->
+        @if (fi.distressFlags.length > 0) {
+          <mat-card class="distress-panel">
+            <h4><mat-icon>report</mat-icon> Distress flags</h4>
+            <p class="hint">
+              Hard red flags from SEC filings. While active (~{{ fi.windowDays }} days from filing) the symbol is
+              quarantined: no new Buys, and any open position is exited.
+            </p>
+            @for (flag of fi.distressFlags; track flag.symbol + flag.filedAt + flag.reason) {
+              <div class="distress-row" [class.inactive]="!flag.isActive">
+                <span class="symbol">{{ flag.symbol }}</span>
+                @if (flag.isHeld) {
+                  <mat-chip class="badge held" matTooltip="You hold this position — the monitor will exit it">HELD</mat-chip>
+                }
+                @if (!flag.isActive) {
+                  <mat-chip class="badge" matTooltip="Outside the quarantine window — no longer blocking">EXPIRED</mat-chip>
+                }
+                <span class="reason">{{ flag.reason }}</span>
+                <span class="spacer"></span>
+                <span class="filing-meta">{{ flag.source }} · filed {{ flag.filedAt | date: 'dd MMM yyyy' }}</span>
+              </div>
+            }
+          </mat-card>
+        }
+
         @if (visibleDeltas().length === 0) {
           <p class="empty">No scored language changes in this window.</p>
         }

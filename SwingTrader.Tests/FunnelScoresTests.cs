@@ -49,6 +49,40 @@ public class FunnelScoresTests
         result.Degraded.Should().BeTrue();
     }
 
+    // ── FD2: the filing component ────────────────────────────────────────────
+
+    [Fact]
+    public void Forward_ThreeWayBlend_IncludesFilingComponent()
+    {
+        // sentiment 0.8, fundamental 0.6, filing 0.2 (a negative filing delta)
+        var result = FunnelScores.Forward(0.8m, 0.6m, 0.45m, 0.30m, 0.2m, 0.25m);
+
+        result.Score.Should().Be(5.9m); // (0.45*0.8 + 0.30*0.6 + 0.25*0.2) * 10
+        result.Degraded.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Forward_NoFilingData_IsNeutralAndNeverDegrades()
+    {
+        // "No fresh filing" is the NORMAL state for most symbols - it must
+        // contribute neutral 0.5 without disabling the veto via Degraded.
+        var result = FunnelScores.Forward(0.8m, 0.6m, 0.45m, 0.30m, filingComponent01: null, filingWeight: 0.25m);
+
+        result.Score.Should().Be(6.6m); // (0.45*0.8 + 0.30*0.6 + 0.25*0.5) * 10 = 6.65, banker's-rounded to 1dp
+        result.Degraded.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(null, null)]   // no scored filing at all
+    [InlineData(0.0, 0.5)]     // neutral / fully-decayed delta -> midpoint
+    [InlineData(-1.0, 0.0)]    // worst-case negative delta
+    [InlineData(1.0, 1.0)]     // best-case positive delta
+    [InlineData(-0.5, 0.25)]   // signed mapping is linear
+    public void FilingComponent01_MapsSignedDeltaOntoComponentScale(double? delta, double? expected)
+    {
+        FunnelScores.FilingComponent01((decimal?)delta).Should().Be((decimal?)expected);
+    }
+
     // ── Phase F3: the veto predicate + counterfactual scorecard ─────────────
 
     [Theory]

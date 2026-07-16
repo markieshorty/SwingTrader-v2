@@ -12,6 +12,7 @@ public enum ExitReason
     CircuitBreaker,
     MomentumHealthExit,
     ManualClose, // owner clicked "Close early" in the app - not rule-driven
+    DistressExit, // active distress flag (FD3): delisting/bankruptcy 8-K or going-concern filing
 }
 
 public record PositionCheckResult(

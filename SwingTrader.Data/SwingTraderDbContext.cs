@@ -35,6 +35,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     public DbSet<SentimentDailyScore> SentimentDailyScores => Set<SentimentDailyScore>();
     public DbSet<Filing> Filings => Set<Filing>();
     public DbSet<FilingDelta> FilingDeltas => Set<FilingDelta>();
+    public DbSet<DistressFlag> DistressFlags => Set<DistressFlag>();
     public DbSet<EconomicLink> EconomicLinks => Set<EconomicLink>();
 
     // The 'system' Account created by the AddMultiTenancy migration - all
@@ -258,6 +259,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.PriceLevelWeight).HasPrecision(18, 8);
             e.Property(x => x.ForwardSentimentWeight).HasPrecision(18, 8);
             e.Property(x => x.ForwardFundamentalWeight).HasPrecision(18, 8);
+            e.Property(x => x.ForwardFilingWeight).HasPrecision(18, 8);
             e.Property(x => x.BuyThreshold).HasPrecision(18, 8);
             e.Property(x => x.WatchThreshold).HasPrecision(18, 8);
             e.Property(x => x.StopLossPctDefault).HasPrecision(18, 8);
@@ -272,14 +274,15 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
                 SetupQualityWeight = 0.16m,
                 RelativeStrengthWeight = 0.14m,
                 PriceLevelWeight = 0.07m,
-                ForwardSentimentWeight = 0.60m,
-                ForwardFundamentalWeight = 0.40m,
+                ForwardSentimentWeight = 0.45m,
+                ForwardFundamentalWeight = 0.30m,
+                ForwardFilingWeight = 0.25m,
                 BuyThreshold = 6.0m,
                 WatchThreshold = 5.0m,
                 StopLossPctDefault = 0.05m,
                 IsActive = true,
                 Source = "Default",
-                Notes = "Default gate weights (6, sum to 1.0) + forward blend 60/40.",
+                Notes = "Default gate weights (6, sum to 1.0) + forward blend 45/30/25.",
                 CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                 UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
             });
@@ -410,6 +413,20 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.Model).HasMaxLength(100);
             // One delta per filing - re-scoring replaces, never duplicates.
             e.HasIndex(x => x.FilingId).IsUnique();
+            e.HasIndex(x => new { x.Symbol, x.FiledAt });
+        });
+
+        // Rules-based distress flags (FD3): 8-K item codes + going-concern
+        // language. Platform-level; the unique (accession, reason) index is
+        // what makes the daily sync idempotent.
+        modelBuilder.Entity<DistressFlag>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Symbol).IsRequired().HasMaxLength(10);
+            e.Property(x => x.AccessionNumber).IsRequired().HasMaxLength(30);
+            e.Property(x => x.Reason).IsRequired().HasMaxLength(300);
+            e.Property(x => x.Source).IsRequired().HasMaxLength(10);
+            e.HasIndex(x => new { x.AccessionNumber, x.Reason }).IsUnique();
             e.HasIndex(x => new { x.Symbol, x.FiledAt });
         });
 

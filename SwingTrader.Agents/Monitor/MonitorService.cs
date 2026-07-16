@@ -28,7 +28,9 @@ public class MonitorService(
     IAccountRepository accountRepo,
     IActivityLogRepository activityLog,
     IMarketRegimeService marketRegime,
+    IFilingRepository filingRepo,
     IOptions<ExecutionConfig> executionConfig,
+    IOptions<FilingDeltaConfig> filingDeltaConfig,
     ILogger<MonitorService> logger) : IMonitorService
 {
     private readonly ExecutionConfig _execution = executionConfig.Value;
@@ -146,6 +148,28 @@ public class MonitorService(
             logger.LogDebug("No open positions to monitor for account {AccountId}", accountId);
         }
 
+        // Distress exits (FD3): one query for every open symbol's active
+        // distress flags (delisting/bankruptcy 8-K, going-concern filing).
+        // A flagged position exits at market rather than waiting for the stop
+        // - the whole point is getting out BEFORE the gap. Fail-open: a repo
+        // error means no distress exits this cycle, never a stalled monitor.
+        var distressBySymbol = new Dictionary<string, DistressFlag>(StringComparer.OrdinalIgnoreCase);
+        if (trades.Count > 0)
+        {
+            try
+            {
+                var activeSince = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-filingDeltaConfig.Value.DistressWindowDays);
+                var flags = await filingRepo.GetActiveDistressFlagsAsync(
+                    trades.Select(t => t.Symbol).Distinct(StringComparer.OrdinalIgnoreCase).ToList(), activeSince, ct);
+                foreach (var flag in flags)
+                    distressBySymbol.TryAdd(flag.Symbol, flag); // newest-first from the repo
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Distress-flag lookup failed for account {AccountId} — distress exits skipped this cycle", accountId);
+            }
+        }
+
         foreach (var trade in trades)
         {
             if (ct.IsCancellationRequested)
@@ -180,6 +204,32 @@ public class MonitorService(
                     else
                     {
                         logger.LogWarning("{Symbol}: momentum health exit order failed — {Error}. Will retry next cycle.", trade.Symbol, momentumExitResult.ErrorMessage);
+                    }
+
+                    checked_++;
+                    if (!ct.IsCancellationRequested)
+                        await Task.Delay(TimeSpan.FromSeconds(1), ct);
+                    continue;
+                }
+
+                // Distress exit (FD3) beats the routine stop/target/trailing
+                // checks: an active delisting/bankruptcy/going-concern flag
+                // means the thesis is void - exit at market now, don't ride it
+                // down to the stop. Retries next cycle if the order fails.
+                if (distressBySymbol.TryGetValue(trade.Symbol, out var distress))
+                {
+                    var distressDetail = $"Distress exit: {distress.Reason} (filed {distress.FiledAt:yyyy-MM-dd}).";
+                    var distressResult = await positionExit.ClosePositionAsync(
+                        accountId, trade, t212, currentPrice, ExitReason.DistressExit, distressDetail, ct);
+
+                    if (distressResult.Success)
+                    {
+                        executedExits.Add(new ExecutedExit(trade.Symbol, ExitReason.DistressExit, distressResult.ExitPrice!.Value, distressResult.RealizedPnl));
+                    }
+                    else
+                    {
+                        logger.LogWarning("{Symbol}: distress exit order failed — {Error}. Will retry next cycle.", trade.Symbol, distressResult.ErrorMessage);
+                        flaggedExits.Add(new FlaggedExit(trade.Symbol, ExitReason.DistressExit, currentPrice));
                     }
 
                     checked_++;

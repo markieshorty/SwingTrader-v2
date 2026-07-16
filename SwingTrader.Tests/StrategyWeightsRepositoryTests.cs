@@ -118,7 +118,7 @@ public class StrategyWeightsRepositoryTests
         await repo.UpdateWeightsAsync(1, new StrategyWeightsUpdate(
             RsiWeight: 0.20m, MacdWeight: 0.10m, VolumeWeight: 0.30m,
             SetupQualityWeight: 0.20m, RelativeStrengthWeight: 0.15m, PriceLevelWeight: 0.05m,
-            ForwardSentimentWeight: 0.60m, ForwardFundamentalWeight: 0.40m,
+            ForwardSentimentWeight: 0.45m, ForwardFundamentalWeight: 0.30m, ForwardFilingWeight: 0.25m,
             BuyThreshold: 6.5m, WatchThreshold: 5.5m, StopLossPctDefault: 0.06m));
 
         var active = await repo.GetActiveWeightsAsync(1);
@@ -135,7 +135,7 @@ public class StrategyWeightsRepositoryTests
         var act = async () => await repo.UpdateWeightsAsync(1, new StrategyWeightsUpdate(
             RsiWeight: 0.20m, MacdWeight: 0.10m, VolumeWeight: 0.30m,
             SetupQualityWeight: 0.20m, RelativeStrengthWeight: 0.15m, PriceLevelWeight: 0.05m,
-            ForwardSentimentWeight: 0.60m, ForwardFundamentalWeight: 0.40m,
+            ForwardSentimentWeight: 0.45m, ForwardFundamentalWeight: 0.30m, ForwardFilingWeight: 0.25m,
             BuyThreshold: 6.5m, WatchThreshold: 5.5m, StopLossPctDefault: 0.06m));
 
         await act.Should().ThrowAsync<InvalidOperationException>();
