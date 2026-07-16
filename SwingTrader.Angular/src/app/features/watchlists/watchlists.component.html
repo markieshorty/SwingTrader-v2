@@ -4,12 +4,12 @@
       <div class="tab-body">
   <div class="page-header">
     <p class="muted small">
-      {{ enabledCount() }} of {{ maxEnabled }} watchlists enabled —
+      {{ enabledCount() }} watchlist{{ enabledCount() === 1 ? '' : 's' }} enabled —
       <span
         [matTooltip]="hasDuplicateEnabledSymbols()
           ? 'A symbol counts once here even if it appears on more than one enabled watchlist — the Research Agent only scans it once.'
           : 'No symbol appears on more than one enabled watchlist right now.'"
-      >{{ totalEnabledSymbolCount() }} of {{ maxTotalSymbols }} symbols</span>
+      >{{ totalEnabledSymbolCount() }} symbols scanned</span>
       @if (hasDuplicateEnabledSymbols()) {
         <span class="muted small">
           ({{ rawEnabledSymbolCount() }} including duplicates — some symbols appear on more than one enabled watchlist)
@@ -17,10 +17,12 @@
       }
       . The Research Agent scans the combined, deduplicated symbols of every enabled watchlist.
     </p>
-    <button mat-raised-button color="primary" [disabled]="!isOwner()" (click)="showCreateForm.set(!showCreateForm())">
-      <mat-icon>add</mat-icon>
-      New Watchlist
-    </button>
+    @if (!hasCustomWatchlist()) {
+      <button mat-raised-button color="primary" [disabled]="!canCreateWatchlist()" (click)="createWatchlist()">
+        <mat-icon>add</mat-icon>
+        Add Custom Watchlist
+      </button>
+    }
   </div>
 
   @if (targetSize() !== null) {
@@ -28,9 +30,8 @@
       <h3>AI-managed refresh</h3>
       <div class="slider-row">
         <label>Watchlist Size: {{ targetSize() }} symbols</label>
-        <mat-slider [min]="targetSizeRange().min" [max]="targetSizeEffectiveMax()" step="1" discrete>
-          <input matSliderThumb [ngModel]="targetSize()" (ngModelChange)="targetSize.set($event)"
-            [disabled]="!isOwner() || targetSizeOverCapacity()" />
+        <mat-slider [min]="targetSizeRange().min" [max]="targetSizeRange().max" step="1" discrete>
+          <input matSliderThumb [ngModel]="targetSize()" (ngModelChange)="targetSize.set($event)" [disabled]="!isOwner()" />
         </mat-slider>
       </div>
       <p class="muted small">
@@ -38,19 +39,6 @@
         candidates to scan but more Research/Monitor API calls every cycle — keep this lower if you're hitting provider
         rate limits.
       </p>
-      @if (targetSizeOverCapacity()) {
-        <p class="warn small">
-          Your other enabled watchlists already fill {{ maxTotalSymbols - targetSizeSpare() }} of the
-          {{ maxTotalSymbols }}-symbol limit, leaving no room for the AI-managed list. Remove symbols from — or disable —
-          another watchlist to free up places first.
-        </p>
-      } @else if (targetSizeCapped()) {
-        <p class="warn small">
-          Capped at {{ targetSizeEffectiveMax() }}: your other enabled watchlists use
-          {{ maxTotalSymbols - targetSizeSpare() }} of the {{ maxTotalSymbols }}-symbol limit, leaving room for
-          {{ targetSizeSpare() }}. Remove symbols from another watchlist to raise this.
-        </p>
-      }
       <button mat-raised-button color="primary" [disabled]="!isOwner() || !targetSizeDirty() || targetSizeSaving()"
         (click)="saveTargetSize()">
         {{ targetSizeSaving() ? 'Saving…' : 'Save' }}
@@ -63,56 +51,20 @@
       <h3>Qualitative refresh</h3>
       <div class="slider-row">
         <label>Qualitative Watchlist Size: {{ qualitativeSize() }} symbols</label>
-        <mat-slider [min]="qualitativeSizeRange().min" [max]="qualitativeSizeEffectiveMax()" step="1" discrete>
-          <input matSliderThumb [ngModel]="qualitativeSize()" (ngModelChange)="qualitativeSize.set($event)"
-            [disabled]="!isOwner() || qualitativeSizeOverCapacity()" />
+        <mat-slider [min]="qualitativeSizeRange().min" [max]="qualitativeSizeRange().max" step="1" discrete>
+          <input matSliderThumb [ngModel]="qualitativeSize()" (ngModelChange)="qualitativeSize.set($event)" [disabled]="!isOwner()" />
         </mat-slider>
       </div>
       <p class="muted small">
         How many symbols Claude picks on narrative grounds — business quality, catalysts, crowd attention — for your
-        Claude Qualitative watchlist each weekly refresh. This list shares the {{ maxTotalSymbols }}-symbol limit with
-        your other watchlists and the AI-managed list above, so it's capped at whatever they leave free.
+        Claude Qualitative watchlist each weekly refresh. This list is created disabled so you can review the rationales
+        before enabling it.
       </p>
-      @if (qualitativeSizeOverCapacity()) {
-        <p class="warn small">
-          Your other watchlists and the AI-managed list already claim all {{ maxTotalSymbols }} places. Lower the
-          AI-managed size above, or remove symbols from another watchlist, to make room here.
-        </p>
-      } @else if (qualitativeSizeCapped()) {
-        <p class="warn small">
-          Capped at {{ qualitativeSizeEffectiveMax() }}: your other watchlists ({{ manualReservedCount() }}) and the
-          AI-managed target ({{ targetSize() }}) leave room for {{ qualitativeSizeSpare() }} of the
-          {{ maxTotalSymbols }}-symbol limit. Lower the AI-managed size to raise this.
-        </p>
-      }
       <button mat-raised-button color="primary"
         [disabled]="!isOwner() || !qualitativeSizeDirty() || qualitativeSizeSaving()"
         (click)="saveQualitativeSize()">
         {{ qualitativeSizeSaving() ? 'Saving…' : 'Save' }}
       </button>
-    </mat-card>
-  }
-
-  @if (showCreateForm()) {
-    <mat-card class="panel create-form">
-      <mat-form-field appearance="outline" class="name-field">
-        <mat-label>Name</mat-label>
-        <input matInput [(ngModel)]="newName" placeholder="e.g. Biotech Watch" />
-      </mat-form-field>
-      <mat-form-field appearance="outline" class="type-field">
-        <mat-label>Type</mat-label>
-        <mat-select [(ngModel)]="newType">
-          <mat-option value="Manual">Manual</mat-option>
-          <mat-option value="AiManaged">AI Managed</mat-option>
-          <mat-option value="Mixed">Mixed</mat-option>
-        </mat-select>
-      </mat-form-field>
-      <mat-form-field appearance="outline" class="description-field">
-        <mat-label>Description (optional)</mat-label>
-        <input matInput [(ngModel)]="newDescription" />
-      </mat-form-field>
-      <button mat-raised-button color="primary" (click)="createWatchlist()">Create</button>
-      <button mat-button (click)="showCreateForm.set(false)">Cancel</button>
     </mat-card>
   }
 
@@ -129,9 +81,6 @@
           </span>
           <span class="name">{{ watchlist.name }}</span>
           <span class="type-badge" [class]="typeBadgeClass(watchlist.type)">{{ watchlist.type }}</span>
-          @if (watchlist.isDefault) {
-            <span class="default-badge">Default</span>
-          }
           <span class="symbol-count muted small">{{ watchlist.items.length }} / {{ maxSymbols }} symbols</span>
         </div>
 
@@ -154,10 +103,7 @@
           <button mat-stroked-button [disabled]="!isOwner()" (click)="toggleEnabled(watchlist)">
             {{ watchlist.isEnabled ? 'Disable' : 'Enable' }}
           </button>
-          @if (!watchlist.isDefault && isOwner()) {
-            <button mat-stroked-button (click)="setDefault(watchlist)">Set as default</button>
-          }
-          @if (!watchlist.isDefault && isOwner()) {
+          @if (watchlist.type === 'Manual' && isOwner()) {
             <button mat-icon-button (click)="deleteWatchlist(watchlist)" title="Delete watchlist">
               <mat-icon>delete</mat-icon>
             </button>

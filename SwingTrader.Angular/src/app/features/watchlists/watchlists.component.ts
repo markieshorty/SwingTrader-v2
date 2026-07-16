@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -10,7 +10,6 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSelectModule } from '@angular/material/select';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -24,7 +23,6 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
 
 const MAX_ENABLED_WATCHLISTS = 10;
 const MAX_SYMBOLS_PER_WATCHLIST = 50;
-const MAX_TOTAL_ENABLED_SYMBOLS = 100;
 
 @Component({
   selector: 'app-watchlists',
@@ -37,7 +35,6 @@ const MAX_TOTAL_ENABLED_SYMBOLS = 100;
     MatIconModule,
     MatFormFieldModule,
     MatInputModule,
-    MatSelectModule,
     MatSliderModule,
     MatChipsModule,
     MatTooltipModule,
@@ -60,10 +57,6 @@ export class WatchlistsComponent {
 
   newSymbolInput: Record<number, string> = {};
 
-  showCreateForm = signal(false);
-  newName = '';
-  newType: WatchlistType = 'Manual';
-  newDescription = '';
   isOwner = signal(false);
 
   // Stock List Universe tab — the full screening pool, lazy-loaded on first view.
@@ -80,8 +73,8 @@ export class WatchlistsComponent {
 
   enabledCount = () => this.watchlists().filter((w) => w.isEnabled).length;
   // Deduplicated - what Research actually scans (a symbol on two enabled
-  // watchlists is researched once). This is the number that matters for the
-  // MAX_TOTAL_ENABLED_SYMBOLS cap.
+  // watchlists is researched once). Shown for information only now that each
+  // list is independently capped.
   totalEnabledSymbolCount = () => {
     const symbols = new Set<string>();
     for (const w of this.watchlists()) {
@@ -100,7 +93,6 @@ export class WatchlistsComponent {
   hasDuplicateEnabledSymbols = () => this.rawEnabledSymbolCount() !== this.totalEnabledSymbolCount();
   maxEnabled = MAX_ENABLED_WATCHLISTS;
   maxSymbols = MAX_SYMBOLS_PER_WATCHLIST;
-  maxTotalSymbols = MAX_TOTAL_ENABLED_SYMBOLS;
 
   // Account-level target size for the weekly AI-managed watchlist refresh
   // (how many symbols Claude picks). Moved here from Risk Management - it's a
@@ -123,45 +115,15 @@ export class WatchlistsComponent {
   qualitativeSizeDirty = computed(() =>
     this.qualitativeSize() !== null && this.qualitativeSize() !== this.qualitativeSizeOriginal);
 
-  // The 100-symbol enabled cap is shared by THREE claimants: the fixed symbols
-  // on your manual/curated watchlists, the technical AI list, and the
-  // qualitative AI list. Both AI lists are REFILLED to their target each week
-  // (a refresh replaces their contents), so they reserve capacity by their
-  // TARGET, not their current size - otherwise two auto lists set to 50 + 20
-  // alongside a 39-symbol manual list would silently fill to 109.
+  // Each watchlist is now independently size-capped (no shared 100-symbol pool):
+  // the AI-managed list by its own range, the qualitative list by its own range,
+  // and the single custom list by MaxSymbolsPerWatchlist. So the sliders just use
+  // their configured ranges directly - no cross-list interdependence.
   //
-  // Fixed symbols reserved by everything that ISN'T auto-refilled: neither the
-  // default watchlist (which the technical refresh fills) nor the qualitative
-  // list. Deduplicated - a symbol on two enabled lists is researched once.
-  manualReservedCount = computed(() => {
-    const fixed = new Set<string>();
-    for (const w of this.watchlists()) {
-      if (w.isEnabled && !w.isDefault && w.type !== 'AiQualitative') {
-        for (const item of w.items) fixed.add(item.symbol.toUpperCase());
-      }
-    }
-    return fixed.size;
-  });
-
-  // ── Technical (default) AI list: first claim on the spare pool ──────────────
-  // It only competes with the fixed manual symbols; the qualitative list yields
-  // to it (below), so the primary list is never squeezed by the smaller probe.
-  targetSizeSpare = computed(() => MAX_TOTAL_ENABLED_SYMBOLS - this.manualReservedCount());
-  targetSizeEffectiveMax = computed(() =>
-    Math.max(this.targetSizeRange().min, Math.min(this.targetSizeRange().max, this.targetSizeSpare())));
-  targetSizeCapped = computed(() => this.targetSizeSpare() < this.targetSizeRange().max);
-  targetSizeOverCapacity = computed(() => this.targetSizeSpare() < this.targetSizeRange().min);
-
-  // ── Qualitative AI list: takes whatever the manual symbols AND the technical
-  // target leave behind, so manual + technical + qualitative can never exceed
-  // 100. Uses the technical list's live slider value so the qualitative cap
-  // moves as you drag the technical one. ──────────────────────────────────────
-  qualitativeSizeSpare = computed(() =>
-    MAX_TOTAL_ENABLED_SYMBOLS - this.manualReservedCount() - (this.targetSize() ?? 0));
-  qualitativeSizeEffectiveMax = computed(() =>
-    Math.max(this.qualitativeSizeRange().min, Math.min(this.qualitativeSizeRange().max, this.qualitativeSizeSpare())));
-  qualitativeSizeCapped = computed(() => this.qualitativeSizeSpare() < this.qualitativeSizeRange().max);
-  qualitativeSizeOverCapacity = computed(() => this.qualitativeSizeSpare() < this.qualitativeSizeRange().min);
+  // Whether the account already has its one custom (manual) watchlist - gates
+  // the "add" button, since only one is allowed.
+  hasCustomWatchlist = computed(() => this.watchlists().some((w) => w.type === 'Manual'));
+  canCreateWatchlist = computed(() => this.isOwner() && !this.hasCustomWatchlist());
 
   // Second-hop economic links (docs/second-hop-plan): per-symbol viewer with
   // the Owner-only suppress toggle - the hallucinated-link kill switch.
@@ -196,24 +158,6 @@ export class WatchlistsComponent {
     const linksParam = inject(ActivatedRoute).snapshot.queryParamMap.get('links');
     if (linksParam) this.toggleLinks(linksParam.toUpperCase());
 
-    // Once both the saved target and the watchlists have loaded, pull a
-    // stale-high target down to the spare-capacity ceiling so the slider can
-    // never sit above what would actually fit under the 100-symbol cap. Only
-    // ever tightens - it never nudges the value up on the user's behalf.
-    effect(() => {
-      const value = this.targetSize();
-      const max = this.targetSizeEffectiveMax();
-      if (value !== null && value > max) this.targetSize.set(max);
-    }, { allowSignalWrites: true });
-
-    // Same tightening for the qualitative list. Because its ceiling depends on
-    // the technical target, dragging the technical slider down frees the
-    // qualitative one, and dragging it up clamps the qualitative value here.
-    effect(() => {
-      const value = this.qualitativeSize();
-      const max = this.qualitativeSizeEffectiveMax();
-      if (value !== null && value > max) this.qualitativeSize.set(max);
-    }, { allowSignalWrites: true });
   }
 
   toggleLinks(symbol: string): void {
@@ -243,10 +187,6 @@ export class WatchlistsComponent {
   saveTargetSize(): void {
     const value = this.targetSize();
     if (value === null || !this.targetSizeDirty()) return;
-    // Never persist a target above spare capacity, even if a stale value
-    // slipped past the slider - the clamp effect normally handles this, but
-    // guard the save path too.
-    if (value > this.targetSizeEffectiveMax()) return;
     this.targetSizeSaving.set(true);
     this.api.updateWatchlistTargetSize(value).subscribe({
       next: () => {
@@ -264,9 +204,6 @@ export class WatchlistsComponent {
   saveQualitativeSize(): void {
     const value = this.qualitativeSize();
     if (value === null || !this.qualitativeSizeDirty()) return;
-    // Never persist above spare capacity (manual + technical target already
-    // claim their share) - the clamp effect normally handles it, guard here too.
-    if (value > this.qualitativeSizeEffectiveMax()) return;
     this.qualitativeSizeSaving.set(true);
     this.api.updateQualitativeWatchlistSize(value).subscribe({
       next: () => {
@@ -335,19 +272,8 @@ export class WatchlistsComponent {
   }
 
   toggleEnabled(watchlist: WatchlistDto): void {
-    if (!watchlist.isEnabled) {
-      const projectedCount = this.projectedEnabledUnionCount({ includeWatchlistId: watchlist.id });
-      if (projectedCount > MAX_TOTAL_ENABLED_SYMBOLS) {
-        this.snackbar.open(
-          `Enabling "${watchlist.name}" would bring the total across all enabled watchlists to ${projectedCount} symbols, ` +
-            `above the ${MAX_TOTAL_ENABLED_SYMBOLS} limit. Disable another watchlist first, or remove some symbols.`,
-          'Dismiss',
-          { duration: 6000 },
-        );
-        return;
-      }
-    }
-
+    // No shared union cap any more - each list is independently size-capped, so
+    // enabling is unconditional (the API still re-validates).
     const action = watchlist.isEnabled ? this.api.disableWatchlist(watchlist.id) : this.api.enableWatchlist(watchlist.id);
     action.subscribe({
       next: () => this.load(),
@@ -355,34 +281,11 @@ export class WatchlistsComponent {
     });
   }
 
-  // Mirrors the backend's dedup-by-symbol union check (WatchlistRepository.
-  // EnableWatchlistAsync/AddSymbolAsync) so the user gets an immediate answer
-  // without a round-trip - the API still re-validates, since watchlist
-  // contents could have changed in another tab/session since this page loaded.
-  private projectedEnabledUnionCount(opts: { includeWatchlistId?: number; extraSymbol?: string }): number {
-    const symbols = new Set<string>();
-    for (const w of this.watchlists()) {
-      if (w.isEnabled || w.id === opts.includeWatchlistId) {
-        for (const item of w.items) symbols.add(item.symbol.toUpperCase());
-      }
-    }
-    if (opts.extraSymbol) symbols.add(opts.extraSymbol.toUpperCase());
-    return symbols.size;
-  }
-
-  setDefault(watchlist: WatchlistDto): void {
-    this.api.setDefaultWatchlist(watchlist.id).subscribe({
-      next: () => {
-        this.snackbar.open(`"${watchlist.name}" is now the default watchlist`, 'Dismiss', { duration: 3000 });
-        this.load();
-      },
-      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to set default.'), 'Dismiss', { duration: 4000 }),
-    });
-  }
-
   deleteWatchlist(watchlist: WatchlistDto): void {
-    if (watchlist.isDefault) {
-      this.snackbar.open('The default watchlist can\'t be deleted - set another one as default first.', 'Dismiss', {
+    // Only the user's custom (manual) list is deletable - the AI-managed and
+    // Qualitative lists are system-owned (the API enforces this too).
+    if (watchlist.type !== 'Manual') {
+      this.snackbar.open('Only your custom watchlist can be deleted - the AI lists can only be disabled.', 'Dismiss', {
         duration: 5000,
       });
       return;
@@ -412,22 +315,6 @@ export class WatchlistsComponent {
     const symbol = (this.newSymbolInput[watchlist.id] ?? '').trim();
     if (!symbol) return;
 
-    if (watchlist.isEnabled) {
-      const alreadyInUnion = watchlist.items.some((i) => i.symbol.toUpperCase() === symbol.toUpperCase());
-      if (!alreadyInUnion) {
-        const projectedCount = this.projectedEnabledUnionCount({ extraSymbol: symbol });
-        if (projectedCount > MAX_TOTAL_ENABLED_SYMBOLS) {
-          this.snackbar.open(
-            `Adding "${symbol.toUpperCase()}" would bring the total across all enabled watchlists to ${projectedCount} symbols, ` +
-              `above the ${MAX_TOTAL_ENABLED_SYMBOLS} limit. Remove a symbol from another enabled watchlist, or disable one, first.`,
-            'Dismiss',
-            { duration: 6000 },
-          );
-          return;
-        }
-      }
-    }
-
     this.api.addWatchlistSymbol(watchlist.id, symbol).subscribe({
       next: () => {
         this.newSymbolInput[watchlist.id] = '';
@@ -444,17 +331,13 @@ export class WatchlistsComponent {
     });
   }
 
+  // One click creates the single custom (manual) watchlist straight away - no
+  // form. It starts empty and disabled with a default name the user can rename
+  // inline; only one is allowed (the button is hidden once it exists).
   createWatchlist(): void {
-    if (!this.newName.trim()) return;
-
-    this.api.createWatchlist(this.newName.trim(), this.newType, this.newDescription.trim() || undefined).subscribe({
-      next: () => {
-        this.newName = '';
-        this.newType = 'Manual';
-        this.newDescription = '';
-        this.showCreateForm.set(false);
-        this.load();
-      },
+    if (!this.canCreateWatchlist()) return;
+    this.api.createWatchlist('My Watchlist', 'Manual', undefined).subscribe({
+      next: () => this.load(),
       error: (err) => this.snackbar.open(errorMessage(err, 'Failed to create watchlist.'), 'Dismiss', { duration: 4000 }),
     });
   }

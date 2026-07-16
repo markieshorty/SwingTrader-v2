@@ -102,14 +102,6 @@ public class WatchlistConsumerFunction(
 
             var updateResult = await updater.UpdateAsync(message.AccountId, selections, ct);
 
-            if (updateResult.SkippedForCapacity.Count > 0)
-            {
-                await activityLog.LogAsync(message.AccountId, "SystemEvent", "Watchlist Capacity", "Warning",
-                    $"{updateResult.SkippedForCapacity.Count} selection(s) skipped this refresh — adding them would have " +
-                    $"exceeded the 100-symbol enabled-watchlist limit: {string.Join(", ", updateResult.SkippedForCapacity)}. " +
-                    "Disable another watchlist or remove some symbols to make room.", ct);
-            }
-
             // Qualitative sibling list (docs/qualitative-watchlist-plan):
             // Claude picks over the whole universe on narrative grounds,
             // applied to the account's (created-disabled) AiQualitative

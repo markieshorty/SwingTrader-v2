@@ -173,6 +173,19 @@ public class WatchlistRepository(SwingTraderDbContext db) : IWatchlistRepository
 
     public async Task<Watchlist> CreateWatchlistAsync(int accountId, string name, WatchlistType type, string? description, CancellationToken ct = default)
     {
+        // The AI-managed and Qualitative lists are system-owned; the only list a
+        // user creates is a single CUSTOM manual one. Reject anything else so the
+        // three-list model holds regardless of what the caller sends.
+        if (type != WatchlistType.Manual)
+            throw new ValidationException("Only a manual (custom) watchlist can be created.");
+
+        var customCount = await db.Watchlists.CountAsync(
+            w => w.AccountId == accountId && w.Type == WatchlistType.Manual, ct);
+        if (customCount >= WatchlistLimits.MaxCustomWatchlists)
+            throw new ValidationException(
+                $"You already have a custom watchlist. At most {WatchlistLimits.MaxCustomWatchlists} is allowed — " +
+                "edit or delete the existing one instead.");
+
         var now = DateTime.UtcNow;
         var watchlist = new Watchlist
         {
@@ -222,26 +235,9 @@ public class WatchlistRepository(SwingTraderDbContext db) : IWatchlistRepository
         if (enabledCount >= WatchlistLimits.MaxEnabledWatchlists)
             throw new ValidationException($"At most {WatchlistLimits.MaxEnabledWatchlists} watchlists can be enabled at once.");
 
-        // Research scores the deduplicated union of every enabled watchlist's
-        // symbols PLUS any ForceIntoFinalList item regardless of its own
-        // watchlist's enabled state (see GetAllEnabledSymbolsAsync) - the cap
-        // check must count the union the same way, or a force-listed item on
-        // a disabled watchlist silently doesn't count against the limit here.
-        var currentlyEnabledSymbols = await db.WatchlistItems
-            .Where(i => i.AccountId == accountId && i.IsActive && (i.Watchlist!.IsEnabled || i.ForceIntoFinalList))
-            .Select(i => i.Symbol)
-            .ToListAsync(ct);
-
-        var unionCount = currentlyEnabledSymbols
-            .Concat(watchlist.Items.Select(i => i.Symbol))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Count();
-
-        if (unionCount > WatchlistLimits.MaxTotalEnabledSymbols)
-            throw new ValidationException(
-                $"Enabling \"{watchlist.Name}\" would bring the total across all enabled watchlists to {unionCount} symbols, " +
-                $"above the {WatchlistLimits.MaxTotalEnabledSymbols} limit. Disable another watchlist first, or remove some symbols.");
-
+        // No shared union cap any more: each list is independently size-capped
+        // (MaxSymbolsPerWatchlist), and the fixed three-list model bounds the
+        // total, so enabling a list can't blow a global budget.
         watchlist.IsEnabled = true;
         watchlist.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
@@ -261,6 +257,12 @@ public class WatchlistRepository(SwingTraderDbContext db) : IWatchlistRepository
     {
         var watchlist = await db.Watchlists.FirstOrDefaultAsync(w => w.AccountId == accountId && w.Id == watchlistId, ct)
             ?? throw new InvalidOperationException($"Watchlist {watchlistId} not found for account {accountId}.");
+
+        // Only the user's custom (manual) list is deletable. The AI-managed and
+        // Claude Qualitative lists are system-owned - they can be enabled or
+        // disabled, never removed.
+        if (watchlist.Type != WatchlistType.Manual)
+            throw new ValidationException("Only your custom watchlist can be deleted — the AI-managed and Qualitative lists can only be disabled.");
 
         if (watchlist.IsDefault)
             throw new ValidationException("The default watchlist can't be deleted - set another watchlist as default first.");
@@ -287,34 +289,6 @@ public class WatchlistRepository(SwingTraderDbContext db) : IWatchlistRepository
             ?? throw new InvalidOperationException($"Watchlist {watchlistId} not found for account {accountId}.");
 
         var symbolUpper = symbol.ToUpperInvariant();
-
-        // Only matters if this watchlist is itself enabled - adding a symbol to
-        // a disabled one doesn't touch the union Research actually scores
-        // (GetAllEnabledSymbolsAsync) UNLESS the new item is also force-listed,
-        // which AddSymbolAsync never sets - so a plain add to a disabled
-        // watchlist is always safe to skip the check for. A symbol already in
-        // the union (enabled OR force-listed elsewhere) doesn't grow it, so
-        // only a genuinely new symbol can push the total over the cap.
-        if (watchlist.IsEnabled)
-        {
-            var enabledSymbols = await db.WatchlistItems
-                .Where(i => i.AccountId == accountId && i.IsActive && (i.Watchlist!.IsEnabled || i.ForceIntoFinalList))
-                .Select(i => i.Symbol)
-                .ToListAsync(ct);
-
-            if (!enabledSymbols.Contains(symbolUpper, StringComparer.OrdinalIgnoreCase))
-            {
-                var projectedCount = enabledSymbols
-                    .Concat([symbolUpper])
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Count();
-
-                if (projectedCount > WatchlistLimits.MaxTotalEnabledSymbols)
-                    throw new ValidationException(
-                        $"Adding '{symbolUpper}' would bring the total across all enabled watchlists to {projectedCount} symbols, " +
-                        $"above the {WatchlistLimits.MaxTotalEnabledSymbols} limit. Remove a symbol from another enabled watchlist, or disable one, first.");
-            }
-        }
 
         var existing = await db.WatchlistItems.IgnoreQueryFilters()
             .FirstOrDefaultAsync(i => i.WatchlistId == watchlistId && i.Symbol == symbolUpper, ct);
@@ -379,33 +353,6 @@ public class WatchlistRepository(SwingTraderDbContext db) : IWatchlistRepository
             .Include(i => i.Watchlist)
             .FirstOrDefaultAsync(i => i.AccountId == accountId && i.WatchlistId == watchlistId && i.Symbol == symbolUpper, ct)
             ?? throw new InvalidOperationException($"Symbol '{symbol}' not found on watchlist {watchlistId}.");
-
-        // Turning the flag ON is exactly as capable of growing the Research
-        // union as enabling a watchlist or adding a symbol - it was the one
-        // path that grew GetAllEnabledSymbolsAsync's union with no cap check
-        // at all, letting the account silently exceed MaxTotalEnabledSymbols.
-        // Only checked when actually turning it on for an item not already
-        // counted (already-enabled-watchlist items are already in the union).
-        if (force && !item.ForceIntoFinalList && !item.Watchlist!.IsEnabled)
-        {
-            var unionSymbols = await db.WatchlistItems
-                .Where(i => i.AccountId == accountId && i.IsActive && (i.Watchlist!.IsEnabled || i.ForceIntoFinalList))
-                .Select(i => i.Symbol)
-                .ToListAsync(ct);
-
-            if (!unionSymbols.Contains(symbolUpper, StringComparer.OrdinalIgnoreCase))
-            {
-                var projectedCount = unionSymbols
-                    .Concat([symbolUpper])
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Count();
-
-                if (projectedCount > WatchlistLimits.MaxTotalEnabledSymbols)
-                    throw new ValidationException(
-                        $"Force-listing '{symbolUpper}' would bring the total across all enabled watchlists to {projectedCount} symbols, " +
-                        $"above the {WatchlistLimits.MaxTotalEnabledSymbols} limit. Remove a symbol from an enabled watchlist, or un-force another item, first.");
-            }
-        }
 
         item.ForceIntoFinalList = force;
         item.UpdatedAt = DateTime.UtcNow;
