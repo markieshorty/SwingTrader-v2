@@ -303,6 +303,12 @@ export class StrategyLabComponent implements OnDestroy {
   // instead of the weights-only live-apply path which silently drops the very
   // rule change that often won.
   private lastSweepRunId: number | null = null;
+  // Fingerprint + shape of the last completed historic run, so the inline
+  // "Apply your dials" can reproduce the FULL tested config (incl. rule/tactic
+  // overrides) - but only when the form still matches what actually ran, and
+  // only for an A/B run (a bare single historic run stores no applyable config).
+  private lastHistoricConfigFingerprint: string | null = null;
+  private lastHistoricWasAb = false;
 
   // ── Claude analysis (advisory only) ────────────────────────────────────────
   analysing = signal(false);
@@ -527,9 +533,13 @@ export class StrategyLabComponent implements OnDestroy {
     this.ranAutopauseBear = request.autopauseDuringBear;
 
     if (historic) {
+      const fingerprint = this.configFingerprint();
+      const wasAb = request.compareBaseline;
       this.api.runStrategyLabHistoric(request).subscribe({
         next: (r) => {
           this.lastHistoricRunId = r.backtestRunId;
+          this.lastHistoricConfigFingerprint = fingerprint;
+          this.lastHistoricWasAb = wasAb;
           this.pollRun('ab', r.backtestRunId, 'Running — replaying the historic market data through your dials…',
             this.historicStatus, (result) => {
               if (result && 'mode' in result && result.mode === 'ab') this.abResult.set(result);
@@ -946,23 +956,85 @@ export class StrategyLabComponent implements OnDestroy {
 
   // ── Apply flows (always confirmed, owner-only) ─────────────────────────────
 
+  // Canonical snapshot of the config that defines a run's live-applyable
+  // outcome. Captured when a historic run is launched, re-computed at apply
+  // time: an exact match means the form still describes what actually ran, so
+  // the run's stored full config (rules + tactics) is safe to apply.
+  private configFingerprint(): string {
+    return JSON.stringify({
+      weights: this.weights(),
+      buyThreshold: this.buyThreshold(),
+      excludedSetups: this.excludedSetups(),
+      autopause: this.autopauseBear(),
+      rules: this.buildRules(),
+    });
+  }
+
   applyToProduction(): void {
+    const historic = this.dataSource() === 'historic';
+    // When the run carried rule/tactic overrides, apply the FULL tested config
+    // through the validated run - the same path the optimizer winner uses - so
+    // "Apply your dials" reproduces live EXACTLY what beat production, instead
+    // of silently dropping the tactics with only a warning.
+    if (historic && this.rulesTouched()) {
+      const matches = this.lastHistoricRunId != null
+        && this.lastHistoricWasAb
+        && this.lastHistoricConfigFingerprint === this.configFingerprint();
+      if (matches) {
+        this.applyHistoricRunFull(this.lastHistoricRunId!);
+        return;
+      }
+      // Rules are touched but no completed A/B run reproduces the current form
+      // (never ran, ran single, or the form changed since). Refuse to apply a
+      // weights-only subset that wouldn't match what's on screen.
+      this.snackbar.open(
+        'Your dials include rule/tactic overrides. Run an A/B (compare against production) with these exact dials first, then Apply reproduces the whole config live.',
+        'Dismiss', { duration: 8000 });
+      return;
+    }
+    // Weights-only apply: own-data (rules can't be tested on a replay) or a
+    // historic run with no rule overrides.
     const w = this.weights();
-    const autopause = this.dataSource() === 'historic' ? this.autopauseBear() : undefined;
+    const autopause = historic ? this.autopauseBear() : undefined;
     const autopauseNote = autopause !== undefined && autopause !== this.productionAutopauseBear
       ? ` This also turns the live bear-market autopause ${autopause ? 'ON' : 'OFF'}.`
       : '';
-    // Rule overrides are experiment-only and are NOT applied - without this
-    // warning, a run that beat production because of a rule change looks like
-    // it "didn't save" when the applied weights don't reproduce it.
-    const rulesNote = this.dataSource() === 'historic' && this.rulesTouched()
-      ? ' NOTE: your run used Trading-rules overrides (setups/holds/positions/trailing) which are NOT applied here — ' +
-        'to keep those, change them on the Settings › Trading page.'
-      : '';
     this.applyConfig(w, this.buyThreshold(),
       `This sets your LIVE strategy weights and Buy threshold (${this.buyThreshold().toFixed(1)}) to the dials currently in the form.` +
-      `${autopauseNote} The next research run will score every signal with them.${rulesNote} Are you sure?`,
+      `${autopauseNote} The next research run will score every signal with them. Are you sure?`,
       autopause, this.buildManualEvidence());
+  }
+
+  // Full-config apply of a completed A/B run: weights + rule/tactic overrides +
+  // autopause, through the same audited /backtest/{runId}/apply path as the
+  // optimizer winner and the history dialog.
+  private applyHistoricRunFull(runId: number): void {
+    this.dialog
+      .open(ConfirmDialogComponent, {
+        data: {
+          title: 'Apply to production',
+          message:
+            'This sets your LIVE strategy weights and Buy threshold AND applies the rule/per-setup-tactic ' +
+            'overrides you tested (and the bear-autopause setting if it differs) — the whole configuration this ' +
+            'A/B run evaluated. Are you sure?',
+          cancelLabel: 'Cancel',
+          confirmLabel: 'Apply to production',
+          confirmColor: 'warn',
+        },
+        width: '460px',
+      })
+      .afterClosed()
+      .subscribe((confirmed) => {
+        if (!confirmed) return;
+        this.api.applyBacktestRun(runId, true, true).subscribe({
+          next: () => {
+            this.snackbar.open('Applied — production now uses these dials and their rule/tactic overrides. Recorded in the refinement history. ✅', 'Dismiss', { duration: 4000 });
+            this.api.getStrategyWeights().subscribe({ next: (u) => this.productionWeights.set(u), error: () => {} });
+            this.productionAutopauseBear = this.autopauseBear();
+          },
+          error: (err) => this.snackbar.open(errorMessage(err, 'Failed to apply.'), 'Dismiss', { duration: 5000 }),
+        });
+      });
   }
 
   applySweepWinner(sweep: SweepResultDto): void {
