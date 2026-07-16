@@ -862,7 +862,7 @@ export interface RiskProfileRangeDto {
   max: number;
 }
 
-export type MarketRegimeName = 'Bull' | 'Neutral' | 'Bear' | 'Crisis';
+export type MarketRegimeName = 'Default' | 'Bull' | 'Neutral' | 'Bear' | 'Crisis';
 
 export type SetupTypeName =
   | 'OversoldRecovery'
@@ -918,6 +918,8 @@ export interface RiskProfileDto {
   currentRegime: MarketRegimeName;
   regimeUpdatedAt: string | null;
   availableRegimes: MarketRegimeName[];
+  enabled: boolean;              // Default book only: this book is the master override
+  defaultRegimeEnabled: boolean; // the Default book is on (governs live) — drives the [LIVE] capsule
   autopauseTrading: boolean;
   stopLossPct: number;   // flat stop, fraction (0.05 = 5%) — replaced the per-setup table
   targetPct: number;     // flat take-profit, fraction — replaced the per-conviction table
@@ -975,6 +977,7 @@ export interface UpdateRiskProfileDto {
   momentumHealthThreshold: number;
   // Which regime book to save, and whether it auto-pauses entries.
   regime: MarketRegimeName;
+  enabled: boolean; // Default book only: master override on/off
   autopauseTrading: boolean;
   stopLossPct: number;
   targetPct: number;

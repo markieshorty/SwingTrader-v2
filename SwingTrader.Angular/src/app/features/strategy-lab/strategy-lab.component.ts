@@ -1329,6 +1329,7 @@ export class StrategyLabComponent implements OnDestroy {
       next: (p) => {
         this.api.updateRiskProfile({
           regime: 'Bear',
+          enabled: p.enabled,
           lockedCapitalPct: p.lockedCapitalPct,
           maxOpenPositions: p.maxOpenPositions,
           dailyLossCircuitBreakerPct: p.dailyLossCircuitBreakerPct,

@@ -291,6 +291,22 @@
   &.active .live-dot {
     background: rgba(255, 255, 255, 0.3);
   }
+
+  // The Default book is governing all live trading - a bolder capsule than the
+  // per-regime "live" dot.
+  .live-capsule {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: #c62828;
+    color: #fff;
+    border-radius: 8px;
+    padding: 1px 6px;
+  }
+  &.active .live-capsule {
+    background: rgba(255, 255, 255, 0.35);
+  }
 }
 
 .setup-tactics-grid {

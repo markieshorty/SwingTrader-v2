@@ -245,26 +245,57 @@
             [disabled]="!isOwner()"
             (click)="selectRegime(r)">
             {{ r }}
-            @if (currentRegime() === r) { <span class="live-dot" title="Current live regime">live</span> }
+            @if (r === 'Default' && defaultRegimeEnabled()) {
+              <span class="live-capsule" title="This book governs all live trading">LIVE</span>
+            } @else if (r !== 'Default' && currentRegime() === r && !defaultRegimeEnabled()) {
+              <span class="live-dot" title="Current live regime">live</span>
+            }
           </button>
         }
       </div>
-      <p class="muted small">
-        Each market regime has its own risk book. The system detects the live regime and switches to that book
-        automatically — you're editing the <strong>{{ selectedRegime() }}</strong> book.
-        @if (currentRegime()) { The market is currently <strong>{{ currentRegime() }}</strong>. }
-      </p>
+      @if (selectedRegime() === 'Default') {
+        <p class="muted small">
+          The <strong>Default</strong> book is a master override. Turn it on to run one risk book in all market
+          conditions — the Bull / Neutral / Bear / Crisis books are then ignored, live and in every simulation.
+          Turn it off to go back to per-regime risk.
+        </p>
+      } @else {
+        <p class="muted small">
+          Each market regime has its own risk book. The system detects the live regime and switches to that book
+          automatically — you're editing the <strong>{{ selectedRegime() }}</strong> book.
+          @if (currentRegime()) { The market is currently <strong>{{ currentRegime() }}</strong>. }
+          @if (defaultRegimeEnabled()) {
+            <strong>Note: the Default book is ON, so it governs live trading and this book is currently ignored.</strong>
+          }
+        </p>
+      }
 
       @if (riskProfile(); as profile) {
         @if (riskProfileDraft(); as draft) {
           <p class="risk-label">Current profile: <strong>{{ profile.riskLabel }}</strong></p>
+
+          @if (selectedRegime() === 'Default') {
+            <div class="toggle-row">
+              <mat-slide-toggle
+                [checked]="draft.enabled"
+                [disabled]="!isOwner()"
+                (change)="updateRiskDraftField('enabled', $event.checked)">
+                Use this Default book for all market conditions
+              </mat-slide-toggle>
+            </div>
+            <p class="muted small">
+              When enabled, these risk settings apply to every trade regardless of the detected market regime,
+              overriding the per-regime books. Save to apply the change.
+            </p>
+          }
 
           <div class="toggle-row">
             <mat-slide-toggle
               [checked]="draft.autopauseTrading"
               [disabled]="!isOwner()"
               (change)="updateRiskDraftField('autopauseTrading', $event.checked)">
-              Auto-pause new entries while in the {{ selectedRegime() }} regime
+              @if (selectedRegime() === 'Default') { Auto-pause new entries }
+              @else { Auto-pause new entries while in the {{ selectedRegime() }} regime }
             </mat-slide-toggle>
           </div>
           <p class="muted small">

@@ -87,6 +87,7 @@ function toUpdateRiskProfileDto(profile: RiskProfileDto): UpdateRiskProfileDto {
     minHoldDays: profile.minHoldDays,
     momentumHealthThreshold: profile.momentumHealthThreshold,
     regime: profile.regime,
+    enabled: profile.enabled,
     autopauseTrading: profile.autopauseTrading,
     stopLossPct: profile.stopLossPct,
     targetPct: profile.targetPct,
@@ -328,8 +329,11 @@ export class SettingsComponent {
   // The regime book currently being edited, and the live regime the account is
   // actually in (drives the "active now" badge on the selector).
   selectedRegime = signal<MarketRegimeName>('Neutral');
-  readonly regimeOptions: MarketRegimeName[] = ['Bull', 'Neutral', 'Bear', 'Crisis'];
+  readonly regimeOptions: MarketRegimeName[] = ['Default', 'Bull', 'Neutral', 'Bear', 'Crisis'];
   currentRegime = computed(() => this.riskProfile()?.currentRegime ?? null);
+  // The Default master book is on - it governs live regardless of regime. Drives
+  // the [LIVE] capsule shown against the Default option.
+  defaultRegimeEnabled = computed(() => this.riskProfile()?.defaultRegimeEnabled ?? false);
 
   riskProfileDirty = computed(() => {
     const original = this.riskProfile();
@@ -349,7 +353,8 @@ export class SettingsComponent {
       original.earningsGateDays !== draft.earningsGateDays ||
       original.minHoldDays !== draft.minHoldDays ||
       original.momentumHealthThreshold !== draft.momentumHealthThreshold ||
-      original.autopauseTrading !== draft.autopauseTrading
+      original.autopauseTrading !== draft.autopauseTrading ||
+      original.enabled !== draft.enabled
     );
   });
 
