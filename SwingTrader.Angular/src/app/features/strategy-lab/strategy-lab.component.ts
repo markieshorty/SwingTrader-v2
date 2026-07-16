@@ -193,6 +193,12 @@ export class StrategyLabComponent implements OnDestroy {
     this.labTacticsDraft.update((rows) =>
       rows.map((r) => (r.setupType === setup ? { ...r, [key]: value } : r)));
   }
+
+  // A setup that's excluded from the run can't take trades, so editing its
+  // per-setup tactics is meaningless - the row's inputs disable.
+  isSetupExcluded(setup: string): boolean {
+    return this.excludedSetups().includes(setup);
+  }
   private profileRules = {
     maxHoldDays: 10, maxOpenPositions: 3, trailingActivation: 5, trailingDistance: 3,
     minHoldDays: 3, healthThreshold: 0.5, maxPositionPctOfActive: 0.33,

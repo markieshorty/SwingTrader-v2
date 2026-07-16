@@ -222,31 +222,34 @@
                     <span>Guide hold (d)</span><span>Trail arm %</span><span>Trail dist %</span>
                   </div>
                   @for (row of labTacticsDraft(); track row.setupType) {
-                    <div class="st-row">
-                      <span class="st-name">{{ row.setupType }}</span>
+                    <div class="st-row" [class.st-row-off]="isSetupExcluded(row.setupType)">
+                      <span class="st-name">
+                        {{ row.setupType }}
+                        @if (isSetupExcluded(row.setupType)) { <span class="muted small">(excluded)</span> }
+                      </span>
                       <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                        <input matInput type="number" step="0.5"
+                        <input matInput type="number" step="0.5" [disabled]="isSetupExcluded(row.setupType)"
                           [ngModel]="row.stopLossPct * 100"
                           (ngModelChange)="updateTacticField(row.setupType, 'stopLossPct', $event / 100)" />
                       </mat-form-field>
                       <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                        <input matInput type="number" step="0.5"
+                        <input matInput type="number" step="0.5" [disabled]="isSetupExcluded(row.setupType)"
                           [ngModel]="row.targetPct * 100"
                           (ngModelChange)="updateTacticField(row.setupType, 'targetPct', $event / 100)" />
                       </mat-form-field>
                       <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                        <input matInput type="number" step="1"
+                        <input matInput type="number" step="1" [disabled]="isSetupExcluded(row.setupType)"
                           [min]="ranges.guideHoldDays.min" [max]="ranges.guideHoldDays.max"
                           [ngModel]="row.guideHoldDays"
                           (ngModelChange)="updateTacticField(row.setupType, 'guideHoldDays', $event)" />
                       </mat-form-field>
                       <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                        <input matInput type="number" step="0.5"
+                        <input matInput type="number" step="0.5" [disabled]="isSetupExcluded(row.setupType)"
                           [ngModel]="row.trailingActivationPct * 100"
                           (ngModelChange)="updateTacticField(row.setupType, 'trailingActivationPct', $event / 100)" />
                       </mat-form-field>
                       <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                        <input matInput type="number" step="0.5"
+                        <input matInput type="number" step="0.5" [disabled]="isSetupExcluded(row.setupType)"
                           [ngModel]="row.trailingDistancePct * 100"
                           (ngModelChange)="updateTacticField(row.setupType, 'trailingDistancePct', $event / 100)" />
                       </mat-form-field>

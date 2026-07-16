@@ -426,6 +426,10 @@ h3 .bad {
     gap: 8px;
     align-items: center;
   }
+  // An excluded setup can't trade, so its tactic inputs are disabled and dimmed.
+  .st-row.st-row-off {
+    opacity: 0.55;
+  }
   .st-head {
     padding: 2px 0 4px;
     font-size: 0.7rem;
