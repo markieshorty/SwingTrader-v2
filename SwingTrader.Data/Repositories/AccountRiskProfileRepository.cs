@@ -7,9 +7,10 @@ namespace SwingTrader.Data.Repositories;
 
 public class AccountRiskProfileRepository(SwingTraderDbContext db) : IAccountRiskProfileRepository
 {
-    // Display/seed order, defensive -> aggressive left to right when sorted.
+    // Display/seed order: the Default master book first, then the detected
+    // regime books (defensive -> aggressive) when sorted.
     private static readonly MarketRegime[] AllRegimes =
-        [MarketRegime.Bull, MarketRegime.Neutral, MarketRegime.Bear, MarketRegime.Crisis];
+        [MarketRegime.Default, MarketRegime.Bull, MarketRegime.Neutral, MarketRegime.Bear, MarketRegime.Crisis];
 
     public async Task SeedDefaultAsync(int accountId, CancellationToken ct = default)
     {
@@ -35,14 +36,26 @@ public class AccountRiskProfileRepository(SwingTraderDbContext db) : IAccountRis
 
     public async Task<AccountRiskProfile> GetAsync(int accountId, CancellationToken ct = default)
     {
-        // The active book = the one for the account's currently-detected regime
-        // (Monitor keeps CurrentMarketRegime fresh). Defaults to Neutral.
+        // Master override: an enabled Default book governs every trade, ignoring
+        // the detected regime entirely (live and in sims).
+        var defaultBook = await db.AccountRiskProfiles
+            .FirstOrDefaultAsync(p => p.AccountId == accountId && p.Regime == MarketRegime.Default && p.Enabled, ct);
+        if (defaultBook is not null)
+            return defaultBook;
+
+        // Otherwise the active book = the one for the account's currently-detected
+        // regime (Monitor keeps CurrentMarketRegime fresh). Defaults to Neutral.
         var regime = await db.Accounts
             .Where(a => a.Id == accountId)
             .Select(a => (MarketRegime?)a.CurrentMarketRegime)
             .FirstOrDefaultAsync(ct) ?? MarketRegime.Neutral;
         return await GetAsync(accountId, regime, ct);
     }
+
+    // Whether the Default master book is enabled for this account (short-circuits
+    // regime switching). Cheap indexed lookup for the backtest baseline snapshot.
+    public Task<bool> IsDefaultRegimeEnabledAsync(int accountId, CancellationToken ct = default) =>
+        db.AccountRiskProfiles.AnyAsync(p => p.AccountId == accountId && p.Regime == MarketRegime.Default && p.Enabled, ct);
 
     public async Task<AccountRiskProfile> GetAsync(int accountId, MarketRegime regime, CancellationToken ct = default)
     {
@@ -109,6 +122,7 @@ public class AccountRiskProfileRepository(SwingTraderDbContext db) : IAccountRis
     // Copies every editable setting (all but identity / Regime / audit stamps).
     private static void CopySettings(AccountRiskProfile src, AccountRiskProfile dest)
     {
+        dest.Enabled = src.Enabled; // the Default book's master switch
         dest.LockedCapitalPct = src.LockedCapitalPct;
         dest.MaxOpenPositions = src.MaxOpenPositions;
         dest.DailyLossCircuitBreakerPct = src.DailyLossCircuitBreakerPct;

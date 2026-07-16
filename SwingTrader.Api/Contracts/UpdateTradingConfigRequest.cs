@@ -56,7 +56,9 @@ public record UpdateRiskProfileRequest(
     // Funnel F2: Forward-score size tilt strength; 0 = off (multiplier 1).
     decimal SizingAggressiveness = 0m,
     // Funnel F3: Forward-score floor under gate-passing Buys; 0 = veto off.
-    decimal ForwardVetoFloor = 2.5m);
+    decimal ForwardVetoFloor = 2.5m,
+    // Default book only: when true this book overrides regime switching entirely.
+    bool Enabled = false);
 
 public record UpdateSetupTacticsRequest(
     string SetupType,

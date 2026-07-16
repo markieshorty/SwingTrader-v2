@@ -69,8 +69,11 @@ public class BacktestConsumerFunction(
 
             // The engine mirrors the account's baseline (Neutral) risk book so
             // the Lab tests a reproducible strategy rather than one that shifts
-            // with today's live regime. (Per-regime backtesting is Phase 2.)
-            var profile = await riskProfileRepo.GetAsync(message.AccountId, MarketRegime.Neutral, ct);
+            // with today's live regime - UNLESS the Default master book is on,
+            // in which case every sim uses it (it governs live too).
+            var defaultOn = await riskProfileRepo.IsDefaultRegimeEnabledAsync(message.AccountId, ct);
+            var profile = await riskProfileRepo.GetAsync(
+                message.AccountId, defaultOn ? MarketRegime.Default : MarketRegime.Neutral, ct);
 
             // The account's live per-setup tactics, loaded ONCE (no per-candidate
             // DB reads - the Basic-tier DB only sees this and the candle load per
@@ -293,8 +296,16 @@ public class BacktestConsumerFunction(
 
     private async Task<IReadOnlyDictionary<MarketRegime, AccountRiskProfile>> LoadRegimeBooksAsync(int accountId, CancellationToken ct)
     {
+        var regimes = new[] { MarketRegime.Bull, MarketRegime.Neutral, MarketRegime.Bear, MarketRegime.Crisis };
+        // Default master book on: every regime resolves to it, so regime-switching
+        // (Mixed) and forced-regime runs all replay under the one live book.
+        if (await riskProfileRepo.IsDefaultRegimeEnabledAsync(accountId, ct))
+        {
+            var def = await riskProfileRepo.GetAsync(accountId, MarketRegime.Default, ct);
+            return regimes.ToDictionary(r => r, _ => def);
+        }
         var books = new Dictionary<MarketRegime, AccountRiskProfile>();
-        foreach (var regime in new[] { MarketRegime.Bull, MarketRegime.Neutral, MarketRegime.Bear, MarketRegime.Crisis })
+        foreach (var regime in regimes)
             books[regime] = await riskProfileRepo.GetAsync(accountId, regime, ct);
         return books;
     }

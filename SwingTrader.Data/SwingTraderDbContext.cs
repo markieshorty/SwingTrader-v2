@@ -338,6 +338,9 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.StopLossPct).HasPrecision(5, 4).HasDefaultValue(0.05m);
             e.Property(x => x.TargetPct).HasPrecision(5, 4).HasDefaultValue(0.08m);
             e.Property(x => x.FlatPositionPct).HasPrecision(5, 4).HasDefaultValue(0.10m);
+            // Default-book master switch; existing books backfill to disabled so
+            // nothing changes until the owner turns the Default book on.
+            e.Property(x => x.Enabled).HasDefaultValue(false);
             // One risk book per (account, regime).
             e.HasIndex(x => new { x.AccountId, x.Regime }).IsUnique();
         });

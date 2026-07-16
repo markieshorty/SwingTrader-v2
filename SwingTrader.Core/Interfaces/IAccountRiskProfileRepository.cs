@@ -17,8 +17,12 @@ public interface IAccountRiskProfileRepository
     // A specific regime's book (for the settings UI editing one book).
     Task<AccountRiskProfile> GetAsync(int accountId, MarketRegime regime, CancellationToken ct = default);
 
-    // All four regime books, ordered Bull, Neutral, Bear, Crisis.
+    // All risk books (Default + Bull/Neutral/Bear/Crisis), Default first.
     Task<List<AccountRiskProfile>> GetAllAsync(int accountId, CancellationToken ct = default);
+
+    // True when the Default master book is enabled - it overrides the detected
+    // regime for every trade (live and in sims).
+    Task<bool> IsDefaultRegimeEnabledAsync(int accountId, CancellationToken ct = default);
 
     // Calls profile.Validate() before saving; keyed on (AccountId, Regime).
     Task UpdateAsync(AccountRiskProfile profile, CancellationToken ct = default);

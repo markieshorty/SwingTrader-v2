@@ -21,6 +21,11 @@ public class AccountRiskProfile : BaseEntity
     // migrated into it). Unique per (AccountId, Regime).
     public MarketRegime Regime { get; set; } = MarketRegime.Neutral;
 
+    // Only meaningful on the Default book. When true, this book overrides regime
+    // switching entirely - every trade uses it regardless of detected regime.
+    // False on the other books (they're always selectable by detection).
+    public bool Enabled { get; set; }
+
     public decimal LockedCapitalPct { get; set; } = CapitalRules.LockedCapitalPct;
     public int MaxOpenPositions { get; set; } = CapitalRules.MaxOpenPositions;
     public decimal DailyLossCircuitBreakerPct { get; set; } = CapitalRules.DailyLossCircuitBreakerPct;

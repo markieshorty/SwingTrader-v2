@@ -90,7 +90,12 @@ public enum MarketRegime
     Bull,
     Neutral,
     Bear,
-    Crisis
+    Crisis,
+    // A master override book. Never DETECTED by the classifier - when its
+    // Enabled flag is on it governs every trade regardless of market regime,
+    // short-circuiting the Bull/Neutral/Bear/Crisis switch (live and in sims).
+    // Appended so existing stored int values (Bull=0..Crisis=3) are unchanged.
+    Default = 4,
 }
 
 public enum AnalystTrend

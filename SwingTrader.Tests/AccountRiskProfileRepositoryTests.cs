@@ -39,7 +39,7 @@ public class AccountRiskProfileRepositoryTests
         await repo.SeedDefaultAsync(1);
 
         // Four regime books, seeded once - the second call adds nothing.
-        (await db.AccountRiskProfiles.CountAsync(p => p.AccountId == 1)).Should().Be(4);
+        (await db.AccountRiskProfiles.CountAsync(p => p.AccountId == 1)).Should().Be(5); // Default + 4 regime books
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class AccountRiskProfileRepositoryTests
 
         profile.AccountId.Should().Be(1);
         profile.LockedCapitalPct.Should().Be(CapitalRules.LockedCapitalPct);
-        (await db.AccountRiskProfiles.CountAsync()).Should().Be(4);
+        (await db.AccountRiskProfiles.CountAsync()).Should().Be(5); // Default + 4 regime books
     }
 
     [Fact]
@@ -188,6 +188,6 @@ public class AccountRiskProfileRepositoryTests
         var reset = await repo.ResetToDefaultsAsync(1, MarketRegime.Neutral);
 
         reset.LockedCapitalPct.Should().Be(CapitalRules.LockedCapitalPct);
-        (await db.AccountRiskProfiles.CountAsync()).Should().Be(4);
+        (await db.AccountRiskProfiles.CountAsync()).Should().Be(5); // Default + 4 regime books
     }
 }

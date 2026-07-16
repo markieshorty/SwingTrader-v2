@@ -34,12 +34,18 @@ public static class RiskProfileEndpoints
                 ? await portfolioRepo.GetLatestSnapshotAsync(ctx.AccountId, account.TradingMode)
                 : null;
 
+            // Whether the Default master book is on (governs live regardless of
+            // the detected regime) - drives the [LIVE] capsule in the UI.
+            var defaultEnabled = await riskProfileRepo.IsDefaultRegimeEnabledAsync(ctx.AccountId);
+
             return Results.Ok(new
             {
                 Regime = profile.Regime.ToString(),
                 CurrentRegime = (account?.CurrentMarketRegime ?? MarketRegime.Neutral).ToString(),
                 RegimeUpdatedAt = account?.RegimeUpdatedAt,
-                AvailableRegimes = new[] { "Bull", "Neutral", "Bear", "Crisis" },
+                AvailableRegimes = new[] { "Default", "Bull", "Neutral", "Bear", "Crisis" },
+                DefaultRegimeEnabled = defaultEnabled,
+                profile.Enabled,
                 profile.AutopauseTrading,
                 profile.LockedCapitalPct,
                 profile.MaxOpenPositions,
@@ -103,6 +109,7 @@ public static class RiskProfileEndpoints
                 {
                     AccountId = ctx.AccountId,
                     Regime = req.Regime,
+                    Enabled = req.Enabled,
                     LockedCapitalPct = req.LockedCapitalPct,
                     MaxOpenPositions = req.MaxOpenPositions,
                     DailyLossCircuitBreakerPct = req.DailyLossCircuitBreakerPct,
