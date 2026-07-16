@@ -114,9 +114,8 @@ export class WatchlistsComponent {
 
   // Account-level size for the weekly QUALITATIVE watchlist refresh (how many
   // symbols Claude picks on narrative grounds). Separate, smaller knob than the
-  // technical target size above; the qualitative list is created disabled, so
-  // it doesn't consume the 100-symbol enabled cap until the user enables it -
-  // no spare-capacity cap is needed here.
+  // technical target size above - but it competes for the SAME 100-symbol
+  // enabled cap, so it's capped against spare capacity too (see below).
   qualitativeSize = signal<number | null>(null);
   private qualitativeSizeOriginal: number | null = null;
   qualitativeSizeRange = signal<{ min: number; max: number }>({ min: 5, max: 20 });
@@ -124,30 +123,45 @@ export class WatchlistsComponent {
   qualitativeSizeDirty = computed(() =>
     this.qualitativeSize() !== null && this.qualitativeSize() !== this.qualitativeSizeOriginal);
 
-  // Spare capacity for the AI-managed (technical) list: the global 100-symbol
-  // cap minus the symbols already held by every OTHER enabled watchlist. The
-  // AI-managed list's own current picks are excluded because the weekly
-  // refresh REPLACES them - what has to fit is `target` new picks alongside
-  // everything else that's enabled. Worst case (no overlap) is target + others,
-  // so the largest target that can never breach the cap is 100 - others.
-  targetSizeSpare = computed(() => {
-    const others = new Set<string>();
+  // The 100-symbol enabled cap is shared by THREE claimants: the fixed symbols
+  // on your manual/curated watchlists, the technical AI list, and the
+  // qualitative AI list. Both AI lists are REFILLED to their target each week
+  // (a refresh replaces their contents), so they reserve capacity by their
+  // TARGET, not their current size - otherwise two auto lists set to 50 + 20
+  // alongside a 39-symbol manual list would silently fill to 109.
+  //
+  // Fixed symbols reserved by everything that ISN'T auto-refilled: neither the
+  // default watchlist (which the technical refresh fills) nor the qualitative
+  // list. Deduplicated - a symbol on two enabled lists is researched once.
+  manualReservedCount = computed(() => {
+    const fixed = new Set<string>();
     for (const w of this.watchlists()) {
-      if (w.isEnabled && w.type !== 'AiManaged') {
-        for (const item of w.items) others.add(item.symbol.toUpperCase());
+      if (w.isEnabled && !w.isDefault && w.type !== 'AiQualitative') {
+        for (const item of w.items) fixed.add(item.symbol.toUpperCase());
       }
     }
-    return MAX_TOTAL_ENABLED_SYMBOLS - others.size;
+    return fixed.size;
   });
-  // The slider's usable max: the configured range max, pulled down to spare
-  // capacity, but never below the range min (mat-slider requires max >= min).
+
+  // ── Technical (default) AI list: first claim on the spare pool ──────────────
+  // It only competes with the fixed manual symbols; the qualitative list yields
+  // to it (below), so the primary list is never squeezed by the smaller probe.
+  targetSizeSpare = computed(() => MAX_TOTAL_ENABLED_SYMBOLS - this.manualReservedCount());
   targetSizeEffectiveMax = computed(() =>
     Math.max(this.targetSizeRange().min, Math.min(this.targetSizeRange().max, this.targetSizeSpare())));
-  // Spare capacity is squeezing the slider below its natural max.
   targetSizeCapped = computed(() => this.targetSizeSpare() < this.targetSizeRange().max);
-  // Even the smallest allowed target won't fit - the user must free up places
-  // on other watchlists before the AI list can be sized at all.
   targetSizeOverCapacity = computed(() => this.targetSizeSpare() < this.targetSizeRange().min);
+
+  // ── Qualitative AI list: takes whatever the manual symbols AND the technical
+  // target leave behind, so manual + technical + qualitative can never exceed
+  // 100. Uses the technical list's live slider value so the qualitative cap
+  // moves as you drag the technical one. ──────────────────────────────────────
+  qualitativeSizeSpare = computed(() =>
+    MAX_TOTAL_ENABLED_SYMBOLS - this.manualReservedCount() - (this.targetSize() ?? 0));
+  qualitativeSizeEffectiveMax = computed(() =>
+    Math.max(this.qualitativeSizeRange().min, Math.min(this.qualitativeSizeRange().max, this.qualitativeSizeSpare())));
+  qualitativeSizeCapped = computed(() => this.qualitativeSizeSpare() < this.qualitativeSizeRange().max);
+  qualitativeSizeOverCapacity = computed(() => this.qualitativeSizeSpare() < this.qualitativeSizeRange().min);
 
   // Second-hop economic links (docs/second-hop-plan): per-symbol viewer with
   // the Owner-only suppress toggle - the hallucinated-link kill switch.
@@ -190,6 +204,15 @@ export class WatchlistsComponent {
       const value = this.targetSize();
       const max = this.targetSizeEffectiveMax();
       if (value !== null && value > max) this.targetSize.set(max);
+    }, { allowSignalWrites: true });
+
+    // Same tightening for the qualitative list. Because its ceiling depends on
+    // the technical target, dragging the technical slider down frees the
+    // qualitative one, and dragging it up clamps the qualitative value here.
+    effect(() => {
+      const value = this.qualitativeSize();
+      const max = this.qualitativeSizeEffectiveMax();
+      if (value !== null && value > max) this.qualitativeSize.set(max);
     }, { allowSignalWrites: true });
   }
 
@@ -241,6 +264,9 @@ export class WatchlistsComponent {
   saveQualitativeSize(): void {
     const value = this.qualitativeSize();
     if (value === null || !this.qualitativeSizeDirty()) return;
+    // Never persist above spare capacity (manual + technical target already
+    // claim their share) - the clamp effect normally handles it, guard here too.
+    if (value > this.qualitativeSizeEffectiveMax()) return;
     this.qualitativeSizeSaving.set(true);
     this.api.updateQualitativeWatchlistSize(value).subscribe({
       next: () => {
