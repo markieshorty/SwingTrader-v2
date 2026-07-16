@@ -18,6 +18,13 @@ public class SetupTactics : BaseEntity
 {
     public SetupType SetupType { get; set; }
 
+    // Live trade-eligibility switch for this setup. Off = the setup is still
+    // detected, scored and shown (as Watch), but never becomes a live Buy - the
+    // same demote-to-Watch treatment as the forward veto. Lets the owner run a
+    // narrowed book (e.g. "only OversoldRecovery") without touching weights.
+    // Backtests honour it too, so the production baseline reflects live.
+    public bool Enabled { get; set; } = true;
+
     // Initial stop below entry (0.05 = 5%) and profit target above it.
     public decimal StopLossPct { get; set; } = CapitalRules.DefaultStopLossPct;
     public decimal TargetPct { get; set; } = CapitalRules.DefaultTargetPct;

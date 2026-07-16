@@ -84,6 +84,32 @@ public class SetupTacticsRepositoryTests
     }
 
     [Fact]
+    public async Task SeededSetups_AreEnabledByDefault_AndNoneDisabled()
+    {
+        await using var db = CreateDb();
+        var repo = await SeededRepoAsync(db);
+
+        (await repo.GetAllAsync(1)).Should().OnlyContain(t => t.Enabled);
+        (await repo.GetDisabledSetupsAsync(1)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task UpdateAsync_DisablingASetup_PersistsAndSurfacesInDisabledSet()
+    {
+        await using var db = CreateDb();
+        var repo = await SeededRepoAsync(db);
+        var t = await repo.GetAsync(1, SetupType.Breakout);
+        t!.Enabled = false;
+
+        await repo.UpdateAsync(t);
+
+        (await repo.GetAsync(1, SetupType.Breakout))!.Enabled.Should().BeFalse();
+        (await repo.GetDisabledSetupsAsync(1)).Should().BeEquivalentTo(new[] { SetupType.Breakout });
+        // Other setups stay enabled.
+        (await repo.GetAsync(1, SetupType.OversoldRecovery))!.Enabled.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task UpdateAsync_TargetNotAboveStop_Throws()
     {
         await using var db = CreateDb();

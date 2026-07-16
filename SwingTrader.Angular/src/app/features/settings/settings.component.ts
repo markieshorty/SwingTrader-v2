@@ -299,6 +299,27 @@ export class SettingsComponent {
     });
   }
 
+  // The live on/off switch applies immediately (unlike the tactic numbers,
+  // which batch behind a Save button) - the whole row is sent so the current
+  // stop/target/etc. ride along unchanged. On failure the toggle reverts.
+  toggleSetupEnabled(setup: SetupTypeName, enabled: boolean): void {
+    const prev = this.setupTacticsDraft().find((r) => r.setupType === setup)?.enabled ?? true;
+    this.setupTacticsDraft.update((rows) =>
+      rows.map((r) => (r.setupType === setup ? { ...r, enabled } : r)));
+    const row = this.setupTacticsDraft().find((r) => r.setupType === setup);
+    if (!row) return;
+    this.api.updateSetupTactics({ ...row }).subscribe({
+      next: () => this.snackbar.open(
+        `${SETUP_LABELS[setup]} ${enabled ? 'enabled — can trade live' : 'disabled — signals show as Watch, never Buy'}`,
+        'Dismiss', { duration: 3500 }),
+      error: (err) => {
+        this.setupTacticsDraft.update((rows) =>
+          rows.map((r) => (r.setupType === setup ? { ...r, enabled: prev } : r)));
+        this.snackbar.open(errorMessage(err, 'Failed to update.'), 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
   riskProfile = signal<RiskProfileDto | null>(null);
   // Working copy the sliders bind to - saved explicitly via saveRiskProfile(),
   // so a user can cancel/reload without their in-progress drag committing.

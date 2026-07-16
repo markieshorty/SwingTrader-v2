@@ -44,6 +44,7 @@ public class ResearchPipeline(
     IFilingRepository filingRepo,
     IOptions<FilingDeltaConfig> filingDeltaConfig,
     SecondHop.ISecondHopScorer secondHopScorer,
+    ISetupTacticsRepository setupTacticsRepo,
     ILogger<ResearchPipeline> logger) : IResearchPipeline
 {
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
@@ -695,7 +696,22 @@ public class ResearchPipeline(
         // (wider stop, longer guide-hold, early-arming trail). They now classify
         // like any other setup; whether they earn their keep is a per-setup
         // exit-tuning question, not a blanket exclusion.
-        if (conviction >= weights.BuyThreshold) return Recommendation.Buy;
+        if (conviction >= weights.BuyThreshold)
+        {
+            // Per-setup live switch: a setup turned OFF in Settings is still
+            // detected, scored and surfaced, but its Buy demotes to Watch -
+            // same treatment as the forward veto. Lets the owner run a narrowed
+            // book (e.g. only OversoldRecovery) without touching weights.
+            var disabled = await setupTacticsRepo.GetDisabledSetupsAsync(accountId);
+            if (disabled.Contains(setupType))
+            {
+                logger.LogInformation(
+                    "Setup {Setup} disabled for {Symbol}: conviction {Conviction:0.0} would Buy, demoted to Watch",
+                    setupType, symbol, conviction);
+                return Recommendation.Watch;
+            }
+            return Recommendation.Buy;
+        }
         if (conviction >= weights.WatchThreshold) return Recommendation.Watch;
         if (conviction >= 3.0m) return Recommendation.Hold;
         return Recommendation.Avoid;

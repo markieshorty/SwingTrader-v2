@@ -52,6 +52,18 @@ public class SetupTacticsRepository(SwingTraderDbContext db) : ISetupTacticsRepo
     public Task<SetupTactics?> GetAsync(int accountId, SetupType setupType, CancellationToken ct = default) =>
         db.SetupTactics.FirstOrDefaultAsync(t => t.AccountId == accountId && t.SetupType == setupType, ct);
 
+    // Setups switched OFF for live trading. Read once per research symbol to
+    // demote their Buys to Watch; a tiny (~5-row) indexed lookup. A setup with
+    // no row is treated as enabled (default), matching the model default.
+    public async Task<HashSet<SetupType>> GetDisabledSetupsAsync(int accountId, CancellationToken ct = default)
+    {
+        var disabled = await db.SetupTactics
+            .Where(t => t.AccountId == accountId && !t.Enabled)
+            .Select(t => t.SetupType)
+            .ToListAsync(ct);
+        return disabled.ToHashSet();
+    }
+
     public async Task<List<SetupTactics>> GetAllAsync(int accountId, CancellationToken ct = default)
     {
         var rows = await db.SetupTactics.Where(t => t.AccountId == accountId).ToListAsync(ct);
@@ -80,6 +92,7 @@ public class SetupTacticsRepository(SwingTraderDbContext db) : ISetupTacticsRepo
             ?? throw new InvalidOperationException(
                 $"No {tactics.SetupType} tactics found for account {tactics.AccountId}.");
 
+        existing.Enabled = tactics.Enabled;
         existing.StopLossPct = tactics.StopLossPct;
         existing.TargetPct = tactics.TargetPct;
         existing.GuideHoldDays = tactics.GuideHoldDays;

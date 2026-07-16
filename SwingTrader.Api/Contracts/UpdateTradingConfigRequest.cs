@@ -64,7 +64,8 @@ public record UpdateSetupTacticsRequest(
     decimal TargetPct,
     int GuideHoldDays,
     double TrailingActivationPct,
-    double TrailingDistancePct);
+    double TrailingDistancePct,
+    bool Enabled = true);
 
 public record UpdateWatchlistTargetSizeRequest(int TargetWatchlistSize);
 

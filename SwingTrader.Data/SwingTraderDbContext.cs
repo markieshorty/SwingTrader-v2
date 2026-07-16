@@ -347,6 +347,9 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.HasKey(x => x.Id);
             e.Property(x => x.StopLossPct).HasPrecision(5, 4);
             e.Property(x => x.TargetPct).HasPrecision(5, 4);
+            // Existing rows backfill to enabled (default value) so the migration
+            // never silently switches a setup off on deploy.
+            e.Property(x => x.Enabled).HasDefaultValue(true);
             // One tactics row per (account, setup).
             e.HasIndex(x => new { x.AccountId, x.SetupType }).IsUnique();
         });

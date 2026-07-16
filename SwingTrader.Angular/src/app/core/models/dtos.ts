@@ -842,6 +842,7 @@ export type SetupTypeName =
 
 export interface SetupTacticsRowDto {
   setupType: SetupTypeName;
+  enabled: boolean; // live trade-eligibility; off = detected + scored but Buys demote to Watch
   stopLossPct: number;
   targetPct: number;
   guideHoldDays: number;
@@ -862,6 +863,7 @@ export interface SetupTacticsDto {
 
 export interface UpdateSetupTacticsDto {
   setupType: SetupTypeName;
+  enabled: boolean;
   stopLossPct: number;
   targetPct: number;
   guideHoldDays: number;

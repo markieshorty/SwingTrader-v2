@@ -304,7 +304,7 @@
 .setup-tactics-grid .st-head,
 .setup-tactics-grid .st-row {
   display: grid;
-  grid-template-columns: 1.6fr repeat(5, 0.9fr) auto;
+  grid-template-columns: 1.6fr auto repeat(5, 0.9fr) auto;
   gap: 10px;
   align-items: center;
   min-width: 720px;
@@ -318,6 +318,12 @@
 
 .setup-tactics-grid .st-name {
   font-weight: 600;
+}
+
+// A setup switched off for live trading: dim the tactic inputs (they still
+// apply in backtests and to any open position) so the row reads as inactive.
+.setup-tactics-grid .st-row-off mat-form-field {
+  opacity: 0.5;
 }
 
 .setup-tactics-grid mat-form-field {

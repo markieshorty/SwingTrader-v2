@@ -16,6 +16,10 @@ public interface ISetupTacticsRepository
     // All setup rows for the account (seeding first if missing).
     Task<List<SetupTactics>> GetAllAsync(int accountId, CancellationToken ct = default);
 
+    // Setups switched OFF for live trading (their Buys demote to Watch). A
+    // missing row counts as enabled. Cheap indexed read for the research path.
+    Task<HashSet<SetupType>> GetDisabledSetupsAsync(int accountId, CancellationToken ct = default);
+
     // Calls tactics.Validate() before saving; keyed on (AccountId, SetupType).
     Task UpdateAsync(SetupTactics tactics, CancellationToken ct = default);
 }

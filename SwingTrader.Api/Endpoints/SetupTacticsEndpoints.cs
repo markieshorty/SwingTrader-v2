@@ -23,6 +23,7 @@ public static class SetupTacticsEndpoints
                 Setups = all.Select(t => new
                 {
                     SetupType = t.SetupType.ToString(),
+                    t.Enabled,
                     t.StopLossPct,
                     t.TargetPct,
                     t.GuideHoldDays,
@@ -57,6 +58,7 @@ public static class SetupTacticsEndpoints
                 {
                     AccountId = ctx.AccountId,
                     SetupType = setup,
+                    Enabled = req.Enabled,
                     StopLossPct = req.StopLossPct,
                     TargetPct = req.TargetPct,
                     GuideHoldDays = req.GuideHoldDays,
