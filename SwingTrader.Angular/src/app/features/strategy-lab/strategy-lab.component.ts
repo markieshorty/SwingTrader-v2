@@ -186,6 +186,10 @@ export class StrategyLabComponent implements OnDestroy {
   setupTacticsRanges = signal<SetupTacticsDto['allowedRanges'] | null>(null);
   labTacticsDraft = signal<SetupTacticsRowDto[]>([]);
   private labTacticsBaseline: SetupTacticsRowDto[] = [];
+  // Setups switched off for live trading - the default excluded set, so an
+  // untouched A/B and the "reset to live/production" actions mirror the book
+  // actually being traded.
+  private liveExcludedSetups: string[] = [];
   tacticsTouched = computed(() =>
     JSON.stringify(this.labTacticsDraft()) !== JSON.stringify(this.labTacticsBaseline));
 
@@ -264,7 +268,7 @@ export class StrategyLabComponent implements OnDestroy {
   }
 
   resetRules(): void {
-    this.excludedSetups.set([]);
+    this.excludedSetups.set([...this.liveExcludedSetups]);
     this.rulesMaxHoldDays.set(this.profileRules.maxHoldDays);
     this.rulesMaxOpenPositions.set(this.profileRules.maxOpenPositions);
     this.rulesTrailingActivation.set(this.profileRules.trailingActivation);
@@ -412,6 +416,10 @@ export class StrategyLabComponent implements OnDestroy {
         this.setupTacticsRanges.set(t.allowedRanges);
         this.labTacticsBaseline = t.setups.map((r) => ({ ...r }));
         this.labTacticsDraft.set(t.setups.map((r) => ({ ...r })));
+        // Setups switched off for live trading start excluded, so an untouched
+        // A/B mirrors the book actually traded (matches the production baseline).
+        this.liveExcludedSetups = t.setups.filter((r) => !r.enabled).map((r) => r.setupType);
+        this.excludedSetups.set([...this.liveExcludedSetups]);
       },
       error: () => {},
     });
@@ -506,7 +514,7 @@ export class StrategyLabComponent implements OnDestroy {
       priceLevel: w.priceLevelWeight,
     });
     this.buyThreshold.set(w.buyThreshold);
-    this.excludedSetups.set([]);
+    this.excludedSetups.set([...this.liveExcludedSetups]);
     this.autopauseBear.set(this.productionAutopauseBear);
     if (notify) this.snackbar.open('Dials reset to current production settings.', 'Dismiss', { duration: 3000 });
   }
