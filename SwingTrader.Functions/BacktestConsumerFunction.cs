@@ -155,8 +155,8 @@ public class BacktestConsumerFunction(
         // Flat sizing mirrors live: each position is FlatPositionPct of equity.
         PositionFraction: rules?.PositionFraction ?? profile.FlatPositionPct,
         // Locked-capital reserve caps total deployment to the un-locked share,
-        // mirroring live. Every backtest now honours it (was ignored before).
-        LockedCapitalPct: profile.LockedCapitalPct,
+        // mirroring live. Lab override wins; else the book's live value.
+        LockedCapitalPct: rules?.LockedCapitalPct ?? profile.LockedCapitalPct,
         // Lab-only pool-sizing sim (no live equivalent since the tier ladder
         // was removed): null keeps flat sizing; the two dials below only apply
         // when a Lab run explicitly sets ActiveCapitalPct.

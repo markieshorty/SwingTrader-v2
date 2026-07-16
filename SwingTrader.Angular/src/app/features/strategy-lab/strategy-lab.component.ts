@@ -213,10 +213,8 @@ export class StrategyLabComponent implements OnDestroy {
   // Position sizing. Flat = mirrors live sizing (X% of equity per trade).
   // Pool = a simulator-only alternative (no live equivalent): a capped
   // active-capital pool limits total deployment.
-  rulesSizingMode = signal<'flat' | 'pool'>('flat');
-  rulesPositionFraction = signal(10);      // percent of equity per trade (flat mode)
-  rulesActiveCapitalPct = signal(10);      // percent of equity in the pool (pool mode)
-  rulesMaxPositionPctOfActive = signal(33); // percent of pool per position (pool mode)
+  rulesPositionFraction = signal(10);      // percent of equity per trade (flat, mirrors live)
+  rulesLockedCapitalPct = signal(20);      // percent of account held in reserve (mirrors live)
 
   // ── Per-setup tactics editor (Phase 4) ─────────────────────────────────────
   // Prefilled from the account's live SetupTactics so an untouched grid mirrors
@@ -250,8 +248,8 @@ export class StrategyLabComponent implements OnDestroy {
   }
   private profileRules = {
     maxHoldDays: 10, maxOpenPositions: 3, trailingActivation: 5, trailingDistance: 3,
-    minHoldDays: 3, healthThreshold: 0.5, maxPositionPctOfActive: 0.33,
-    stopLossPct: 5, targetPct: 8, positionFraction: 10,
+    minHoldDays: 3, healthThreshold: 0.5,
+    stopLossPct: 5, targetPct: 8, positionFraction: 10, lockedCapitalPct: 20,
   };
   // Which regime book the Trading-rules panel is prefilled from. Defaults to
   // Neutral (what the backtest baseline replays under); the panel's dropdown
@@ -269,8 +267,8 @@ export class StrategyLabComponent implements OnDestroy {
     || !this.rulesSimulateProbation()
     || this.rulesMinHoldDays() !== this.profileRules.minHoldDays
     || this.rulesHealthThreshold() !== this.profileRules.healthThreshold
-    || this.rulesSizingMode() !== 'flat'
     || this.rulesPositionFraction() !== this.profileRules.positionFraction
+    || this.rulesLockedCapitalPct() !== this.profileRules.lockedCapitalPct
     || this.tacticsTouched());
 
   // The trading-rules override payload, or null when the panel is untouched
@@ -298,9 +296,10 @@ export class StrategyLabComponent implements OnDestroy {
       simulateProbation: this.rulesSimulateProbation(),
       minHoldDays: num(this.rulesMinHoldDays(), pr.minHoldDays),
       momentumHealthThreshold: num(this.rulesHealthThreshold(), pr.healthThreshold),
-      positionFraction: this.rulesSizingMode() === 'flat' ? this.rulesPositionFraction() / 100 : null,
-      activeCapitalPct: this.rulesSizingMode() === 'pool' ? this.rulesActiveCapitalPct() / 100 : null,
-      maxPositionPctOfActive: this.rulesSizingMode() === 'pool' ? this.rulesMaxPositionPctOfActive() / 100 : null,
+      positionFraction: this.rulesPositionFraction() / 100,
+      lockedCapitalPct: num(this.rulesLockedCapitalPct(), pr.lockedCapitalPct) === null ? null : this.rulesLockedCapitalPct() / 100,
+      activeCapitalPct: null,
+      maxPositionPctOfActive: null,
       // Per-setup tactics only ride when the grid is edited; otherwise null so
       // the engine uses the account's live SetupTactics unchanged.
       setupTactics: this.tacticsTouched()
@@ -329,10 +328,8 @@ export class StrategyLabComponent implements OnDestroy {
     this.rulesSimulateProbation.set(true);
     this.rulesMinHoldDays.set(this.profileRules.minHoldDays);
     this.rulesHealthThreshold.set(this.profileRules.healthThreshold);
-    this.rulesSizingMode.set('flat');
     this.rulesPositionFraction.set(this.profileRules.positionFraction);
-    this.rulesActiveCapitalPct.set(10);
-    this.rulesMaxPositionPctOfActive.set(Math.round(this.profileRules.maxPositionPctOfActive * 100));
+    this.rulesLockedCapitalPct.set(this.profileRules.lockedCapitalPct);
   }
 
   resetRules(): void {
@@ -355,10 +352,10 @@ export class StrategyLabComponent implements OnDestroy {
           trailingDistance: Math.round(p.trailingDistancePct * 100),
           minHoldDays: p.minHoldDays,
           healthThreshold: p.momentumHealthThreshold,
-          maxPositionPctOfActive: 0.33, // Lab pool-sizing sim default (no live equivalent)
           stopLossPct: Math.round(p.stopLossPct * 100),
           targetPct: Math.round(p.targetPct * 100),
           positionFraction: Math.round(p.flatPositionPct * 100),
+          lockedCapitalPct: Math.round(p.lockedCapitalPct * 100),
         };
         this.applyRuleDefaults();
       },

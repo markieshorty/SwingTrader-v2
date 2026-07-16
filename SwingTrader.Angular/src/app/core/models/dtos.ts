@@ -515,6 +515,7 @@ export interface LabTradingRulesDto {
   minHoldDays: number | null;        // probation check day
   momentumHealthThreshold: number | null; // probation pass bar, 0..1
   positionFraction: number | null;   // flat sizing: fraction of equity per trade
+  lockedCapitalPct: number | null;   // reserve as fraction of account; total deployment <= 1 - this
   activeCapitalPct: number | null;   // sim-only "capital pool" mode: pool as fraction of the whole account
   maxPositionPctOfActive: number | null; // sim-only: per-position share of the pool
   // Per-setup entry/exit tactics (Phase 4). null = use the account's live

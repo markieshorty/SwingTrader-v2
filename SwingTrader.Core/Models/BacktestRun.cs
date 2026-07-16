@@ -53,6 +53,7 @@ public record HistoricTradingRules(
     int? MinHoldDays = null,                  // probation check day (trading days held)
     decimal? MomentumHealthThreshold = null,  // probation pass bar, 0..1
     decimal? PositionFraction = null,         // flat sizing: fraction of equity per trade (default 0.10)
+    decimal? LockedCapitalPct = null,         // reserve fraction; total deployment <= 1 - this (null = the book's)
     decimal? ActiveCapitalPct = null,         // sim-only capital-pool sizing (no live equivalent)
     decimal? MaxPositionPctOfActive = null,   // per-position share of the pool; null = risk profile's
     // Per-setup entry/exit tactics (docs/setup-tactics-plan Phase 4). Null =

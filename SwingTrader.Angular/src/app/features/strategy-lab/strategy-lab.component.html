@@ -206,37 +206,22 @@
 
               <h4 class="rules-subhead">Position sizing</h4>
               <p class="muted small">
-                <strong>Flat</strong> mirrors live sizing: every position is a fixed slice of equity.
-                <strong>Capital pool</strong> is a simulator-only alternative (no live equivalent): a capped
-                active-capital pool limits <em>total</em> deployment, and each position takes at most a share of it.
+                Mirrors live flat sizing: every position is a fixed slice of equity, and total deployment can't exceed
+                the un-locked share (Locked Capital is a protected reserve, never traded).
               </p>
               <div class="rules-grid">
-                <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                  <mat-label>Sizing model</mat-label>
-                  <mat-select [value]="rulesSizingMode()" (selectionChange)="rulesSizingMode.set($event.value)">
-                    <mat-option value="flat">Flat (% of equity per trade)</mat-option>
-                    <mat-option value="pool">Capital pool (sim only)</mat-option>
-                  </mat-select>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic"
+                  matTooltip="Each position as a % of equity. Mirrors your live Flat position size.">
+                  <mat-label>Position size (% of equity)</mat-label>
+                  <input matInput type="number" min="1" max="50" step="0.5" [ngModel]="rulesPositionFraction()"
+                    (ngModelChange)="rulesPositionFraction.set($event)" />
                 </mat-form-field>
-                @if (rulesSizingMode() === 'flat') {
-                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                    <mat-label>Position size (% of equity)</mat-label>
-                    <input matInput type="number" min="1" max="50" [ngModel]="rulesPositionFraction()"
-                      (ngModelChange)="rulesPositionFraction.set($event)" />
-                  </mat-form-field>
-                } @else {
-                  <mat-form-field appearance="outline" subscriptSizing="dynamic"
-                    matTooltip="Simulator-only: an active-capital pool as % of the whole account that caps total deployment.">
-                    <mat-label>Active capital pool (% of account)</mat-label>
-                    <input matInput type="number" min="5" max="100" [ngModel]="rulesActiveCapitalPct()"
-                      (ngModelChange)="rulesActiveCapitalPct.set($event)" />
-                  </mat-form-field>
-                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                    <mat-label>Max position (% of pool)</mat-label>
-                    <input matInput type="number" min="5" max="100" [ngModel]="rulesMaxPositionPctOfActive()"
-                      (ngModelChange)="rulesMaxPositionPctOfActive.set($event)" />
-                  </mat-form-field>
-                }
+                <mat-form-field appearance="outline" subscriptSizing="dynamic"
+                  matTooltip="Protected reserve never traded — total deployment can't exceed (100% − this). Mirrors live Locked Capital.">
+                  <mat-label>Locked capital (% reserve)</mat-label>
+                  <input matInput type="number" min="0" max="90" step="0.5" [ngModel]="rulesLockedCapitalPct()"
+                    (ngModelChange)="rulesLockedCapitalPct.set($event)" />
+                </mat-form-field>
               </div>
               <h4 class="rules-subhead">Per-setup tactics (advanced)</h4>
               <p class="muted small">
