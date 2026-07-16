@@ -486,7 +486,9 @@ export class SettingsComponent {
     this.api.updateRiskProfile(draft).subscribe({
       next: () => {
         this.snackbar.open('Risk profile saved', 'Dismiss', { duration: 3000 });
-        this.loadRiskProfile();
+        // Stay on the book you just edited - reloading with no regime would
+        // snap back to the account's ACTIVE regime, which is jarring mid-edit.
+        this.loadRiskProfile(this.selectedRegime());
       },
       error: (err) => this.snackbar.open(errorMessage(err, 'Failed to save.'), 'Dismiss', { duration: 4000 }),
     });
@@ -510,7 +512,7 @@ export class SettingsComponent {
         this.api.resetRiskProfile(this.selectedRegime()).subscribe({
           next: () => {
             this.snackbar.open('Risk profile reset to defaults', 'Dismiss', { duration: 3000 });
-            this.loadRiskProfile();
+            this.loadRiskProfile(this.selectedRegime());
           },
           error: (err) => this.snackbar.open(errorMessage(err, 'Failed to reset.'), 'Dismiss', { duration: 4000 }),
         });
