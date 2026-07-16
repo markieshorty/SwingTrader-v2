@@ -448,4 +448,17 @@ public class LabAnalysisPromptsTests
         analysis.Should().Be("Just words, no JSON at all.");
         suggestion.Should().BeNull();
     }
+
+    [Fact]
+    public void ParseResponse_FencedProse_StripsFenceFromAnalysis()
+    {
+        // A model that ignores the JSON instruction and fences prose (no braces)
+        // must not leak the ```json / ``` markers into the displayed writeup.
+        const string raw = "```json\nThe winner widened the stop; held up out-of-sample.\n```";
+
+        var (analysis, suggestion) = LabAnalysisPrompts.ParseResponse(raw);
+
+        analysis.Should().Be("The winner widened the stop; held up out-of-sample.");
+        suggestion.Should().BeNull();
+    }
 }

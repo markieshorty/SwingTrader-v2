@@ -145,6 +145,10 @@ public static class LabAnalysisPrompts
     // back to treating the whole reply as prose analysis if parsing fails.
     public static (string Analysis, LabSuggestedConfig? Suggestion) ParseResponse(string raw)
     {
+        // Models sometimes wrap the reply in a ```json … ``` fence. Strip it so
+        // neither the JSON parse nor the prose fallback leaks fence markers into
+        // the displayed analysis.
+        raw = StripCodeFences(raw);
         try
         {
             var start = raw.IndexOf('{');
@@ -180,6 +184,21 @@ public static class LabAnalysisPrompts
         {
             return (raw.Trim(), null);
         }
+    }
+
+    // Removes a surrounding Markdown code fence (```/```json … ```) if present,
+    // leaving the inner content. Returns the trimmed input unchanged when there
+    // is no leading fence.
+    private static string StripCodeFences(string text)
+    {
+        var t = text.Trim();
+        if (!t.StartsWith("```", StringComparison.Ordinal)) return t;
+        var firstNewline = t.IndexOf('\n');
+        if (firstNewline < 0) return t.Trim('`').Trim();
+        t = t[(firstNewline + 1)..];
+        var closingFence = t.LastIndexOf("```", StringComparison.Ordinal);
+        if (closingFence >= 0) t = t[..closingFence];
+        return t.Trim();
     }
 }
 
