@@ -607,3 +607,33 @@ h3 .bad {
   }
   mat-button-toggle-group { font-size: 12px; }
 }
+
+.regime-forms {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0;
+
+  .regime-forms-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+  }
+  .regime-form {
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    h5 { margin: 0 0 2px; font-size: 14px; }
+    .rf-field {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+    }
+    mat-form-field { width: 100%; }
+    mat-button-toggle-group { font-size: 12px; }
+  }
+}

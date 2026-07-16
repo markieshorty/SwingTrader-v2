@@ -97,4 +97,17 @@ public record HistoricBacktestRequest(
     // user column's per-regime autopause overrides (key = regime name; absent =
     // inherit the live book). Defaulted so older queued requests deserialize.
     string? RegimeMode = null,
-    Dictionary<string, bool>? AutopauseOverrides = null);
+    // The user column's per-regime EXPOSURE overrides (key = regime name; a null
+    // field inherits the live book). Under a forced regime only Autopause is
+    // used; under Mixed all four exposure levers apply per regime (the "3 forms"
+    // editor). Defaulted so older queued requests deserialize.
+    Dictionary<string, RegimeExposureOverride>? RegimeOverrides = null);
+
+// A per-regime override of the exposure envelope for the user column of a Lab
+// run. Each null field inherits that regime's live risk book, so an untouched
+// form changes nothing. Percentages are fractions (0.20 = 20%).
+public record RegimeExposureOverride(
+    bool? Autopause = null,
+    decimal? LockedCapitalPct = null,
+    decimal? PositionFraction = null,
+    int? MaxOpenPositions = null);

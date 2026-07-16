@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, OnDestroy, signal } from '@angular/core';
+import { forkJoin } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
@@ -34,6 +35,7 @@ import {
   MonteCarloResultDto,
   SetupAblationDto,
   RegimeComparisonDto,
+  RegimeExposureOverrideDto,
   SetupTacticsDto,
   SetupTacticsRowDto,
   MarketRegimeName,
@@ -170,34 +172,72 @@ export class StrategyLabComponent implements OnDestroy {
   // trial e.g. "Bear not autopaused" against live.
   autopauseChoice = signal<Record<string, 'inherit' | 'on' | 'off'>>(
     { Bull: 'inherit', Neutral: 'inherit', Bear: 'inherit', Crisis: 'inherit' });
-  // Which override rows to show: all four under Mixed, just the forced one else.
+  // Single-regime autopause tri-state row: shown only for a forced regime (under
+  // Mixed the three exposure forms below own autopause). Empty = no row.
   autopauseRows = computed<string[]>(() => {
     switch (this.regimeMode()) {
-      case 'mixed': return ['Bull', 'Neutral', 'Bear', 'Crisis'];
       case 'bull': return ['Bull'];
       case 'bear': return ['Bear'];
       case 'crisis': return ['Crisis'];
       case 'neutral': return ['Neutral'];
-      default: return [];
+      default: return []; // mixed uses the exposure forms; off has no override
     }
   });
   setAutopauseChoice(regime: string, choice: 'inherit' | 'on' | 'off'): void {
     this.autopauseChoice.update((m) => ({ ...m, [regime]: choice }));
   }
 
+  // ── Mixed mode: per-regime exposure forms (Bull/Neutral/Bear) ──────────────
+  // Crisis is excluded - it's dormant in backtests (VIX-driven). Each form is
+  // prefilled from that regime's live book; editing overrides the user column
+  // only (the baseline uses live books). Percentages are whole numbers.
+  readonly mixedRegimes: MarketRegimeName[] = ['Bull', 'Neutral', 'Bear'];
+  isMixed = computed(() => this.regimeMode() === 'mixed');
+  regimeExposure = signal<Record<string, { autopause: boolean; lockedCapitalPct: number; positionFraction: number; maxOpenPositions: number }>>({});
+  setRegimeExposure(regime: string, key: 'autopause' | 'lockedCapitalPct' | 'positionFraction' | 'maxOpenPositions', value: number | boolean): void {
+    this.regimeExposure.update((m) => ({ ...m, [regime]: { ...m[regime], [key]: value } }));
+  }
+
   // The one Regime selector both frames the run AND prefills the Trading-rules
-  // fields from that book, so the numbers on screen always match what runs
-  // (no more prefill-here / run-there mismatch). Mixed has no single book, so it
-  // leaves the fields as-is; 'off' runs a single Neutral job.
+  // fields from that book, so the numbers on screen always match what runs.
+  // Mixed loads the three exposure forms from the live books instead.
   onRegimeModeChange(value: 'off' | 'neutral' | 'bull' | 'bear' | 'crisis' | 'mixed'): void {
     this.regimeMode.set(value);
+    if (value === 'mixed') {
+      forkJoin(Object.fromEntries(this.mixedRegimes.map((r) => [r, this.api.getRiskProfile(r)])))
+        .subscribe({
+          next: (books) => this.regimeExposure.set(Object.fromEntries(this.mixedRegimes.map((r) => [r, {
+            autopause: books[r].autopauseTrading,
+            lockedCapitalPct: Math.round(books[r].lockedCapitalPct * 100),
+            positionFraction: Math.round(books[r].flatPositionPct * 100),
+            maxOpenPositions: books[r].maxOpenPositions,
+          }]))),
+          error: () => {},
+        });
+      return;
+    }
     const book: Record<string, MarketRegimeName> =
       { off: 'Neutral', neutral: 'Neutral', bull: 'Bull', bear: 'Bear', crisis: 'Crisis' };
     if (book[value]) this.loadRegimeIntoRules(book[value]);
   }
-  private buildAutopauseOverrides(): Record<string, boolean> | null {
+
+  // Per-regime exposure overrides for the user column. Mixed sends all four
+  // levers from the three forms; a forced regime sends only its autopause choice.
+  private buildRegimeOverrides(): Record<string, RegimeExposureOverrideDto> | null {
+    if (this.isMixed()) {
+      const exp = this.regimeExposure();
+      const entries = this.mixedRegimes
+        .filter((r) => exp[r])
+        .map((r) => [r, {
+          autopause: exp[r].autopause,
+          lockedCapitalPct: exp[r].lockedCapitalPct / 100,
+          positionFraction: exp[r].positionFraction / 100,
+          maxOpenPositions: exp[r].maxOpenPositions,
+        }] as const);
+      return entries.length ? Object.fromEntries(entries) : null;
+    }
     const set = Object.entries(this.autopauseChoice()).filter(([, v]) => v !== 'inherit');
-    return set.length ? Object.fromEntries(set.map(([r, v]) => [r, v === 'on'])) : null;
+    return set.length ? Object.fromEntries(set.map(([r, v]) => [r, { autopause: v === 'on' }])) : null;
   }
 
   // Retained for the apply / validate / Monte-Carlo paths, which still reason
@@ -628,7 +668,7 @@ export class StrategyLabComponent implements OnDestroy {
       // Regime frame both columns replay under ('off' = single Neutral run);
       // per-regime autopause overrides ride the user column only.
       regimeMode: historic ? (this.regimeMode() === 'off' ? 'neutral' : this.regimeMode()) : null,
-      autopauseOverrides: historic ? this.buildAutopauseOverrides() : null,
+      regimeOverrides: historic ? this.buildRegimeOverrides() : null,
     };
     this.ranWeights = request.weights;
     this.ranThreshold = request.buyThreshold;

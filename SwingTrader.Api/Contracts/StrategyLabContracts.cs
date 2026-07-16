@@ -43,11 +43,11 @@ public record StrategyLabRequest(
     // period; "mixed" switches book by the regime detected each day (live-like).
     // Supersedes the legacy AutopauseDuringBear SPY-200 proxy.
     string? RegimeMode = null,
-    // Historic mode: per-regime autopause override for the USER column only, so
-    // you can trial e.g. "Bear not autopaused" without touching the live book.
-    // Key = regime name; absent = inherit that book's live setting. The baseline
-    // always uses the live books.
-    Dictionary<string, bool>? AutopauseOverrides = null);
+    // Historic mode: per-regime EXPOSURE overrides for the USER column only, so
+    // you can trial e.g. "Bear not autopaused" or "Bear with more locked capital"
+    // without touching the live book. Key = regime name; null fields inherit that
+    // book. Forced regime uses only Autopause; Mixed uses all four (3-forms).
+    Dictionary<string, Core.Models.RegimeExposureOverride>? RegimeOverrides = null);
 
 public record LabTradeOutcome(
     string Symbol, DateTime OpenedAt, decimal Conviction, string Setup, decimal ReturnPct, bool WouldTake);

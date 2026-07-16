@@ -542,7 +542,16 @@ export interface StrategyLabRequestDto {
   autopauseDuringBear?: boolean; // historic: skip entries while SPY < 200dma (mirrors live autopause)
   rules?: LabTradingRulesDto | null; // historic: trading-rule experiment overrides
   regimeMode?: string | null; // historic: 'neutral'|'bull'|'bear'|'crisis'|'mixed' envelope both columns run under
-  autopauseOverrides?: Record<string, boolean> | null; // historic: per-regime autopause override for the user column
+  regimeOverrides?: Record<string, RegimeExposureOverrideDto> | null; // historic: per-regime exposure override, user column
+}
+
+// Per-regime exposure override for the user column (null field = inherit that
+// book). Forced regime uses only autopause; Mixed uses all four (the 3 forms).
+export interface RegimeExposureOverrideDto {
+  autopause?: boolean | null;
+  lockedCapitalPct?: number | null;   // fraction
+  positionFraction?: number | null;   // fraction
+  maxOpenPositions?: number | null;
 }
 
 export interface LabResultDto {

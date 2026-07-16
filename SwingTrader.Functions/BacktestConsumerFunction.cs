@@ -235,7 +235,7 @@ public class BacktestConsumerFunction(
         {
             var books = await LoadRegimeBooksAsync(accountId, ct);
             cfg = BuildRegimeConfig(request.Weights, request.BuyThreshold, request.ExcludeBreakout, request.Rules,
-                request.RegimeMode, books, request.AutopauseOverrides, accountTactics);
+                request.RegimeMode, books, request.RegimeOverrides, accountTactics);
         }
         else
         {
@@ -269,7 +269,7 @@ public class BacktestConsumerFunction(
             HistoricConfig cfg;
             if (books is not null)
             {
-                var overrides = i == 0 ? request.AutopauseOverrides : null; // user column only
+                var overrides = i == 0 ? request.RegimeOverrides : null; // user column only
                 cfg = BuildRegimeConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.Rules,
                     request.RegimeMode!, books, overrides, accountTactics);
             }
@@ -308,11 +308,24 @@ public class BacktestConsumerFunction(
         HistoricBacktestWeights w, decimal buyThreshold, bool excludeBreakout, HistoricTradingRules? rules,
         string regimeMode,
         IReadOnlyDictionary<MarketRegime, AccountRiskProfile> books,
-        IReadOnlyDictionary<string, bool>? autopauseOverrides,
+        IReadOnlyDictionary<string, RegimeExposureOverride>? overrides,
         IReadOnlyDictionary<SetupType, HistoricSetupTactics> accountTactics)
     {
-        bool Autopause(MarketRegime r) =>
-            autopauseOverrides is not null && autopauseOverrides.TryGetValue(r.ToString(), out var v) ? v : books[r].AutopauseTrading;
+        RegimeExposureOverride? Ov(MarketRegime r) =>
+            overrides is not null && overrides.TryGetValue(r.ToString(), out var o) ? o : null;
+
+        // The regime's live envelope with any user override layered on (a null
+        // field inherits the book) - the "3 forms" editor under Mixed.
+        RegimeEnvelope Envelope(MarketRegime r)
+        {
+            var b = books[r];
+            var o = Ov(r);
+            return new RegimeEnvelope(
+                o?.Autopause ?? b.AutopauseTrading,
+                o?.MaxOpenPositions ?? b.MaxOpenPositions,
+                o?.PositionFraction ?? b.FlatPositionPct,
+                o?.LockedCapitalPct ?? b.LockedCapitalPct);
+        }
 
         if (string.Equals(regimeMode, "mixed", StringComparison.OrdinalIgnoreCase))
         {
@@ -320,15 +333,15 @@ public class BacktestConsumerFunction(
             return ToConfig(w, buyThreshold, excludeBreakout, autopauseDuringBear: false, neutral, accountTactics, rules)
                 with
                 {
-                    RegimeBooks = books.ToDictionary(
-                        kv => kv.Key,
-                        kv => new RegimeEnvelope(Autopause(kv.Key), kv.Value.MaxOpenPositions, kv.Value.FlatPositionPct, kv.Value.LockedCapitalPct)),
+                    RegimeBooks = books.Keys.ToDictionary(r => r, Envelope),
                 };
         }
+        // Forced single regime: the exit/probation rules come from the uniform
+        // panel (rules); only Autopause is taken from the per-regime override.
         var regime = Enum.TryParse<MarketRegime>(regimeMode, ignoreCase: true, out var parsed) ? parsed : MarketRegime.Neutral;
         var book = books[regime];
         return ToConfig(w, buyThreshold, excludeBreakout, autopauseDuringBear: false, book, accountTactics, rules)
-            with { ForceAutopause = Autopause(regime) };
+            with { ForceAutopause = Ov(regime)?.Autopause ?? book.AutopauseTrading };
     }
 
     // Sweep: candidates generated around the baseline, evaluated on the train

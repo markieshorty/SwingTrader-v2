@@ -70,7 +70,7 @@ public static class StrategyLabEndpoints
                         // Regime frame for both columns; the per-regime autopause
                         // overrides land on the user column only (consumer side).
                         RegimeMode: req.RegimeMode,
-                        AutopauseOverrides: req.AutopauseOverrides);
+                        RegimeOverrides: req.RegimeOverrides);
                 }
                 else
                 {
@@ -79,7 +79,7 @@ public static class StrategyLabEndpoints
                         AutopauseDuringBear: req.AutopauseDuringBear,
                         Rules: req.Rules,
                         RegimeMode: req.RegimeMode,
-                        AutopauseOverrides: req.AutopauseOverrides);
+                        RegimeOverrides: req.RegimeOverrides);
                 }
 
                 var run = await runs.AddAsync(new BacktestRun

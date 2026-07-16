@@ -128,6 +128,47 @@
               </div>
             }
 
+            @if (isMixed()) {
+              <div class="regime-forms">
+                <span class="muted small">
+                  Per-regime exposure (your column only — the baseline uses live books). Each form is prefilled from that
+                  regime's live book; edit to trial a change. Crisis is omitted — it's dormant in backtests (VIX-driven).
+                </span>
+                <div class="regime-forms-grid">
+                  @for (regime of mixedRegimes; track regime) {
+                    @if (regimeExposure()[regime]; as ex) {
+                      <mat-card class="regime-form">
+                        <h5>{{ regime }}</h5>
+                        <div class="rf-field">
+                          <span>Autopause</span>
+                          <mat-button-toggle-group [value]="ex.autopause"
+                            (change)="setRegimeExposure(regime, 'autopause', $event.value)" hideSingleSelectionIndicator>
+                            <mat-button-toggle [value]="true">Pause</mat-button-toggle>
+                            <mat-button-toggle [value]="false">Trade</mat-button-toggle>
+                          </mat-button-toggle-group>
+                        </div>
+                        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                          <mat-label>Position size (%)</mat-label>
+                          <input matInput type="number" min="1" max="50" step="0.5" [ngModel]="ex.positionFraction"
+                            (ngModelChange)="setRegimeExposure(regime, 'positionFraction', $event)" />
+                        </mat-form-field>
+                        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                          <mat-label>Locked capital (%)</mat-label>
+                          <input matInput type="number" min="0" max="90" step="0.5" [ngModel]="ex.lockedCapitalPct"
+                            (ngModelChange)="setRegimeExposure(regime, 'lockedCapitalPct', $event)" />
+                        </mat-form-field>
+                        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                          <mat-label>Max positions</mat-label>
+                          <input matInput type="number" min="1" max="20" [ngModel]="ex.maxOpenPositions"
+                            (ngModelChange)="setRegimeExposure(regime, 'maxOpenPositions', $event)" />
+                        </mat-form-field>
+                      </mat-card>
+                    }
+                  }
+                </div>
+              </div>
+            }
+
             <mat-expansion-panel class="rules-panel">
               <mat-expansion-panel-header>
                 <mat-panel-title>
@@ -151,11 +192,13 @@
                   <input matInput type="number" min="2" max="30" [ngModel]="rulesMaxHoldDays()"
                     (ngModelChange)="rulesMaxHoldDays.set($event)" />
                 </mat-form-field>
-                <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                  <mat-label>Max open positions</mat-label>
-                  <input matInput type="number" min="1" max="10" [ngModel]="rulesMaxOpenPositions()"
-                    (ngModelChange)="rulesMaxOpenPositions.set($event)" />
-                </mat-form-field>
+                @if (!isMixed()) {
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>Max open positions</mat-label>
+                    <input matInput type="number" min="1" max="10" [ngModel]="rulesMaxOpenPositions()"
+                      (ngModelChange)="rulesMaxOpenPositions.set($event)" />
+                  </mat-form-field>
+                }
                 <mat-form-field appearance="outline" subscriptSizing="dynamic"
                   matTooltip="NOT a take-profit: once the position is up this much, a trailing stop switches on and follows the price from below. The trade keeps running — this only starts protecting the gain.">
                   <mat-label>Trailing stop switches on after gain of (%)</mat-label>
@@ -198,25 +241,32 @@
                 Simulate probation (momentum health check)
               </mat-slide-toggle>
 
-              <h4 class="rules-subhead">Position sizing</h4>
-              <p class="muted small">
-                Mirrors live flat sizing: every position is a fixed slice of equity, and total deployment can't exceed
-                the un-locked share (Locked Capital is a protected reserve, never traded).
-              </p>
-              <div class="rules-grid">
-                <mat-form-field appearance="outline" subscriptSizing="dynamic"
-                  matTooltip="Each position as a % of equity. Mirrors your live Flat position size.">
-                  <mat-label>Position size (% of equity)</mat-label>
-                  <input matInput type="number" min="1" max="50" step="0.5" [ngModel]="rulesPositionFraction()"
-                    (ngModelChange)="rulesPositionFraction.set($event)" />
-                </mat-form-field>
-                <mat-form-field appearance="outline" subscriptSizing="dynamic"
-                  matTooltip="Protected reserve never traded — total deployment can't exceed (100% − this). Mirrors live Locked Capital.">
-                  <mat-label>Locked capital (% reserve)</mat-label>
-                  <input matInput type="number" min="0" max="90" step="0.5" [ngModel]="rulesLockedCapitalPct()"
-                    (ngModelChange)="rulesLockedCapitalPct.set($event)" />
-                </mat-form-field>
-              </div>
+              @if (!isMixed()) {
+                <h4 class="rules-subhead">Position sizing</h4>
+                <p class="muted small">
+                  Mirrors live flat sizing: every position is a fixed slice of equity, and total deployment can't exceed
+                  the un-locked share (Locked Capital is a protected reserve, never traded).
+                </p>
+                <div class="rules-grid">
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic"
+                    matTooltip="Each position as a % of equity. Mirrors your live Flat position size.">
+                    <mat-label>Position size (% of equity)</mat-label>
+                    <input matInput type="number" min="1" max="50" step="0.5" [ngModel]="rulesPositionFraction()"
+                      (ngModelChange)="rulesPositionFraction.set($event)" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic"
+                    matTooltip="Protected reserve never traded — total deployment can't exceed (100% − this). Mirrors live Locked Capital.">
+                    <mat-label>Locked capital (% reserve)</mat-label>
+                    <input matInput type="number" min="0" max="90" step="0.5" [ngModel]="rulesLockedCapitalPct()"
+                      (ngModelChange)="rulesLockedCapitalPct.set($event)" />
+                  </mat-form-field>
+                </div>
+              } @else {
+                <p class="muted small">
+                  Position size, locked capital and max positions are set <strong>per regime</strong> in the exposure
+                  forms above (Mixed switches them by the regime detected each day).
+                </p>
+              }
               <h4 class="rules-subhead">Per-setup tactics (advanced)</h4>
               <p class="muted small">
                 Each setup's own stop / target / guide-hold / trailing, prefilled from your live
