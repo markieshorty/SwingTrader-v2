@@ -291,8 +291,13 @@ public static class SweepOptimizer
         string labelPrefix = "")
     {
         var result = new List<HistoricBacktestCandidate>();
+        // Each rule candidate builds a FRESH HistoricTradingRules, which would
+        // drop the baseline's excluded-setups list (e.g. a live-disabled setup).
+        // Carry it onto every candidate so the whole rule search stays inside the
+        // account's tradeable book instead of quietly re-admitting a setup.
+        var baseExcluded = baseCandidate.Rules?.ExcludedSetups;
         void AddRule(string label, HistoricTradingRules rules) =>
-            result.Add(baseCandidate with { Label = labelPrefix + label, Rules = rules });
+            result.Add(baseCandidate with { Label = labelPrefix + label, Rules = rules with { ExcludedSetups = baseExcluded } });
 
         foreach (var v in new[] { 5, 8, 12, 15, 20, 30 })
             if (v != productionRules?.MaxHoldDays)

@@ -27,6 +27,22 @@ public class SweepOptimizerTests
             [], [], [], log ?? []);
 
     [Fact]
+    public void GenerateCandidates_ExcludedSetupsPropagateToEveryCandidate()
+    {
+        // A baseline that excludes a live-disabled setup: the whole search must
+        // stay inside that book - both weight candidates (which keep Rules via
+        // `with`) and rule candidates (which build a fresh Rules).
+        var baseline = Baseline() with { Rules = new HistoricTradingRules(ExcludedSetups: ["Breakout"]) };
+
+        var candidates = SweepOptimizer.GenerateCandidates(baseline, searchRules: true);
+
+        candidates.Should().OnlyContain(c =>
+            c.Rules != null && c.Rules.ExcludedSetups != null && c.Rules.ExcludedSetups.Contains("Breakout"));
+        // Sanity: the rule search actually produced rule candidates (fresh Rules).
+        candidates.Should().Contain(c => c.Label.Contains("Stop "));
+    }
+
+    [Fact]
     public void GenerateCandidates_AllWeightSetsSumToOne_AndDeterministic()
     {
         var first = SweepOptimizer.GenerateCandidates(Baseline());

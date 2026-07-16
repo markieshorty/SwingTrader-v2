@@ -23,6 +23,7 @@ public static class StrategyLabEndpoints
             IBacktestRunRepository runs,
             IStrategyWeightsRepository weightsRepo,
             IAccountRiskProfileRepository riskProfileRepo,
+            ISetupTacticsRepository setupTacticsRepo,
             [FromServices] ServiceBusClient? serviceBus,
             IAccountContext ctx,
             CancellationToken ct) =>
@@ -51,7 +52,7 @@ public static class StrategyLabEndpoints
                     // evaluated even if production changes mid-run. The
                     // baseline runs with the ACCOUNT's autopause setting; the
                     // user's column runs with the checkbox value.
-                    var baseline = await SnapshotBaselineAsync(weightsRepo, riskProfileRepo, ctx.AccountId, ct);
+                    var baseline = await SnapshotBaselineAsync(weightsRepo, riskProfileRepo, ctx.AccountId, ct, setupTacticsRepo);
                     if (baseline is null)
                         return Results.BadRequest(new { message = "No active production weights found to compare against." });
                     historicRequest = new HistoricBacktestRequest(
@@ -104,6 +105,7 @@ public static class StrategyLabEndpoints
             IBacktestRunRepository runs,
             IStrategyWeightsRepository weightsRepo,
             IAccountRiskProfileRepository riskProfileRepo,
+            ISetupTacticsRepository setupTacticsRepo,
             [FromServices] ServiceBusClient? serviceBus,
             IAccountContext ctx,
             CancellationToken ct) =>
@@ -111,7 +113,7 @@ public static class StrategyLabEndpoints
             if (serviceBus is null)
                 return Results.Problem("Service Bus is not configured on this environment.", statusCode: StatusCodes.Status503ServiceUnavailable);
 
-            var baseline = await SnapshotBaselineAsync(weightsRepo, riskProfileRepo, ctx.AccountId, ct);
+            var baseline = await SnapshotBaselineAsync(weightsRepo, riskProfileRepo, ctx.AccountId, ct, setupTacticsRepo);
             if (baseline is null)
                 return Results.BadRequest(new { message = "No active production weights found to optimize around." });
 
@@ -178,6 +180,7 @@ public static class StrategyLabEndpoints
             IBacktestRunRepository runs,
             IStrategyWeightsRepository weightsRepo,
             IAccountRiskProfileRepository riskProfileRepo,
+            ISetupTacticsRepository setupTacticsRepo,
             [FromServices] ServiceBusClient? serviceBus,
             IAccountContext ctx,
             CancellationToken ct) =>
@@ -188,7 +191,7 @@ public static class StrategyLabEndpoints
             var userWeights = new HistoricBacktestWeights(
                 req.Weights.Rsi, req.Weights.Macd, req.Weights.Volume,
                 req.Weights.SetupQuality, req.Weights.RelativeStrength, req.Weights.PriceLevel);
-            var baseline = await SnapshotBaselineAsync(weightsRepo, riskProfileRepo, ctx.AccountId, ct);
+            var baseline = await SnapshotBaselineAsync(weightsRepo, riskProfileRepo, ctx.AccountId, ct, setupTacticsRepo);
             if (baseline is null)
                 return Results.BadRequest(new { message = "No active production weights found to validate against." });
 
@@ -570,13 +573,26 @@ public static class StrategyLabEndpoints
 
     // The production dials as a labelled candidate, captured at queue time.
     private static async Task<HistoricBacktestCandidate?> SnapshotBaselineAsync(
-        IStrategyWeightsRepository weightsRepo, IAccountRiskProfileRepository riskProfileRepo, int accountId, CancellationToken ct)
+        IStrategyWeightsRepository weightsRepo, IAccountRiskProfileRepository riskProfileRepo, int accountId, CancellationToken ct,
+        ISetupTacticsRepository? setupTacticsRepo = null)
     {
         var prod = await weightsRepo.GetActiveWeightsAsync(accountId);
         if (prod is null) return null;
         // Backtest autopause-during-bear mirrors the Bear regime book's toggle
         // (the live "pause entries in a bear" decision now lives per book).
         var bearBook = await riskProfileRepo.GetAsync(accountId, MarketRegime.Bear, ct);
+        // Production honours the per-setup live switch: setups turned OFF for live
+        // trading are excluded from the baseline so "vs production" reflects the
+        // book actually being traded. Passed only where the baseline means
+        // "current live" (A/B, optimizer, validate) - the ablation analysis omits
+        // it so it can still measure every setup's marginal effect.
+        HistoricTradingRules? rules = null;
+        if (setupTacticsRepo is not null)
+        {
+            var disabled = await setupTacticsRepo.GetDisabledSetupsAsync(accountId, ct);
+            if (disabled.Count > 0)
+                rules = new HistoricTradingRules(ExcludedSetups: disabled.Select(s => s.ToString()).ToList());
+        }
         return new HistoricBacktestCandidate(
             "Production baseline",
             new HistoricBacktestWeights(
@@ -586,6 +602,7 @@ public static class StrategyLabEndpoints
             // Live no longer excludes Breakout setups (docs/setup-tactics-plan),
             // so the production baseline replays with them included.
             ExcludeBreakout: false,
-            AutopauseDuringBear: bearBook.AutopauseTrading);
+            AutopauseDuringBear: bearBook.AutopauseTrading,
+            Rules: rules);
     }
 }
