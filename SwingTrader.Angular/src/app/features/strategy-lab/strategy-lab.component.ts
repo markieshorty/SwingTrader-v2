@@ -140,7 +140,9 @@ export class StrategyLabComponent implements OnDestroy {
   ];
 
   // ── A/B Testing tab state ──────────────────────────────────────────────────
-  dataSource = signal<'own' | 'historic'>('own');
+  // Historic (up-to-10-years market replay) is the default source - the option
+  // is selectable immediately and only falls back to own-data if no bars synced.
+  dataSource = signal<'own' | 'historic'>('historic');
   weights = signal<LabWeightsDto>({
     rsi: 0.23, macd: 0.12, volume: 0.28,
     setupQuality: 0.16, relativeStrength: 0.14, priceLevel: 0.07,
@@ -211,8 +213,9 @@ export class StrategyLabComponent implements OnDestroy {
         .subscribe({
           next: (books) => this.regimeExposure.set(Object.fromEntries(this.mixedRegimes.map((r) => [r, {
             autopause: books[r].autopauseTrading,
-            lockedCapitalPct: Math.round(books[r].lockedCapitalPct * 100),
-            positionFraction: Math.round(books[r].flatPositionPct * 100),
+            // 0.5-step fields: round to one decimal, not a whole number.
+            lockedCapitalPct: Math.round(books[r].lockedCapitalPct * 1000) / 10,
+            positionFraction: Math.round(books[r].flatPositionPct * 1000) / 10,
             maxOpenPositions: books[r].maxOpenPositions,
           }]))),
           error: () => {},
@@ -404,17 +407,21 @@ export class StrategyLabComponent implements OnDestroy {
     this.api.getRiskProfile(regime).subscribe({
       next: (p) => {
         this.defaultRegimeOn.set(p.defaultRegimeEnabled);
+        // Percent fields support 0.5 increments, so round to ONE decimal, not a
+        // whole number - Math.round(7.5) would jump a saved 7.5% trailing stop
+        // to 8. round(x*1000)/10 also absorbs float noise (0.075*100 = 7.5000…1).
+        const pct = (fraction: number) => Math.round(fraction * 1000) / 10;
         this.profileRules = {
           maxHoldDays: p.maxHoldDays,
           maxOpenPositions: p.maxOpenPositions,
-          trailingActivation: Math.round(p.trailingActivationPct * 100),
-          trailingDistance: Math.round(p.trailingDistancePct * 100),
+          trailingActivation: pct(p.trailingActivationPct),
+          trailingDistance: pct(p.trailingDistancePct),
           minHoldDays: p.minHoldDays,
           healthThreshold: p.momentumHealthThreshold,
-          stopLossPct: Math.round(p.stopLossPct * 100),
-          targetPct: Math.round(p.targetPct * 100),
-          positionFraction: Math.round(p.flatPositionPct * 100),
-          lockedCapitalPct: Math.round(p.lockedCapitalPct * 100),
+          stopLossPct: pct(p.stopLossPct),
+          targetPct: pct(p.targetPct),
+          positionFraction: pct(p.flatPositionPct),
+          lockedCapitalPct: pct(p.lockedCapitalPct),
         };
         this.applyRuleDefaults();
       },
@@ -533,8 +540,14 @@ export class StrategyLabComponent implements OnDestroy {
       next: (d) => {
         this.dataStatus.set(d);
         this.dataStatusLoading.set(false);
+        // Historic is the default source, but fall back to own-data if nothing
+        // is synced yet so a fresh account isn't parked on a disabled run.
+        if ((d.bars ?? 0) === 0) this.dataSource.set('own');
       },
-      error: () => this.dataStatusLoading.set(false),
+      error: () => {
+        this.dataStatusLoading.set(false);
+        this.dataSource.set('own'); // status unknown → safe default
+      },
     });
     // Trading-rule defaults mirror the Neutral baseline book (what the backtest
     // engine replays), so an untouched Run reproduces the production baseline.
