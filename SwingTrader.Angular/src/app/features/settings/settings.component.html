@@ -299,8 +299,13 @@
             </mat-slide-toggle>
           </div>
           <p class="muted small">
-            When on, new entries pause automatically whenever the market is in the {{ selectedRegime() }} regime and
-            resume when it leaves. Open positions are still managed (stops, targets and exits keep working) while
+            @if (selectedRegime() === 'Default') {
+              When on, new entries are paused for as long as this Default book governs.
+            } @else {
+              When on, new entries pause automatically whenever the market is in the {{ selectedRegime() }} regime and
+              resume when it leaves.
+            }
+            Open positions are still managed (stops, targets and exits keep working) while
             paused, so entry-only settings (sizing, position cap, forward veto, earnings gate) are disabled below —
             only the fields that manage open positions stay editable. Saved with this book via the Save button below.
           </p>

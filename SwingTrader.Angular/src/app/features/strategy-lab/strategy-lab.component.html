@@ -115,7 +115,7 @@
               </p>
             }
 
-            @if (autopauseRows().length > 0) {
+            @if (autopauseRows().length > 0 && !defaultRegimeOn()) {
               <div class="autopause-overrides">
                 <span class="muted small">Autopause (trial override — your column only; the baseline uses live books):</span>
                 @for (regime of autopauseRows(); track regime) {
@@ -135,7 +135,7 @@
               </div>
             }
 
-            @if (isMixed()) {
+            @if (isMixed() && !defaultRegimeOn()) {
               <div class="regime-forms">
                 <span class="muted small">
                   Per-regime exposure (your column only — the baseline uses live books). Each form is prefilled from that

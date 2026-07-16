@@ -719,7 +719,7 @@ public class BacktestConsumerFunction(
         foreach (var regime in regimes)
             books[regime] = await riskProfileRepo.GetAsync(accountId, regime, ct);
 
-        run.TotalCandidates = regimes.Length + 1; // four forced + Mixed
+        run.TotalCandidates = regimes.Length + 2; // four forced + Force Default + Mixed
         run.CompletedCandidates = 0;
         await runs.UpdateAsync(run);
 
@@ -755,6 +755,18 @@ public class BacktestConsumerFunction(
             logger.LogInformation("Regime compare Force {Regime}: {Trades} trades, {Exp}%/trade, {Ret}% total",
                 regime, r.Trades, Math.Round(r.ExpectancyPct, 2), Math.Round(r.TotalReturnPct, 1));
         }
+
+        // Force Default: the master override book across the whole period - what
+        // live does when Default is on (or would, if you turned it on), so the
+        // comparison stays honest whether or not Default currently governs.
+        ct.ThrowIfCancellationRequested();
+        var defaultBook = await riskProfileRepo.GetAsync(accountId, MarketRegime.Default, ct);
+        var defCfg = ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout,
+            autopauseDuringBear: false, defaultBook, accountTactics, baseline.Rules)
+            with { ForceAutopause = defaultBook.AutopauseTrading };
+        rows.Add(Row("Force Default", await HistoricBacktester.RunAsync(bars, defCfg, sectorEtfs, ct)));
+        run.CompletedCandidates++;
+        await runs.UpdateAsync(run);
 
         // Mixed: envelope switches per simulated day by the detected regime. Base
         // config from Neutral for the regime-invariant strategy fields; every
