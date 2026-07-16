@@ -99,7 +99,12 @@ public sealed record HistoricConfig(
     // books as the market moves. Null = single fixed envelope (the flat scalars
     // above), which is Force-a-single-book and the legacy behaviour. Per-setup
     // exit tactics stay frozen-at-entry and regime-independent either way.
-    IReadOnlyDictionary<MarketRegime, RegimeEnvelope>? RegimeBooks = null);
+    IReadOnlyDictionary<MarketRegime, RegimeEnvelope>? RegimeBooks = null,
+    // Forced-regime runs (the comparison's "Force <regime>" columns) KNOW the
+    // regime, so a book with autopause on means pause entries the WHOLE period -
+    // not the SPY-vs-200 proxy RegimeFilter uses when the regime is unknown.
+    // True => no new entries at all. (Mixed uses per-regime envelopes instead.)
+    bool ForceAutopause = false);
 
 // The slice of a regime risk book the backtest switches on per simulated day.
 // Exit tactics are per-setup and frozen at entry, so only the entry-time
@@ -617,7 +622,12 @@ public static class HistoricBacktester
     private static RegimeEnvelope ResolveEnvelope(HistoricConfig cfg, DailyBar[] spy, int d)
     {
         if (cfg.RegimeBooks is null)
-            return new RegimeEnvelope(cfg.RegimeFilter && !SpyAboveSma200(spy, d), cfg.MaxOpenPositions, cfg.PositionFraction);
+        {
+            // ForceAutopause pauses unconditionally (a forced autopausing book);
+            // otherwise the legacy SPY-vs-200 proxy for the live bear autopause.
+            var autopause = cfg.ForceAutopause || (cfg.RegimeFilter && !SpyAboveSma200(spy, d));
+            return new RegimeEnvelope(autopause, cfg.MaxOpenPositions, cfg.PositionFraction);
+        }
         var regime = RegimeAt(spy, d);
         if (cfg.RegimeBooks.TryGetValue(regime, out var book)) return book;
         // Regime with no supplied book (e.g. Crisis without a Crisis entry) falls

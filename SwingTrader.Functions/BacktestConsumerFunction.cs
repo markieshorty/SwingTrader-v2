@@ -646,8 +646,12 @@ public class BacktestConsumerFunction(
         {
             ct.ThrowIfCancellationRequested();
             var book = books[regime];
+            // Forcing a regime means we KNOW it - a book that autopauses pauses
+            // the whole period (no SPY-200 proxy). autopauseDuringBear:false so
+            // RegimeFilter stays off; ForceAutopause carries the book's toggle.
             var cfg = ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout,
-                book.AutopauseTrading, book, accountTactics, baseline.Rules);
+                autopauseDuringBear: false, book, accountTactics, baseline.Rules)
+                with { ForceAutopause = book.AutopauseTrading };
             var r = await HistoricBacktester.RunAsync(bars, cfg, sectorEtfs, ct);
             rows.Add(Row($"Force {regime}", r));
             run.CompletedCandidates++;
