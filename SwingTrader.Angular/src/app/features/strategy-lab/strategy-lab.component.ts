@@ -36,6 +36,7 @@ import {
   RegimeComparisonDto,
   SetupTacticsDto,
   SetupTacticsRowDto,
+  MarketRegimeName,
   StrategyWeightsDto,
   SweepResultDto,
   ValidateResultDto,
@@ -244,8 +245,12 @@ export class StrategyLabComponent implements OnDestroy {
   private profileRules = {
     maxHoldDays: 10, maxOpenPositions: 3, trailingActivation: 5, trailingDistance: 3,
     minHoldDays: 3, healthThreshold: 0.5, maxPositionPctOfActive: 0.33,
-    stopLossPct: 5, targetPct: 8,
+    stopLossPct: 5, targetPct: 8, positionFraction: 10,
   };
+  // Which regime book the Trading-rules panel is prefilled from. Defaults to
+  // Neutral (what the backtest baseline replays under); the panel's dropdown
+  // loads any book's envelope as a starting point for an experiment.
+  rulesRegime = signal<MarketRegimeName>('Neutral');
 
   rulesTouched = computed(() =>
     this.excludedSetups().length > 0
@@ -259,7 +264,7 @@ export class StrategyLabComponent implements OnDestroy {
     || this.rulesMinHoldDays() !== this.profileRules.minHoldDays
     || this.rulesHealthThreshold() !== this.profileRules.healthThreshold
     || this.rulesSizingMode() !== 'flat'
-    || this.rulesPositionFraction() !== 10
+    || this.rulesPositionFraction() !== this.profileRules.positionFraction
     || this.tacticsTouched());
 
   // The trading-rules override payload, or null when the panel is untouched
@@ -305,8 +310,10 @@ export class StrategyLabComponent implements OnDestroy {
     };
   }
 
-  resetRules(): void {
-    this.excludedSetups.set([...this.liveExcludedSetups]);
+  // Snaps only the uniform rule fields to the loaded regime book's values -
+  // used both by the full reset and by the panel's "prefill from regime" picker
+  // (which must not disturb the excluded-setups selection or per-setup tactics).
+  private applyRuleDefaults(): void {
     this.rulesMaxHoldDays.set(this.profileRules.maxHoldDays);
     this.rulesMaxOpenPositions.set(this.profileRules.maxOpenPositions);
     this.rulesTrailingActivation.set(this.profileRules.trailingActivation);
@@ -317,10 +324,40 @@ export class StrategyLabComponent implements OnDestroy {
     this.rulesMinHoldDays.set(this.profileRules.minHoldDays);
     this.rulesHealthThreshold.set(this.profileRules.healthThreshold);
     this.rulesSizingMode.set('flat');
-    this.rulesPositionFraction.set(10);
+    this.rulesPositionFraction.set(this.profileRules.positionFraction);
     this.rulesActiveCapitalPct.set(10);
     this.rulesMaxPositionPctOfActive.set(Math.round(this.profileRules.maxPositionPctOfActive * 100));
+  }
+
+  resetRules(): void {
+    this.excludedSetups.set([...this.liveExcludedSetups]);
+    this.applyRuleDefaults();
     this.labTacticsDraft.set(this.labTacticsBaseline.map((r) => ({ ...r })));
+  }
+
+  // Loads a regime book's envelope into the Trading-rules panel as a starting
+  // point (bug: position size wasn't prefilled at all; now it is). Only the
+  // uniform rule fields change - excluded setups and per-setup tactics stay put.
+  loadRegimeIntoRules(regime: MarketRegimeName): void {
+    this.rulesRegime.set(regime);
+    this.api.getRiskProfile(regime).subscribe({
+      next: (p) => {
+        this.profileRules = {
+          maxHoldDays: p.maxHoldDays,
+          maxOpenPositions: p.maxOpenPositions,
+          trailingActivation: Math.round(p.trailingActivationPct * 100),
+          trailingDistance: Math.round(p.trailingDistancePct * 100),
+          minHoldDays: p.minHoldDays,
+          healthThreshold: p.momentumHealthThreshold,
+          maxPositionPctOfActive: 0.33, // Lab pool-sizing sim default (no live equivalent)
+          stopLossPct: Math.round(p.stopLossPct * 100),
+          targetPct: Math.round(p.targetPct * 100),
+          positionFraction: Math.round(p.flatPositionPct * 100),
+        };
+        this.applyRuleDefaults();
+      },
+      error: () => {},
+    });
   }
 
   running = signal(false);
@@ -433,23 +470,7 @@ export class StrategyLabComponent implements OnDestroy {
     });
     // Trading-rule defaults mirror the Neutral baseline book (what the backtest
     // engine replays), so an untouched Run reproduces the production baseline.
-    this.api.getRiskProfile('Neutral').subscribe({
-      next: (p) => {
-        this.profileRules = {
-          maxHoldDays: p.maxHoldDays,
-          maxOpenPositions: p.maxOpenPositions,
-          trailingActivation: Math.round(p.trailingActivationPct * 100),
-          trailingDistance: Math.round(p.trailingDistancePct * 100),
-          minHoldDays: p.minHoldDays,
-          healthThreshold: p.momentumHealthThreshold,
-          maxPositionPctOfActive: 0.33, // Lab pool-sizing sim default (no live equivalent)
-          stopLossPct: Math.round(p.stopLossPct * 100),
-          targetPct: Math.round(p.targetPct * 100),
-        };
-        this.resetRules();
-      },
-      error: () => {},
-    });
+    this.loadRegimeIntoRules('Neutral');
     // Per-setup tactics editor, prefilled from the account's live SetupTactics
     // so an untouched grid replays exactly what production does per setup.
     this.api.getSetupTactics().subscribe({
