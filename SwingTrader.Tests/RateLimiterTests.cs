@@ -44,29 +44,18 @@ public class RateLimiterTests
     }
 
     [Fact]
-    public async Task WaitAsync_MinuteAndEquivalentPeriodOverload_ProduceTheSameSpacing()
+    public void MinuteAndEquivalentPeriodOverload_ComputeTheSameSpacing()
     {
         // RateLimiter(maxCallsPerMinute) delegates to the (maxCalls, period)
-        // overload with TimeSpan.FromMinutes(1) - same effective delay for
-        // an equivalent per-minute rate expressed either way.
-        var perMinute = new RateLimiter(maxCallsPerMinute: 1200); // 50ms floor
+        // overload with TimeSpan.FromMinutes(1) - same computed floor for an
+        // equivalent per-minute rate expressed either way. Asserted on the
+        // computed MinDelayMs, not two wall-clock stopwatches, so it can't go
+        // flaky under scheduler jitter the way the old timing comparison did.
+        var perMinute = new RateLimiter(maxCallsPerMinute: 1200);
         var viaPeriod = new RateLimiter(maxCalls: 1200, period: TimeSpan.FromMinutes(1));
 
-        var sw1 = Stopwatch.StartNew();
-        await perMinute.WaitAsync();
-        await perMinute.WaitAsync();
-        sw1.Stop();
-
-        var sw2 = Stopwatch.StartNew();
-        await viaPeriod.WaitAsync();
-        await viaPeriod.WaitAsync();
-        sw2.Stop();
-
-        // Generous tolerance - this is comparing two independently-measured
-        // wall-clock durations, so scheduler jitter compounds across both.
-        // Only needs to confirm the two overloads are roughly equivalent,
-        // not exact millisecond parity.
-        Math.Abs(sw1.ElapsedMilliseconds - sw2.ElapsedMilliseconds).Should().BeLessThan(150);
+        perMinute.MinDelayMs.Should().Be(50);                  // 60_000ms / 1200
+        perMinute.MinDelayMs.Should().Be(viaPeriod.MinDelayMs); // the two overloads agree
     }
 
     [Theory]
