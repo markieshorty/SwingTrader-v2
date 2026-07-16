@@ -112,6 +112,18 @@ export class WatchlistsComponent {
   targetSizeDirty = computed(() =>
     this.targetSize() !== null && this.targetSize() !== this.targetSizeOriginal);
 
+  // Account-level size for the weekly QUALITATIVE watchlist refresh (how many
+  // symbols Claude picks on narrative grounds). Separate, smaller knob than the
+  // technical target size above; the qualitative list is created disabled, so
+  // it doesn't consume the 100-symbol enabled cap until the user enables it -
+  // no spare-capacity cap is needed here.
+  qualitativeSize = signal<number | null>(null);
+  private qualitativeSizeOriginal: number | null = null;
+  qualitativeSizeRange = signal<{ min: number; max: number }>({ min: 5, max: 20 });
+  qualitativeSizeSaving = signal(false);
+  qualitativeSizeDirty = computed(() =>
+    this.qualitativeSize() !== null && this.qualitativeSize() !== this.qualitativeSizeOriginal);
+
   // Spare capacity for the AI-managed (technical) list: the global 100-symbol
   // cap minus the symbols already held by every OTHER enabled watchlist. The
   // AI-managed list's own current picks are excluded because the weekly
@@ -154,6 +166,14 @@ export class WatchlistsComponent {
         this.targetSize.set(t.targetWatchlistSize);
         this.targetSizeOriginal = t.targetWatchlistSize;
         this.targetSizeRange.set({ min: t.min, max: t.max });
+      },
+      error: () => {},
+    });
+    this.api.getQualitativeWatchlistSize().subscribe({
+      next: (t) => {
+        this.qualitativeSize.set(t.qualitativeWatchlistSize);
+        this.qualitativeSizeOriginal = t.qualitativeWatchlistSize;
+        this.qualitativeSizeRange.set({ min: t.min, max: t.max });
       },
       error: () => {},
     });
@@ -214,6 +234,23 @@ export class WatchlistsComponent {
       error: (err) => {
         this.targetSizeSaving.set(false);
         this.snackbar.open(errorMessage(err, 'Failed to save the watchlist size.'), 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  saveQualitativeSize(): void {
+    const value = this.qualitativeSize();
+    if (value === null || !this.qualitativeSizeDirty()) return;
+    this.qualitativeSizeSaving.set(true);
+    this.api.updateQualitativeWatchlistSize(value).subscribe({
+      next: () => {
+        this.qualitativeSizeOriginal = value;
+        this.qualitativeSizeSaving.set(false);
+        this.snackbar.open(`Qualitative watchlist size set to ${value} symbols.`, 'Dismiss', { duration: 3000 });
+      },
+      error: (err) => {
+        this.qualitativeSizeSaving.set(false);
+        this.snackbar.open(errorMessage(err, 'Failed to save the qualitative watchlist size.'), 'Dismiss', { duration: 4000 });
       },
     });
   }

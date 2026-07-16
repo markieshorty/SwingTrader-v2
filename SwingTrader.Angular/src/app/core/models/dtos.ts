@@ -965,6 +965,15 @@ export interface WatchlistTargetSizeDto {
   max: number;
 }
 
+// Account-level size for the weekly QUALITATIVE watchlist refresh (how many
+// symbols Claude picks on narrative grounds). Separate from the technical
+// target size above.
+export interface QualitativeWatchlistSizeDto {
+  qualitativeWatchlistSize: number;
+  min: number;
+  max: number;
+}
+
 export interface UpdateRiskProfileDto {
   lockedCapitalPct: number;
   maxOpenPositions: number;

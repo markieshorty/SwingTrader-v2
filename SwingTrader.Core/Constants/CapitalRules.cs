@@ -70,6 +70,15 @@ public static class CapitalRules
     public const int MinTargetWatchlistSize = 10;
     public const int MaxTargetWatchlistSize = 50;
 
+    // How many symbols Claude picks for the weekly QUALITATIVE watchlist
+    // (QualitativeWatchlistService). Deliberately small - a themed narrative
+    // list is a probe, not a portfolio, and the list is created disabled so
+    // every pick is reviewed before it costs research. Kept well under the
+    // technical list's bounds for the same rate-limit reasons.
+    public const int DefaultQualitativeWatchlistSize = 10;
+    public const int MinQualitativeWatchlistSize = 5;
+    public const int MaxQualitativeWatchlistSize = 20;
+
     // Hard safety bounds for AccountRiskProfile.Validate() — a misconfigured
     // profile can never allow a single bad day to wipe an account, no
     // matter what the account owner tries to set it to.

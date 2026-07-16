@@ -20,6 +20,12 @@ public class Account : UnscopedEntity
     // more Research/Monitor API calls per cycle).
     public int TargetWatchlistSize { get; set; } = CapitalRules.DefaultTargetWatchlistSize;
 
+    // How many symbols Claude picks for the weekly QUALITATIVE AI watchlist
+    // (QualitativeWatchlistService). Account-level like TargetWatchlistSize and
+    // independent of it - the qualitative list is a separate, smaller probe.
+    // See CapitalRules.DefaultQualitativeWatchlistSize.
+    public int QualitativeWatchlistSize { get; set; } = CapitalRules.DefaultQualitativeWatchlistSize;
+
     // Pause switch for new-position executions ("entries"), held per mode so
     // pausing Demo (e.g. to sit out a rough market) doesn't also freeze Live
     // and vice versa. Only ExecutionService's buy path honours this - Monitor

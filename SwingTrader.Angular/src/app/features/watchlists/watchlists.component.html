@@ -58,6 +58,28 @@
     </mat-card>
   }
 
+  @if (qualitativeSize() !== null) {
+    <mat-card class="panel ai-refresh-panel">
+      <h3>Qualitative refresh</h3>
+      <div class="slider-row">
+        <label>Qualitative Watchlist Size: {{ qualitativeSize() }} symbols</label>
+        <mat-slider [min]="qualitativeSizeRange().min" [max]="qualitativeSizeRange().max" step="1" discrete>
+          <input matSliderThumb [ngModel]="qualitativeSize()" (ngModelChange)="qualitativeSize.set($event)" [disabled]="!isOwner()" />
+        </mat-slider>
+      </div>
+      <p class="muted small">
+        How many symbols Claude picks on narrative grounds — business quality, catalysts, crowd attention — for your
+        Claude Qualitative watchlist each weekly refresh. This list is created disabled so you can review the rationales
+        before enabling it, so it doesn't count toward the {{ maxTotalSymbols }}-symbol limit until you turn it on.
+      </p>
+      <button mat-raised-button color="primary"
+        [disabled]="!isOwner() || !qualitativeSizeDirty() || qualitativeSizeSaving()"
+        (click)="saveQualitativeSize()">
+        {{ qualitativeSizeSaving() ? 'Saving…' : 'Save' }}
+      </button>
+    </mat-card>
+  }
+
   @if (showCreateForm()) {
     <mat-card class="panel create-form">
       <mat-form-field appearance="outline" class="name-field">

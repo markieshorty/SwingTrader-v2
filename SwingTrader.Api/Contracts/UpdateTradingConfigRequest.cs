@@ -71,6 +71,8 @@ public record UpdateSetupTacticsRequest(
 
 public record UpdateWatchlistTargetSizeRequest(int TargetWatchlistSize);
 
+public record UpdateQualitativeWatchlistSizeRequest(int QualitativeWatchlistSize);
+
 public record CreateWatchlistRequest(string Name, WatchlistType Type, string? Description);
 
 public record UpdateWatchlistRequest(string Name, string? Description, bool TopMoversEnabled = false);

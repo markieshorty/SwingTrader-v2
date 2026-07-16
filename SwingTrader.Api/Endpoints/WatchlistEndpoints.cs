@@ -60,6 +60,39 @@ public static class WatchlistEndpoints
             return Results.Ok();
         });
 
+        // Account-level size for the weekly QUALITATIVE watchlist refresh (how
+        // many symbols Claude picks on narrative grounds). Separate, smaller
+        // knob from the technical target size above.
+        watchlistsGroup.MapGet("/qualitative-size", async (IAccountRepository accounts, IAccountContext ctx, CancellationToken ct) =>
+        {
+            var account = await accounts.GetAsync(ctx.AccountId, ct);
+            if (account is null) return Results.NotFound();
+            return Results.Ok(new
+            {
+                account.QualitativeWatchlistSize,
+                Min = Core.Constants.CapitalRules.MinQualitativeWatchlistSize,
+                Max = Core.Constants.CapitalRules.MaxQualitativeWatchlistSize,
+            });
+        });
+
+        watchlistsGroup.MapPut("/qualitative-size", async (
+            UpdateQualitativeWatchlistSizeRequest req, IAccountRepository accounts, IAccountContext ctx, CancellationToken ct) =>
+        {
+            if (ctx.Role != AccountRole.Owner) return Results.Forbid();
+            if (req.QualitativeWatchlistSize < Core.Constants.CapitalRules.MinQualitativeWatchlistSize
+                || req.QualitativeWatchlistSize > Core.Constants.CapitalRules.MaxQualitativeWatchlistSize)
+                return Results.BadRequest(new
+                {
+                    message = $"Qualitative watchlist size must be {Core.Constants.CapitalRules.MinQualitativeWatchlistSize}-{Core.Constants.CapitalRules.MaxQualitativeWatchlistSize} symbols.",
+                });
+
+            var account = await accounts.GetAsync(ctx.AccountId, ct);
+            if (account is null) return Results.NotFound();
+            account.QualitativeWatchlistSize = req.QualitativeWatchlistSize;
+            await accounts.UpdateAsync(account, ct);
+            return Results.Ok();
+        });
+
         // The full screening universe (symbol + company name) the AI-managed
         // watchlists draw from - shown on the Stock List Universe tab so users
         // can see the whole pool at their disposal. Not account-specific.

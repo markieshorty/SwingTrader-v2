@@ -48,6 +48,11 @@ public class QualitativeWatchlistService(
         var cfg = config.Value;
         if (!cfg.QualitativeEnabled) return 0;
 
+        // The pick count is an account-level setting (Watchlists page slider);
+        // fall back to the config default only if the account can't be loaded.
+        var accountForSize = await accountRepo.GetAsync(accountId, ct);
+        var qualitativeSize = accountForSize?.QualitativeWatchlistSize ?? cfg.QualitativeSize;
+
         var universeNames = await universe.GetUniverseWithNamesAsync(ct);
         if (universeNames.Count == 0)
         {
@@ -83,7 +88,7 @@ public class QualitativeWatchlistService(
         var movers = await sentimentArchive.GetTopMoversSinceAsync(
             DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-14)), 15, ct);
 
-        var picks = await SelectAsync(claude, candidatePool, movers, cfg.QualitativeSize, ct);
+        var picks = await SelectAsync(claude, candidatePool, movers, qualitativeSize, ct);
         if (picks is null) return 0; // selection failed - previous list stands
 
         // Hallucinated tickers are a certainty, not a risk: silently drop
