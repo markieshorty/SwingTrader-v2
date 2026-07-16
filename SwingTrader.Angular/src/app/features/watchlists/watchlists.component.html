@@ -25,49 +25,6 @@
     }
   </div>
 
-  @if (targetSize() !== null) {
-    <mat-card class="panel ai-refresh-panel">
-      <h3>AI-managed refresh</h3>
-      <div class="slider-row">
-        <label>Watchlist Size: {{ targetSize() }} symbols</label>
-        <mat-slider [min]="targetSizeRange().min" [max]="targetSizeRange().max" step="1" discrete>
-          <input matSliderThumb [ngModel]="targetSize()" (ngModelChange)="targetSize.set($event)" [disabled]="!isOwner()" />
-        </mat-slider>
-      </div>
-      <p class="muted small">
-        How many symbols Claude picks for your AI-managed watchlist each weekly refresh. More symbols means more
-        candidates to scan but more Research/Monitor API calls every cycle — keep this lower if you're hitting provider
-        rate limits.
-      </p>
-      <button mat-raised-button color="primary" [disabled]="!isOwner() || !targetSizeDirty() || targetSizeSaving()"
-        (click)="saveTargetSize()">
-        {{ targetSizeSaving() ? 'Saving…' : 'Save' }}
-      </button>
-    </mat-card>
-  }
-
-  @if (qualitativeSize() !== null) {
-    <mat-card class="panel ai-refresh-panel">
-      <h3>Qualitative refresh</h3>
-      <div class="slider-row">
-        <label>Qualitative Watchlist Size: {{ qualitativeSize() }} symbols</label>
-        <mat-slider [min]="qualitativeSizeRange().min" [max]="qualitativeSizeRange().max" step="1" discrete>
-          <input matSliderThumb [ngModel]="qualitativeSize()" (ngModelChange)="qualitativeSize.set($event)" [disabled]="!isOwner()" />
-        </mat-slider>
-      </div>
-      <p class="muted small">
-        How many symbols Claude picks on narrative grounds — business quality, catalysts, crowd attention — for your
-        Claude Qualitative watchlist each weekly refresh. This list is created disabled so you can review the rationales
-        before enabling it.
-      </p>
-      <button mat-raised-button color="primary"
-        [disabled]="!isOwner() || !qualitativeSizeDirty() || qualitativeSizeSaving()"
-        (click)="saveQualitativeSize()">
-        {{ qualitativeSizeSaving() ? 'Saving…' : 'Save' }}
-      </button>
-    </mat-card>
-  }
-
   @if (loaded() && watchlists().length === 0) {
     <p class="muted">No watchlists yet.</p>
   }
@@ -93,6 +50,45 @@
             <mat-slide-toggle [checked]="watchlist.topMoversEnabled" [disabled]="!isOwner()" (change)="toggleTopMovers(watchlist)">
               Include top movers (Finnhub gainers/losers/most-active) as extra candidates
             </mat-slide-toggle>
+          </div>
+
+          @if (targetSize() !== null) {
+            <div class="refresh-size">
+              <div class="slider-row">
+                <label>Weekly size: {{ targetSize() }} symbols</label>
+                <mat-slider [min]="targetSizeRange().min" [max]="targetSizeRange().max" step="1" discrete>
+                  <input matSliderThumb [ngModel]="targetSize()" (ngModelChange)="targetSize.set($event)" [disabled]="!isOwner()" />
+                </mat-slider>
+                <button mat-stroked-button color="primary" [disabled]="!isOwner() || !targetSizeDirty() || targetSizeSaving()"
+                  (click)="saveTargetSize()">
+                  {{ targetSizeSaving() ? 'Saving…' : 'Save size' }}
+                </button>
+              </div>
+              <p class="muted small">
+                How many symbols Claude picks for this list each weekly refresh. More symbols means more candidates but
+                more Research/Monitor API calls every cycle — keep it lower if you're hitting provider rate limits.
+              </p>
+            </div>
+          }
+        }
+
+        @if (watchlist.type === 'AiQualitative' && qualitativeSize() !== null) {
+          <div class="refresh-size">
+            <div class="slider-row">
+              <label>Weekly size: {{ qualitativeSize() }} symbols</label>
+              <mat-slider [min]="qualitativeSizeRange().min" [max]="qualitativeSizeRange().max" step="1" discrete>
+                <input matSliderThumb [ngModel]="qualitativeSize()" (ngModelChange)="qualitativeSize.set($event)" [disabled]="!isOwner()" />
+              </mat-slider>
+              <button mat-stroked-button color="primary"
+                [disabled]="!isOwner() || !qualitativeSizeDirty() || qualitativeSizeSaving()"
+                (click)="saveQualitativeSize()">
+                {{ qualitativeSizeSaving() ? 'Saving…' : 'Save size' }}
+              </button>
+            </div>
+            <p class="muted small">
+              How many symbols Claude picks on narrative grounds — business quality, catalysts, crowd attention — each
+              weekly refresh. Created disabled so you can review the rationales before enabling it.
+            </p>
           </div>
         }
 

@@ -199,6 +199,35 @@
   font-size: 13px;
 }
 
+// Embedded weekly-size control inside an AI watchlist card.
+.refresh-size {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--st-border);
+
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+
+    label {
+      font-size: 13px;
+      font-weight: 500;
+      min-width: 150px;
+    }
+
+    mat-slider {
+      flex: 1;
+      min-width: 160px;
+    }
+  }
+
+  p {
+    margin: 6px 0 0;
+  }
+}
+
 .card-actions {
   display: flex;
   align-items: center;
