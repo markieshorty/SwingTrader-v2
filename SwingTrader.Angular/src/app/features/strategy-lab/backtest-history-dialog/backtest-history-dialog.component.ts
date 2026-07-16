@@ -11,9 +11,11 @@ import { BacktestHistoryItemDto } from '../../../core/models/dtos';
 import { errorMessage } from '../../../shared/utils/error-message.util';
 
 // Opened from an Optimizer-History or A/B-History row: shows the run's stats,
-// weights, and (for A/B) the risk-rule overrides it tested, with an apply
-// action. A/B offers the two-checkbox weights/risk choice; the optimizer only
-// tunes weights, so it applies weights only. Applying always confirms first.
+// weights, and the risk-rule/tactic overrides it tested, with an apply action.
+// The weights/risk two-checkbox choice appears whenever the run has applyable
+// risk overrides - always for A/B, and for an optimizer run whose winner tuned
+// rules/tactics (SearchRules). Runs with no overrides apply weights only.
+// Applying always confirms first.
 @Component({
   selector: 'app-backtest-history-dialog',
   standalone: true,
