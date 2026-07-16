@@ -99,9 +99,9 @@
 
           @if (dataSource() === 'historic') {
             <mat-form-field appearance="outline" subscriptSizing="dynamic" class="regime-select">
-              <mat-label>Compare against production under</mat-label>
-              <mat-select [value]="regimeMode()" (selectionChange)="regimeMode.set($event.value)"
-                matTooltip="Which risk-book envelope both columns replay under. A regime forces that book across the whole period; Mixed switches book by the regime detected each day (live-like). 'Don't compare' runs your dials only under Neutral.">
+              <mat-label>Regime</mat-label>
+              <mat-select [value]="regimeMode()" (selectionChange)="onRegimeModeChange($event.value)"
+                matTooltip="The regime you're experimenting on. Picking one does two things at once: it loads that regime's live risk book into the Trading-rules fields below, AND runs the simulation under that book (comparing your tweaked dials vs the live book). Mixed switches book by the regime detected each day. 'Don't compare' runs your dials only, no baseline.">
                 @for (opt of regimeModeOptions; track opt.value) {
                   <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
                 }
@@ -140,16 +140,10 @@
                 live risk-profile rules, so the comparison isolates exactly what you changed. Nothing here touches
                 production — rule changes you decide to keep are made on the Settings page.
               </p>
-              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="regime-select"
-                matTooltip="Loads that regime book's envelope (holds, positions, stop/target, trailing, probation, position size) into the fields below as a starting point. Only the uniform rules change — your excluded setups and per-setup tactics stay put.">
-                <mat-label>Prefill rules from regime book</mat-label>
-                <mat-select [value]="rulesRegime()" (selectionChange)="loadRegimeIntoRules($event.value)">
-                  <mat-option value="Bull">Bull</mat-option>
-                  <mat-option value="Neutral">Neutral</mat-option>
-                  <mat-option value="Bear">Bear</mat-option>
-                  <mat-option value="Crisis">Crisis</mat-option>
-                </mat-select>
-              </mat-form-field>
+              <p class="muted small">
+                These fields are prefilled from the <strong>{{ rulesRegime() }}</strong> book (chosen by the Regime
+                selector above). Tweak a dial to test a change against that live book.
+              </p>
               <div class="rules-grid">
                 <mat-form-field appearance="outline" subscriptSizing="dynamic"
                   matTooltip="A SOFT guide-hold applied to every setup (per-setup overrides below win). Reaching it doesn't force a sale — a healthy position runs on; the hard time-exit is 2.5× this. Live uses per-setup guide-holds.">

@@ -184,6 +184,17 @@ export class StrategyLabComponent implements OnDestroy {
   setAutopauseChoice(regime: string, choice: 'inherit' | 'on' | 'off'): void {
     this.autopauseChoice.update((m) => ({ ...m, [regime]: choice }));
   }
+
+  // The one Regime selector both frames the run AND prefills the Trading-rules
+  // fields from that book, so the numbers on screen always match what runs
+  // (no more prefill-here / run-there mismatch). Mixed has no single book, so it
+  // leaves the fields as-is; 'off' runs a single Neutral job.
+  onRegimeModeChange(value: 'off' | 'neutral' | 'bull' | 'bear' | 'crisis' | 'mixed'): void {
+    this.regimeMode.set(value);
+    const book: Record<string, MarketRegimeName> =
+      { off: 'Neutral', neutral: 'Neutral', bull: 'Bull', bear: 'Bear', crisis: 'Crisis' };
+    if (book[value]) this.loadRegimeIntoRules(book[value]);
+  }
   private buildAutopauseOverrides(): Record<string, boolean> | null {
     const set = Object.entries(this.autopauseChoice()).filter(([, v]) => v !== 'inherit');
     return set.length ? Object.fromEntries(set.map(([r, v]) => [r, v === 'on'])) : null;
