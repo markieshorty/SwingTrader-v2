@@ -14,6 +14,11 @@
   color: var(--st-muted);
 }
 
+.warn {
+  color: var(--st-warn, #b3541e);
+  font-weight: 500;
+}
+
 .tab-body {
   padding: 16px 4px;
 }

@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -112,6 +112,31 @@ export class WatchlistsComponent {
   targetSizeDirty = computed(() =>
     this.targetSize() !== null && this.targetSize() !== this.targetSizeOriginal);
 
+  // Spare capacity for the AI-managed (technical) list: the global 100-symbol
+  // cap minus the symbols already held by every OTHER enabled watchlist. The
+  // AI-managed list's own current picks are excluded because the weekly
+  // refresh REPLACES them - what has to fit is `target` new picks alongside
+  // everything else that's enabled. Worst case (no overlap) is target + others,
+  // so the largest target that can never breach the cap is 100 - others.
+  targetSizeSpare = computed(() => {
+    const others = new Set<string>();
+    for (const w of this.watchlists()) {
+      if (w.isEnabled && w.type !== 'AiManaged') {
+        for (const item of w.items) others.add(item.symbol.toUpperCase());
+      }
+    }
+    return MAX_TOTAL_ENABLED_SYMBOLS - others.size;
+  });
+  // The slider's usable max: the configured range max, pulled down to spare
+  // capacity, but never below the range min (mat-slider requires max >= min).
+  targetSizeEffectiveMax = computed(() =>
+    Math.max(this.targetSizeRange().min, Math.min(this.targetSizeRange().max, this.targetSizeSpare())));
+  // Spare capacity is squeezing the slider below its natural max.
+  targetSizeCapped = computed(() => this.targetSizeSpare() < this.targetSizeRange().max);
+  // Even the smallest allowed target won't fit - the user must free up places
+  // on other watchlists before the AI list can be sized at all.
+  targetSizeOverCapacity = computed(() => this.targetSizeSpare() < this.targetSizeRange().min);
+
   // Second-hop economic links (docs/second-hop-plan): per-symbol viewer with
   // the Owner-only suppress toggle - the hallucinated-link kill switch.
   linksSymbol = signal<string | null>(null);
@@ -136,6 +161,16 @@ export class WatchlistsComponent {
     // that symbol's economic-links panel directly.
     const linksParam = inject(ActivatedRoute).snapshot.queryParamMap.get('links');
     if (linksParam) this.toggleLinks(linksParam.toUpperCase());
+
+    // Once both the saved target and the watchlists have loaded, pull a
+    // stale-high target down to the spare-capacity ceiling so the slider can
+    // never sit above what would actually fit under the 100-symbol cap. Only
+    // ever tightens - it never nudges the value up on the user's behalf.
+    effect(() => {
+      const value = this.targetSize();
+      const max = this.targetSizeEffectiveMax();
+      if (value !== null && value > max) this.targetSize.set(max);
+    }, { allowSignalWrites: true });
   }
 
   toggleLinks(symbol: string): void {
@@ -165,6 +200,10 @@ export class WatchlistsComponent {
   saveTargetSize(): void {
     const value = this.targetSize();
     if (value === null || !this.targetSizeDirty()) return;
+    // Never persist a target above spare capacity, even if a stale value
+    // slipped past the slider - the clamp effect normally handles this, but
+    // guard the save path too.
+    if (value > this.targetSizeEffectiveMax()) return;
     this.targetSizeSaving.set(true);
     this.api.updateWatchlistTargetSize(value).subscribe({
       next: () => {

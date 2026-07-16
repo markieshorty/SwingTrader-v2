@@ -28,8 +28,9 @@
       <h3>AI-managed refresh</h3>
       <div class="slider-row">
         <label>Watchlist Size: {{ targetSize() }} symbols</label>
-        <mat-slider [min]="targetSizeRange().min" [max]="targetSizeRange().max" step="1" discrete>
-          <input matSliderThumb [ngModel]="targetSize()" (ngModelChange)="targetSize.set($event)" [disabled]="!isOwner()" />
+        <mat-slider [min]="targetSizeRange().min" [max]="targetSizeEffectiveMax()" step="1" discrete>
+          <input matSliderThumb [ngModel]="targetSize()" (ngModelChange)="targetSize.set($event)"
+            [disabled]="!isOwner() || targetSizeOverCapacity()" />
         </mat-slider>
       </div>
       <p class="muted small">
@@ -37,6 +38,19 @@
         candidates to scan but more Research/Monitor API calls every cycle — keep this lower if you're hitting provider
         rate limits.
       </p>
+      @if (targetSizeOverCapacity()) {
+        <p class="warn small">
+          Your other enabled watchlists already fill {{ maxTotalSymbols - targetSizeSpare() }} of the
+          {{ maxTotalSymbols }}-symbol limit, leaving no room for the AI-managed list. Remove symbols from — or disable —
+          another watchlist to free up places first.
+        </p>
+      } @else if (targetSizeCapped()) {
+        <p class="warn small">
+          Capped at {{ targetSizeEffectiveMax() }}: your other enabled watchlists use
+          {{ maxTotalSymbols - targetSizeSpare() }} of the {{ maxTotalSymbols }}-symbol limit, leaving room for
+          {{ targetSizeSpare() }}. Remove symbols from another watchlist to raise this.
+        </p>
+      }
       <button mat-raised-button color="primary" [disabled]="!isOwner() || !targetSizeDirty() || targetSizeSaving()"
         (click)="saveTargetSize()">
         {{ targetSizeSaving() ? 'Saving…' : 'Save' }}

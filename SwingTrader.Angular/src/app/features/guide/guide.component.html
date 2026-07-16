@@ -86,8 +86,44 @@
     <!-- ───────────────────────── Risk & your money ───────────────────────── -->
     <mat-tab label="Risk &amp; your money">
       <mat-card class="panel">
+        <h3>Regime books — one risk profile per market backdrop</h3>
+        <p>
+          Risk settings aren't a single fixed profile any more. The system keeps a separate <strong>book</strong> of
+          risk settings for each <strong>market regime</strong> — <strong>Bull</strong>, <strong>Neutral</strong>,
+          <strong>Bear</strong> and <strong>Crisis</strong> — so it can carry a full position in a healthy market and
+          automatically tighten up (smaller positions, fewer of them, more locked capital, or pause entirely) when the
+          backdrop turns. Every day the system reads the S&amp;P 500 against its moving averages and volatility, decides
+          which regime you're in, and the matching book takes over. You edit these books on <strong>Settings → Risk
+          management</strong>, one tab per regime.
+        </p>
+        <p>
+          The market is currently reading as <strong>{{ liveRegime() }}</strong>, and the
+          <strong>{{ governingBook() }}</strong> book is governing your live trading — the numbers on this page are that
+          book's live values.
+        </p>
+
+        <h4>The Default master book</h4>
+        <p>
+          If you'd rather run <em>one</em> risk profile regardless of the regime, switch on the <strong>Default</strong>
+          book. When it's enabled it overrides all four regime books — the system stops switching books by regime and
+          uses Default for every decision. It's the simplest way to run the account: set your risk once and it always
+          applies.
+          The Default book is currently <strong>{{ defaultBookOn() ? 'ON — governing all live trading' : 'OFF — the
+          regime-matched book governs instead' }}</strong>.
+        </p>
+
+        <h4>Autopause — sitting a regime out</h4>
+        <p>
+          Each book carries an <strong>autopause</strong> switch. When the governing book has autopause on, the system
+          keeps monitoring and managing open positions but <strong>opens no new ones</strong> until a book without
+          autopause takes over (typically as the market improves). It's how you tell the bot "don't start anything new
+          while conditions look like this" — usually set on the Bear and Crisis books, off on Bull and Neutral. Your
+          governing book's autopause is currently <strong>{{ autopauseOn() ? 'ON — new entries are paused' : 'OFF — new
+          entries are allowed' }}</strong>.
+        </p>
+
         <h3>How much gets risked</h3>
-        <p>Capital is protected by several layers, all currently set to:</p>
+        <p>Capital is protected by several layers, all shown at the governing book's current values:</p>
         <table class="data-table">
           <tbody>
             <tr><td>Locked (never traded)</td><td class="num">{{ pct(risk()?.lockedCapitalPct) }}</td></tr>
@@ -137,10 +173,15 @@
         <p>
           Buying is only half the job — knowing when to sell is what protects the account. Once a trade is open the
           Monitor agent watches it continuously and closes it automatically when any of the following triggers. You
-          never have to sell manually. All the numbers below are <strong>your current settings</strong> (change them
-          on Settings → Risk profile). Each position <strong>locks its rules in at buy time</strong> — hold limits,
+          never have to sell manually. Each position <strong>locks its rules in at buy time</strong> — hold limits,
           probation and trailing-stop shape, like the stop and target — so changing a setting affects positions
           opened from then on, never ones already open.
+        </p>
+        <p class="muted small">
+          The stop, profit target and guide hold are set <strong>per setup type</strong> — an oversold recovery and a
+          breakout can carry different stops and holds because they behave differently. You tune these on
+          <strong>Settings → Setup tactics</strong>, and the Strategy Lab can search for better values and apply them
+          for you. The figures below are the governing regime book's typical values, shown as a representative example.
         </p>
 
         <div class="exit-rule">
@@ -258,6 +299,57 @@
       </mat-card>
     </mat-tab>
 
+    <!-- ───────────────────────── Strategy Lab ───────────────────────── -->
+    <mat-tab label="Strategy Lab">
+      <mat-card class="panel">
+        <h3>What the Strategy Lab is for</h3>
+        <p>
+          The Strategy Lab lets you <strong>test the strategy against history</strong> before risking anything live.
+          You pick a symbol set and a date range, run a simulation, and see how the rules would have performed — win
+          rate, expectancy, drawdown, equity curve and a trade-by-trade log. When a run looks better than what you're
+          running now, one button applies its settings to your live configuration.
+        </p>
+        <p class="muted small">
+          Everything here is a simulation on past data. Past performance never guarantees future results, and a strategy
+          tuned too tightly to history often disappoints live — which is exactly what the validation modes below guard
+          against.
+        </p>
+
+        <h3>The run modes</h3>
+        <ul>
+          <li><strong>Replay / Historic</strong> — run the current strategy over a past period and read the results.</li>
+          <li><strong>A/B compare</strong> — run two configurations side by side (e.g. current vs a tweak, or with a setup type filtered out) and see which wins on the same data.</li>
+          <li><strong>Optimizer sweep</strong> — automatically searches combinations of weights, thresholds, position size, locked capital and per-setup tactics, and ranks them. It only proposes settings that keep the book valid to apply.</li>
+          <li><strong>Validate (train / holdout)</strong> — tunes on one slice of history and checks the result on a separate, unseen slice, so you know a good number isn't just curve-fitting.</li>
+          <li><strong>Monte Carlo</strong> — reshuffles the trade sequence many times to show the <em>range</em> of outcomes, not just the one lucky (or unlucky) path history happened to take.</li>
+          <li><strong>Setup contribution</strong> — removes one setup type at a time to reveal which patterns actually help and which are a drag.</li>
+          <li><strong>Regime comparison</strong> — runs each regime book (and Default) over the same period so you can see how each risk profile would have held up.</li>
+        </ul>
+
+        <h3>Regimes in a backtest</h3>
+        <p>
+          Because risk is now organised into per-regime books, a run lets you choose <strong>which book drives the
+          simulation</strong> from a dropdown: a single fixed book, the <strong>Default</strong> master book, or
+          <strong>Mixed</strong> — where the simulation classifies each historical day's regime and switches to the
+          matching book as it goes, the closest match to how live trading actually behaves. Autopause and locked-capital
+          rules are honoured in the simulation just as they are live.
+        </p>
+
+        <h3>Applying a result</h3>
+        <p>
+          When a run produces settings you want to keep, the <strong>Apply</strong> button writes them into your live
+          configuration — weights and thresholds, per-setup tactics, and the risk levers. Applied risk settings land on
+          the book the run was tuned against: the <strong>Default</strong> book if it's enabled, otherwise the
+          <strong>Neutral</strong> book. Nothing is applied silently — you choose to apply, and you can always re-tune.
+        </p>
+        <p class="muted small">
+          Recommended workflow: validate or Monte-Carlo a promising configuration before applying it, then run it as a
+          shadow/forward check for a while rather than flipping straight to live — a result that only looks good on one
+          historical path is the main thing to avoid.
+        </p>
+      </mat-card>
+    </mat-tab>
+
     <!-- ───────────────────────── Glossary ───────────────────────── -->
     <mat-tab label="Glossary">
       <mat-card class="panel">
@@ -265,7 +357,17 @@
           <dt>Conviction score</dt>
           <dd>The 0–10 blended score that decides Buy / Watch / Hold / Avoid. See the Conviction score tab.</dd>
           <dt>Market regime</dt>
-          <dd>The overall market backdrop, derived from the S&amp;P 500 vs its moving averages and the VIX: <strong>Bull</strong>, <strong>Neutral</strong>, <strong>Bear</strong>, or <strong>Crisis</strong>. Used to contextualise performance.</dd>
+          <dd>The overall market backdrop, derived from the S&amp;P 500 vs its moving averages and volatility: <strong>Bull</strong>, <strong>Neutral</strong>, <strong>Bear</strong>, or <strong>Crisis</strong>. It now <em>drives</em> which risk book governs trading, not just how performance is framed.</dd>
+          <dt>Regime book</dt>
+          <dd>A full set of risk settings kept per regime, so the account can trade differently in a Bull market than a Bear one. The book matching the live regime governs — unless the Default book is on. Edited on Settings → Risk management.</dd>
+          <dt>Default book</dt>
+          <dd>An optional master risk book that, when enabled, overrides all four regime books and governs every decision — the way to run one fixed risk profile regardless of the market backdrop.</dd>
+          <dt>Autopause</dt>
+          <dd>A per-book switch that stops the bot opening new positions (open ones are still managed) while that book governs — typically set on the Bear and Crisis books to sit out weak markets.</dd>
+          <dt>Setup tactics</dt>
+          <dd>The per-setup stop, profit target and hold length. Because setups behave differently, each carries its own values, tuned on Settings → Setup tactics or searched by the Strategy Lab.</dd>
+          <dt>Strategy Lab</dt>
+          <dd>The backtesting workbench for testing, comparing, validating and optimising the strategy against historical data before applying changes live. See the Strategy Lab tab.</dd>
           <dt>Refinement</dt>
           <dd>The monthly process that correlates each component's scores against your actual trade outcomes and proposes weight adjustments — statistically gated so it doesn't chase noise.</dd>
           <dt>Setup type</dt>

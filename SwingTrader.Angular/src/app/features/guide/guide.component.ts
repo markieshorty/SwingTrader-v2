@@ -152,6 +152,17 @@ export class GuideComponent {
   currentMode = computed(() => this.config()?.tradingMode ?? 'Demo');
   approvalOn = computed(() => this.config()?.approvalRequired ?? false);
 
+  // The market backdrop the system currently reads (Bull/Neutral/Bear/Crisis).
+  liveRegime = computed(() => this.risk()?.currentRegime ?? '—');
+  // Whether the Default master book is switched on. When it is, that single
+  // book governs live trading regardless of the detected regime; when off, the
+  // book matching the live regime governs.
+  defaultBookOn = computed(() => this.risk()?.defaultRegimeEnabled ?? false);
+  // The name of the book actually governing live decisions right now.
+  governingBook = computed(() => (this.defaultBookOn() ? 'Default' : this.liveRegime()));
+  // Whether the governing book pauses new entries.
+  autopauseOn = computed(() => this.risk()?.autopauseTrading ?? false);
+
   // Worked £100 example of where the default stop loss would sit.
   stopExample = computed(() => {
     const pct = this.weights()?.stopLossPctDefault;
