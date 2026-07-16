@@ -237,6 +237,12 @@ export class StrategyLabComponent implements OnDestroy {
       rows.map((r) => (r.setupType === setup ? { ...r, [key]: value } : r)));
   }
 
+  // Fraction (0.07) -> whole-percent for display, rounded to kill float noise
+  // (0.07 * 100 = 7.000000000000001). 2dp keeps the 0.5 step, drops trailing 0s.
+  tacticPct(fraction: number): number {
+    return Math.round(fraction * 10000) / 100;
+  }
+
   // A setup that's excluded from the run can't take trades, so editing its
   // per-setup tactics is meaningless - the row's inputs disable.
   isSetupExcluded(setup: string): boolean {

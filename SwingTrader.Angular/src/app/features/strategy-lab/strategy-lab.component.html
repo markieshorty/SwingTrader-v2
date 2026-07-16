@@ -259,12 +259,12 @@
                       </span>
                       <mat-form-field appearance="outline" subscriptSizing="dynamic">
                         <input matInput type="number" step="0.5" [disabled]="isSetupExcluded(row.setupType)"
-                          [ngModel]="row.stopLossPct * 100"
+                          [ngModel]="tacticPct(row.stopLossPct)"
                           (ngModelChange)="updateTacticField(row.setupType, 'stopLossPct', $event / 100)" />
                       </mat-form-field>
                       <mat-form-field appearance="outline" subscriptSizing="dynamic">
                         <input matInput type="number" step="0.5" [disabled]="isSetupExcluded(row.setupType)"
-                          [ngModel]="row.targetPct * 100"
+                          [ngModel]="tacticPct(row.targetPct)"
                           (ngModelChange)="updateTacticField(row.setupType, 'targetPct', $event / 100)" />
                       </mat-form-field>
                       <mat-form-field appearance="outline" subscriptSizing="dynamic">
@@ -275,12 +275,12 @@
                       </mat-form-field>
                       <mat-form-field appearance="outline" subscriptSizing="dynamic">
                         <input matInput type="number" step="0.5" [disabled]="isSetupExcluded(row.setupType)"
-                          [ngModel]="row.trailingActivationPct * 100"
+                          [ngModel]="tacticPct(row.trailingActivationPct)"
                           (ngModelChange)="updateTacticField(row.setupType, 'trailingActivationPct', $event / 100)" />
                       </mat-form-field>
                       <mat-form-field appearance="outline" subscriptSizing="dynamic">
                         <input matInput type="number" step="0.5" [disabled]="isSetupExcluded(row.setupType)"
-                          [ngModel]="row.trailingDistancePct * 100"
+                          [ngModel]="tacticPct(row.trailingDistancePct)"
                           (ngModelChange)="updateTacticField(row.setupType, 'trailingDistancePct', $event / 100)" />
                       </mat-form-field>
                     </div>
