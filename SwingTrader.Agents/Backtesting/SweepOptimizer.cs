@@ -173,22 +173,16 @@ public static class SweepOptimizer
                 candidates.Add(baseline with { Label = $"Buy threshold {nt:0.0}", BuyThreshold = nt });
         }
 
-        // Bear-autopause toggle: unlike the dead components, the regime filter
-        // IS reconstructable from bars, so testing it flipped is a legitimate,
-        // transferable hypothesis.
-        candidates.Add(baseline with
-        {
-            Label = baseline.AutopauseDuringBear ? "Bear autopause OFF" : "Bear autopause ON",
-            AutopauseDuringBear = !baseline.AutopauseDuringBear,
-        });
+        // Autopause is no longer swept here: it's a per-regime-book decision
+        // (Risk Management / the Regimes comparison), not a single-book weight
+        // lever. The old SPY-below-200 proxy toggle diverged from how live now
+        // pauses (per detected regime), so it's retired from the sweep.
 
         // Structural variants: small nudges rarely separate from noise on a
         // finite trade sample, so also try genuinely different LIVE mixes -
         // each spreads/concentrates the same live budget differently, dead
-        // dials untouched. Each also gets an autopause-flipped twin so the
-        // sweep can spot interactions between the mix and the regime filter.
-        // Proportions follow LiveIndices order: RSI, MACD, Volume, Setup
-        // quality, Relative strength, Price level.
+        // dials untouched. Proportions follow LiveIndices order: RSI, MACD,
+        // Volume, Setup quality, Relative strength, Price level.
         var structural = new (string Label, decimal[] Proportions)[]
         {
             ("Equal live weights", [1m / 6, 1m / 6, 1m / 6, 1m / 6, 1m / 6, 1m / 6]),
@@ -197,15 +191,7 @@ public static class SweepOptimizer
             ("Structure tilt (RelStrength/PriceLevel heavy)", [0.12m, 0.10m, 0.12m, 0.16m, 0.25m, 0.25m]),
         };
         foreach (var (label, proportions) in structural)
-        {
-            var mix = MakeLiveMix(baseline, baseArr, liveBudget, label, proportions);
-            candidates.Add(mix);
-            candidates.Add(mix with
-            {
-                Label = $"{label} + autopause {(baseline.AutopauseDuringBear ? "OFF" : "ON")}",
-                AutopauseDuringBear = !baseline.AutopauseDuringBear,
-            });
-        }
+            candidates.Add(MakeLiveMix(baseline, baseArr, liveBudget, label, proportions));
 
         // Pair trades among live components: shift 4pp and 8pp from each live
         // dial to each other - every "this signal matters more than that one"
@@ -327,6 +313,25 @@ public static class SweepOptimizer
         foreach (var v in new[] { 3, 5, 8 })
             if (v != productionRules?.MaxOpenPositions)
                 AddRule($"Max positions {v}", new HistoricTradingRules(MaxOpenPositions: v));
+
+        // Capital deployment: locked-capital reserve and flat position size.
+        // Both feed the un-locked-share deployment cap the engine now enforces,
+        // so they only matter in single-book (Default/Neutral) runs - under Mixed
+        // the per-regime books own exposure. Only offered when the live book's
+        // position size is known, and only values that keep the book VALID for
+        // apply (position x maxPositions <= 1 - locked, mirroring the live invariant).
+        if (productionRules is { PositionFraction: { } livePos, MaxOpenPositions: { } liveMax })
+        {
+            var deployed = livePos * liveMax;
+            foreach (var locked in new[] { 0.40m, 0.55m, 0.70m, 0.80m })
+                if (locked != productionRules.LockedCapitalPct && deployed <= 1m - locked)
+                    AddRule($"Locked capital {locked:P0}", new HistoricTradingRules(LockedCapitalPct: locked));
+
+            var lockedNow = productionRules.LockedCapitalPct ?? 0m;
+            foreach (var pos in new[] { 0.05m, 0.08m, 0.10m, 0.12m })
+                if (pos != livePos && pos * liveMax <= 1m - lockedNow)
+                    AddRule($"Position size {pos:P0}", new HistoricTradingRules(PositionFraction: pos));
+        }
 
         AddRule("Tight risk (stop 3%, target 10%, trail +3%/2%, hold 10d)",
             new HistoricTradingRules(MaxHoldDays: 10, StopLossPct: 0.03m, TargetPct: 0.10m,

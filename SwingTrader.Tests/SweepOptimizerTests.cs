@@ -68,19 +68,33 @@ public class SweepOptimizerTests
     }
 
     [Fact]
-    public void GenerateCandidates_IncludesBearAutopauseToggle()
+    public void GenerateRuleCandidates_SearchesLockedCapitalAndPositionSize_WithinValidBounds()
     {
-        // The regime filter IS reconstructable from bars (unlike the dead
-        // components), so the sweep tests it flipped relative to the baseline.
+        // Live book: 10% position x 5 max = 50% deployed, 55% locked. The sweep
+        // offers locked/position grid points that keep the book valid for apply
+        // (position x maxPositions <= 1 - locked).
+        var prod = new HistoricTradingRules(
+            PositionFraction: 0.10m, MaxOpenPositions: 5, LockedCapitalPct: 0.55m);
+
+        var candidates = SweepOptimizer.GenerateCandidates(Baseline(), searchRules: true, productionRules: prod);
+
+        candidates.Should().Contain(c => c.Label.StartsWith("Locked capital"));
+        candidates.Should().Contain(c => c.Label.StartsWith("Position size"));
+        // Never offers a locked value that would over-deploy the un-locked share.
+        candidates.Where(c => c.Label.StartsWith("Locked capital"))
+            .Should().OnlyContain(c => 0.10m * 5 <= 1m - c.Rules!.LockedCapitalPct!.Value);
+    }
+
+    [Fact]
+    public void GenerateCandidates_NoLongerSweepsAutopause()
+    {
+        // Autopause is now a per-regime-book decision (Risk Management / the
+        // Regimes comparison), not a single-book weight lever - the old SPY-200
+        // proxy toggle is retired, so no candidate flips it off the baseline.
         var candidates = SweepOptimizer.GenerateCandidates(Baseline()); // baseline default: autopause ON
 
-        var toggle = candidates.Single(c => c.Label == "Bear autopause OFF");
-        toggle.AutopauseDuringBear.Should().BeFalse();
-        toggle.Weights.Should().Be(ProdWeights); // toggle-only candidate, weights untouched
-
-        // Plus the four structural mixes get autopause-flipped twins, so the
-        // sweep can spot mix/regime-filter interactions.
-        candidates.Count(c => !c.AutopauseDuringBear).Should().Be(5);
+        candidates.Should().OnlyContain(c => c.AutopauseDuringBear == Baseline().AutopauseDuringBear);
+        candidates.Should().NotContain(c => c.Label.Contains("autopause"));
     }
 
     [Fact]

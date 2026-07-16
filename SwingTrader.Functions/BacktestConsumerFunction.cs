@@ -377,7 +377,9 @@ public class BacktestConsumerFunction(
             StopLossPct: profile.StopLossPct,
             TargetPct: profile.TargetPct,
             MinHoldDays: profile.MinHoldDays,
-            MomentumHealthThreshold: profile.MomentumHealthThreshold);
+            MomentumHealthThreshold: profile.MomentumHealthThreshold,
+            PositionFraction: profile.FlatPositionPct,
+            LockedCapitalPct: profile.LockedCapitalPct);
         var candidates = SweepOptimizer.GenerateCandidates(baseline, request.SearchRules, productionRules, accountTactics);
 
         // Progress the UI polls: total covers BOTH search pools (traditional

@@ -531,12 +531,21 @@ public static class StrategyLabEndpoints
                 weightsId = applyResult.NewWeightsId;
             }
 
+            // Risk settings land on the book the run was TUNED against, not the
+            // currently-detected regime: the backtester replays under the Default
+            // book when it's on, else the Neutral baseline. Applying to the active
+            // regime (a bug) would write a Neutral-tuned config onto today's Bull
+            // book.
+            var targetRegime = await riskRepo.IsDefaultRegimeEnabledAsync(ctx.AccountId, ct)
+                ? MarketRegime.Default
+                : MarketRegime.Neutral;
+
             var appliedRisk = false;
             if (req.ApplyRiskSettings && cfg.Rules is not null)
             {
-                // Profile-level rules (max positions, probation day, health
-                // floor) + the fallback stop/target/hold seed.
-                var profile = await riskRepo.GetAsync(ctx.AccountId, ct);
+                // Profile-level rules (max positions, probation day, health floor,
+                // locked capital) + the fallback stop/target/hold seed.
+                var profile = await riskRepo.GetAsync(ctx.AccountId, targetRegime, ct);
                 Agents.Backtesting.BacktestRiskRuleMapper.Apply(profile, cfg.Rules);
                 await riskRepo.UpdateAsync(profile, ct);
 
@@ -552,14 +561,13 @@ public static class StrategyLabEndpoints
                 appliedRisk = true;
             }
 
-            // A bear-autopause winner lands on the Bear regime book (where the
-            // live "pause new entries in a bear" decision lives). Independent of
-            // the rule/tactic apply above, so an autopause-only winner applies too.
+            // An autopause winner lands on the tuned book (same one the risk
+            // rules apply to), so autopause stays consistent with what was tested.
             if (req.ApplyRiskSettings && cfg.AutopauseChanged)
             {
-                var bearBook = await riskRepo.GetAsync(ctx.AccountId, MarketRegime.Bear, ct);
-                bearBook.AutopauseTrading = cfg.AutopauseDuringBear;
-                await riskRepo.UpdateAsync(bearBook, ct);
+                var book = await riskRepo.GetAsync(ctx.AccountId, targetRegime, ct);
+                book.AutopauseTrading = cfg.AutopauseDuringBear;
+                await riskRepo.UpdateAsync(book, ct);
                 appliedRisk = true;
             }
 
