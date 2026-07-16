@@ -574,6 +574,26 @@ h3 .bad {
     background: rgba(76, 175, 80, 0.12);
     td:first-child { font-weight: 600; }
   }
+
+  // The setup combination that matches what's enabled for live trading now -
+  // a left accent so it stands out even when it isn't the winner (and stacks
+  // with .best-row when the live selection happens to be the best).
+  tr.current-live-row td:first-child {
+    box-shadow: inset 3px 0 0 var(--st-accent, #2196f3);
+  }
+
+  .live-tag {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 0 6px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    background: var(--st-accent, #2196f3);
+    color: #fff;
+    vertical-align: middle;
+  }
 }
 
 .muted.small { font-size: 12px; margin: 0 0 8px; }

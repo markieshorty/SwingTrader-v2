@@ -237,6 +237,10 @@ export class ApiService {
     return this.http.post<{ backtestRunId: number }>(`${this.baseUrl}/api/strategy-lab/regime-compare`, {});
   }
 
+  runSetupSearch(): Observable<{ backtestRunId: number }> {
+    return this.http.post<{ backtestRunId: number }>(`${this.baseUrl}/api/strategy-lab/setup-search`, {});
+  }
+
   // Claude analysis of a completed run — advisory only.
   analyseStrategyLabRun(request: LabAnalyseRequestDto): Observable<LabAnalyseResponseDto> {
     return this.http.post<LabAnalyseResponseDto>(`${this.baseUrl}/api/strategy-lab/analyse`, request);

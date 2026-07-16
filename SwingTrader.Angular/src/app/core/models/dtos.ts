@@ -767,7 +767,31 @@ export interface RegimeComparisonDto {
   rows: RegimeComparisonRowDto[];
 }
 
-export type BacktestResultDto = HistoricResultDto | AbResultDto | SweepResultDto | ValidateResultDto | MonteCarloResultDto | SetupAblationDto | RegimeComparisonDto;
+// Setup-combination search: every non-empty combination of the account's
+// setups replayed over the full period with the live dials + governing risk
+// book, ranked by market-adjusted expectancy. Answers "which mix of setups
+// should I be trading?"
+export interface SetupSearchRowDto {
+  setups: string[];         // SetupType names in this combination
+  setupCount: number;
+  isCurrentLive: boolean;   // matches the setups enabled for live trading right now
+  trades: number;
+  winRate: number;          // fraction
+  expectancyPct: number;    // %/trade
+  adjustedPct: number;      // market-adjusted expectancy — the ranking metric
+  totalReturnPct: number;
+  maxDrawdownPct: number;
+  calmarRatio: number;
+}
+
+export interface SetupSearchDto {
+  mode: 'setupsearch';
+  spyReturnPct: number;
+  setupsAvailable: string[];
+  rows: SetupSearchRowDto[]; // best-first by adjustedPct
+}
+
+export type BacktestResultDto = HistoricResultDto | AbResultDto | SweepResultDto | ValidateResultDto | MonteCarloResultDto | SetupAblationDto | RegimeComparisonDto | SetupSearchDto;
 
 export interface BacktestRunStatusDto {
   id: number;

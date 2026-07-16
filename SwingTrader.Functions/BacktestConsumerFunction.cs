@@ -108,6 +108,7 @@ public class BacktestConsumerFunction(
                 "montecarlo" => await RunMonteCarloAsync(request, bars, profile, accountTactics, sectorEtfs, ct),
                 "ablation" => await RunSetupAblationAsync(run, request, bars, profile, accountTactics, sectorEtfs, ct),
                 "regime" => await RunRegimeComparisonAsync(run, request, bars, message.AccountId, accountTactics, sectorEtfs, ct),
+                "setupsearch" => await RunSetupSearchAsync(run, request, bars, profile, accountTactics, sectorEtfs, ct),
                 _ => await RunSingleAsync(request, bars, profile, message.AccountId, accountTactics, sectorEtfs, ct),
             };
             run.Status = "Completed";
@@ -790,6 +791,98 @@ public class BacktestConsumerFunction(
             mode = "regime",
             spyReturnPct = Math.Round(mixed.SpyReturnPct, 1),
             rows,
+        };
+        return JsonSerializer.Serialize(result, CamelCase);
+    }
+
+    // Setup-combination search: brute-forces EVERY non-empty combination of the
+    // account's setups (2^N − 1 - 31 for the five live setups) over the full
+    // period, holding the current live dials and governing risk book fixed, and
+    // ranks them by market-adjusted expectancy. Answers "which mix of setups
+    // should I actually be trading?" - the complement of the ablation view,
+    // which only removes one setup at a time. A long run by design (one engine
+    // pass per combination), but a single candle load with no DB/Claude cost
+    // per pass. The combination matching what's live now is flagged so the user
+    // can see how their current selection ranks against the field.
+    private async Task<string> RunSetupSearchAsync(
+        BacktestRun run, HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars,
+        AccountRiskProfile profile, IReadOnlyDictionary<SetupType, HistoricSetupTactics> accountTactics,
+        IReadOnlyDictionary<string, string>? sectorEtfs, CancellationToken ct)
+    {
+        var baseline = request.Candidates?.FirstOrDefault()
+            ?? throw new InvalidOperationException("Setup search carries no baseline candidate.");
+
+        // The universe searched is every setup the account has tactics for -
+        // deliberately IGNORING the current live on/off switches, since the whole
+        // point is to discover whether a currently-disabled setup earns its place
+        // (or an enabled one should go). Deterministic order so masks are stable.
+        var setups = accountTactics.Keys.OrderBy(s => s.ToString()).ToList();
+        var n = setups.Count;
+        if (n == 0) throw new InvalidOperationException("No setups available to search.");
+
+        // The setups live right now (baseline excludes the disabled ones), used
+        // only to flag the matching row - not to constrain the search.
+        var liveExcluded = ParseSetups(baseline.Rules?.ExcludedSetups)?.ToHashSet() ?? [];
+        var liveEnabled = setups.Where(s => !liveExcluded.Contains(s)).ToHashSet();
+
+        var spy = bars.TryGetValue("SPY", out var spyBars) ? spyBars : Array.Empty<DailyBar>();
+
+        run.TotalCandidates = (1 << n) - 1; // every non-empty subset
+        run.CompletedCandidates = 0;
+        await runs.UpdateAsync(run);
+
+        var scored = new List<(decimal Adjusted, object Row)>();
+        for (var mask = 1; mask < (1 << n); mask++)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var included = new List<SetupType>();
+            for (var bit = 0; bit < n; bit++)
+                if ((mask & (1 << bit)) != 0) included.Add(setups[bit]);
+            var excluded = setups.Where(s => !included.Contains(s)).ToList();
+
+            // Only WHICH setups trade varies - dials, thresholds, per-setup
+            // tactics and the governing risk book are the live ones throughout.
+            var rules = (baseline.Rules ?? new HistoricTradingRules()) with
+            {
+                ExcludedSetups = excluded.Select(s => s.ToString()).ToList(),
+            };
+            var cfg = ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout,
+                baseline.AutopauseDuringBear, profile, accountTactics, rules);
+            var r = await HistoricBacktester.RunAsync(bars, cfg, sectorEtfs, ct);
+            var adjusted = SweepOptimizer.AdjustedExpectancy(r, spy);
+
+            scored.Add((adjusted, new
+            {
+                setups = included.Select(s => s.ToString()).ToList(),
+                setupCount = included.Count,
+                isCurrentLive = included.Count == liveEnabled.Count && included.All(liveEnabled.Contains),
+                trades = r.Trades,
+                winRate = r.WinRate,               // fraction; UI formats as a percent
+                expectancyPct = Math.Round(r.ExpectancyPct, 3),
+                adjustedPct = Math.Round(adjusted, 3),
+                totalReturnPct = Math.Round(r.TotalReturnPct, 1),
+                maxDrawdownPct = Math.Round(r.MaxDrawdownPct, 1),
+                calmarRatio = Math.Round(r.CalmarRatio, 2),
+            }));
+
+            run.CompletedCandidates++;
+            await runs.UpdateAsync(run);
+        }
+
+        // Best-first by market-adjusted expectancy - the same metric the
+        // optimizer ranks on, so the winner here is comparable to a sweep's.
+        var ranked = scored.OrderByDescending(s => s.Adjusted).Select(s => s.Row).ToList();
+
+        logger.LogInformation("Setup search for run {RunId}: evaluated {Count} combinations of {N} setups",
+            run.Id, ranked.Count, n);
+
+        var result = new
+        {
+            mode = "setupsearch",
+            spyReturnPct = spy.Length > 0 ? Math.Round((spy[^1].Close - spy[0].Close) / spy[0].Close * 100m, 1) : 0m,
+            setupsAvailable = setups.Select(s => s.ToString()).ToList(),
+            rows = ranked,
         };
         return JsonSerializer.Serialize(result, CamelCase);
     }

@@ -935,8 +935,9 @@
       }
     </mat-tab>
 
-    <!-- Regimes: is one master ruleset enough, or does a regime mix win? -->
-    <mat-tab label="Regimes" [disabled]="!dataStatusLoading() && !historicAvailable()">
+    <!-- Regimes/Setups: is one master ruleset enough, or does a regime mix win?
+         And which combination of setups should you actually be trading? -->
+    <mat-tab label="Regimes/Setups" [disabled]="!dataStatusLoading() && !historicAvailable()">
       <div class="tab-body">
         <mat-card class="panel controls">
           <h3>One ruleset, or a regime mix?</h3>
@@ -1004,6 +1005,86 @@
               Expectancy is the trade's own price return (entry to exit); total return is compared against SPY
               buy-and-hold. To make a winning single book your live master ruleset, disable the other regime books in
               Settings — Neutral then governs whatever the market does.
+            </p>
+          </mat-card>
+        }
+
+        <!-- Setup-combination search -->
+        <mat-card class="panel controls">
+          <h3>Best combination of setups</h3>
+          <p class="muted small">
+            Brute-forces <strong>every</strong> non-empty combination of your setups
+            (2<sup>N</sup> − 1 — 31 for the five setups) over the full period, holding your
+            <strong>current live dials and governing risk book</strong> fixed and varying only <em>which</em> setups
+            trade. Ranks them by market-adjusted expectancy — the same metric the optimizer uses — so you can see
+            whether a currently-disabled setup earns its place, or an enabled one is a drag. Your live selection is
+            flagged in the table so you can see how it ranks against the field.
+          </p>
+          <div class="meta-row">
+            <button mat-raised-button color="primary" [disabled]="setupSearchRunning() || !historicAvailable()" (click)="runSetupSearch()">
+              @if (setupSearchRunning()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>tune</mat-icon> }
+              Search setup combinations
+            </button>
+            <span class="muted small">Up to 31 simulations — a long run.</span>
+          </div>
+        </mat-card>
+
+        @if (setupSearchStatus(); as sstat) {
+          <mat-card class="panel loading with-progress">
+            <div class="loading-row"><mat-spinner diameter="24"></mat-spinner><span>{{ sstat }}</span></div>
+            @if (setupSearchProgress(); as p) {
+              <mat-progress-bar mode="determinate" [value]="(p.completed / p.total) * 100"></mat-progress-bar>
+              <span class="muted small progress-count">{{ p.completed }} / {{ p.total }} combinations</span>
+            } @else {
+              <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+            }
+          </mat-card>
+        }
+
+        @if (setupSearchResult(); as ss) {
+          <mat-card class="panel results">
+            <h3><mat-icon>tune</mat-icon> Setup combination search</h3>
+            @if (bestSetupCombo(); as best) {
+              <p class="muted small">
+                Best of {{ ss.rows.length }} combinations (SPY buy-and-hold:
+                <strong>{{ ss.spyReturnPct | number: '1.1-1' }}%</strong>):
+                <strong>{{ best.setups.join(' + ') }}</strong> —
+                adjusted expectancy <strong>{{ best.adjustedPct > 0 ? '+' : '' }}{{ best.adjustedPct | number: '1.2-2' }}%</strong>/trade.
+                To trade it, enable exactly those setups (and disable the rest) on Settings → Setup tactics.
+              </p>
+            }
+            <table class="history-table">
+              <thead>
+                <tr><th>Setups</th><th>#</th><th>Trades</th><th>Win %</th><th>Expectancy</th><th>Adjusted</th><th>Total return</th><th>Max DD</th><th>Calmar</th></tr>
+              </thead>
+              <tbody>
+                @for (row of ss.rows; track $index) {
+                  <tr [class.best-row]="$index === 0" [class.current-live-row]="row.isCurrentLive">
+                    <td>
+                      {{ row.setups.join(' + ') }}
+                      @if (row.isCurrentLive) { <span class="live-tag">LIVE</span> }
+                    </td>
+                    <td class="num muted">{{ row.setupCount }}</td>
+                    <td class="num muted">{{ row.trades }}</td>
+                    <td class="num">{{ row.winRate | percent: '1.0-0' }}</td>
+                    <td class="num" [class.good]="row.expectancyPct > 0" [class.bad]="row.expectancyPct < 0">
+                      {{ row.expectancyPct > 0 ? '+' : '' }}{{ row.expectancyPct | number: '1.2-2' }}%
+                    </td>
+                    <td class="num" [class.good]="row.adjustedPct > 0" [class.bad]="row.adjustedPct < 0">
+                      {{ row.adjustedPct > 0 ? '+' : '' }}{{ row.adjustedPct | number: '1.2-2' }}%
+                    </td>
+                    <td class="num">{{ row.totalReturnPct | number: '1.1-1' }}%</td>
+                    <td class="num muted">{{ row.maxDrawdownPct | number: '1.1-1' }}%</td>
+                    <td class="num">{{ row.calmarRatio | number: '1.2-2' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+            <p class="muted small">
+              Ranked by <strong>adjusted</strong> expectancy (each trade's return minus SPY over the same days), so a
+              combination can't win just by riding a rising market. Expectancy is the raw per-trade price return. Fewer
+              setups usually means fewer trades — weigh the top combination's edge against how many trades it rests on
+              before acting.
             </p>
           </mat-card>
         }

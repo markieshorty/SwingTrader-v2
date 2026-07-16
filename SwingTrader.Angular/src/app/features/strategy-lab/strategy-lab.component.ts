@@ -35,6 +35,7 @@ import {
   MonteCarloResultDto,
   SetupAblationDto,
   RegimeComparisonDto,
+  SetupSearchDto,
   RegimeExposureOverrideDto,
   SetupTacticsDto,
   SetupTacticsRowDto,
@@ -488,6 +489,12 @@ export class StrategyLabComponent implements OnDestroy {
   regimeResult = signal<RegimeComparisonDto | null>(null);
   regimeProgress = signal<{ completed: number; total: number } | null>(null);
 
+  // ── Setup-combination search state ─────────────────────────────────────────
+  setupSearchRunning = signal(false);
+  setupSearchStatus = signal<string | null>(null);
+  setupSearchResult = signal<SetupSearchDto | null>(null);
+  setupSearchProgress = signal<{ completed: number; total: number } | null>(null);
+
   // ── Shared state ───────────────────────────────────────────────────────────
   dataStatus = signal<LabDataStatusDto | null>(null);
   dataStatusLoading = signal(true); // true until the first data-status fetch resolves
@@ -496,7 +503,7 @@ export class StrategyLabComponent implements OnDestroy {
   isOwner = signal(false);
   // One poll handle per job kind: an A/B run and an optimizer sweep can be in
   // flight at the same time, and starting one must not kill the other's poll.
-  private pollHandles = new Map<'ab' | 'sweep' | 'validate' | 'montecarlo' | 'ablation' | 'regime', ReturnType<typeof setInterval>>();
+  private pollHandles = new Map<'ab' | 'sweep' | 'validate' | 'montecarlo' | 'ablation' | 'regime' | 'setupsearch', ReturnType<typeof setInterval>>();
 
   weightSum = computed(() => {
     const w = this.weights();
@@ -873,6 +880,36 @@ export class StrategyLabComponent implements OnDestroy {
     return rows.length ? Math.max(...rows.map((r) => r.totalReturnPct)) : null;
   });
 
+  runSetupSearch(): void {
+    this.setupSearchRunning.set(true);
+    this.setupSearchResult.set(null);
+    this.setupSearchProgress.set(null);
+    this.api.runSetupSearch().subscribe({
+      next: (r) => this.startSetupSearchPoll(r.backtestRunId),
+      error: (err) => {
+        this.snackbar.open(errorMessage(err, 'Failed to queue the setup search.'), 'Dismiss', { duration: 5000 });
+        this.setupSearchRunning.set(false);
+      },
+    });
+  }
+
+  private startSetupSearchPoll(runId: number): void {
+    this.pollRun(
+      'setupsearch',
+      runId,
+      'Running — replaying every combination of your setups over the full period with the live dials and risk book. This is a long run…',
+      this.setupSearchStatus,
+      (result) => {
+        if (result && 'mode' in result && result.mode === 'setupsearch') this.setupSearchResult.set(result);
+        this.setupSearchRunning.set(false);
+        this.setupSearchProgress.set(null);
+      });
+  }
+
+  // The winning combination (rows arrive best-first, ranked by adjusted
+  // expectancy) - drives the highlighted "best" row and the summary line.
+  bestSetupCombo = computed(() => this.setupSearchResult()?.rows?.[0] ?? null);
+
   // Shared by a freshly-queued sweep and the tab-load reattach to one that
   // was already running server-side when the page was opened/refreshed.
   private startSweepPoll(runId: number): void {
@@ -898,7 +935,7 @@ export class StrategyLabComponent implements OnDestroy {
   // decides how to interpret the stored result. Restarting a job of the same
   // kind replaces its own poll; the other kind's poll is left running.
   private pollRun(
-    kind: 'ab' | 'sweep' | 'validate' | 'montecarlo' | 'ablation' | 'regime',
+    kind: 'ab' | 'sweep' | 'validate' | 'montecarlo' | 'ablation' | 'regime' | 'setupsearch',
     runId: number,
     runningText: string,
     status: ReturnType<typeof signal<string | null>>,
@@ -920,6 +957,9 @@ export class StrategyLabComponent implements OnDestroy {
           if (kind === 'regime' && r.totalCandidates != null && r.completedCandidates != null) {
             this.regimeProgress.set({ completed: r.completedCandidates, total: r.totalCandidates });
           }
+          if (kind === 'setupsearch' && r.totalCandidates != null && r.completedCandidates != null) {
+            this.setupSearchProgress.set({ completed: r.completedCandidates, total: r.totalCandidates });
+          }
           if (r.status === 'Completed' || r.status === 'Failed') {
             clearInterval(timer);
             this.pollHandles.delete(kind);
@@ -933,6 +973,7 @@ export class StrategyLabComponent implements OnDestroy {
               else if (kind === 'montecarlo') this.monteCarloRunning.set(false);
               else if (kind === 'ablation') { this.ablationRunning.set(false); this.ablationProgress.set(null); }
               else if (kind === 'regime') { this.regimeRunning.set(false); this.regimeProgress.set(null); }
+              else if (kind === 'setupsearch') { this.setupSearchRunning.set(false); this.setupSearchProgress.set(null); }
               else this.optimizing.set(false);
               if (kind === 'sweep') this.sweepProgress.set(null);
             }

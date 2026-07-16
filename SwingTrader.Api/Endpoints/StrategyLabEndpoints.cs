@@ -293,6 +293,43 @@ public static class StrategyLabEndpoints
             return Results.Ok(new { backtestRunId = run.Id });
         });
 
+        // Setup-combination search: brute-forces every non-empty combination of
+        // the account's setups over the full period, holding the current live
+        // dials and governing risk book fixed, and ranks them by market-adjusted
+        // expectancy - "which mix of setups should I be trading?". A long run
+        // (2^N − 1 engine passes); queued and polled like any historic run.
+        api.MapPost("/strategy-lab/setup-search", async (
+            IBacktestRunRepository runs,
+            IStrategyWeightsRepository weightsRepo,
+            IAccountRiskProfileRepository riskProfileRepo,
+            ISetupTacticsRepository setupTacticsRepo,
+            [FromServices] ServiceBusClient? serviceBus,
+            IAccountContext ctx,
+            CancellationToken ct) =>
+        {
+            if (serviceBus is null)
+                return Results.Problem("Service Bus is not configured on this environment.", statusCode: StatusCodes.Status503ServiceUnavailable);
+
+            var baseline = await SnapshotBaselineAsync(weightsRepo, riskProfileRepo, ctx.AccountId, ct, setupTacticsRepo);
+            if (baseline is null)
+                return Results.BadRequest(new { message = "No active production weights found to search." });
+
+            var run = await runs.AddAsync(new BacktestRun
+            {
+                AccountId = ctx.AccountId,
+                RequestJson = JsonSerializer.Serialize(new HistoricBacktestRequest(
+                    baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout,
+                    Mode: "setupsearch",
+                    Candidates: [baseline])),
+            });
+
+            await using var sender = serviceBus.CreateSender("backtest-jobs");
+            await sender.SendMessageAsync(new ServiceBusMessage(JsonSerializer.Serialize(
+                new BacktestJobMessage(ctx.AccountId, Guid.NewGuid().ToString("N"), run.Id))), ct);
+
+            return Results.Ok(new { backtestRunId = run.Id });
+        });
+
         // Latest run of a given mode - an in-flight run preferred over the
         // newest completed one, so on tab load the UI can either restore the
         // most recent optimizer result or REATTACH its poll to a sweep still
