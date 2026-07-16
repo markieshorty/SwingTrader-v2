@@ -66,14 +66,20 @@ public static class StrategyLabEndpoints
                             // exactly what the user changed.
                             new HistoricBacktestCandidate("Your dials", userWeights, req.BuyThreshold, req.ExcludeBreakout, req.AutopauseDuringBear, req.Rules),
                             baseline,
-                        ]);
+                        ],
+                        // Regime frame for both columns; the per-regime autopause
+                        // overrides land on the user column only (consumer side).
+                        RegimeMode: req.RegimeMode,
+                        AutopauseOverrides: req.AutopauseOverrides);
                 }
                 else
                 {
                     historicRequest = new HistoricBacktestRequest(
                         userWeights, req.BuyThreshold, req.ExcludeBreakout,
                         AutopauseDuringBear: req.AutopauseDuringBear,
-                        Rules: req.Rules);
+                        Rules: req.Rules,
+                        RegimeMode: req.RegimeMode,
+                        AutopauseOverrides: req.AutopauseOverrides);
                 }
 
                 var run = await runs.AddAsync(new BacktestRun

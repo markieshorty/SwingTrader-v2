@@ -98,15 +98,35 @@
           </mat-form-field>
 
           @if (dataSource() === 'historic') {
-            <mat-checkbox [checked]="autopauseBear()" (change)="autopauseBear.set($event.checked)"
-              matTooltip="Skips new entries while SPY is below its 200-day average, approximating the live bear-market autopause. Unlike the locked dials, this IS reconstructable from historic data — flipping it is a real experiment. Prefilled from your live setting.">
-              Autopause during bear market
-            </mat-checkbox>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="regime-select">
+              <mat-label>Compare against production under</mat-label>
+              <mat-select [value]="regimeMode()" (selectionChange)="regimeMode.set($event.value)"
+                matTooltip="Which risk-book envelope both columns replay under. A regime forces that book across the whole period; Mixed switches book by the regime detected each day (live-like). 'Don't compare' runs your dials only under Neutral.">
+                @for (opt of regimeModeOptions; track opt.value) {
+                  <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
 
-            <mat-checkbox [checked]="compareBaselineHistoric()" (change)="compareBaselineHistoric.set($event.checked)"
-              matTooltip="Also runs the current production dials over the same historic window so you see both side by side. Doubles the wait — the job runs two full simulations.">
-              Also compare against production
-            </mat-checkbox>
+            @if (autopauseRows().length > 0) {
+              <div class="autopause-overrides">
+                <span class="muted small">Autopause (trial override — your column only; the baseline uses live books):</span>
+                @for (regime of autopauseRows(); track regime) {
+                  <div class="autopause-row">
+                    <span class="ap-name">{{ regime }}</span>
+                    <mat-button-toggle-group [value]="autopauseChoice()[regime]"
+                      (change)="setAutopauseChoice(regime, $event.value)" hideSingleSelectionIndicator>
+                      <mat-button-toggle value="inherit">Live</mat-button-toggle>
+                      <mat-button-toggle value="on">Pause</mat-button-toggle>
+                      <mat-button-toggle value="off">Trade</mat-button-toggle>
+                    </mat-button-toggle-group>
+                    @if (regime === 'Crisis') {
+                      <span class="muted small">no historical effect (VIX-driven; dormant in backtests)</span>
+                    }
+                  </div>
+                }
+              </div>
+            }
 
             <mat-expansion-panel class="rules-panel">
               <mat-expansion-panel-header>
@@ -381,9 +401,10 @@
             {{ ab.candidates[0].result.from | date: 'dd/MM/yyyy' }} to {{ ab.candidates[0].result.to | date: 'dd/MM/yyyy' }}
           </h3>
           <p class="summary">
-            Both configurations were replayed over the identical historic window. The production column shows the dials
-            that were live when this job was queued. Higher expectancy = more per trade on average; lower drawdown = a
-            shallower worst losing stretch.
+            Both columns replayed over the identical historic window under the
+            <strong>{{ ranRegimeLabel() }}</strong> regime envelope. The production column shows the dials that were live
+            when this job was queued. Higher expectancy = more per trade on average; lower drawdown = a shallower worst
+            losing stretch.
           </p>
           <div class="ab-grid">
             @for (c of ab.candidates; track c.label) {
@@ -399,8 +420,6 @@
                   <span class="num" [class.good]="c.result.totalReturnPct > 0" [class.bad]="c.result.totalReturnPct < 0">{{ c.result.totalReturnPct | number: '1.1-1' }}%</span></div>
                 <div class="ab-stat"><span matTooltip="Worst peak-to-trough fall in account value during the period">Max drawdown</span>
                   <span class="num">{{ c.result.maxDrawdownPct | number: '1.1-1' }}%</span></div>
-                <div class="ab-stat"><span matTooltip="Whether this run skipped new entries while SPY was below its 200-day average">Bear autopause</span>
-                  <span class="num">{{ c.autopauseDuringBear ? 'On' : 'Off' }}</span></div>
               </div>
             }
           </div>

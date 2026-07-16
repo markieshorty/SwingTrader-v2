@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, computed, inject, OnDestroy, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
@@ -64,6 +65,7 @@ interface DiffRow {
     FormsModule,
     MatCardModule,
     MatButtonModule,
+    MatButtonToggleModule,
     MatCheckboxModule,
     MatFormFieldModule,
     MatIconModule,
@@ -146,13 +148,49 @@ export class StrategyLabComponent implements OnDestroy {
   // the old breakout-only dropdown + the separate trading-rules multiselect.
   readonly allSetups = ['OversoldRecovery', 'Breakout', 'MomentumContinuation', 'VolumeSpike', 'TrendFollowing'];
   excludedSetups = signal<string[]>([]);
-  // Historic A/B is opt-in (doubles a multi-minute job); own-data A/B is free
-  // and always on - the server evaluates production dials alongside yours.
-  compareBaselineHistoric = signal(false);
-  // Historic-only dial: skip new entries while SPY < its 200-day average
-  // (approximates the live bear autopause). Initialised from the account's
-  // live setting; unlike sentiment etc. this IS reconstructable from bars,
-  // so flipping it is a legitimate experiment.
+
+  // Historic A/B regime frame: which risk-book envelope BOTH columns replay
+  // under. 'off' = a single run under Neutral (no baseline, halves the job);
+  // any regime = compare your dials vs production under that book; 'mixed' =
+  // switch book by the regime detected each day (live-like). Replaces the old
+  // "compare against production" checkbox and the bear-autopause proxy toggle.
+  regimeMode = signal<'off' | 'neutral' | 'bull' | 'bear' | 'crisis' | 'mixed'>('off');
+  readonly regimeModeOptions = [
+    { value: 'off', label: "Don't compare (dials only)" },
+    { value: 'neutral', label: 'Neutral' },
+    { value: 'bull', label: 'Bull' },
+    { value: 'bear', label: 'Bear' },
+    { value: 'crisis', label: 'Crisis' },
+    { value: 'mixed', label: 'Mixed (regime-switch)' },
+  ] as const;
+
+  // Per-regime autopause TRIAL override (user column only): inherit the live
+  // book, or force it on/off for this run without touching Settings. Lets you
+  // trial e.g. "Bear not autopaused" against live.
+  autopauseChoice = signal<Record<string, 'inherit' | 'on' | 'off'>>(
+    { Bull: 'inherit', Neutral: 'inherit', Bear: 'inherit', Crisis: 'inherit' });
+  // Which override rows to show: all four under Mixed, just the forced one else.
+  autopauseRows = computed<string[]>(() => {
+    switch (this.regimeMode()) {
+      case 'mixed': return ['Bull', 'Neutral', 'Bear', 'Crisis'];
+      case 'bull': return ['Bull'];
+      case 'bear': return ['Bear'];
+      case 'crisis': return ['Crisis'];
+      case 'neutral': return ['Neutral'];
+      default: return [];
+    }
+  });
+  setAutopauseChoice(regime: string, choice: 'inherit' | 'on' | 'off'): void {
+    this.autopauseChoice.update((m) => ({ ...m, [regime]: choice }));
+  }
+  private buildAutopauseOverrides(): Record<string, boolean> | null {
+    const set = Object.entries(this.autopauseChoice()).filter(([, v]) => v !== 'inherit');
+    return set.length ? Object.fromEntries(set.map(([r, v]) => [r, v === 'on'])) : null;
+  }
+
+  // Retained for the apply / validate / Monte-Carlo paths, which still reason
+  // about the live bear autopause; the A/B form no longer exposes it as a dial
+  // (the regime dropdown owns autopause now).
   autopauseBear = signal(true);
   private productionAutopauseBear = true;
 
@@ -309,6 +347,9 @@ export class StrategyLabComponent implements OnDestroy {
   private ranThreshold = 0;
   private ranExcludeBreakout = false;
   private ranAutopauseBear = true;
+  // Regime frame the last historic run used, shown in the A/B result caption so
+  // "Production baseline" is unambiguous (which book was it replayed under).
+  ranRegimeLabel = signal('');
   private lastHistoricRunId: number | null = null;
   // The completed optimizer run - lets "Apply winner" reproduce the FULL
   // winning config (weights + rule/tactic overrides + autopause) server-side,
@@ -541,18 +582,26 @@ export class StrategyLabComponent implements OnDestroy {
       // breakout bool; the multiselect is the source of truth.
       excludeBreakout: this.excludedSetups().includes('Breakout'),
       // Own-data comparison is a free in-memory replay - always on. Historic
-      // doubles a multi-minute job, so it follows the checkbox.
-      compareBaseline: historic ? this.compareBaselineHistoric() : true,
+      // compares against production only when a regime is picked in the dropdown
+      // ("Don't compare" = a single run under the Neutral book).
+      compareBaseline: historic ? this.regimeMode() !== 'off' : true,
       autopauseDuringBear: this.autopauseBear(),
       // Trading-rule overrides only ride historic runs, and only when
       // something was actually changed - an untouched panel sends nothing so
       // the engine uses the live risk profile exactly as before.
       rules: historic ? this.buildRules() : null,
+      // Regime frame both columns replay under ('off' = single Neutral run);
+      // per-regime autopause overrides ride the user column only.
+      regimeMode: historic ? (this.regimeMode() === 'off' ? 'neutral' : this.regimeMode()) : null,
+      autopauseOverrides: historic ? this.buildAutopauseOverrides() : null,
     };
     this.ranWeights = request.weights;
     this.ranThreshold = request.buyThreshold;
     this.ranExcludeBreakout = request.excludeBreakout;
     this.ranAutopauseBear = request.autopauseDuringBear;
+    this.ranRegimeLabel.set(historic
+      ? (this.regimeModeOptions.find((o) => o.value === this.regimeMode())?.label ?? '')
+      : '');
 
     if (historic) {
       const fingerprint = this.configFingerprint();
@@ -1006,7 +1055,7 @@ export class StrategyLabComponent implements OnDestroy {
     }
 
     this.dataSource.set('historic');
-    this.compareBaselineHistoric.set(true);
+    this.regimeMode.set('neutral'); // compare vs production under the Neutral book
     this.labTabIndex.set(0);
     this.snackbar.open(
       `Winner's full config ("${w.label}") loaded — including its rule/setup overrides. Hit Run Simulation for the head-to-head vs production.`,

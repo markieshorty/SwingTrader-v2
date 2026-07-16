@@ -581,3 +581,29 @@ h3 .bad {
 .search-rules-row {
   margin: 4px 0 8px;
 }
+
+.regime-select {
+  display: block;
+  max-width: 320px;
+  margin: 4px 0;
+}
+
+.autopause-overrides {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 8px;
+
+  .autopause-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .ap-name {
+    min-width: 60px;
+    font-weight: 600;
+    font-size: 13px;
+  }
+  mat-button-toggle-group { font-size: 12px; }
+}

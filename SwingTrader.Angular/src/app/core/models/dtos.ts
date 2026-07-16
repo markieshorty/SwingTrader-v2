@@ -540,6 +540,8 @@ export interface StrategyLabRequestDto {
   compareBaseline?: boolean; // A/B: also evaluate production dials over the same data
   autopauseDuringBear?: boolean; // historic: skip entries while SPY < 200dma (mirrors live autopause)
   rules?: LabTradingRulesDto | null; // historic: trading-rule experiment overrides
+  regimeMode?: string | null; // historic: 'neutral'|'bull'|'bear'|'crisis'|'mixed' envelope both columns run under
+  autopauseOverrides?: Record<string, boolean> | null; // historic: per-regime autopause override for the user column
 }
 
 export interface LabResultDto {

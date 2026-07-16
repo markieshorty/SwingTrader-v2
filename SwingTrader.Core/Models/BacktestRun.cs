@@ -90,4 +90,10 @@ public record HistoricBacktestRequest(
     // Sweep-only: also generate trading-rule candidates (exit/probation/
     // position grids) alongside the weight search. Defaulted so older queued
     // requests keep deserializing.
-    bool SearchRules = false);
+    bool SearchRules = false,
+    // Regime envelope both A/B columns replay under (null/"neutral"|"bull"|
+    // "bear"|"crisis" force one book; "mixed" switches per detected day) and the
+    // user column's per-regime autopause overrides (key = regime name; absent =
+    // inherit the live book). Defaulted so older queued requests deserialize.
+    string? RegimeMode = null,
+    Dictionary<string, bool>? AutopauseOverrides = null);

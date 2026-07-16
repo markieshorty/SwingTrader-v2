@@ -99,13 +99,13 @@ public class BacktestConsumerFunction(
 
             run.ResultJson = request.Mode switch
             {
-                "ab" => await RunAbAsync(request, bars, profile, accountTactics, sectorEtfs, ct),
+                "ab" => await RunAbAsync(request, bars, profile, message.AccountId, accountTactics, sectorEtfs, ct),
                 "sweep" => await RunSweepAsync(message.AccountId, run, request, bars, profile, accountTactics, sectorEtfs, ct),
                 "validate" => await RunValidateAsync(request, bars, profile, accountTactics, sectorEtfs, ct),
                 "montecarlo" => await RunMonteCarloAsync(request, bars, profile, accountTactics, sectorEtfs, ct),
                 "ablation" => await RunSetupAblationAsync(run, request, bars, profile, accountTactics, sectorEtfs, ct),
                 "regime" => await RunRegimeComparisonAsync(run, request, bars, message.AccountId, accountTactics, sectorEtfs, ct),
-                _ => await RunSingleAsync(request, bars, profile, accountTactics, sectorEtfs, ct),
+                _ => await RunSingleAsync(request, bars, profile, message.AccountId, accountTactics, sectorEtfs, ct),
             };
             run.Status = "Completed";
             run.CompletedAt = DateTime.UtcNow;
@@ -222,32 +222,59 @@ public class BacktestConsumerFunction(
                 .Select(s => s!.Value)
                 .ToList();
 
-    private static async Task<string> RunSingleAsync(
-        HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, AccountRiskProfile profile,
+    private async Task<string> RunSingleAsync(
+        HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, AccountRiskProfile profile, int accountId,
         IReadOnlyDictionary<SetupType, HistoricSetupTactics> accountTactics,
         IReadOnlyDictionary<string, string>? sectorEtfs, CancellationToken ct)
     {
-        var result = await HistoricBacktester.RunAsync(
-            bars, ToConfig(request.Weights, request.BuyThreshold, request.ExcludeBreakout, request.AutopauseDuringBear, profile, accountTactics, request.Rules), sectorEtfs, ct);
+        HistoricConfig cfg;
+        if (!string.IsNullOrEmpty(request.RegimeMode))
+        {
+            var books = await LoadRegimeBooksAsync(accountId, ct);
+            cfg = BuildRegimeConfig(request.Weights, request.BuyThreshold, request.ExcludeBreakout, request.Rules,
+                request.RegimeMode, books, request.AutopauseOverrides, accountTactics);
+        }
+        else
+        {
+            cfg = ToConfig(request.Weights, request.BuyThreshold, request.ExcludeBreakout, request.AutopauseDuringBear, profile, accountTactics, request.Rules);
+        }
+        var result = await HistoricBacktester.RunAsync(bars, cfg, sectorEtfs, ct);
         // Trade log stays out of the stored JSON - it can be thousands of
         // rows; the headline stats + buckets are what the UI shows.
         return JsonSerializer.Serialize(result with { TradeLog = [] }, CamelCase);
     }
 
     // A/B: both configs over the identical full window. Candidates carry their
-    // labels ("Your dials" / "Production baseline") from queue time.
-    private static async Task<string> RunAbAsync(
-        HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, AccountRiskProfile profile,
+    // labels ("Your dials" / "Production baseline") from queue time. When a
+    // RegimeMode is set both columns replay under that regime envelope; the
+    // per-regime autopause overrides apply to the user column (index 0) only,
+    // so "trial Bear un-paused vs live" is a clean single-variable comparison.
+    private async Task<string> RunAbAsync(
+        HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, AccountRiskProfile profile, int accountId,
         IReadOnlyDictionary<SetupType, HistoricSetupTactics> accountTactics,
         IReadOnlyDictionary<string, string>? sectorEtfs, CancellationToken ct)
     {
         var candidates = request.Candidates
             ?? throw new InvalidOperationException("A/B request carries no candidates.");
 
+        var books = string.IsNullOrEmpty(request.RegimeMode) ? null : await LoadRegimeBooksAsync(accountId, ct);
+
         var results = new List<object>();
-        foreach (var c in candidates)
+        for (var i = 0; i < candidates.Count; i++)
         {
-            var r = await HistoricBacktester.RunAsync(bars, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile, accountTactics, c.Rules), sectorEtfs, ct);
+            var c = candidates[i];
+            HistoricConfig cfg;
+            if (books is not null)
+            {
+                var overrides = i == 0 ? request.AutopauseOverrides : null; // user column only
+                cfg = BuildRegimeConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.Rules,
+                    request.RegimeMode!, books, overrides, accountTactics);
+            }
+            else
+            {
+                cfg = ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile, accountTactics, c.Rules);
+            }
+            var r = await HistoricBacktester.RunAsync(bars, cfg, sectorEtfs, ct);
             results.Add(new
             {
                 label = c.Label,
@@ -259,6 +286,46 @@ public class BacktestConsumerFunction(
             });
         }
         return JsonSerializer.Serialize(new { mode = "ab", candidates = results }, CamelCase);
+    }
+
+    private async Task<IReadOnlyDictionary<MarketRegime, AccountRiskProfile>> LoadRegimeBooksAsync(int accountId, CancellationToken ct)
+    {
+        var books = new Dictionary<MarketRegime, AccountRiskProfile>();
+        foreach (var regime in new[] { MarketRegime.Bull, MarketRegime.Neutral, MarketRegime.Bear, MarketRegime.Crisis })
+            books[regime] = await riskProfileRepo.GetAsync(accountId, regime, ct);
+        return books;
+    }
+
+    // Builds a candidate's config for a regime run. "mixed" attaches every book's
+    // envelope so the engine switches per detected day; otherwise the named book
+    // is forced across the whole period. Per-regime autopause overrides (user
+    // column only) let a book's live autopause be flipped for the trial without
+    // touching the live setting; absent = inherit the book.
+    private static HistoricConfig BuildRegimeConfig(
+        HistoricBacktestWeights w, decimal buyThreshold, bool excludeBreakout, HistoricTradingRules? rules,
+        string regimeMode,
+        IReadOnlyDictionary<MarketRegime, AccountRiskProfile> books,
+        IReadOnlyDictionary<string, bool>? autopauseOverrides,
+        IReadOnlyDictionary<SetupType, HistoricSetupTactics> accountTactics)
+    {
+        bool Autopause(MarketRegime r) =>
+            autopauseOverrides is not null && autopauseOverrides.TryGetValue(r.ToString(), out var v) ? v : books[r].AutopauseTrading;
+
+        if (string.Equals(regimeMode, "mixed", StringComparison.OrdinalIgnoreCase))
+        {
+            var neutral = books[MarketRegime.Neutral];
+            return ToConfig(w, buyThreshold, excludeBreakout, autopauseDuringBear: false, neutral, accountTactics, rules)
+                with
+                {
+                    RegimeBooks = books.ToDictionary(
+                        kv => kv.Key,
+                        kv => new RegimeEnvelope(Autopause(kv.Key), kv.Value.MaxOpenPositions, kv.Value.FlatPositionPct)),
+                };
+        }
+        var regime = Enum.TryParse<MarketRegime>(regimeMode, ignoreCase: true, out var parsed) ? parsed : MarketRegime.Neutral;
+        var book = books[regime];
+        return ToConfig(w, buyThreshold, excludeBreakout, autopauseDuringBear: false, book, accountTactics, rules)
+            with { ForceAutopause = Autopause(regime) };
     }
 
     // Sweep: candidates generated around the baseline, evaluated on the train

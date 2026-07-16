@@ -37,7 +37,17 @@ public record StrategyLabRequest(
     // exclusions, hold/position caps, trailing shape). Applied to the user's
     // candidate only - the production baseline always replays with the
     // account's live risk-profile rules. Never touches live settings.
-    Core.Models.HistoricTradingRules? Rules = null);
+    Core.Models.HistoricTradingRules? Rules = null,
+    // Historic mode: which regime envelope BOTH columns replay under.
+    // null/"neutral"|"bull"|"bear"|"crisis" force one book across the whole
+    // period; "mixed" switches book by the regime detected each day (live-like).
+    // Supersedes the legacy AutopauseDuringBear SPY-200 proxy.
+    string? RegimeMode = null,
+    // Historic mode: per-regime autopause override for the USER column only, so
+    // you can trial e.g. "Bear not autopaused" without touching the live book.
+    // Key = regime name; absent = inherit that book's live setting. The baseline
+    // always uses the live books.
+    Dictionary<string, bool>? AutopauseOverrides = null);
 
 public record LabTradeOutcome(
     string Symbol, DateTime OpenedAt, decimal Conviction, string Setup, decimal ReturnPct, bool WouldTake);
