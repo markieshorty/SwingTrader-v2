@@ -298,16 +298,24 @@ public class BacktestConsumerFunction(
     private async Task<IReadOnlyDictionary<MarketRegime, AccountRiskProfile>> LoadRegimeBooksAsync(int accountId, CancellationToken ct)
     {
         var regimes = new[] { MarketRegime.Bull, MarketRegime.Neutral, MarketRegime.Bear, MarketRegime.Crisis };
-        // Default master book on: every regime resolves to it, so regime-switching
-        // (Mixed) and forced-regime runs all replay under the one live book.
+        // The Default master book is always loaded under its own key so a
+        // forced-"Default" A/B run can replay under it on demand (whether or not
+        // it's the live master). Mixed excludes it - the engine never DETECTS
+        // Default, so it's only ever a forced choice.
+        var defBook = await riskProfileRepo.GetAsync(accountId, MarketRegime.Default, ct);
+
+        // Default master book on: every detectable regime resolves to it, so
+        // regime-switching (Mixed) and forced-regime runs all replay under it.
         if (await riskProfileRepo.IsDefaultRegimeEnabledAsync(accountId, ct))
         {
-            var def = await riskProfileRepo.GetAsync(accountId, MarketRegime.Default, ct);
-            return regimes.ToDictionary(r => r, _ => def);
+            var d = regimes.ToDictionary(r => r, _ => defBook);
+            d[MarketRegime.Default] = defBook;
+            return d;
         }
         var books = new Dictionary<MarketRegime, AccountRiskProfile>();
         foreach (var regime in regimes)
             books[regime] = await riskProfileRepo.GetAsync(accountId, regime, ct);
+        books[MarketRegime.Default] = defBook;
         return books;
     }
 
@@ -345,7 +353,9 @@ public class BacktestConsumerFunction(
             return ToConfig(w, buyThreshold, excludeBreakout, autopauseDuringBear: false, neutral, accountTactics, rules)
                 with
                 {
-                    RegimeBooks = books.Keys.ToDictionary(r => r, Envelope),
+                    // Default is never detected day-to-day, so it's excluded from
+                    // the per-day switch set (it's only a forced-regime choice).
+                    RegimeBooks = books.Keys.Where(r => r != MarketRegime.Default).ToDictionary(r => r, Envelope),
                 };
         }
         // Forced single regime: the exit/probation rules come from the uniform

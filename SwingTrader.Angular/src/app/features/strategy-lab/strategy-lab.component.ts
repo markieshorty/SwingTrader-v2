@@ -158,9 +158,10 @@ export class StrategyLabComponent implements OnDestroy {
   // any regime = compare your dials vs production under that book; 'mixed' =
   // switch book by the regime detected each day (live-like). Replaces the old
   // "compare against production" checkbox and the bear-autopause proxy toggle.
-  regimeMode = signal<'off' | 'neutral' | 'bull' | 'bear' | 'crisis' | 'mixed'>('off');
+  regimeMode = signal<'off' | 'default' | 'neutral' | 'bull' | 'bear' | 'crisis' | 'mixed'>('off');
   readonly regimeModeOptions = [
     { value: 'off', label: "Don't compare (dials only)" },
+    { value: 'default', label: 'Default (master book)' },
     { value: 'neutral', label: 'Neutral' },
     { value: 'bull', label: 'Bull' },
     { value: 'bear', label: 'Bear' },
@@ -172,11 +173,12 @@ export class StrategyLabComponent implements OnDestroy {
   // book, or force it on/off for this run without touching Settings. Lets you
   // trial e.g. "Bear not autopaused" against live.
   autopauseChoice = signal<Record<string, 'inherit' | 'on' | 'off'>>(
-    { Bull: 'inherit', Neutral: 'inherit', Bear: 'inherit', Crisis: 'inherit' });
+    { Default: 'inherit', Bull: 'inherit', Neutral: 'inherit', Bear: 'inherit', Crisis: 'inherit' });
   // Single-regime autopause tri-state row: shown only for a forced regime (under
   // Mixed the three exposure forms below own autopause). Empty = no row.
   autopauseRows = computed<string[]>(() => {
     switch (this.regimeMode()) {
+      case 'default': return ['Default'];
       case 'bull': return ['Bull'];
       case 'bear': return ['Bear'];
       case 'crisis': return ['Crisis'];
@@ -202,7 +204,7 @@ export class StrategyLabComponent implements OnDestroy {
   // The one Regime selector both frames the run AND prefills the Trading-rules
   // fields from that book, so the numbers on screen always match what runs.
   // Mixed loads the three exposure forms from the live books instead.
-  onRegimeModeChange(value: 'off' | 'neutral' | 'bull' | 'bear' | 'crisis' | 'mixed'): void {
+  onRegimeModeChange(value: 'off' | 'default' | 'neutral' | 'bull' | 'bear' | 'crisis' | 'mixed'): void {
     this.regimeMode.set(value);
     if (value === 'mixed') {
       forkJoin(Object.fromEntries(this.mixedRegimes.map((r) => [r, this.api.getRiskProfile(r)])))
@@ -218,7 +220,7 @@ export class StrategyLabComponent implements OnDestroy {
       return;
     }
     const book: Record<string, MarketRegimeName> =
-      { off: 'Neutral', neutral: 'Neutral', bull: 'Bull', bear: 'Bear', crisis: 'Crisis' };
+      { off: 'Neutral', default: 'Default', neutral: 'Neutral', bull: 'Bull', bear: 'Bear', crisis: 'Crisis' };
     if (book[value]) this.loadRegimeIntoRules(book[value]);
   }
 

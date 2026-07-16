@@ -17,7 +17,7 @@
               <mat-label>Data source</mat-label>
               <mat-select [ngModel]="dataSource()" (ngModelChange)="dataSource.set($event)">
                 <mat-option value="own">Backtest against your own trade history</mat-option>
-                <mat-option value="historic" [disabled]="dataStatusLoading() || !historicAvailable()">
+                <mat-option value="historic" [disabled]="!dataStatusLoading() && !historicAvailable()">
                   Backtest against up to 10 years of market data{{
                     dataStatusLoading() ? ' (checking…)' : (historicAvailable() ? '' : ' (no data synced yet)')
                   }}
