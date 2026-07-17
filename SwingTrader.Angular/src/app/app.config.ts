@@ -44,7 +44,25 @@ const msalInstance = new PublicClientApplication(msalConfig);
 // Without this, authGuard's loginRedirect() call throws
 // "uninitialized_public_client_application" on first load.
 function initializeMsal(): () => Promise<void> {
-  return () => msalInstance.initialize().then(() => msalInstance.handleRedirectPromise()).then(() => undefined);
+  return () =>
+    msalInstance.initialize()
+      .then(() => msalInstance.handleRedirectPromise())
+      .then(() => undefined)
+      // A rejected handleRedirectPromise (transient token-exchange failure,
+      // expired auth code, state_not_found when the redirect lands in a tab
+      // whose SessionStorage lacks the login state, stale interaction marker
+      // from an interrupted attempt) used to reject the APP_INITIALIZER -
+      // Angular then refused to bootstrap and the user was stuck on a dead
+      // spinner, recoverable only by closing the tab (SessionStorage dies
+      // with it). Recover instead: clear the stale interaction markers so
+      // the next loginRedirect isn't blocked by interaction_in_progress,
+      // and boot to the splash for a one-click retry.
+      .catch((err) => {
+        console.error('MSAL redirect handling failed — booting to splash for a clean retry', err);
+        Object.keys(sessionStorage)
+          .filter((k) => k.startsWith('msal.') && k.includes('interaction'))
+          .forEach((k) => sessionStorage.removeItem(k));
+      });
 }
 
 export const appConfig: ApplicationConfig = {
