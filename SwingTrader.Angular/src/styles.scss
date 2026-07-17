@@ -120,3 +120,14 @@ mat-card {
 mat-card > button {
   align-self: flex-start;
 }
+
+// Material tab bodies set their own overflow, which makes them the scroll
+// container for position:sticky descendants - but the page (body) is what
+// actually scrolls, so sticky elements inside tabs never engage. Settings
+// uses sticky Save/Reset rows, so its tab bodies must not trap them. Scoped
+// to app-settings: other tab groups keep Material's defaults.
+app-settings .mat-mdc-tab-body-wrapper,
+app-settings .mat-mdc-tab-body,
+app-settings .mat-mdc-tab-body-content {
+  overflow: visible !important;
+}
