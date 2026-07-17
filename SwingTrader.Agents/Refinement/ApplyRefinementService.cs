@@ -48,6 +48,8 @@ public class ApplyRefinementService(
             suggested = regimeSuggested;
         }
 
+        NormaliseForwardWeights(suggested);
+
         var newWeights = new StrategyWeights
         {
             AccountId = accountId,
@@ -114,5 +116,21 @@ public class ApplyRefinementService(
         logger.LogInformation("Refinement suggestion #{Id} rejected for account {AccountId}", suggestion.Id, accountId);
 
         return new ApplyRefinementResult(true, null, null);
+    }
+
+    // Stored SuggestedWeightsJson predating a forward-weight schema change
+    // deserializes into a MIX of stored values and new-property initializer
+    // defaults, so the forward trio can sum to something other than 1.0 (e.g.
+    // pre-FD2 JSON: stored 0.60/0.40 + the initializer's 0.25 filing = 1.25),
+    // and Validate() would reject the apply. Rescale the trio to sum 1.0,
+    // preserving the stored proportions - a no-op for well-formed rows.
+    internal static void NormaliseForwardWeights(StrategyWeights w)
+    {
+        var sum = w.ForwardSentimentWeight + w.ForwardFundamentalWeight + w.ForwardFilingWeight;
+        if (sum <= 0m || Math.Abs(sum - 1.0m) <= 0.001m) return;
+        w.ForwardSentimentWeight = Math.Round(w.ForwardSentimentWeight / sum, 4);
+        w.ForwardFundamentalWeight = Math.Round(w.ForwardFundamentalWeight / sum, 4);
+        // Drift from rounding lands on the filing component so the sum is exact.
+        w.ForwardFilingWeight = 1.0m - w.ForwardSentimentWeight - w.ForwardFundamentalWeight;
     }
 }

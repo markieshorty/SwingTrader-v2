@@ -353,8 +353,8 @@ export class StrategyLabComponent implements OnDestroy {
       simulateProbation: this.rulesSimulateProbation(),
       minHoldDays: num(this.rulesMinHoldDays(), pr.minHoldDays),
       momentumHealthThreshold: num(this.rulesHealthThreshold(), pr.healthThreshold),
-      positionFraction: this.rulesPositionFraction() / 100,
-      lockedCapitalPct: num(this.rulesLockedCapitalPct(), pr.lockedCapitalPct) === null ? null : this.rulesLockedCapitalPct() / 100,
+      positionFraction: pct(this.rulesPositionFraction(), pr.positionFraction),
+      lockedCapitalPct: pct(this.rulesLockedCapitalPct(), pr.lockedCapitalPct),
       activeCapitalPct: null,
       maxPositionPctOfActive: null,
       // Per-setup tactics only ride when the grid is edited; otherwise null so
@@ -594,6 +594,32 @@ export class StrategyLabComponent implements OnDestroy {
         }
       },
       error: () => {}, // 404 = never run one - nothing to restore
+    });
+    // Same restore/reattach for the Regimes/Setups tab's two long runs - a
+    // refresh mid-run used to lose the progress view until completion.
+    this.api.getLatestBacktestRun('regime').subscribe({
+      next: (r) => {
+        if (this.regimeRunning()) return;
+        if (r.status === 'Queued' || r.status === 'Running') {
+          this.regimeRunning.set(true);
+          this.startRegimePoll(r.id);
+          return;
+        }
+        if (r.result && 'mode' in r.result && r.result.mode === 'regime') this.regimeResult.set(r.result);
+      },
+      error: () => {},
+    });
+    this.api.getLatestBacktestRun('setupsearch').subscribe({
+      next: (r) => {
+        if (this.setupSearchRunning()) return;
+        if (r.status === 'Queued' || r.status === 'Running') {
+          this.setupSearchRunning.set(true);
+          this.startSetupSearchPoll(r.id);
+          return;
+        }
+        if (r.result && 'mode' in r.result && r.result.mode === 'setupsearch') this.setupSearchResult.set(r.result);
+      },
+      error: () => {},
     });
   }
 

@@ -210,7 +210,7 @@ export class ApiService {
   }
 
   // 404s when the account has never completed a run of this mode.
-  getLatestBacktestRun(mode: 'sweep' | 'ab' | 'validate' | 'montecarlo'): Observable<BacktestRunStatusDto> {
+  getLatestBacktestRun(mode: 'sweep' | 'ab' | 'validate' | 'montecarlo' | 'regime' | 'setupsearch'): Observable<BacktestRunStatusDto> {
     return this.http.get<BacktestRunStatusDto>(`${this.baseUrl}/api/strategy-lab/backtest/latest?mode=${mode}`);
   }
 

@@ -589,16 +589,16 @@ public class ResearchPipeline(
     {
         var price = candles[^1].Close;
 
-        if (ind.Rsi14 < 35 && ind.BollingerLower.HasValue && price > ind.BollingerLower.Value)
-        {
-            if (candles.Count >= 4)
-            {
-                var recentPrices = candles.TakeLast(4).Select(c => c.Close).ToList();
-                if (recentPrices[^1] > recentPrices[0])
-                    return SetupType.OversoldRecovery;
-            }
+        // OversoldRecovery requires BOTH halves of the name: oversold (RSI,
+        // above the lower band) AND recovering (price higher than 4 bars ago -
+        // the bounce has actually begun). A stock still in freefall fails the
+        // confirmation and falls through to the other setups / Unknown. The
+        // recovery check was dead code until 17 Jul 2026 (both branches
+        // returned OversoldRecovery), so results validated before then measured
+        // plain "oversold" - not comparable with runs after this change.
+        if (ind.Rsi14 < 35 && ind.BollingerLower.HasValue && price > ind.BollingerLower.Value
+            && candles.Count >= 4 && price > candles[^4].Close)
             return SetupType.OversoldRecovery;
-        }
 
         if (ind.BollingerUpper.HasValue && price > ind.BollingerUpper.Value
             && ind.VolumeRatio > 1.5m && ind.MacdHistogram > 0)
@@ -612,8 +612,7 @@ public class ResearchPipeline(
         if (ind.VolumeRatio > 2.0m && candles.Count >= 2)
         {
             var prev = candles[^2].Close;
-            var change = (price - prev) / prev * 100;
-            if (change > 1.5m)
+            if (prev > 0 && (price - prev) / prev * 100 > 1.5m)
                 return SetupType.VolumeSpike;
         }
 

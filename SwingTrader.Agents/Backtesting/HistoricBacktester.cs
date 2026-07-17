@@ -563,7 +563,12 @@ public static class HistoricBacktester
     {
         var price = candles[^1].Close;
 
-        if (ind.Rsi14 < 35 && ind.BollingerLower.HasValue && price > ind.BollingerLower.Value)
+        // Recovery confirmation (17 Jul 2026, in lockstep with the live
+        // pipeline): oversold alone isn't the setup - the price must also be
+        // higher than 4 bars ago, i.e. the bounce has begun. Results from
+        // before this change measured plain "oversold" and are not comparable.
+        if (ind.Rsi14 < 35 && ind.BollingerLower.HasValue && price > ind.BollingerLower.Value
+            && candles.Count >= 4 && price > candles[^4].Close)
             return SetupType.OversoldRecovery;
 
         if (ind.BollingerUpper.HasValue && price > ind.BollingerUpper.Value

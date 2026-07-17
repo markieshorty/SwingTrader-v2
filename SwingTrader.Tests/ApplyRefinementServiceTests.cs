@@ -112,4 +112,33 @@ public class ApplyRefinementServiceTests
         result.Success.Should().BeFalse();
         await _weightsRepo.DidNotReceive().AddAsync(Arg.Any<StrategyWeights>());
     }
+
+    [Fact]
+    public void NormaliseForwardWeights_PreFd2StoredJson_RescalesTrioToSumOne()
+    {
+        // Pre-FD2 stored JSON deserializes with sentiment/fundamental from the
+        // row (0.60/0.40) plus the NEW initializer default for filing (0.25) -
+        // sum 1.25, which Validate() would reject. The normaliser rescales,
+        // preserving the stored proportions.
+        var w = new StrategyWeights { ForwardSentimentWeight = 0.60m, ForwardFundamentalWeight = 0.40m, ForwardFilingWeight = 0.25m };
+
+        ApplyRefinementService.NormaliseForwardWeights(w);
+
+        (w.ForwardSentimentWeight + w.ForwardFundamentalWeight + w.ForwardFilingWeight).Should().Be(1.0m);
+        w.ForwardSentimentWeight.Should().Be(0.48m);   // 0.60 / 1.25
+        w.ForwardFundamentalWeight.Should().Be(0.32m); // 0.40 / 1.25
+        w.ForwardFilingWeight.Should().Be(0.20m);      // 0.25 / 1.25
+    }
+
+    [Fact]
+    public void NormaliseForwardWeights_WellFormedTrio_IsUntouched()
+    {
+        var w = new StrategyWeights { ForwardSentimentWeight = 0.45m, ForwardFundamentalWeight = 0.30m, ForwardFilingWeight = 0.25m };
+
+        ApplyRefinementService.NormaliseForwardWeights(w);
+
+        w.ForwardSentimentWeight.Should().Be(0.45m);
+        w.ForwardFundamentalWeight.Should().Be(0.30m);
+        w.ForwardFilingWeight.Should().Be(0.25m);
+    }
 }

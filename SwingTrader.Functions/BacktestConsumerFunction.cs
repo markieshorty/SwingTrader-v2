@@ -451,7 +451,12 @@ public class BacktestConsumerFunction(
             baseline,
             async (c, token) =>
             {
-                var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile, accountTactics), sectorEtfs, token);
+                // c.Rules rides in (the ML candidates are `baseline with {...}`
+                // so they carry the baseline's rules) - dropping it here made
+                // the ML pool trade live-disabled setups while the traditional
+                // pool honoured the exclusions, and an ML winner was then
+                // validated under a different config than it trained on.
+                var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile, accountTactics, c.Rules), sectorEtfs, token);
                 await progressGate.WaitAsync(token);
                 try
                 {
@@ -498,9 +503,14 @@ public class BacktestConsumerFunction(
                 .FirstOrDefault();
             if (bestWeightMix is not null)
             {
+                // Rules carried from the best weight mix (= the baseline's rules,
+                // since weight variants share them) - without this the refine
+                // pass dropped the account's excluded-setups list and every
+                // "Tuned + ..." candidate silently re-admitted disabled setups.
                 var refineBase = new HistoricBacktestCandidate(
                     "Tuned weights", bestWeightMix.Weights, bestWeightMix.BuyThreshold,
-                    bestWeightMix.ExcludeBreakout, bestWeightMix.AutopauseDuringBear);
+                    bestWeightMix.ExcludeBreakout, bestWeightMix.AutopauseDuringBear,
+                    Rules: bestWeightMix.Rules);
                 var refineCandidates = SweepOptimizer.GenerateRuleCandidates(
                     refineBase, productionRules, accountTactics, labelPrefix: "Tuned + ");
 
