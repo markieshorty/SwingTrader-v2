@@ -97,6 +97,13 @@ builder.Services.AddMemoryCache();
 // the budget when they're the same Tiingo account.
 var tiingoMaxPerHour = int.TryParse(builder.Configuration["RateLimiting:TiingoMaxPerHour"], out var tph) && tph > 0 ? tph : 50;
 builder.Services.AddSingleton<ITiingoRateLimiter>(_ => new RateLimiter(tiingoMaxPerHour, TimeSpan.FromHours(1)));
+// The shared platform Power key's pacer (accounts flagged UsePlatformTiingo):
+// 3600/hr = 1 req/s, far under Tiingo Power's 10k/hr ceiling but 72x the
+// free-tier pace - the difference between a ~90-minute research run and
+// a ~10-minute one. One bucket host-wide because every flagged account
+// shares the ONE platform key.
+var tiingoPowerMaxPerHour = int.TryParse(builder.Configuration["RateLimiting:TiingoPowerMaxPerHour"], out var tpp) && tpp > 0 ? tpp : 3600;
+builder.Services.AddSingleton<ITiingoPowerRateLimiter>(_ => new RateLimiter(tiingoPowerMaxPerHour, TimeSpan.FromHours(1)));
 builder.Services.AddSingleton<IFinnhubRateLimiter>(_ => new RateLimiter(maxCallsPerMinute: 50));
 // Anthropic tier-1 is ~50 requests/min; 45 leaves headroom on the shared
 // fallback Claude key. Bump this if the platform key moves to a higher tier.

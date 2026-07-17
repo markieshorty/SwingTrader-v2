@@ -26,6 +26,14 @@ public class Account : UnscopedEntity
     // See CapitalRules.DefaultQualitativeWatchlistSize.
     public int QualitativeWatchlistSize { get; set; } = CapitalRules.DefaultQualitativeWatchlistSize;
 
+    // Admin-granted (Admin -> Users): this account's Tiingo calls use the
+    // shared platform Power-plan key (Tiingo:PlatformApiKey) and the Power
+    // rate limiter instead of the account's own key at free-tier pacing.
+    // Research for a Power account runs in minutes rather than ~90, so the
+    // scheduler also starts it later (fresher pre-market data). Default OFF -
+    // the admin decides per user whether to spend platform quota on them.
+    public bool UsePlatformTiingo { get; set; }
+
     // Pause switch for new-position executions ("entries"), held per mode so
     // pausing Demo (e.g. to sit out a rough market) doesn't also freeze Live
     // and vice versa. Only ExecutionService's buy path honours this - Monitor

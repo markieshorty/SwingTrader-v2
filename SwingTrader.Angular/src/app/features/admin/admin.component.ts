@@ -7,8 +7,10 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/services/api.service';
 import { AdminActionLogDto, AdminJobFailureDto, AdminStatsDto, AdminUserSummaryDto, SentimentArchiveStatsDto } from '../../core/models/dtos';
 import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
@@ -20,7 +22,7 @@ const TAB_NAMES = ['overview', 'unapproved', 'users', 'jobs', 'logs', 'health'] 
 @Component({
   selector: 'app-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, MatCardModule, MatButtonModule, MatIconModule, MatTabsModule, MonitoringComponent],
+  imports: [CommonModule, FormsModule, RouterLink, MatCardModule, MatButtonModule, MatIconModule, MatSlideToggleModule, MatTabsModule, MatTooltipModule, MonitoringComponent],
   templateUrl: './admin.component.html',
   styleUrl: './admin.component.scss',
 })
@@ -153,6 +155,27 @@ export class AdminComponent {
         this.snackbar.open(`${user.displayName} forced to Demo mode`, 'Dismiss', { duration: 3000 });
         this.loadUsers();
         this.loadLogs();
+      },
+    });
+  }
+
+  // Platform Tiingo (Power) toggle: on = this account's Tiingo calls ride the
+  // shared Power key (fast research, 7:30 ET start); off = their own key at
+  // free-tier pacing (6:30 ET start). Default off for new users.
+  setPlatformTiingo(user: AdminUserSummaryDto, enabled: boolean): void {
+    this.api.setPlatformTiingo(user.userId, enabled).subscribe({
+      next: () => {
+        this.snackbar.open(
+          enabled
+            ? `${user.displayName} now uses the platform Tiingo Power key — research runs fast and starts at 7:30 ET`
+            : `${user.displayName} back on their own Tiingo key — research starts at 6:30 ET`,
+          'Dismiss', { duration: 4000 });
+        this.loadUsers();
+        this.loadLogs();
+      },
+      error: () => {
+        this.snackbar.open('Failed to update the platform Tiingo setting.', 'Dismiss', { duration: 4000 });
+        this.loadUsers(); // snap the toggle back to the server state
       },
     });
   }

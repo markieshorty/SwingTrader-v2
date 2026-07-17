@@ -35,6 +35,7 @@ public class ResearchPipeline(
     IFundamentalDataService fundamentalDataService,
     IFundamentalScoringService fundamentalScoringService,
     ITiingoRateLimiter tiingoRateLimiter,
+    ITiingoPowerRateLimiter tiingoPowerRateLimiter,
     IFinnhubRateLimiter finnhubRateLimiter,
     IClaudeRateLimiter claudeRateLimiter,
     IOptions<ClaudeConfig> claudeConfig,
@@ -64,6 +65,14 @@ public class ResearchPipeline(
         var account = await accountRepo.GetAsync(accountId, ct)
             ?? throw new InvalidOperationException($"Account {accountId} not found.");
 
+        // Power-flagged accounts pace their Tiingo calls on the shared platform
+        // key's Power bucket (~1s/call); everyone else stays on the legacy
+        // free-tier bucket (~72s/call). Chosen once per symbol run and threaded
+        // into every Tiingo touch below.
+        var tiingoLimiter = account.UsePlatformTiingo
+            ? (IRateLimiter)tiingoPowerRateLimiter
+            : tiingoRateLimiter;
+
         // Step 0 — earnings gate: block BUY if earnings are within GateDays
         var earningsCtx = await earningsService.GetEarningsContextAsync(finnhub, symbol, ct, riskProfile.EarningsGateDays);
 
@@ -88,7 +97,7 @@ public class ResearchPipeline(
             return gateSignal;
         }
 
-        var candles = await FetchAndStoreCandlesAsync(accountId, tiingo, symbol, freshCandlesBySymbol, ct);
+        var candles = await FetchAndStoreCandlesAsync(accountId, tiingo, tiingoLimiter, symbol, freshCandlesBySymbol, ct);
         if (candles is null || candles.Count == 0)
             return null;
 
@@ -149,7 +158,7 @@ public class ResearchPipeline(
 
         if (!skipStageTwo)
         {
-            (sentimentScore, newsSummary, catalyst) = await FetchAndScoreSentimentAsync(finnhub, tiingo, claude, symbol, ct);
+            (sentimentScore, newsSummary, catalyst) = await FetchAndScoreSentimentAsync(finnhub, tiingo, tiingoLimiter, claude, symbol, ct);
             try
             {
                 var earningsHistory = earningsCtx.EarningsHistory ?? [];
@@ -318,7 +327,7 @@ public class ResearchPipeline(
     }
 
     private async Task<List<StockCandle>?> FetchAndStoreCandlesAsync(
-        int accountId, ITiingoClient tiingo, string symbol,
+        int accountId, ITiingoClient tiingo, IRateLimiter tiingoLimiter, string symbol,
         IReadOnlyDictionary<string, IReadOnlyList<StockCandle>>? freshCandlesBySymbol, CancellationToken ct)
     {
         var cfg = researchConfig.Value;
@@ -349,7 +358,7 @@ public class ResearchPipeline(
         List<TiingoDailyPrice> prices;
         try
         {
-            await tiingoRateLimiter.WaitAsync(ct);
+            await tiingoLimiter.WaitAsync(ct);
             prices = await tiingo.GetDailyPricesAsync(
                 symbol,
                 from.ToString("yyyy-MM-dd"),
@@ -400,7 +409,7 @@ public class ResearchPipeline(
     // Refinement agent's correlations. "No news" IS a genuine neutral.
     // Catalyst rides the same Claude call (null = none detected / unparsable).
     private async Task<(decimal? score, string summary, ClaudeCatalystResult? catalyst)> FetchAndScoreSentimentAsync(
-        IFinnhubClient finnhub, ITiingoClient tiingo, IClaudeClient claude, string symbol, CancellationToken ct)
+        IFinnhubClient finnhub, ITiingoClient tiingo, IRateLimiter tiingoLimiter, IClaudeClient claude, string symbol, CancellationToken ct)
     {
         var cfg = researchConfig.Value;
         var from = DateTime.UtcNow.AddDays(-cfg.NewsLookbackDays);
@@ -432,7 +441,7 @@ public class ResearchPipeline(
         {
             try
             {
-                await tiingoRateLimiter.WaitAsync(ct);
+                await tiingoLimiter.WaitAsync(ct);
                 var news = await tiingo.GetNewsAsync(
                     symbol.ToLowerInvariant(), from.ToString("yyyy-MM-dd"), cfg.MaxNewsArticles * 2);
                 tiingoArticles = news.Select(n => new NewsArticle(

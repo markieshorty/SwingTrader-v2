@@ -368,6 +368,9 @@ export interface AdminUserSummaryDto {
   riskLabel: string;
   enabledWatchlistCount: number;
   accountDeleted: boolean;
+  // Admin-granted: this account's Tiingo calls ride the shared platform Power
+  // key (fast research, later start). Default off for new users.
+  usePlatformTiingo: boolean;
 }
 
 export interface AdminJobFailureDto {

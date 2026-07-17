@@ -58,16 +58,21 @@ public class SchedulerFunction(
                 // the 7:35 tick and every later tick see the JobLog row and
                 // skip. Start times are unchanged; only the "too late to
                 // bother" cutoffs are new.
-                // 6:30 ET (was 7:30, was 4:00): a 39-symbol run now takes ~90
-                // minutes (serial per-symbol scoring + second-hop relevance
-                // pass), so a 7:30 start finished ~9:00 ET - after Report and
-                // uncomfortably close to the market open. 6:30 finishes ~8:00
-                // with margin before Report at 8:30. Trade-off consciously
-                // accepted 14 Jul 2026: 7:00-8:00 ET earnings releases now land
-                // after scoring (the midday rescore or tomorrow's run catches
-                // them) in exchange for signals existing before the report and
-                // the open.
-                if (isWeekday && InWindow(nowEt, 6, 30, 15, 55))
+                // Research start is per-account (17 Jul 2026):
+                //  - Free-tier Tiingo pacing (~72s/call) makes a full rescore
+                //    take ~90 minutes, so those accounts start at 6:30 ET to
+                //    finish ~8:00 with margin before Report at 8:30. Trade-off
+                //    consciously accepted 14 Jul 2026: 7:00-8:00 ET earnings
+                //    releases land after scoring (the midday rescore or
+                //    tomorrow's run catches them).
+                //  - Platform-Power accounts (Account.UsePlatformTiingo) run in
+                //    ~10 minutes, so they start at 7:30 ET instead - fresher
+                //    pre-market data (including 7:00-7:30 earnings/news) and
+                //    still done well before Report.
+                // JobScheduleInfo (the dashboard's next-run labels) mirrors
+                // these times - keep the two in sync.
+                var (researchHour, researchMin) = account.UsePlatformTiingo ? (7, 30) : (6, 30);
+                if (isWeekday && InWindow(nowEt, researchHour, researchMin, 15, 55))
                     await TryEnqueueAsync(account.Id, "Research", today, "research-jobs",
                         new ResearchJobMessage(account.Id, Guid.NewGuid().ToString("N"), today, nowEt), ct);
 
