@@ -224,7 +224,9 @@
           </mat-form-field>
         </div>
 
-        <button mat-raised-button color="primary" [disabled]="!isOwner()" (click)="saveWeights()">Save</button>
+        <div class="button-row sticky-actions">
+          <button mat-raised-button color="primary" [disabled]="!isOwner()" (click)="saveWeights()">Save</button>
+        </div>
       } @else {
         <p class="muted">No active strategy weights found for this account.</p>
       }
@@ -596,7 +598,7 @@
           </div>
           <p class="muted small">Skip BUY signals when earnings are this many days away (0 = no gate).</p>
 
-          <div class="button-row">
+          <div class="button-row sticky-actions">
             <button mat-raised-button color="primary" [disabled]="!isOwner()" (click)="saveRiskProfile()">Save</button>
             @if (riskProfileDirty()) {
               <button mat-button [disabled]="!isOwner()" (click)="discardRiskProfileChanges()">Discard Changes</button>

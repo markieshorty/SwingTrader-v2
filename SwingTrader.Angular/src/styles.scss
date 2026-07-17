@@ -112,3 +112,11 @@ mat-card {
   color: var(--st-text) !important;
   border: 1px solid var(--st-border);
 }
+
+// MDC mat-card is a column flexbox (align-items: stretch), so any button
+// placed as a DIRECT child of a card silently stretches to the card's full
+// width. Size buttons to their content instead - a Save button should look
+// like a button, not a banner.
+mat-card > button {
+  align-self: flex-start;
+}

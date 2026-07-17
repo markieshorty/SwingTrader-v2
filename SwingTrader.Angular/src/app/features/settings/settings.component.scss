@@ -345,3 +345,17 @@
 .setup-tactics-grid mat-form-field {
   width: 100%;
 }
+
+// Long forms (Risk Management, Strategy Weights): the action row sticks to
+// the bottom of the viewport while the form scrolls, so Save/Reset are always
+// in reach. On short forms the row just sits at its natural position.
+.sticky-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: var(--st-card, #1e1e1e);
+  border-top: 1px solid var(--st-border);
+  // Bleed over the card's padding so the strip spans edge to edge.
+  margin: 16px -16px -16px;
+  padding: 10px 16px;
+}
