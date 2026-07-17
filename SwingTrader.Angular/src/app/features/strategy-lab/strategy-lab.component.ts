@@ -694,11 +694,16 @@ export class StrategyLabComponent implements OnDestroy {
       return;
     }
     this.running.set(true);
+    // A fresh run clears EVERY result panel on the tab - a lingering validate
+    // or Monte Carlo card from the previous config next to a new head-to-head
+    // reads as if it describes the new dials.
     this.response.set(null);
     this.historicResult.set(null);
     this.abResult.set(null);
     this.analysis.set(null);
     this.historicStatus.set(null);
+    this.validateResult.set(null);
+    this.monteCarloResult.set(null);
 
     const historic = this.dataSource() === 'historic';
     const request = {

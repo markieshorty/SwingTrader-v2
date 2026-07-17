@@ -369,6 +369,9 @@
 
       @if (monteCarloResult(); as mc) {
         <mat-card class="panel" [class.validate-pass]="mc.p5TotalReturnPct > 0" [class.validate-fail]="mc.p5TotalReturnPct <= 0">
+          <button mat-icon-button class="panel-close" (click)="monteCarloResult.set(null)" matTooltip="Dismiss">
+            <mat-icon>close</mat-icon>
+          </button>
           <h3>
             <mat-icon>casino</mat-icon>
             Monte Carlo — {{ mc.resamples | number }} reshuffles of {{ mc.trades }} trades
@@ -391,6 +394,9 @@
 
       @if (validateResult(); as vr) {
         <mat-card class="panel" [class.validate-pass]="vr.validation.heldUp" [class.validate-fail]="!vr.validation.heldUp">
+          <button mat-icon-button class="panel-close" (click)="validateResult.set(null)" matTooltip="Dismiss">
+            <mat-icon>close</mat-icon>
+          </button>
           <h3>
             <mat-icon>{{ vr.validation.heldUp ? 'verified' : 'report' }}</mat-icon>
             Out-of-sample validation — {{ vr.validation.heldUp ? 'HELD UP' : 'did NOT hold up' }}
@@ -413,6 +419,9 @@
       <!-- Historic single result -->
       @if (historicResult(); as h) {
         <mat-card class="panel results">
+          <button mat-icon-button class="panel-close" (click)="historicResult.set(null)" matTooltip="Dismiss">
+            <mat-icon>close</mat-icon>
+          </button>
           <h3>Historic backtest — {{ h.from | date: 'dd/MM/yyyy' }} to {{ h.to | date: 'dd/MM/yyyy' }}</h3>
           <p class="summary">
             These dials placed {{ h.trades }} trades over the period, winning {{ h.winRate | percent: '1.0-1' }} of them
@@ -443,6 +452,9 @@
       <!-- Historic A/B result: your dials vs production, same window -->
       @if (abResult(); as ab) {
         <mat-card class="panel results">
+          <button mat-icon-button class="panel-close" (click)="abResult.set(null)" matTooltip="Dismiss">
+            <mat-icon>close</mat-icon>
+          </button>
           <h3>
             Head-to-head — your dials vs production,
             {{ ab.candidates[0].result.from | date: 'dd/MM/yyyy' }} to {{ ab.candidates[0].result.to | date: 'dd/MM/yyyy' }}
@@ -509,6 +521,9 @@
         }
 
         <mat-card class="panel results">
+          <button mat-icon-button class="panel-close" (click)="response.set(null)" matTooltip="Dismiss">
+            <mat-icon>close</mat-icon>
+          </button>
           <h3>What would have happened</h3>
           <p class="summary">{{ r.result.summary }}</p>
 
@@ -580,6 +595,9 @@
       <!-- Claude analysis of the last completed run -->
       @if (analysis(); as a) {
         <mat-card class="panel analysis-card">
+          <button mat-icon-button class="panel-close" (click)="analysis.set(null)" matTooltip="Dismiss">
+            <mat-icon>close</mat-icon>
+          </button>
           <h3><mat-icon>psychology</mat-icon> Claude's read on this run</h3>
           <p class="analysis-text">{{ a.analysis }}</p>
           @if (a.suggestion; as s) {
@@ -710,76 +728,6 @@
         </div>
       </mat-card>
 
-      <!-- Setup contribution (leave-one-out ablation) -->
-      <mat-card class="panel controls">
-        <h3>Which setups pay their way?</h3>
-        <p class="muted small">
-          Re-runs your <strong>production</strong> strategy with each setup removed in turn, on both the training and
-          held-out windows, and reports each setup's <strong>marginal</strong> effect — how much it adds to (or drags
-          from) market-adjusted expectancy. Unlike a setup's standalone average, this measures its contribution to the
-          whole strategy, out-of-sample. Trust setups whose sign is <em>consistent</em> across both windows.
-        </p>
-        <div class="meta-row">
-          <button mat-raised-button color="primary" [disabled]="ablationRunning() || !historicAvailable()" (click)="runSetupContribution()">
-            @if (ablationRunning()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>science</mat-icon> }
-            Analyse setup contribution
-          </button>
-          <span class="muted small">~{{ 2 + (allSetups.length * 2) }} simulations — a few minutes.</span>
-        </div>
-      </mat-card>
-
-      @if (ablationStatus(); as astat) {
-        <mat-card class="panel loading with-progress">
-          <div class="loading-row"><mat-spinner diameter="24"></mat-spinner><span>{{ astat }}</span></div>
-          @if (ablationProgress(); as p) {
-            <mat-progress-bar mode="determinate" [value]="(p.completed / p.total) * 100"></mat-progress-bar>
-            <span class="muted small progress-count">{{ p.completed }} / {{ p.total }} runs</span>
-          } @else {
-            <mat-progress-bar mode="indeterminate"></mat-progress-bar>
-          }
-        </mat-card>
-      }
-
-      @if (ablationResult(); as ab) {
-        <mat-card class="panel results">
-          <h3><mat-icon>science</mat-icon> Setup contribution (out-of-sample)</h3>
-          <p class="muted small">
-            Baseline (all setups) on held-out data: <strong>{{ ab.baselineHoldoutAdjustedPct | number: '1.2-2' }}%</strong>/trade
-            market-adjusted over {{ ab.baselineHoldoutTrades }} trades. A setup's <strong>marginal</strong> is
-            baseline − (strategy without it): <span class="good">positive = the setup adds edge</span>,
-            negative = it's a drag. The held-out column is the one to trust.
-          </p>
-          <table class="history-table">
-              <thead>
-                <tr><th>Setup</th><th>Marginal (train)</th><th>Marginal (held-out)</th><th>Held-out trades w/o</th><th>Verdict</th></tr>
-              </thead>
-              <tbody>
-                @for (row of ab.setups; track row.setup) {
-                  <tr>
-                    <td>{{ row.setup }}</td>
-                    <td class="num" [class.good]="row.marginalTrainAdj > 0" [class.bad]="row.marginalTrainAdj < 0">
-                      {{ row.marginalTrainAdj > 0 ? '+' : '' }}{{ row.marginalTrainAdj | number: '1.2-2' }}%
-                    </td>
-                    <td class="num" [class.good]="row.marginalHoldoutAdj > 0" [class.bad]="row.marginalHoldoutAdj < 0">
-                      {{ row.marginalHoldoutAdj > 0 ? '+' : '' }}{{ row.marginalHoldoutAdj | number: '1.2-2' }}%
-                    </td>
-                    <td class="num muted">{{ row.holdoutTradesWithout }}</td>
-                    <td>
-                      @if (!row.consistent) { <span class="muted">Mixed — inconclusive</span> }
-                      @else if (row.marginalHoldoutAdj > 0) { <span class="good">Pulls its weight — keep</span> }
-                      @else { <span class="bad">Consistent drag — consider dropping</span> }
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          <p class="muted small">
-            "Consistent drag" setups are candidates to exclude on the A/B tab's <em>Exclude setups</em> filter, or to
-            down-tune via per-setup tactics. Small held-out trade counts mean a noisier verdict — weigh them lightly.
-          </p>
-        </mat-card>
-      }
-
       @if (sweepStatus(); as ss) {
         <mat-card class="panel loading with-progress">
           <div class="loading-row">
@@ -797,6 +745,9 @@
 
       @if (sweepResult(); as sw) {
         <mat-card class="panel results" [class.flagged]="!sw.validation.heldUp">
+          <button mat-icon-button class="panel-close" (click)="sweepResult.set(null)" matTooltip="Dismiss">
+            <mat-icon>close</mat-icon>
+          </button>
           <h3>
             @if (sw.validation.heldUp) { <mat-icon class="good">verified</mat-icon> Optimizer result — held up out-of-sample }
             @else { <mat-icon class="bad">warning</mat-icon> Optimizer result — did not hold up out-of-sample }
@@ -977,6 +928,9 @@
 
         @if (regimeResult(); as rc) {
           <mat-card class="panel results">
+            <button mat-icon-button class="panel-close" (click)="regimeResult.set(null)" matTooltip="Dismiss">
+              <mat-icon>close</mat-icon>
+            </button>
             <h3><mat-icon>compare_arrows</mat-icon> Regime comparison</h3>
             <p class="muted small">
               Same strategy, five envelope treatments, over the full period (SPY buy-and-hold:
@@ -1007,6 +961,79 @@
               Expectancy is the trade's own price return (entry to exit); total return is compared against SPY
               buy-and-hold. To make a winning single book your live master ruleset, disable the other regime books in
               Settings — Neutral then governs whatever the market does.
+            </p>
+          </mat-card>
+        }
+
+        <!-- Setup contribution (leave-one-out ablation) -->
+        <mat-card class="panel controls">
+          <h3>Which setups pay their way?</h3>
+          <p class="muted small">
+            Re-runs your <strong>production</strong> strategy with each setup removed in turn, on both the training and
+            held-out windows, and reports each setup's <strong>marginal</strong> effect — how much it adds to (or drags
+            from) market-adjusted expectancy. Unlike a setup's standalone average, this measures its contribution to the
+            whole strategy, out-of-sample. Trust setups whose sign is <em>consistent</em> across both windows.
+          </p>
+          <div class="meta-row">
+            <button mat-raised-button color="primary" [disabled]="ablationRunning() || !historicAvailable()" (click)="runSetupContribution()">
+              @if (ablationRunning()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>science</mat-icon> }
+              Analyse setup contribution
+            </button>
+            <span class="muted small">~{{ 2 + (allSetups.length * 2) }} simulations — a few minutes.</span>
+          </div>
+        </mat-card>
+
+        @if (ablationStatus(); as astat) {
+          <mat-card class="panel loading with-progress">
+            <div class="loading-row"><mat-spinner diameter="24"></mat-spinner><span>{{ astat }}</span></div>
+            @if (ablationProgress(); as p) {
+              <mat-progress-bar mode="determinate" [value]="(p.completed / p.total) * 100"></mat-progress-bar>
+              <span class="muted small progress-count">{{ p.completed }} / {{ p.total }} runs</span>
+            } @else {
+              <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+            }
+          </mat-card>
+        }
+
+        @if (ablationResult(); as ab) {
+          <mat-card class="panel results">
+            <button mat-icon-button class="panel-close" (click)="ablationResult.set(null)" matTooltip="Dismiss">
+              <mat-icon>close</mat-icon>
+            </button>
+            <h3><mat-icon>science</mat-icon> Setup contribution (out-of-sample)</h3>
+            <p class="muted small">
+              Baseline (all setups) on held-out data: <strong>{{ ab.baselineHoldoutAdjustedPct | number: '1.2-2' }}%</strong>/trade
+              market-adjusted over {{ ab.baselineHoldoutTrades }} trades. A setup's <strong>marginal</strong> is
+              baseline − (strategy without it): <span class="good">positive = the setup adds edge</span>,
+              negative = it's a drag. The held-out column is the one to trust.
+            </p>
+            <table class="history-table">
+              <thead>
+                <tr><th>Setup</th><th>Marginal (train)</th><th>Marginal (held-out)</th><th>Held-out trades w/o</th><th>Verdict</th></tr>
+              </thead>
+              <tbody>
+                @for (row of ab.setups; track row.setup) {
+                  <tr>
+                    <td>{{ row.setup }}</td>
+                    <td class="num" [class.good]="row.marginalTrainAdj > 0" [class.bad]="row.marginalTrainAdj < 0">
+                      {{ row.marginalTrainAdj > 0 ? '+' : '' }}{{ row.marginalTrainAdj | number: '1.2-2' }}%
+                    </td>
+                    <td class="num" [class.good]="row.marginalHoldoutAdj > 0" [class.bad]="row.marginalHoldoutAdj < 0">
+                      {{ row.marginalHoldoutAdj > 0 ? '+' : '' }}{{ row.marginalHoldoutAdj | number: '1.2-2' }}%
+                    </td>
+                    <td class="num muted">{{ row.holdoutTradesWithout }}</td>
+                    <td>
+                      @if (!row.consistent) { <span class="muted">Mixed — inconclusive</span> }
+                      @else if (row.marginalHoldoutAdj > 0) { <span class="good">Pulls its weight — keep</span> }
+                      @else { <span class="bad">Consistent drag — consider dropping</span> }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+            <p class="muted small">
+              "Consistent drag" setups are candidates to exclude on the A/B tab's <em>Exclude setups</em> filter, or to
+              down-tune via per-setup tactics. Small held-out trade counts mean a noisier verdict — weigh them lightly.
             </p>
           </mat-card>
         }
@@ -1045,6 +1072,9 @@
 
         @if (setupSearchResult(); as ss) {
           <mat-card class="panel results">
+            <button mat-icon-button class="panel-close" (click)="setupSearchResult.set(null)" matTooltip="Dismiss">
+              <mat-icon>close</mat-icon>
+            </button>
             <h3><mat-icon>tune</mat-icon> Setup combination search</h3>
             @if (bestSetupCombo(); as best) {
               <p class="muted small">

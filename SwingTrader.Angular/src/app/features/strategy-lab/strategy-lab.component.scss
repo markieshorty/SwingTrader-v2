@@ -657,3 +657,18 @@ h3 .bad {
     mat-button-toggle-group { font-size: 12px; }
   }
 }
+
+// Dismiss button on result panels: top-right, unobtrusive until hovered.
+.panel {
+  position: relative;
+}
+
+.panel-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+  opacity: 0.45;
+
+  &:hover { opacity: 1; }
+}
