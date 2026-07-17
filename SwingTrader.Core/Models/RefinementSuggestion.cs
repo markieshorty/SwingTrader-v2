@@ -41,6 +41,14 @@ public class RefinementSuggestion : BaseEntity
     // the minimum regime sample size.
     public string? SuggestedRegimeWeightsJson { get; set; }
 
+    // Risk-setting overrides that rode this suggestion (Strategy Lab applies
+    // that carried rule/tactic winners): camelCase JSON of
+    // { targetRegime, autopause?, rules } where rules is the run's
+    // HistoricTradingRules. Null for weight-only suggestions. Recorded so the
+    // Refinement page - the audit trail for production changes - shows the
+    // risk half of an apply, not just the weights half.
+    public string? SuggestedRiskRulesJson { get; set; }
+
     public decimal MarketAdjustedWinRate { get; set; }
     public bool UnusualMarketConditions { get; set; }
     public string? MarketConditionWarning { get; set; }

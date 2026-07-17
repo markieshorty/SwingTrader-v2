@@ -525,6 +525,24 @@ public static class StrategyLabEndpoints
             var account = await accounts.GetAsync(ctx.AccountId, ct);
             if (account is null) return Results.NotFound();
 
+            // Risk settings land on the book the run was TUNED against (the
+            // Default book when it's on, else the Neutral baseline) - computed
+            // up front so the audit record below can name it.
+            var targetRegime = await riskRepo.IsDefaultRegimeEnabledAsync(ctx.AccountId, ct)
+                ? MarketRegime.Default
+                : MarketRegime.Neutral;
+
+            // The risk half of the apply, recorded on the suggestion so the
+            // Refinement page's audit trail shows BOTH halves of a Lab apply.
+            var riskRulesJson = req.ApplyRiskSettings && (cfg.Rules is not null || cfg.AutopauseChanged)
+                ? JsonSerializer.Serialize(new
+                {
+                    targetRegime = targetRegime.ToString(),
+                    autopause = cfg.AutopauseChanged ? cfg.AutopauseDuringBear : (bool?)null,
+                    rules = cfg.Rules,
+                }, new JsonSerializerOptions(JsonSerializerDefaults.Web))
+                : null;
+
             int? weightsId = null;
             if (req.ApplyWeights)
             {
@@ -564,20 +582,43 @@ public static class StrategyLabEndpoints
                     ConfidenceLevel = RefinementConfidenceLevel.Medium,
                     Status = RefinementStatus.Pending,
                     IsShadowMode = false,
+                    SuggestedRiskRulesJson = riskRulesJson,
                 });
                 var applyResult = await applyService.ApplyAsync(ctx.AccountId, suggestion.Id, ct: ct);
                 if (!applyResult.Success) return Results.BadRequest(new { success = false, message = applyResult.Error });
                 weightsId = applyResult.NewWeightsId;
             }
-
-            // Risk settings land on the book the run was TUNED against, not the
-            // currently-detected regime: the backtester replays under the Default
-            // book when it's on, else the Neutral baseline. Applying to the active
-            // regime (a bug) would write a Neutral-tuned config onto today's Bull
-            // book.
-            var targetRegime = await riskRepo.IsDefaultRegimeEnabledAsync(ctx.AccountId, ct)
-                ? MarketRegime.Default
-                : MarketRegime.Neutral;
+            else if (req.ApplyRiskSettings && riskRulesJson is not null)
+            {
+                // Risk-only apply: previously NO suggestion was recorded at all,
+                // so the change was invisible in the Refinement audit trail.
+                // Record it as an already-Applied entry (weights unchanged).
+                var current = await weightsRepo.GetActiveWeightsAsync(ctx.AccountId);
+                var currentJson = current is null ? "{}" : JsonSerializer.Serialize(current);
+                var today = DateOnly.FromDateTime(DateTime.UtcNow);
+                await suggestionRepo.AddAsync(new RefinementSuggestion
+                {
+                    AccountId = ctx.AccountId,
+                    TradingMode = account.TradingMode,
+                    Origin = RefinementOrigin.StrategyLab,
+                    GeneratedAt = DateTime.UtcNow,
+                    AnalysisPeriodStart = today,
+                    AnalysisPeriodEnd = today,
+                    TradeCountAnalysed = cfg.Stats.Trades,
+                    OverallWinRate = Math.Round(cfg.Stats.WinRatePct, 4),
+                    CurrentWeightsJson = currentJson,
+                    SuggestedWeightsJson = currentJson, // weights untouched
+                    ComponentAnalysisJson = "[]",
+                    AssessmentSummary =
+                        $"Risk settings applied from {(mode == "ab" ? "A/B" : "optimizer")} run #{run.Id} ('{cfg.Label}') " +
+                        $"onto the {targetRegime} book — weights unchanged.",
+                    ConfidenceLevel = RefinementConfidenceLevel.Medium,
+                    Status = RefinementStatus.Applied,
+                    AppliedAt = DateTime.UtcNow,
+                    IsShadowMode = false,
+                    SuggestedRiskRulesJson = riskRulesJson,
+                });
+            }
 
             var appliedRisk = false;
             if (req.ApplyRiskSettings && cfg.Rules is not null)

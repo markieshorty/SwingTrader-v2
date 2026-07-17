@@ -146,6 +146,12 @@ public static class RefinementEndpoints
             replaySuggestedAvgReturnPct = s.ReplaySuggestedAvgReturnPct,
             replayTradesKept = s.ReplayTradesKept,
             replayCheckPassed = s.ReplayCheckPassed,
+            // The risk half of a Lab apply (stored camelCase - passed through
+            // verbatim): { targetRegime, autopause?, rules }. Null for
+            // weight-only suggestions.
+            suggestedRiskRules = s.SuggestedRiskRulesJson is null
+                ? (JsonElement?)null
+                : JsonSerializer.Deserialize<JsonElement>(s.SuggestedRiskRulesJson),
         };
     }
 }

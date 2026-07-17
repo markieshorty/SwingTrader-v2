@@ -223,6 +223,38 @@ export interface RefinementSuggestionDto {
   replaySuggestedAvgReturnPct: number | null;
   replayTradesKept: number | null;
   replayCheckPassed: boolean | null;
+  // The risk half of a Strategy Lab apply (null for weight-only suggestions).
+  suggestedRiskRules: RefinementRiskRulesDto | null;
+}
+
+// Risk-setting overrides recorded on a suggestion: which book they landed on,
+// an optional autopause change, and the run's rule overrides (each field null
+// when that dial wasn't part of the winning config).
+export interface RefinementRiskRulesDto {
+  targetRegime: string;
+  autopause: boolean | null;
+  rules: {
+    excludedSetups?: string[] | null;
+    maxHoldDays?: number | null;
+    maxOpenPositions?: number | null;
+    trailingActivationPct?: number | null;
+    trailingDistancePct?: number | null;
+    stopLossPct?: number | null;
+    targetPct?: number | null;
+    simulateProbation?: boolean | null;
+    minHoldDays?: number | null;
+    momentumHealthThreshold?: number | null;
+    positionFraction?: number | null;
+    lockedCapitalPct?: number | null;
+    setupTactics?: {
+      setup: string;
+      stopLossPct: number;
+      targetPct: number;
+      guideHoldDays: number;
+      trailingActivationPct: number;
+      trailingDistancePct: number;
+    }[] | null;
+  } | null;
 }
 
 export interface RefinementStatusDto {

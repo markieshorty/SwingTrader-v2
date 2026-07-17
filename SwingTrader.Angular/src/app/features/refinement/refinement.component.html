@@ -38,6 +38,7 @@
             <th>Trades</th>
             <th>Win rate</th>
             <th>Confidence</th>
+            <th>Risk settings</th>
             <th>Status</th>
           </tr>
         </thead>
@@ -53,6 +54,7 @@
               <td>{{ item.tradeCountAnalysed }}</td>
               <td>{{ item.overallWinRate | percent: '1.0-1' }}</td>
               <td>{{ item.confidenceLevel }}</td>
+              <td>{{ item.suggestedRiskRules ? 'Yes — ' + item.suggestedRiskRules.targetRegime + ' book' : '—' }}</td>
               <td>{{ item.status }}</td>
             </tr>
           }

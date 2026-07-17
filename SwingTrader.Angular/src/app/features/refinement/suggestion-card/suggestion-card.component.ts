@@ -62,6 +62,34 @@ import { RefinementSuggestionDto } from '../../../core/models/dtos';
         [suggestedWeights]="suggestion().suggestedWeights"
       />
 
+      @if (suggestion().suggestedRiskRules; as rr) {
+        <div class="risk-rules">
+          <h4>Risk settings in this apply — {{ rr.targetRegime }} book</h4>
+          <div class="risk-chips">
+            @if (rr.autopause !== null) { <span class="risk-chip">Autopause: {{ rr.autopause ? 'ON' : 'OFF' }}</span> }
+            @if (rr.rules?.stopLossPct != null) { <span class="risk-chip">Stop {{ rr.rules!.stopLossPct! | percent: '1.0-1' }}</span> }
+            @if (rr.rules?.targetPct != null) { <span class="risk-chip">Target {{ rr.rules!.targetPct! | percent: '1.0-1' }}</span> }
+            @if (rr.rules?.maxHoldDays != null) { <span class="risk-chip">Guide hold {{ rr.rules!.maxHoldDays }}d</span> }
+            @if (rr.rules?.trailingActivationPct != null) { <span class="risk-chip">Trail arm +{{ rr.rules!.trailingActivationPct! | percent: '1.0-1' }}</span> }
+            @if (rr.rules?.trailingDistancePct != null) { <span class="risk-chip">Trail dist {{ rr.rules!.trailingDistancePct! | percent: '1.0-1' }}</span> }
+            @if (rr.rules?.maxOpenPositions != null) { <span class="risk-chip">Max positions {{ rr.rules!.maxOpenPositions }}</span> }
+            @if (rr.rules?.positionFraction != null) { <span class="risk-chip">Position size {{ rr.rules!.positionFraction! | percent: '1.0-1' }}</span> }
+            @if (rr.rules?.lockedCapitalPct != null) { <span class="risk-chip">Locked capital {{ rr.rules!.lockedCapitalPct! | percent: '1.0-0' }}</span> }
+            @if (rr.rules?.minHoldDays != null) { <span class="risk-chip">Probation day {{ rr.rules!.minHoldDays }}</span> }
+            @if (rr.rules?.momentumHealthThreshold != null) { <span class="risk-chip">Health floor {{ rr.rules!.momentumHealthThreshold }}</span> }
+            @if (rr.rules?.excludedSetups?.length) { <span class="risk-chip">Excluded: {{ rr.rules!.excludedSetups!.join(', ') }}</span> }
+          </div>
+          @if (rr.rules?.setupTactics?.length) {
+            <div class="tactics-list muted small">
+              @for (t of rr.rules!.setupTactics!; track t.setup) {
+                <span>{{ t.setup }}: stop {{ t.stopLossPct | percent: '1.0-1' }} · target {{ t.targetPct | percent: '1.0-1' }} · hold {{ t.guideHoldDays }}d</span>
+              }
+            </div>
+          }
+          <p class="muted-note">These landed on the {{ rr.targetRegime }} risk book / setup tactics when this suggestion was applied.</p>
+        </div>
+      }
+
       @if (suggestion().isShadowMode) {
         <p class="shadow-note">Shadow mode — enable Refinement:Active to apply.</p>
         <button mat-raised-button disabled>Apply General Weights</button>
@@ -73,6 +101,14 @@ import { RefinementSuggestionDto } from '../../../core/models/dtos';
             <input matInput [(ngModel)]="rejectNote" />
           </mat-form-field>
           <button mat-stroked-button color="warn" (click)="reject.emit(rejectNote)">Reject</button>
+        </div>
+      } @else {
+        <div class="actions">
+          <button mat-raised-button color="primary" (click)="apply.emit()">Re-apply to live</button>
+          <span class="muted-note">
+            Status: {{ suggestion().status }}. Re-applying creates a fresh active weights row from this suggestion
+            (weights only — risk settings shown above are not re-applied).
+          </span>
         </div>
       }
     </div>
@@ -140,6 +176,38 @@ import { RefinementSuggestionDto } from '../../../core/models/dtos';
       }
       .note-field {
         flex: 1;
+      }
+      .risk-rules {
+        margin-top: 12px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(128, 128, 128, 0.2);
+
+        h4 {
+          margin: 0 0 6px;
+          font-size: 0.85rem;
+        }
+      }
+      .risk-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .risk-chip {
+        font-size: 12px;
+        border-radius: 10px;
+        padding: 2px 10px;
+        background: rgba(128, 128, 128, 0.15);
+      }
+      .tactics-list {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        margin-top: 6px;
+      }
+      .muted-note {
+        color: var(--st-muted);
+        font-size: 12px;
+        margin-top: 6px;
       }
     `,
   ],
