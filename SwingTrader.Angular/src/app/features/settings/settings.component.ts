@@ -44,6 +44,7 @@ const TAB_NAMES = ['api-keys', 'trading', 'strategy', 'risk', 'setups', 'notific
 
 const SETUP_LABELS: Record<SetupTypeName, string> = {
   OversoldRecovery: 'Oversold recovery',
+  OversoldRecoveryLoose: 'Oversold recovery (loose)',
   Breakout: 'Breakout',
   MomentumContinuation: 'Momentum continuation',
   VolumeSpike: 'Volume spike',

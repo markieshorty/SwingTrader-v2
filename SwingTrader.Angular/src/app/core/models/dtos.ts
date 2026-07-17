@@ -894,6 +894,7 @@ export type MarketRegimeName = 'Default' | 'Bull' | 'Neutral' | 'Bear' | 'Crisis
 
 export type SetupTypeName =
   | 'OversoldRecovery'
+  | 'OversoldRecoveryLoose'
   | 'Breakout'
   | 'MomentumContinuation'
   | 'VolumeSpike'

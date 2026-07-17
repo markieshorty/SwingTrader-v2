@@ -7,7 +7,16 @@ public enum SetupType
     Breakout,
     MomentumContinuation,
     VolumeSpike,
-    TrendFollowing
+    TrendFollowing,
+    // Oversold WITHOUT the 4-bar recovery confirmation - deliberately buys
+    // while price may still be falling (appended so stored int values are
+    // unchanged). Split out 17 Jul 2026 when enforcing the confirmation
+    // collapsed OversoldRecovery's backtested edge (235% -> 12%): the early,
+    // unconfirmed entry near the low WAS the edge; the knives it catches are
+    // capped by the stop and the distress quarantine. Kept as its own setup so
+    // the confirmed and loose variants carry separate tactics, live switches
+    // and Lab evidence.
+    OversoldRecoveryLoose
 }
 
 public enum Recommendation

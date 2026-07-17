@@ -1016,7 +1016,7 @@
           <h3>Best combination of setups</h3>
           <p class="muted small">
             Brute-forces <strong>every</strong> non-empty combination of your setups
-            (2<sup>N</sup> − 1 — 31 for the five setups) over the full period, holding your
+            (2<sup>N</sup> − 1 — 63 for the six setups) over the full period, holding your
             <strong>current live dials and governing risk book</strong> fixed and varying only <em>which</em> setups
             trade. Ranks them by market-adjusted expectancy — the same metric the optimizer uses — so you can see
             whether a currently-disabled setup earns its place, or an enabled one is a drag. Your live selection is
@@ -1027,7 +1027,7 @@
               @if (setupSearchRunning()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>tune</mat-icon> }
               Search setup combinations
             </button>
-            <span class="muted small">Up to 31 simulations — a long run.</span>
+            <span class="muted small">Up to 63 simulations — a long run.</span>
           </div>
         </mat-card>
 

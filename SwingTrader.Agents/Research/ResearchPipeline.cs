@@ -598,16 +598,16 @@ public class ResearchPipeline(
     {
         var price = candles[^1].Close;
 
-        // OversoldRecovery requires BOTH halves of the name: oversold (RSI,
-        // above the lower band) AND recovering (price higher than 4 bars ago -
-        // the bounce has actually begun). A stock still in freefall fails the
-        // confirmation and falls through to the other setups / Unknown. The
-        // recovery check was dead code until 17 Jul 2026 (both branches
-        // returned OversoldRecovery), so results validated before then measured
-        // plain "oversold" - not comparable with runs after this change.
-        if (ind.Rsi14 < 35 && ind.BollingerLower.HasValue && price > ind.BollingerLower.Value
-            && candles.Count >= 4 && price > candles[^4].Close)
-            return SetupType.OversoldRecovery;
+        // Oversold splits on the 4-bar recovery confirmation (17 Jul 2026):
+        // confirmed (price higher than 4 bars ago - the bounce has begun) is
+        // OversoldRecovery; unconfirmed (may still be falling) is
+        // OversoldRecoveryLoose - the ORIGINAL behaviour, split out as its own
+        // setup when enforcing confirmation collapsed the backtested edge.
+        // Each carries its own tactics and live on/off switch.
+        if (ind.Rsi14 < 35 && ind.BollingerLower.HasValue && price > ind.BollingerLower.Value)
+            return candles.Count >= 4 && price > candles[^4].Close
+                ? SetupType.OversoldRecovery
+                : SetupType.OversoldRecoveryLoose;
 
         if (ind.BollingerUpper.HasValue && price > ind.BollingerUpper.Value
             && ind.VolumeRatio > 1.5m && ind.MacdHistogram > 0)

@@ -10,16 +10,16 @@ public class SetupTacticsRepository(SwingTraderDbContext db) : ISetupTacticsRepo
     // The setups that actually produce Buy signals (Unknown never trades).
     private static readonly SetupType[] TradableSetups =
     [
-        SetupType.OversoldRecovery, SetupType.Breakout, SetupType.MomentumContinuation,
-        SetupType.VolumeSpike, SetupType.TrendFollowing,
+        SetupType.OversoldRecovery, SetupType.OversoldRecoveryLoose, SetupType.Breakout,
+        SetupType.MomentumContinuation, SetupType.VolumeSpike, SetupType.TrendFollowing,
     ];
 
     public async Task SeedDefaultAsync(int accountId, CancellationToken ct = default)
     {
-        var existing = await db.SetupTactics
+        var existingRows = await db.SetupTactics
             .Where(t => t.AccountId == accountId)
-            .Select(t => t.SetupType)
             .ToListAsync(ct);
+        var existing = existingRows.Select(t => t.SetupType).ToList();
 
         // Continuity: copy the account's Neutral risk book onto every setup so
         // exit behaviour is unchanged until the owner differentiates them.
@@ -42,6 +42,23 @@ public class SetupTacticsRepository(SwingTraderDbContext db) : ISetupTacticsRepo
                 tactics.GuideHoldDays = neutral.MaxHoldDays;
                 tactics.TrailingActivationPct = neutral.TrailingActivationPct;
                 tactics.TrailingDistancePct = neutral.TrailingDistancePct;
+            }
+            // OversoldRecoveryLoose (the unconfirmed variant split out 17 Jul
+            // 2026): inherit the confirmed setup's tactics when it has a row -
+            // they were one setup until the split - and seed DISABLED so the
+            // aggressive variant never starts trading without the owner
+            // explicitly switching it on in Settings -> Setup tactics.
+            if (setup == SetupType.OversoldRecoveryLoose)
+            {
+                if (existingRows.FirstOrDefault(t => t.SetupType == SetupType.OversoldRecovery) is { } confirmed)
+                {
+                    tactics.StopLossPct = confirmed.StopLossPct;
+                    tactics.TargetPct = confirmed.TargetPct;
+                    tactics.GuideHoldDays = confirmed.GuideHoldDays;
+                    tactics.TrailingActivationPct = confirmed.TrailingActivationPct;
+                    tactics.TrailingDistancePct = confirmed.TrailingDistancePct;
+                }
+                tactics.Enabled = false;
             }
             db.SetupTactics.Add(tactics);
             added = true;

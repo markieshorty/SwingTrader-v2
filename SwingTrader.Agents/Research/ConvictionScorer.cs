@@ -56,6 +56,11 @@ public static class ConvictionScorer
         return setup switch
         {
             SetupType.OversoldRecovery => 1.0m,
+            // Same quality as the confirmed variant: before the 17 Jul 2026
+            // split BOTH populations scored 1.0 as one setup, and the loose
+            // (unconfirmed) half is where the backtested edge lived - scoring
+            // it lower would silently gate out the very trades that earned it.
+            SetupType.OversoldRecoveryLoose => 1.0m,
             SetupType.Breakout => 0.9m,
             SetupType.MomentumContinuation => 0.75m,
             SetupType.VolumeSpike => 0.6m,
