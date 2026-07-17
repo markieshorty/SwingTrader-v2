@@ -68,10 +68,15 @@ public class ApplyRefinementService(
             IsActive = false,
             // Provenance carried onto the weights row itself, so "why are the
             // weights what they are" is answerable from either table.
-            Source = suggestion.Origin == RefinementOrigin.StrategyLab ? "StrategyLab" : "RefinementAgent",
+            Source = suggestion.Origin switch
+            {
+                RefinementOrigin.StrategyLab => "StrategyLab",
+                RefinementOrigin.SharedStrategy => "SharedStrategy",
+                _ => "RefinementAgent",
+            },
             ApplicableRegime = specificRegime,
             Notes = specificRegime is null
-                ? $"{(isReApply ? "Re-applied" : "Applied")} from {(suggestion.Origin == RefinementOrigin.StrategyLab ? "Strategy Lab" : "auto-refinement")} suggestion #{suggestion.Id} generated {suggestion.GeneratedAt:yyyy-MM-dd}"
+                ? $"{(isReApply ? "Re-applied" : "Applied")} from {suggestion.Origin switch { RefinementOrigin.StrategyLab => "Strategy Lab", RefinementOrigin.SharedStrategy => "shared strategy", _ => "auto-refinement" }} suggestion #{suggestion.Id} generated {suggestion.GeneratedAt:yyyy-MM-dd}"
                 : $"{(isReApply ? "Re-applied" : "Applied")} ({specificRegime} only) from RefinementSuggestion #{suggestion.Id} generated {suggestion.GeneratedAt:yyyy-MM-dd}"
         };
 

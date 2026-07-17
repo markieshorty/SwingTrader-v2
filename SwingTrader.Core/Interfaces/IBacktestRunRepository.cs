@@ -19,4 +19,10 @@ public interface IBacktestRunRepository
     // Completed runs of a mode, newest first - the Strategy Lab history tabs
     // (Optimizer History / A/B History).
     Task<List<BacktestRun>> GetCompletedByModeAsync(int accountId, string mode, int limit, CancellationToken ct = default);
+
+    // Latest COMPLETED run of a mode whose stamped ConfigFingerprint matches -
+    // the strategy-share evidence lookup: "has this exact live config passed
+    // validate / been Monte Carlo'd?".
+    Task<BacktestRun?> GetLatestCompletedByFingerprintAsync(
+        int accountId, string mode, string fingerprint, CancellationToken ct = default);
 }

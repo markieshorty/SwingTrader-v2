@@ -16,13 +16,14 @@ import { AdminActionLogDto, AdminJobFailureDto, AdminStatsDto, AdminUserSummaryD
 import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 import { MonitoringComponent } from './monitoring/monitoring.component';
+import { ShareStrategyTabComponent } from './share-strategy/share-strategy-tab.component';
 
-const TAB_NAMES = ['overview', 'unapproved', 'users', 'jobs', 'logs', 'health'] as const;
+const TAB_NAMES = ['overview', 'unapproved', 'users', 'jobs', 'logs', 'share', 'health'] as const;
 
 @Component({
   selector: 'app-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, MatCardModule, MatButtonModule, MatIconModule, MatSlideToggleModule, MatTabsModule, MatTooltipModule, MonitoringComponent],
+  imports: [CommonModule, FormsModule, RouterLink, MatCardModule, MatButtonModule, MatIconModule, MatSlideToggleModule, MatTabsModule, MatTooltipModule, MonitoringComponent, ShareStrategyTabComponent],
   templateUrl: './admin.component.html',
   styleUrl: './admin.component.scss',
 })
@@ -57,6 +58,7 @@ export class AdminComponent {
   // inserted - Health (now index 5) rendered nothing while Logs (index 4)
   // invisibly ran the monitoring queries.
   readonly healthTabIndex = TAB_NAMES.indexOf('health');
+  readonly shareTabIndex = TAB_NAMES.indexOf('share');
 
   constructor() {
     this.loadStats();

@@ -92,6 +92,7 @@ public enum RefinementOrigin
 {
     AutoRefinement = 0,   // the scheduled correlation engine
     StrategyLab = 1,      // user-driven apply from the Strategy Lab (A/B run or optimizer sweep)
+    SharedStrategy = 2,   // applied from another owner's strategy share (Shared Strategies page)
 }
 
 public enum MarketRegime

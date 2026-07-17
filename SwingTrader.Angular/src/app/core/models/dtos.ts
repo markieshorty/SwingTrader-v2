@@ -214,7 +214,7 @@ export interface RefinementSuggestionDto {
   status: 'Pending' | 'Applied' | 'Rejected' | 'Superseded';
   // Which tool proposed this weight change - the refinement page is the one
   // audit trail for every production weight change, whatever its origin.
-  origin: 'AutoRefinement' | 'StrategyLab';
+  origin: 'AutoRefinement' | 'StrategyLab' | 'SharedStrategy';
   isShadowMode: boolean;
   marketAdjustedWinRate: number;
   unusualMarketConditions: boolean;
@@ -1252,4 +1252,132 @@ export interface BacktestApplyResultDto {
   weightsId: number | null;
   appliedWeights: boolean;
   appliedRisk: boolean;
+}
+
+// ---- Strategy sharing ----
+
+export interface ShareValidateEvidenceDto {
+  runId: number;
+  completedAt: string | null;
+  heldUp: boolean;
+  verdict: string;
+  holdoutAdjustedExpectancyPct: number;
+  baselineHoldoutAdjustedExpectancyPct: number;
+}
+
+export interface ShareMonteCarloEvidenceDto {
+  runId: number;
+  completedAt: string | null;
+  verdict: string;
+  medianTotalReturnPct: number;
+  p5TotalReturnPct: number;
+  p95MaxDrawdownPct: number;
+  probabilityOfLossPct: number;
+  probabilityBeatingSpyPct: number;
+}
+
+export interface ShareEvidenceDto {
+  validate: ShareValidateEvidenceDto | null;
+  monteCarlo: ShareMonteCarloEvidenceDto | null;
+}
+
+export interface ShareSnapshotWeightsDto {
+  rsiWeight: number;
+  macdWeight: number;
+  volumeWeight: number;
+  setupQualityWeight: number;
+  relativeStrengthWeight: number;
+  priceLevelWeight: number;
+  forwardSentimentWeight: number;
+  forwardFundamentalWeight: number;
+  forwardFilingWeight: number;
+  buyThreshold: number;
+  watchThreshold: number;
+  stopLossPctDefault: number;
+}
+
+export interface ShareSnapshotRiskBookDto {
+  regime: string;
+  enabled: boolean;
+  autopauseTrading: boolean;
+  lockedCapitalPct: number;
+  maxOpenPositions: number;
+  dailyLossCircuitBreakerPct: number;
+  maxHoldDays: number;
+  trailingActivationPct: number;
+  trailingDistancePct: number;
+  earningsGateDays: number;
+  minHoldDays: number;
+  momentumHealthThreshold: number;
+  stopLossPct: number;
+  targetPct: number;
+  sizingMode: string;
+  flatPositionPct: number;
+  sizingAggressiveness: number;
+  forwardVetoFloor: number;
+}
+
+export interface ShareSnapshotSetupTacticDto {
+  setupType: string;
+  enabled: boolean;
+  stopLossPct: number;
+  targetPct: number;
+  guideHoldDays: number;
+  trailingActivationPct: number;
+  trailingDistancePct: number;
+}
+
+export interface ShareSnapshotDto {
+  weights: ShareSnapshotWeightsDto;
+  riskBooks: ShareSnapshotRiskBookDto[];
+  setupTactics: ShareSnapshotSetupTacticDto[];
+}
+
+export interface StrategyShareDto {
+  id: number;
+  senderName: string;
+  message: string | null;
+  sentAt: string;
+  status: 'Sent' | 'Applied' | 'Dismissed';
+  appliedAt: string | null;
+  dismissedAt: string | null;
+  revertedAt: string | null;
+  canRevert: boolean;
+  evidence: ShareEvidenceDto | null;
+  snapshot: ShareSnapshotDto | null;
+}
+
+export interface StrategyShareCountDto {
+  count: number;
+  total: number;
+}
+
+export interface ShareRecipientDto {
+  accountId: number;
+  displayName: string;
+  email: string;
+}
+
+export interface ShareHistoryItemDto {
+  id: number;
+  recipientAccountId: number;
+  recipientName: string;
+  sentAt: string;
+  status: string;
+  appliedAt: string | null;
+  revertedAt: string | null;
+}
+
+export interface ShareAdminStatusDto {
+  fingerprint: string;
+  validate: ShareValidateEvidenceDto | null;
+  monteCarlo: ShareMonteCarloEvidenceDto | null;
+  canSend: boolean;
+  recipients: ShareRecipientDto[];
+  history: ShareHistoryItemDto[];
+}
+
+export interface SendShareResultDto {
+  success: boolean;
+  sent: { shareId: number; accountId: number; recipient: string }[];
 }

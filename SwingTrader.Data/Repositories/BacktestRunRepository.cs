@@ -49,6 +49,16 @@ public class BacktestRunRepository(SwingTraderDbContext db) : IBacktestRunReposi
             .FirstOrDefaultAsync(ct);
     }
 
+    public Task<BacktestRun?> GetLatestCompletedByFingerprintAsync(
+        int accountId, string mode, string fingerprint, CancellationToken ct = default) =>
+        db.BacktestRuns
+            .Where(r => r.AccountId == accountId
+                && r.ConfigFingerprint == fingerprint
+                && r.RequestJson.Contains($"\"Mode\":\"{mode}\"")
+                && r.Status == "Completed" && r.ResultJson != null)
+            .OrderByDescending(r => r.CompletedAt)
+            .FirstOrDefaultAsync(ct);
+
     public Task<List<BacktestRun>> GetCompletedByModeAsync(int accountId, string mode, int limit, CancellationToken ct = default) =>
         db.BacktestRuns
             .Where(r => r.AccountId == accountId

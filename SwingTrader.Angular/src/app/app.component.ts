@@ -12,6 +12,7 @@ import { RegimeBadgeComponent } from './shared/components/regime-badge/regime-ba
 import { ErrorCardComponent } from './shared/components/error-card/error-card.component';
 import { RelativeTimePipe } from './shared/pipes/relative-time.pipe';
 import { DashboardDataService } from './core/services/dashboard-data.service';
+import { ApiService } from './core/services/api.service';
 import { AuthService } from './core/services/auth.service';
 
 @Component({
@@ -78,6 +79,7 @@ export class AppComponent {
     const path = this.router.url.split('?')[0];
     const segment = path.split('/')[1] ?? 'dashboard';
     if (!segment) return 'Dashboard';
+    if (segment === 'shared-strategies') return 'Shared Strategies';
     return segment.charAt(0).toUpperCase() + segment.slice(1);
   }
 
@@ -86,10 +88,29 @@ export class AppComponent {
   // whether the market is open without doing the timezone math by hand.
   private now = signal(new Date());
 
+  // Shared-strategy nav state: the item only renders once the account has
+  // ever received a share (total > 0), with a badge for undecided ones.
+  // Refreshed on navigation - a cheap count endpoint, no payloads.
+  private api = inject(ApiService);
+  shareCounts = signal<{ count: number; total: number }>({ count: 0, total: 0 });
+
   constructor() {
     interval(1000)
       .pipe(takeUntilDestroyed())
       .subscribe(() => this.now.set(new Date()));
+
+    this.router.events
+      .pipe(
+        filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+        takeUntilDestroyed(),
+      )
+      .subscribe(() => {
+        if (this.isAuthRoute()) return;
+        this.api.getStrategyShareCounts().subscribe({
+          next: (c) => this.shareCounts.set(c),
+          error: () => {},
+        });
+      });
   }
 
   private static readonly timeFormat: Intl.DateTimeFormatOptions = {

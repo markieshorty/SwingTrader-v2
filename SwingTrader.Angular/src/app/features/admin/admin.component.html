@@ -185,6 +185,12 @@
       }
     </mat-tab>
 
+    <mat-tab label="Share Strategy">
+      @if (selectedTabIndex() === shareTabIndex) {
+        <app-share-strategy-tab></app-share-strategy-tab>
+      }
+    </mat-tab>
+
     <mat-tab label="Health">
       @if (selectedTabIndex() === healthTabIndex) {
         <app-monitoring></app-monitoring>

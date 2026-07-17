@@ -37,6 +37,15 @@
           <mat-icon>insights</mat-icon>
           Intelligence
         </a>
+        @if (shareCounts().total > 0) {
+          <a mat-list-item routerLink="/shared-strategies" routerLinkActive="active">
+            <mat-icon>card_giftcard</mat-icon>
+            Shared Strategies
+            @if (shareCounts().count > 0) {
+              <span class="nav-badge">{{ shareCounts().count }}</span>
+            }
+          </a>
+        }
         <a mat-list-item routerLink="/settings" routerLinkActive="active">
           <mat-icon>settings</mat-icon>
           Settings

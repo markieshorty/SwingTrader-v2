@@ -19,6 +19,13 @@ public class BacktestRun : BaseEntity
     // fixed "expect 10-20 minutes" spinner.
     public int? TotalCandidates { get; set; }
     public int? CompletedCandidates { get; set; }
+
+    // Validate / Monte Carlo runs only: SHA256 fingerprint of the RESOLVED
+    // user config the run actually simulated (see ConfigFingerprint). The
+    // strategy-share feature matches this against the sender's live-settings
+    // fingerprint - evidence only counts if it was produced by the exact
+    // settings being shared. Null for every other mode.
+    public string? ConfigFingerprint { get; set; }
 }
 
 // Shared request shape serialized into BacktestRun.RequestJson by the Strategy

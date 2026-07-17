@@ -100,6 +100,23 @@ public class BacktestConsumerFunction(
                 logger.LogWarning(ex, "Sector-ETF map unavailable — backtest RS falls back to the legacy map");
             }
 
+            // Validate / Monte Carlo runs get stamped with a fingerprint of the
+            // RESOLVED user config - the strategy-share feature matches this
+            // against an account's live-settings fingerprint to prove the
+            // quoted evidence was produced by exactly the settings being
+            // shared. Other modes (sweeps, ablations...) test many configs, so
+            // a single fingerprint would be meaningless.
+            run.ConfigFingerprint = request.Mode switch
+            {
+                "validate" when request.Candidates is { Count: 2 } => ConfigFingerprint.Compute(ToConfig(
+                    request.Candidates[0].Weights, request.Candidates[0].BuyThreshold, request.Candidates[0].ExcludeBreakout,
+                    request.Candidates[0].AutopauseDuringBear, profile, accountTactics, request.Candidates[0].Rules)),
+                "montecarlo" => ConfigFingerprint.Compute(ToConfig(
+                    request.Weights, request.BuyThreshold, request.ExcludeBreakout,
+                    request.AutopauseDuringBear, profile, accountTactics, request.Rules)),
+                _ => null,
+            };
+
             run.ResultJson = request.Mode switch
             {
                 "ab" => await RunAbAsync(request, bars, profile, message.AccountId, accountTactics, sectorEtfs, ct),
@@ -126,108 +143,17 @@ public class BacktestConsumerFunction(
         }
     }
 
+    // Config resolution lives in BacktestConfigFactory (shared with the API's
+    // strategy-share fingerprinting) - thin delegates keep the call sites here
+    // unchanged.
     private static HistoricConfig ToConfig(
         HistoricBacktestWeights w, decimal buyThreshold, bool excludeBreakout, bool autopauseDuringBear,
         AccountRiskProfile profile, IReadOnlyDictionary<SetupType, HistoricSetupTactics> accountTactics,
         HistoricTradingRules? rules = null) =>
-        new(new StrategyWeights
-        {
-            RsiWeight = w.Rsi, MacdWeight = w.Macd, VolumeWeight = w.Volume,
-            SetupQualityWeight = w.SetupQuality, RelativeStrengthWeight = w.RelativeStrength,
-            PriceLevelWeight = w.PriceLevel,
-        }, buyThreshold, excludeBreakout,
-        // SPY-below-200dma entry pause approximates the live bear autopause.
-        // Per-request/candidate (a Lab dial), not the profile setting - the
-        // baseline candidate snapshots the profile value at queue time.
-        RegimeFilter: autopauseDuringBear,
-        // Trading rules: explicit Lab overrides win; otherwise the account's
-        // live risk profile - including the trailing shape, which previously
-        // sat as hardcoded 5%/3% constants in the engine and silently
-        // diverged from live whenever the profile differed.
-        MaxOpenPositions: rules?.MaxOpenPositions ?? profile.MaxOpenPositions,
-        MaxHoldDays: rules?.MaxHoldDays ?? profile.MaxHoldDays,
-        ExcludedSetups: ParseSetups(rules?.ExcludedSetups),
-        TrailingActivationPct: rules?.TrailingActivationPct ?? (decimal)profile.TrailingActivationPct,
-        TrailingDistancePct: rules?.TrailingDistancePct ?? (decimal)profile.TrailingDistancePct,
-        // Null rule = the live risk-profile setting (the tables are gone), so
-        // an untouched Lab run simulates exactly what production will do.
-        StopLossPct: rules?.StopLossPct ?? profile.StopLossPct,
-        TargetPct: rules?.TargetPct ?? profile.TargetPct,
-        SimulateProbation: rules?.SimulateProbation ?? true,
-        MinHoldDays: rules?.MinHoldDays ?? profile.MinHoldDays,
-        MomentumHealthThreshold: rules?.MomentumHealthThreshold ?? profile.MomentumHealthThreshold,
-        // Flat sizing mirrors live: each position is FlatPositionPct of equity.
-        PositionFraction: rules?.PositionFraction ?? profile.FlatPositionPct,
-        // Locked-capital reserve caps total deployment to the un-locked share,
-        // mirroring live. Lab override wins; else the book's live value.
-        LockedCapitalPct: rules?.LockedCapitalPct ?? profile.LockedCapitalPct,
-        // Lab-only pool-sizing sim (no live equivalent since the tier ladder
-        // was removed): null keeps flat sizing; the two dials below only apply
-        // when a Lab run explicitly sets ActiveCapitalPct.
-        ActiveCapitalPct: rules?.ActiveCapitalPct,
-        MaxPositionPctOfActive: rules?.MaxPositionPctOfActive ?? 0.33m,
-        // Per-setup tactics: the account's live set, with any Lab overrides
-        // overlaid. Built once per candidate from data already in memory - no
-        // DB touch.
-        SetupTactics: MergeTactics(accountTactics, rules));
+        BacktestConfigFactory.ToConfig(w, buyThreshold, excludeBreakout, autopauseDuringBear, profile, accountTactics, rules);
 
-    // Builds the per-setup tactics map applied to a candidate, layering two
-    // kinds of override onto the account's live baseline:
-    //   1. UNIFORM rule overrides (rules.StopLossPct/TargetPct/MaxHoldDays/
-    //      Trailing*) - a single value the optimizer's rule-search or the Lab's
-    //      global fields set. Applied to EVERY setup, so "Stop 5%" means 5% on
-    //      all of them. Without this, per-setup tactics would silently swallow
-    //      those candidates and the rule search would be inert.
-    //   2. PER-SETUP overrides (rules.SetupTactics) - the Lab's tactics editor
-    //      / per-setup optimizer search, a full replace for each named setup.
-    // Null rules (an untouched baseline run) leaves the account map as-is, so
-    // the run mirrors live exactly.
-    private static IReadOnlyDictionary<SetupType, HistoricSetupTactics> MergeTactics(
-        IReadOnlyDictionary<SetupType, HistoricSetupTactics> baseline,
-        HistoricTradingRules? rules)
-    {
-        if (rules is null) return baseline;
-        var merged = new Dictionary<SetupType, HistoricSetupTactics>(baseline);
-
-        // 1. Uniform rule fields (only the ones this candidate actually set).
-        if (rules.StopLossPct is not null || rules.TargetPct is not null || rules.MaxHoldDays is not null
-            || rules.TrailingActivationPct is not null || rules.TrailingDistancePct is not null)
-        {
-            foreach (var setup in merged.Keys.ToList())
-            {
-                var b = merged[setup];
-                merged[setup] = b with
-                {
-                    StopLossPct = rules.StopLossPct ?? b.StopLossPct,
-                    TargetPct = rules.TargetPct ?? b.TargetPct,
-                    GuideHoldDays = rules.MaxHoldDays ?? b.GuideHoldDays,
-                    TrailingActivationPct = rules.TrailingActivationPct ?? b.TrailingActivationPct,
-                    TrailingDistancePct = rules.TrailingDistancePct ?? b.TrailingDistancePct,
-                };
-            }
-        }
-
-        // 2. Per-setup overrides win over the uniform layer.
-        foreach (var o in rules.SetupTactics ?? [])
-        {
-            if (!Enum.TryParse<SetupType>(o.Setup, ignoreCase: true, out var setup)) continue;
-            merged[setup] = new HistoricSetupTactics(
-                o.StopLossPct, o.TargetPct, o.GuideHoldDays,
-                o.TrailingActivationPct, o.TrailingDistancePct);
-        }
-        return merged;
-    }
-
-    // Unknown names are ignored rather than failing the run - the list comes
-    // from the UI, but the request JSON is stored and could be replayed after
-    // an enum rename.
     private static IReadOnlyCollection<SwingTrader.Core.Enums.SetupType>? ParseSetups(List<string>? names) =>
-        names is null
-            ? null
-            : names.Select(n => Enum.TryParse<SwingTrader.Core.Enums.SetupType>(n, ignoreCase: true, out var s) ? s : (SwingTrader.Core.Enums.SetupType?)null)
-                .Where(s => s.HasValue)
-                .Select(s => s!.Value)
-                .ToList();
+        BacktestConfigFactory.ParseSetups(names);
 
     private async Task<string> RunSingleAsync(
         HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, AccountRiskProfile profile, int accountId,

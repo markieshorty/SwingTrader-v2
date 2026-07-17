@@ -31,6 +31,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
     public DbSet<HistoricalCandle> HistoricalCandles => Set<HistoricalCandle>();
     public DbSet<BacktestRun> BacktestRuns => Set<BacktestRun>();
+    public DbSet<StrategyShare> StrategyShares => Set<StrategyShare>();
     public DbSet<SentimentArticle> SentimentArticles => Set<SentimentArticle>();
     public DbSet<SentimentDailyScore> SentimentDailyScores => Set<SentimentDailyScore>();
     public DbSet<Filing> Filings => Set<Filing>();
@@ -308,6 +309,20 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.ComponentAnalysisJson).IsRequired();
             e.Property(x => x.MarketAdjustedWinRate).HasPrecision(18, 8);
             e.HasIndex(x => new { x.AccountId, x.GeneratedAt });
+        });
+
+        modelBuilder.Entity<StrategyShare>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.SenderName).IsRequired().HasMaxLength(100);
+            e.Property(x => x.Message).HasMaxLength(2000);
+            e.Property(x => x.SnapshotJson).IsRequired();
+            e.Property(x => x.ConfigFingerprint).IsRequired().HasMaxLength(64);
+            e.Property(x => x.EvidenceJson).IsRequired();
+            e.Property(x => x.Status).IsRequired().HasMaxLength(20);
+            // AccountId = recipient; list + badge queries.
+            e.HasIndex(x => new { x.AccountId, x.Status });
+            e.HasIndex(x => x.SenderAccountId);
         });
 
         modelBuilder.Entity<SystemChecklist>(e =>

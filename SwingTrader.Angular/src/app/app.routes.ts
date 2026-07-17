@@ -105,6 +105,13 @@ export const routes: Routes = [
     title: 'Admin · Insights',
   },
   {
+    path: 'shared-strategies',
+    canActivate: [authGuard, approvalGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./features/shared-strategies/shared-strategies.component').then((m) => m.SharedStrategiesComponent),
+    title: 'Shared Strategies',
+  },
+  {
     path: 'settings',
     canActivate: [authGuard, approvalGuard],
     loadComponent: () =>

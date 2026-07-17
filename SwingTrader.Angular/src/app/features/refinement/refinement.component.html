@@ -47,8 +47,8 @@
             <tr class="clickable" (click)="openDetail(item)" matTooltip="View stats & weights, and re-apply">
               <td>{{ item.generatedAt | date: 'medium' }}</td>
               <td>
-                <span class="origin-chip" [class.lab]="item.origin === 'StrategyLab'">
-                  {{ item.origin === 'StrategyLab' ? 'Strategy Lab' : 'Auto refinement' }}
+                <span class="origin-chip" [class.lab]="item.origin === 'StrategyLab'" [class.share]="item.origin === 'SharedStrategy'">
+                  {{ item.origin === 'StrategyLab' ? 'Strategy Lab' : item.origin === 'SharedStrategy' ? 'Shared strategy' : 'Auto refinement' }}
                 </span>
               </td>
               <td>{{ item.tradeCountAnalysed }}</td>

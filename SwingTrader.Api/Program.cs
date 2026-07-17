@@ -215,6 +215,7 @@ builder.Services.AddScoped<IApprovalRepository, ApprovalRepository>();
 builder.Services.AddScoped<IRefinementSuggestionRepository, RefinementSuggestionRepository>();
 builder.Services.AddScoped<ISystemChecklistRepository, SystemChecklistRepository>();
 builder.Services.AddScoped<IApplyRefinementService, ApplyRefinementService>();
+builder.Services.AddScoped<SwingTrader.Agents.Sharing.IStrategyShareService, SwingTrader.Agents.Sharing.StrategyShareService>();
 builder.Services.Configure<RefinementConfig>(builder.Configuration.GetSection(RefinementConfig.SectionName));
 builder.Services.Configure<RiskManagementConfig>(builder.Configuration.GetSection(RiskManagementConfig.SectionName));
 builder.Services.AddMemoryCache();
@@ -241,6 +242,7 @@ builder.Services.AddScoped<SwingTrader.Agents.Refinement.ITradeReplayService, Sw
 builder.Services.AddScoped<IHistoricalCandleRepository, HistoricalCandleRepository>();
 builder.Services.AddScoped<ISentimentArchiveRepository, SentimentArchiveRepository>();
 builder.Services.AddScoped<IBacktestRunRepository, BacktestRunRepository>();
+builder.Services.AddScoped<IStrategyShareRepository, StrategyShareRepository>();
 builder.Services.AddScoped<IEconomicLinkRepository, EconomicLinkRepository>();
 builder.Services.AddScoped<IFilingRepository, FilingRepository>();
 builder.Services.AddScoped<IWatchlistHistoryRepository, WatchlistHistoryRepository>();
@@ -357,11 +359,13 @@ api.MapRiskProfileEndpoints();
 api.MapSetupTacticsEndpoints();
 api.MapWatchlistEndpoints();
 api.MapIntelligenceEndpoints();
+api.MapStrategyShareEndpoints();
 
 // Manual "run now" triggers (/run/*) and the global admin area (/api/admin/*)
 // are separate top-level groups that own their auth / rate-limiting internally.
 app.MapRunEndpoints();
 app.MapAdminEndpoints();
+app.MapStrategyShareAdminEndpoints();
 
 // Angular static files (Phase 10b populates wwwroot)
 app.UseDefaultFiles();

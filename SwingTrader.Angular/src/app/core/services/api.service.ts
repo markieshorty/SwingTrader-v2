@@ -3,6 +3,10 @@ import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  StrategyShareDto,
+  StrategyShareCountDto,
+  ShareAdminStatusDto,
+  SendShareResultDto,
   AccountMemberDto,
   AdminActionLogDto,
   AdminJobFailureDto,
@@ -503,5 +507,39 @@ export class ApiService {
 
   deleteAccount(): Observable<unknown> {
     return this.http.delete(`${this.baseUrl}/api/account`);
+  }
+
+  // ---- Strategy sharing ----
+
+  getStrategyShares(): Observable<StrategyShareDto[]> {
+    return this.http.get<StrategyShareDto[]>(`${this.baseUrl}/api/strategy-shares`);
+  }
+
+  getStrategyShareCounts(): Observable<StrategyShareCountDto> {
+    return this.http.get<StrategyShareCountDto>(`${this.baseUrl}/api/strategy-shares/pending-count`);
+  }
+
+  applyStrategyShare(id: number): Observable<{ success: boolean }> {
+    return this.http.post<{ success: boolean }>(`${this.baseUrl}/api/strategy-shares/${id}/apply`, {});
+  }
+
+  dismissStrategyShare(id: number): Observable<{ success: boolean }> {
+    return this.http.post<{ success: boolean }>(`${this.baseUrl}/api/strategy-shares/${id}/dismiss`, {});
+  }
+
+  revertStrategyShare(id: number): Observable<{ success: boolean }> {
+    return this.http.post<{ success: boolean }>(`${this.baseUrl}/api/strategy-shares/${id}/revert`, {});
+  }
+
+  getShareAdminStatus(): Observable<ShareAdminStatusDto> {
+    return this.http.get<ShareAdminStatusDto>(`${this.baseUrl}/api/admin/strategy-share/status`);
+  }
+
+  sendStrategyShare(recipientAccountIds: number[], message: string | null): Observable<SendShareResultDto> {
+    return this.http.post<SendShareResultDto>(`${this.baseUrl}/api/admin/strategy-share/send`, {
+      recipientAccountIds,
+      message,
+      appBaseUrl: window.location.origin,
+    });
   }
 }

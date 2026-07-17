@@ -21,8 +21,8 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
     <mat-dialog-content>
       <div class="chips">
         <span class="confidence" [class]="s.confidenceLevel.toLowerCase()">{{ s.confidenceLevel }} confidence</span>
-        <span class="origin-chip" [class.lab]="s.origin === 'StrategyLab'">
-          {{ s.origin === 'StrategyLab' ? 'Strategy Lab' : 'Auto refinement' }}
+        <span class="origin-chip" [class.lab]="s.origin === 'StrategyLab'" [class.share]="s.origin === 'SharedStrategy'">
+          {{ s.origin === 'StrategyLab' ? 'Strategy Lab' : s.origin === 'SharedStrategy' ? 'Shared strategy' : 'Auto refinement' }}
         </span>
         <span class="status-chip" [class]="s.status.toLowerCase()">{{ s.status }}</span>
       </div>
@@ -108,6 +108,7 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
       border-radius: 10px; padding: 2px 8px; background: rgba(128,128,128,0.15); color: var(--st-muted);
     }
     .origin-chip.lab { background: rgba(99,102,241,0.18); color: #818cf8; }
+    .origin-chip.share { background: rgba(46,155,87,0.18); color: #4ade80; }
     .period { color: var(--st-muted); font-size: 13px; }
     .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 24px; margin: 10px 0; }
     .stat-grid .k { color: var(--st-muted); font-size: 12px; margin-right: 8px; }
