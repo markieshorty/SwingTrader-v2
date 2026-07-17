@@ -162,3 +162,26 @@ h3 {
 
   &.inactive { opacity: 0.55; }
 }
+
+// Scorecard tab
+.scorecard-panel {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+
+  h4 { margin: 0 0 4px; }
+  .hint { margin: 0 0 10px; font-size: 0.85rem; color: var(--st-muted); }
+}
+
+.score-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--st-border); white-space: nowrap; }
+  th { color: var(--st-muted); font-weight: 500; }
+  .num { text-align: right; }
+  .positive { color: var(--st-positive, #2e7d32); }
+  .negative { color: var(--st-negative, #d32f2f); }
+
+  &.detail { margin-top: 14px; font-size: 0.85rem; }
+}

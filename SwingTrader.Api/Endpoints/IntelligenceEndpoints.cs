@@ -128,6 +128,16 @@ public static class IntelligenceEndpoints
             return Results.Ok(new { WindowDays = days ?? 14, Transmissions = rows });
         });
 
+        // Tab 3 - Scorecard: the forward-side feedback loop. Forward-score
+        // buckets on closed trades, counterfactual replays of blocked Buys
+        // (forward veto / distress veto / setup-disabled), and score-vs-return
+        // correlations for the filing + second-hop signals. Read-only; no
+        // Claude; one targeted candle read.
+        api.MapGet("/intelligence/scorecard", async (
+            int? days, [FromServices] SwingTrader.Agents.Scorecard.IForwardScorecardService scorecard,
+            IAccountContext ctx, CancellationToken ct) =>
+            Results.Ok(await scorecard.BuildAsync(ctx.AccountId, Math.Clamp(days ?? 90, 7, 365), ct)));
+
         return api;
     }
 }

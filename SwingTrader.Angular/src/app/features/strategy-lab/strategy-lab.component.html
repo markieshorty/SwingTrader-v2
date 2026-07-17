@@ -128,7 +128,7 @@
                       <mat-button-toggle value="off">Trade</mat-button-toggle>
                     </mat-button-toggle-group>
                     @if (regime === 'Crisis') {
-                      <span class="muted small">no historical effect (VIX-driven; dormant in backtests)</span>
+                      <span class="muted small">VIX-driven (>35) — detected in Mixed once VIX history is synced</span>
                     }
                   </div>
                 }
@@ -139,7 +139,8 @@
               <div class="regime-forms">
                 <span class="muted small">
                   Per-regime exposure (your column only — the baseline uses live books). Each form is prefilled from that
-                  regime's live book; edit to trial a change. Crisis is omitted — it's dormant in backtests (VIX-driven).
+                  regime's live book; edit to trial a change. Crisis has no form — it always uses its live book (it fires
+                  on days the VIX closed above 35, once VIX history is synced).
                 </span>
                 <div class="regime-forms-grid">
                   @for (regime of mixedRegimes; track regime) {
@@ -956,8 +957,9 @@
             <span class="muted small">5 simulations — a few minutes.</span>
           </div>
           <p class="muted small">
-            Note: without historical VIX, <strong>Crisis</strong> can't be detected day-to-day, so it never fires in
-            Mixed — the forced-Crisis column still stress-tests that book.
+            Note: <strong>Crisis</strong> fires in Mixed on days the VIX closed above 35 (CBOE VIX history syncs with
+            the weekly candle sync). If no VIX bars are synced yet, Crisis never fires day-to-day — the forced-Crisis
+            column still stress-tests that book either way.
           </p>
         </mat-card>
 

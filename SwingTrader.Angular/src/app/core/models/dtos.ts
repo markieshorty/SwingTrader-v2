@@ -1104,6 +1104,52 @@ export interface FilingsIntelligenceDto {
   distressFlags: DistressFlagRowDto[];
 }
 
+// ── Forward scorecard (Intelligence tab 3) ──────────────────────────────────
+// The forward-side feedback loop: did the forward score / vetoes / shadow
+// signals actually predict anything?
+export interface ForwardBucketDto {
+  band: string;
+  trades: number;
+  winRate: number | null;
+  avgReturnPct: number | null;
+}
+
+export interface BlockedBuyRowDto {
+  signalDate: string;
+  symbol: string;
+  source: string; // 'Forward veto' | 'Distress veto' | 'Setup disabled'
+  forwardScore: number | null;
+  counterfactualReturnPct: number | null; // what taking the entry would have returned
+  exitReason: string | null;
+  tradingDaysHeld: number | null;
+  stillOpen: boolean;
+}
+
+export interface BlockedBuySummaryDto {
+  source: string;
+  blocked: number;
+  replayed: number;
+  avgReturnPct: number;
+  totalReturnPct: number;
+  wouldHaveWon: number;
+}
+
+export interface SignalCorrelationDto {
+  signal: string;
+  pairs: number;
+  pearsonR: number | null;
+  avgFwdReturnWhenNegative: number | null;
+  avgFwdReturnWhenPositive: number | null;
+}
+
+export interface ForwardScorecardDto {
+  windowDays: number;
+  forwardBuckets: ForwardBucketDto[];
+  blockedSummaries: BlockedBuySummaryDto[];
+  blockedBuys: BlockedBuyRowDto[];
+  correlations: SignalCorrelationDto[];
+}
+
 export interface SecondHopRowDto {
   signalDate: string;
   symbol: string;

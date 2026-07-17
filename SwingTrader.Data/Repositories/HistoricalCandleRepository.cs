@@ -103,4 +103,17 @@ public class HistoricalCandleRepository(SwingTraderDbContext db) : IHistoricalCa
         SetHeavyTimeout();
         return await db.HistoricalCandles.AnyAsync(ct) ? await db.HistoricalCandles.MaxAsync(c => c.Date, ct) : null;
     }
+
+    public async Task<Dictionary<string, List<HistoricalCandle>>> GetForSymbolsAsync(
+        IReadOnlyCollection<string> symbols, DateOnly from, CancellationToken ct = default)
+    {
+        var upper = symbols.Select(s => s.ToUpperInvariant()).Distinct().ToList();
+        var rows = await db.HistoricalCandles
+            .Where(c => upper.Contains(c.Symbol) && c.Date >= from)
+            .OrderBy(c => c.Symbol).ThenBy(c => c.Date)
+            .ToListAsync(ct);
+        return rows
+            .GroupBy(c => c.Symbol, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+    }
 }

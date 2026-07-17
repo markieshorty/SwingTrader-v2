@@ -12,6 +12,7 @@ import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner
 import {
   FilingDeltaRowDto,
   FilingsIntelligenceDto,
+  ForwardScorecardDto,
   SecondHopIntelligenceDto,
 } from '../../core/models/dtos';
 
@@ -50,9 +51,32 @@ export class IntelligenceComponent {
   secondHopLoaded = signal(false);
   secondHopDays = signal(14);
 
+  // The forward-side feedback loop: forward-score buckets, blocked-Buy
+  // counterfactuals, shadow-signal correlations. Loaded lazily on first
+  // view - it's the heaviest of the three reads (a targeted candle query).
+  scorecard = signal<ForwardScorecardDto | null>(null);
+  scorecardLoaded = signal(false);
+  scorecardDays = signal(90);
+
   constructor() {
     this.loadFilings(90);
     this.loadSecondHop(14);
+  }
+
+  onTabChange(index: number): void {
+    if (index === 2 && !this.scorecardLoaded() && this.scorecard() === null) this.loadScorecard(90);
+  }
+
+  loadScorecard(days: number): void {
+    this.scorecardDays.set(days);
+    this.scorecardLoaded.set(false);
+    this.api.getForwardScorecard(days).subscribe({
+      next: (d) => {
+        this.scorecard.set(d);
+        this.scorecardLoaded.set(true);
+      },
+      error: () => this.scorecardLoaded.set(true),
+    });
   }
 
   loadFilings(days: number): void {

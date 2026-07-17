@@ -120,9 +120,71 @@ public class CandleSyncService(
             await Task.Delay(syncDelayMs, ct);
         }
 
+        // VIX daily history from CBOE's free CSV (Tiingo's EOD endpoint doesn't
+        // serve index data). VIX is what lets the backtester detect CRISIS
+        // regimes historically - price structure alone can't (see
+        // MarketRegimeService.ClassifyRegime: Crisis is VIX > 35). Stored under
+        // symbol "VIX" in the same HistoricalCandles table; the backtest's bar
+        // load picks it up automatically. Best-effort: a CBOE outage costs the
+        // Crisis detection for that run, never the equity sync above.
+        try
+        {
+            rows += await SyncVixAsync(latestDates, windowStart, ct);
+            synced++;
+        }
+        catch (Exception ex)
+        {
+            failed++;
+            logger.LogWarning(ex, "VIX history sync failed — Crisis detection uses existing VIX bars only");
+        }
+
         var summary = $"CandleSync: {synced} synced, {skipped} already current, {failed} failed, {rows:N0} bars added.";
         logger.LogInformation("{Summary}", summary);
         return new CandleSyncResult(true, synced, skipped, failed, rows, summary);
+    }
+
+    private const string VixHistoryUrl = "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv";
+
+    private async Task<int> SyncVixAsync(
+        Dictionary<string, DateOnly> latestDates, DateOnly windowStart, CancellationToken ct)
+    {
+        // The full CSV is small (~35 years of daily rows, ~1MB) - fetch whole,
+        // filter to the incremental slice locally. No API key needed.
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        var csv = await http.GetStringAsync(VixHistoryUrl, ct);
+
+        var newerThan = latestDates.TryGetValue("VIX", out var latest) ? latest : DateOnly.MinValue;
+        var candles = ParseVixCsv(csv)
+            .Where(c => c.Date > newerThan && c.Date >= windowStart)
+            .ToList();
+
+        if (candles.Count == 0) return 0;
+        await candleRepo.AddRangeAsync(candles, ct);
+        logger.LogInformation("VIX history: {Count} bars added (through {Latest})", candles.Count, candles[^1].Date);
+        return candles.Count;
+    }
+
+    // CBOE CSV format: header "DATE,OPEN,HIGH,LOW,CLOSE" then one row per
+    // trading day (DATE = M/d/yyyy). Internal static so the parse is testable.
+    internal static List<HistoricalCandle> ParseVixCsv(string csv)
+    {
+        var result = new List<HistoricalCandle>();
+        foreach (var line in csv.Split('\n').Skip(1))
+        {
+            var parts = line.Trim().Split(',');
+            if (parts.Length < 5) continue;
+            if (!DateOnly.TryParse(parts[0], System.Globalization.CultureInfo.InvariantCulture, out var date)) continue;
+            if (!decimal.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out var open)
+                || !decimal.TryParse(parts[2], System.Globalization.CultureInfo.InvariantCulture, out var high)
+                || !decimal.TryParse(parts[3], System.Globalization.CultureInfo.InvariantCulture, out var low)
+                || !decimal.TryParse(parts[4], System.Globalization.CultureInfo.InvariantCulture, out var close)) continue;
+            result.Add(new HistoricalCandle
+            {
+                Symbol = "VIX", Date = date,
+                Open = open, High = high, Low = low, Close = close, Volume = 0,
+            });
+        }
+        return result.OrderBy(c => c.Date).ToList();
     }
 
     // Fetches one date range for one symbol and stores the bars that pass the

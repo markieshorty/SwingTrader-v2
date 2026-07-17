@@ -219,6 +219,15 @@ public static class HistoricBacktester
         var equityCurve = new List<decimal>();
         var watchlist = new List<string>();
 
+        // VIX closes by date, when the bar set carries them (CandleSync stores
+        // CBOE's VIX history under "VIX"). This is what makes CRISIS detectable
+        // per simulated day - price structure alone can't see it (Crisis is
+        // VIX > 35 in MarketRegimeService.ClassifyRegime). Absent VIX bars,
+        // regime detection degrades to price-structure-only, as before.
+        Dictionary<DateTime, decimal>? vixByDate = null;
+        if (bars.TryGetValue("VIX", out var vixBars))
+            vixByDate = vixBars.ToDictionary(b => b.Date, b => b.Close);
+
         for (var d = WarmupBars; d < calendar.Count - 1; d++)
         {
             ct.ThrowIfCancellationRequested();
@@ -287,7 +296,7 @@ public static class HistoricBacktester
             // Enter new positions tomorrow at the open. The exposure envelope
             // (autopause, position cap, size) is resolved per-day: in Mixed mode
             // from the regime detected at this bar, else from the fixed config.
-            var env = ResolveEnvelope(cfg, spy, d);
+            var env = ResolveEnvelope(cfg, spy, d, vixByDate);
             if (open.Count < env.MaxOpenPositions && !env.Autopause)
             {
                 // Explicit exclusion set wins; otherwise the original
@@ -602,9 +611,10 @@ public static class HistoricBacktester
         var ranked = new List<(string Symbol, decimal AbsChange)>();
         foreach (var (symbol, series) in bars)
         {
-            // SPY and the sector ETFs are in the bar set only as regime/RS
+            // SPY, VIX and the sector ETFs are in the bar set only as regime/RS
             // benchmarks - never as trade candidates.
             if (symbol.Equals("SPY", StringComparison.OrdinalIgnoreCase) ||
+                symbol.Equals("VIX", StringComparison.OrdinalIgnoreCase) ||
                 SectorEtfMap.AllEtfs().Contains(symbol, StringComparer.OrdinalIgnoreCase)) continue;
             if (!index[symbol].TryGetValue(asOf, out var i) || i < 21) continue;
 
@@ -638,7 +648,8 @@ public static class HistoricBacktester
     // present) resolves it from the regime detected at this bar; otherwise the
     // fixed config scalars, with the legacy SPY-vs-200 autopause proxy preserved
     // exactly (skip entries only when RegimeFilter is on AND SPY is sub-200).
-    private static RegimeEnvelope ResolveEnvelope(HistoricConfig cfg, DailyBar[] spy, int d)
+    private static RegimeEnvelope ResolveEnvelope(
+        HistoricConfig cfg, DailyBar[] spy, int d, Dictionary<DateTime, decimal>? vixByDate)
     {
         if (cfg.RegimeBooks is null)
         {
@@ -647,7 +658,7 @@ public static class HistoricBacktester
             var autopause = cfg.ForceAutopause || (cfg.RegimeFilter && !SpyAboveSma200(spy, d));
             return new RegimeEnvelope(autopause, cfg.MaxOpenPositions, cfg.PositionFraction, cfg.LockedCapitalPct);
         }
-        var regime = RegimeAt(spy, d);
+        var regime = RegimeAt(spy, d, vixByDate);
         if (cfg.RegimeBooks.TryGetValue(regime, out var book)) return book;
         // Regime with no supplied book (e.g. Crisis without a Crisis entry) falls
         // back to Neutral, then to the flat scalars.
@@ -655,15 +666,18 @@ public static class HistoricBacktester
         return new RegimeEnvelope(false, cfg.MaxOpenPositions, cfg.PositionFraction, cfg.LockedCapitalPct);
     }
 
-    // Historical regime at bar d from SPY closes (price-structure only - no VIX
-    // history, so Crisis never triggers here; Mixed treats it as Bear/Neutral by
-    // structure). Only the last ~220 closes matter for the 50/200-day MAs.
-    private static MarketRegime RegimeAt(DailyBar[] spy, int d)
+    // Historical regime at bar d from SPY closes plus (when the bar set carries
+    // CBOE VIX history) the day's VIX close - the same ClassifyRegime the live
+    // service runs, so Crisis (VIX > 35) is now detectable per simulated day.
+    // Without VIX bars this degrades to price-structure-only, as before. Only
+    // the last ~220 closes matter for the 50/200-day MAs.
+    private static MarketRegime RegimeAt(DailyBar[] spy, int d, Dictionary<DateTime, decimal>? vixByDate)
     {
         var start = Math.Max(0, d - 219);
         var window = new List<decimal>(d - start + 1);
         for (var i = start; i <= d && i < spy.Length; i++) window.Add(spy[i].Close);
-        return MarketRegimeService.ClassifyFromCloses(window) ?? MarketRegime.Neutral;
+        decimal? vix = vixByDate is not null && vixByDate.TryGetValue(spy[d].Date, out var v) ? v : null;
+        return MarketRegimeService.ClassifyFromCloses(window, vix) ?? MarketRegime.Neutral;
     }
 
     private static DailyBar? GetBar(

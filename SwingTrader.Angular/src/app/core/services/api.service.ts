@@ -33,6 +33,7 @@ import {
   WatchlistTargetSizeDto,
   QualitativeWatchlistSizeDto,
   SecondHopIntelligenceDto,
+  ForwardScorecardDto,
   SentimentArchiveStatsDto,
   SignalGroupDto,
   StatusDto,
@@ -383,6 +384,10 @@ export class ApiService {
 
   getSecondHopIntelligence(days = 14): Observable<SecondHopIntelligenceDto> {
     return this.http.get<SecondHopIntelligenceDto>(`${this.baseUrl}/api/intelligence/second-hop`, { params: { days } });
+  }
+
+  getForwardScorecard(days = 90): Observable<ForwardScorecardDto> {
+    return this.http.get<ForwardScorecardDto>(`${this.baseUrl}/api/intelligence/scorecard`, { params: { days } });
   }
 
   // Latest "[Archetype] reason" per symbol the AI recorded when it picked

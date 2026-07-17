@@ -725,8 +725,9 @@ public class BacktestConsumerFunction(
     // "Mixed" where the engine switches book by the regime detected at each day
     // (docs regime-lab). Answers "is a regime mix worth it, or is one book best?"
     // One candle load, five in-memory engine passes (no extra DB/Claude cost).
-    // Crisis is price-structure-undetectable without historical VIX, so in Mixed
-    // it never fires - the forced-Crisis column still stress-tests that book.
+    // Crisis fires in Mixed when the bar set carries CBOE VIX history (synced
+    // by CandleSync since 17 Jul 2026); before the first VIX sync it degrades
+    // to price-structure-only and never fires.
     private async Task<string> RunRegimeComparisonAsync(
         BacktestRun run, HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars,
         int accountId, IReadOnlyDictionary<SetupType, HistoricSetupTactics> accountTactics,
