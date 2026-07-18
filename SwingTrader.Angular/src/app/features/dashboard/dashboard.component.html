@@ -3,6 +3,12 @@
 } @else {
   <!-- Row 0: Status capsules -->
   <div class="capsule-row">
+    @if (marketCapsule(); as market) {
+      <span class="capsule" [class.green]="market.open" [class.grey]="!market.open">
+        <span class="capsule-dot"></span>
+        {{ market.label }}
+      </span>
+    }
     <span class="capsule" [class.green]="systemHealthy()" [class.red]="!systemHealthy()">
       <span class="capsule-dot"></span>
       {{ systemHealthy() ? 'All Systems Operational' : 'Issues Detected' }}

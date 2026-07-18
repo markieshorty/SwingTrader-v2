@@ -21,7 +21,8 @@ import { StopTargetBarComponent } from '../../shared/components/stop-target-bar/
 import { ConvictionBarComponent } from '../../shared/components/conviction-bar/conviction-bar.component';
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
 import { defaultColDef } from '../../shared/ag-grid-defaults';
-import { ActivityLogDto, NextRunDto, PositionDto, SignalDto, TradeDto, TradingConfigDto } from '../../core/models/dtos';
+import {
+  MarketStatusDto, ActivityLogDto, NextRunDto, PositionDto, SignalDto, TradeDto, TradingConfigDto } from '../../core/models/dtos';
 import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
 import { errorMessage } from '../../shared/utils/error-message.util';
 
@@ -138,6 +139,29 @@ export class DashboardComponent {
     (this.status()?.runs ?? []).filter(r => r.category === 'WorkerRun' && r.title === 'Monitor'),
   );
 
+  marketStatus = signal<MarketStatusDto | null>(null);
+
+  private loadMarketStatus(): void {
+    this.api.getMarketStatus().subscribe({
+      next: (m) => this.marketStatus.set(m),
+      error: () => {},
+    });
+  }
+
+  // Market open/closed capsule. Shows both the viewer's local time and ET,
+  // since owners are UK-based but the session is New York's.
+  marketCapsule = computed(() => {
+    const m = this.marketStatus();
+    if (!m) return null;
+    const at = new Date(m.changesAtUtc);
+    const local = at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const et = at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' });
+    if (m.isOpen) return { open: true, label: `Market open \u00b7 closes ${local} (${et} ET)` };
+    const sameDay = at.toDateString() === new Date().toDateString();
+    const day = sameDay ? '' : at.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + ' \u00b7 ';
+    return { open: false, label: `Market closed \u00b7 opens ${day}${local} (${et} ET)` };
+  });
+
   // Paused-entries capsule for the current mode. Null when not paused. Red for
   // a circuit-breaker auto-pause, amber for a manual one; the tooltip spells
   // out that exits still run and where to resume.
@@ -224,6 +248,7 @@ export class DashboardComponent {
   ];
 
   constructor() {
+    this.loadMarketStatus();
     this.loadRecentTrades();
     this.loadAccountSettings();
     this.loadNextRuns();

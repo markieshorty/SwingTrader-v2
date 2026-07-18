@@ -1393,3 +1393,8 @@ export interface SendShareResultDto {
   success: boolean;
   sent: { shareId: number; accountId: number; recipient: string }[];
 }
+
+export interface MarketStatusDto {
+  isOpen: boolean;
+  changesAtUtc: string; // close time when open, next open time when closed
+}
