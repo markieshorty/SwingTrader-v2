@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -9,7 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../../core/services/api.service';
-import { ShareAdminStatusDto } from '../../../core/models/dtos';
+import { ShareAdminStatusDto, ShareHistoryItemDto } from '../../../core/models/dtos';
 import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner.component';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
 import { errorMessage } from '../../../shared/utils/error-message.util';
@@ -137,6 +137,40 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
         </mat-card>
 
         <mat-card class="share-panel">
+          <h3>Who's running your strategy</h3>
+          @if (!adoption().length) {
+            <p class="hint">No owners to track yet.</p>
+          } @else {
+            <div class="adoption-summary">
+              <span class="stat-chip applied">{{ adoptionCounts().applied }} applied</span>
+              <span class="stat-chip">{{ adoptionCounts().pending }} pending</span>
+              @if (adoptionCounts().reverted) { <span class="stat-chip">{{ adoptionCounts().reverted }} reverted</span> }
+              @if (adoptionCounts().dismissed) { <span class="stat-chip">{{ adoptionCounts().dismissed }} dismissed</span> }
+              @if (adoptionCounts().neverSent) { <span class="stat-chip">{{ adoptionCounts().neverSent }} never sent</span> }
+            </div>
+            @if (adoption().length > 8) {
+              <mat-form-field appearance="outline" class="adoption-filter">
+                <mat-label>Filter by name or email</mat-label>
+                <input matInput [(ngModel)]="adoptionFilter" />
+              </mat-form-field>
+            }
+            <div class="adoption-list">
+              @for (a of filteredAdoption(); track a.accountId) {
+                <div class="adoption-row">
+                  <div class="adoption-who">
+                    <span class="adoption-name">{{ a.displayName }}</span>
+                    <span class="adoption-email">{{ a.email }}</span>
+                  </div>
+                  <span class="status-chip" [class.applied]="a.state === 'Applied'"
+                        [class.warn-chip]="a.state === 'Reverted'">{{ a.state }}</span>
+                  <span class="adoption-detail">{{ a.detail }}</span>
+                </div>
+              }
+            </div>
+          }
+        </mat-card>
+
+        <mat-card class="share-panel">
           <h3>Sent history</h3>
           @if (!s.history.length) {
             <p class="hint">Nothing sent yet.</p>
@@ -231,6 +265,22 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
     }
     .hint { color: var(--st-muted); font-size: 12px; margin: 8px 0 0; }
 
+    .adoption-summary { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .adoption-summary .stat-chip.applied { background: rgba(46, 155, 87, 0.18); color: var(--st-green, #2e9b57); }
+    .adoption-filter { width: 320px; max-width: 100%; }
+    .adoption-list { max-height: 420px; overflow-y: auto; }
+    .adoption-row {
+      display: flex; align-items: center; gap: 14px;
+      padding: 9px 4px;
+      border-top: 1px solid rgba(128, 128, 128, 0.15);
+      &:first-child { border-top: none; }
+    }
+    .adoption-who { display: flex; flex-direction: column; min-width: 220px; }
+    .adoption-name { font-weight: 600; font-size: 14px; }
+    .adoption-email { color: var(--st-muted); font-size: 12px; }
+    .adoption-detail { color: var(--st-muted); font-size: 13px; }
+    .status-chip.warn-chip { background: rgba(217, 119, 6, 0.15); color: var(--st-amber); }
+
     .history-table {
       width: 100%;
       border-collapse: collapse;
@@ -262,6 +312,65 @@ export class ShareStrategyTabComponent {
 
   selectedAccountIds: number[] = [];
   message = '';
+
+  // One row per owner (not per share): their CURRENT relationship to the
+  // strategy, rolled up from the newest share sent to them. Stays readable
+  // at any list size - counts up top, scrollable list, filter past 8 rows.
+  adoption = computed(() => {
+    const s = this.status();
+    if (!s) return [];
+    const latestByAccount = new Map<number, ShareHistoryItemDto>();
+    for (const h of s.history) {
+      const existing = latestByAccount.get(h.recipientAccountId);
+      if (!existing || new Date(h.sentAt) > new Date(existing.sentAt)) latestByAccount.set(h.recipientAccountId, h);
+    }
+    const rows = s.recipients.map((r) => {
+      const h = latestByAccount.get(r.accountId);
+      let state: 'Applied' | 'Pending' | 'Reverted' | 'Dismissed' | 'Never sent';
+      let detail: string;
+      if (!h) {
+        state = 'Never sent';
+        detail = 'No strategy shared with this owner yet.';
+      } else if (h.revertedAt) {
+        state = 'Reverted';
+        detail = `Applied then restored their own settings ${new Date(h.revertedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}.`;
+      } else if (h.status === 'Applied') {
+        state = 'Applied';
+        detail = `Running your strategy since ${new Date(h.appliedAt!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} (sent ${new Date(h.sentAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}).`;
+      } else if (h.status === 'Dismissed') {
+        state = 'Dismissed';
+        detail = `Dismissed the share sent ${new Date(h.sentAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}.`;
+      } else {
+        state = 'Pending';
+        detail = `Sent ${new Date(h.sentAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} - not yet applied or dismissed.`;
+      }
+      return { accountId: r.accountId, displayName: r.displayName, email: r.email, state, detail };
+    });
+    const order = { Applied: 0, Pending: 1, Reverted: 2, Dismissed: 3, 'Never sent': 4 } as const;
+    return rows.sort((a, b) => order[a.state] - order[b.state] || a.displayName.localeCompare(b.displayName));
+  });
+
+  adoptionCounts = computed(() => {
+    const rows = this.adoption();
+    return {
+      applied: rows.filter((r) => r.state === 'Applied').length,
+      pending: rows.filter((r) => r.state === 'Pending').length,
+      reverted: rows.filter((r) => r.state === 'Reverted').length,
+      dismissed: rows.filter((r) => r.state === 'Dismissed').length,
+      neverSent: rows.filter((r) => r.state === 'Never sent').length,
+    };
+  });
+
+  filteredAdoption = computed(() => {
+    const q = this.adoptionFilterSignal().trim().toLowerCase();
+    if (!q) return this.adoption();
+    return this.adoption().filter(
+      (r) => r.displayName.toLowerCase().includes(q) || r.email.toLowerCase().includes(q));
+  });
+
+  private adoptionFilterSignal = signal('');
+  get adoptionFilter(): string { return this.adoptionFilterSignal(); }
+  set adoptionFilter(v: string) { this.adoptionFilterSignal.set(v); }
 
   constructor() {
     this.load();
