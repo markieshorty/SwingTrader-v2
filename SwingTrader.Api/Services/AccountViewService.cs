@@ -29,6 +29,38 @@ public class AccountViewService(
         if (account is null) return null;
 
         var snapshot = await portfolio.GetLatestSnapshotAsync(accountId, account.TradingMode);
+        // No snapshot yet (brand-new account, or first sign-in before any
+        // monitor/off-hours sync has run): fetch the T212 balance on demand so
+        // the dashboard shows real numbers immediately instead of an empty
+        // card until the next scheduled sync. Mirrors MonitorService's
+        // UpdateSnapshotAsync mapping. Best-effort - no T212 key yet (mid-
+        // onboarding) just leaves the card empty as before.
+        if (snapshot is null)
+        {
+            try
+            {
+                var t212 = await clientFactory.CreateTrading212Async<ITrading212Client>(accountId, ct);
+                var summary = await t212.GetAccountSummaryAsync();
+                if (summary is not null)
+                {
+                    await portfolio.AddAsync(new Core.Models.PortfolioSnapshot
+                    {
+                        AccountId = accountId,
+                        TradingMode = account.TradingMode,
+                        SnapshotDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                        TotalCapital = summary.TotalValue,
+                        CashAvailable = summary.Cash.AvailableToTrade,
+                        OpenPositionsValue = summary.Investments.CurrentValue,
+                        ActiveCapital = 0m,
+                        LockedCapital = 0m,
+                        ReserveCapital = 0m,
+                        TotalPnl = 0m,
+                    });
+                    snapshot = await portfolio.GetLatestSnapshotAsync(accountId, account.TradingMode);
+                }
+            }
+            catch { /* no key or T212 down - the card stays empty as before */ }
+        }
         if (snapshot is null) return null;
 
         var allTrades = (await trades.GetAllAsync(accountId, account.TradingMode)).ToList();
