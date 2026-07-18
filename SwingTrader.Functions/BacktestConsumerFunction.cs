@@ -34,10 +34,32 @@ public class BacktestConsumerFunction(
     // verbatim into the poll response, so it can't be re-cased downstream.
     private static readonly JsonSerializerOptions CamelCase = new(JsonSerializerDefaults.Web);
 
+    // One backtest at a time per host instance. Each job loads the ENTIRE
+    // historic candle store into memory plus the engine's working set, so the
+    // default Service Bus concurrency running "queue three at once" (the Lab's
+    // Run-all-checks button) OOM'd the worker. Deliberately NOT host.json
+    // maxConcurrentCalls - that's global and would throttle the research
+    // queues too. Waiting here is safe: the lock auto-renews for 2.5h and a
+    // single run takes minutes.
+    private static readonly SemaphoreSlim BacktestGate = new(1, 1);
+
     [Function("BacktestConsumer")]
     public async Task Run(
         [ServiceBusTrigger("backtest-jobs", Connection = "ServiceBusConnection")] string messageBody,
         CancellationToken ct)
+    {
+        await BacktestGate.WaitAsync(ct);
+        try
+        {
+            await RunSerializedAsync(messageBody, ct);
+        }
+        finally
+        {
+            BacktestGate.Release();
+        }
+    }
+
+    private async Task RunSerializedAsync(string messageBody, CancellationToken ct)
     {
         var message = JsonSerializer.Deserialize<BacktestJobMessage>(messageBody)!;
         var run = await runs.GetByIdAsync(message.AccountId, message.BacktestRunId);
