@@ -120,11 +120,19 @@ public class UserKeyService(
 
     // A 401 from Trading212 means the credentials were rejected - overwhelmingly
     // because the demo and live pairs got entered into each other's slots, or a
-    // key and secret were swapped. Surface that instead of a bare status code.
+    // key and secret were swapped. A 403 is different: the key authenticates
+    // but was generated WITHOUT the permission scopes ticked (first observed
+    // 18 Jul 2026 - a new user's key kept failing until the scopes were
+    // enabled). Surface each instead of a bare status code.
     private static string Trading212ConnectError(TradingMode mode, ApiException ex) =>
-        ex.StatusCode == HttpStatusCode.Unauthorized
-            ? $"Trading 212 rejected these {mode} credentials. Looks like you've got the demo and live keys the wrong way round — or the key and secret swapped. Double-check and try again."
-            : $"Connection failed: {(int)ex.StatusCode} {ex.StatusCode}";
+        ex.StatusCode switch
+        {
+            HttpStatusCode.Unauthorized =>
+                $"Trading 212 rejected these {mode} credentials. Looks like you've got the demo and live keys the wrong way round — or the key and secret swapped. Double-check and try again.",
+            HttpStatusCode.Forbidden =>
+                $"This {mode} key is valid but doesn't have the required permissions. When generating an API key in Trading 212, tick ALL the permission boxes (account data, portfolio, orders), then paste the new key here.",
+            _ => $"Connection failed: {(int)ex.StatusCode} {ex.StatusCode}",
+        };
 
     public async Task<KeyTestResult> TestTrading212PairAsync(int accountId, TradingMode mode, CancellationToken ct = default)
     {
