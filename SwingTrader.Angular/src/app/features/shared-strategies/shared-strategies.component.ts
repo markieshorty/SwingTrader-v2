@@ -43,28 +43,52 @@ import { errorMessage } from '../../shared/utils/error-message.util';
           @if (share.evidence; as ev) {
             <div class="evidence">
               @if (ev.sim; as sim) {
-                <p class="pass">
-                  ✓ Historic simulation ({{ sim.completedAt | date: 'mediumDate' }}):
-                  {{ sim.totalReturnPct | number: '1.1-1' }}% total return
-                  (vs SPY {{ sim.spyReturnPct | number: '1.1-1' }}%) over {{ sim.trades }} trades,
-                  {{ sim.winRate | percent: '1.0-1' }} win rate,
-                  {{ sim.maxDrawdownPct | number: '1.1-1' }}% max drawdown
-                </p>
+                <div class="evidence-row ok">
+                  <span class="evidence-icon">✓</span>
+                  <div class="evidence-body">
+                    <div class="evidence-title">
+                      Historic simulation
+                      <span class="evidence-date">{{ sim.completedAt | date: 'medium' }}</span>
+                    </div>
+                    <div class="evidence-detail">Full-window replay of exactly these settings under {{ share.senderName }}'s live regime setup.</div>
+                    <div class="evidence-stats">
+                      <span class="stat-chip">Return {{ sim.totalReturnPct | number: '1.1-1' }}%</span>
+                      <span class="stat-chip">SPY {{ sim.spyReturnPct | number: '1.1-1' }}%</span>
+                      <span class="stat-chip">{{ sim.trades }} trades</span>
+                      <span class="stat-chip">Win rate {{ sim.winRate | percent: '1.0-1' }}</span>
+                      <span class="stat-chip">Max DD {{ sim.maxDrawdownPct | number: '1.1-1' }}%</span>
+                    </div>
+                  </div>
+                </div>
               }
               @if (ev.validate; as v) {
-                <p [class.pass]="v.heldUp" [class.warn]="!v.heldUp">
-                  {{ v.heldUp ? '✓' : '⚠️' }} Out-of-sample validation
-                  {{ v.heldUp ? 'passed' : 'did not hold up' }}
-                  ({{ v.completedAt | date: 'mediumDate' }}) — {{ v.verdict }}
-                </p>
+                <div class="evidence-row" [class.ok]="v.heldUp" [class.failed]="!v.heldUp">
+                  <span class="evidence-icon">{{ v.heldUp ? '✓' : '⚠️' }}</span>
+                  <div class="evidence-body">
+                    <div class="evidence-title">
+                      Out-of-sample validation {{ v.heldUp ? 'passed' : 'did not hold up' }}
+                      <span class="evidence-date">{{ v.completedAt | date: 'medium' }}</span>
+                    </div>
+                    <div class="evidence-detail">{{ v.verdict }}</div>
+                  </div>
+                </div>
               }
               @if (ev.monteCarlo; as m) {
-                <p>
-                  🎲 Monte Carlo ({{ m.completedAt | date: 'mediumDate' }}): {{ m.verdict }} —
-                  median return {{ m.medianTotalReturnPct | number: '1.1-1' }}%,
-                  5th percentile {{ m.p5TotalReturnPct | number: '1.1-1' }}%,
-                  chance of loss {{ m.probabilityOfLossPct | number: '1.1-1' }}%
-                </p>
+                <div class="evidence-row ok">
+                  <span class="evidence-icon">✓</span>
+                  <div class="evidence-body">
+                    <div class="evidence-title">
+                      Monte Carlo robustness
+                      <span class="evidence-date">{{ m.completedAt | date: 'medium' }}</span>
+                    </div>
+                    <div class="evidence-detail">{{ m.verdict }}</div>
+                    <div class="evidence-stats">
+                      <span class="stat-chip">Median {{ m.medianTotalReturnPct | number: '1.1-1' }}%</span>
+                      <span class="stat-chip">5th pct {{ m.p5TotalReturnPct | number: '1.1-1' }}%</span>
+                      <span class="stat-chip">Loss chance {{ m.probabilityOfLossPct | number: '1.1-1' }}%</span>
+                    </div>
+                  </div>
+                </div>
               }
               <p class="muted small">
                 This evidence is fingerprint-tied to exactly these settings — it was produced by the
@@ -123,7 +147,13 @@ import { errorMessage } from '../../shared/utils/error-message.util';
               </span>
             }
             @if (share.revertedAt) {
-              <span class="muted small">Restored your previous settings {{ share.revertedAt | date: 'medium' }}.</span>
+              <button mat-raised-button color="primary" [disabled]="busy()" (click)="apply(share)">
+                Apply to live again
+              </button>
+              <span class="muted small">
+                Restored your previous settings {{ share.revertedAt | date: 'medium' }} — you can re-apply
+                the shared settings any time (a fresh backup is taken).
+              </span>
             }
           </div>
         </mat-card>
@@ -131,8 +161,31 @@ import { errorMessage } from '../../shared/utils/error-message.util';
     }
   `,
   styles: [`
-    .share-card { margin-bottom: 16px; }
+    .share-card { padding: 20px 24px; margin-bottom: 16px; }
     .header { display: flex; align-items: center; gap: 12px; h3 { margin: 0; } }
+    .evidence-row {
+      display: flex; gap: 12px; align-items: flex-start;
+      padding: 12px 14px; border-radius: 8px;
+      background: rgba(128, 128, 128, 0.08);
+      border-left: 3px solid var(--st-muted);
+      & + .evidence-row { margin-top: 10px; }
+      &.ok { border-left-color: var(--st-green, #2e9b57); }
+      &.failed { border-left-color: var(--st-amber); }
+    }
+    .evidence-icon {
+      font-size: 16px; font-weight: 700; line-height: 1.4;
+      .ok & { color: var(--st-green, #2e9b57); }
+      .failed & { color: var(--st-amber); }
+    }
+    .evidence-body { flex: 1; min-width: 0; }
+    .evidence-title {
+      font-weight: 600; font-size: 14px;
+      display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+    }
+    .evidence-date { color: var(--st-muted); font-size: 12px; font-weight: 400; }
+    .evidence-detail { color: var(--st-muted); font-size: 13px; line-height: 1.5; margin-top: 4px; }
+    .evidence-stats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .stat-chip { font-size: 12px; border-radius: 10px; padding: 2px 10px; background: rgba(128, 128, 128, 0.15); }
     .status-chip {
       font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em;
       border-radius: 10px; padding: 2px 8px; background: rgba(128,128,128,0.15); color: var(--st-muted);
@@ -140,10 +193,8 @@ import { errorMessage } from '../../shared/utils/error-message.util';
     .status-chip.applied { background: rgba(46,155,87,0.18); color: var(--st-green, #2e9b57); }
     .status-chip.dismissed { opacity: 0.7; }
     .message { font-style: italic; margin: 10px 0 4px; }
-    .evidence { margin: 10px 0; font-size: 13px; }
-    .evidence .pass { color: var(--st-green, #2e9b57); }
-    .evidence .warn { color: var(--st-amber); }
-    .snapshot h4 { margin: 8px 0 6px; font-size: 0.85rem; }
+    .evidence { margin: 14px 0; }
+    .snapshot h4 { margin: 12px 0 8px; font-size: 0.9rem; }
     .chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .chip { font-size: 12px; border-radius: 10px; padding: 2px 10px; background: rgba(128,128,128,0.15); }
     .chip.off { background: rgba(217,119,6,0.15); color: var(--st-amber); }
