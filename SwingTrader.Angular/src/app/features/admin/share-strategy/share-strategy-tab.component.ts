@@ -46,7 +46,7 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
                   <span class="evidence-date">{{ sim.completedAt | date: 'medium' }}</span>
                 </div>
                 <div class="evidence-detail">
-                  Full-window replay of these exact settings.
+                  Full-window replay of these exact settings under your live regime setup.
                 </div>
                 <div class="evidence-stats">
                   <span class="stat-chip">Return {{ sim.totalReturnPct | number: '1.1-1' }}%</span>
@@ -57,7 +57,11 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
                 </div>
               } @else {
                 <div class="evidence-title">No historic simulation yet</div>
-                <div class="evidence-detail">Run an A/B backtest from the Strategy Lab with your current settings in the user column.</div>
+                <div class="evidence-detail">
+                  Run an A/B backtest from the Strategy Lab with your current settings in the user column,
+                  in the regime mode you actually trade — Mixed (regime-switching, no per-regime overrides),
+                  or a plain run if your Default master book is on.
+                </div>
               }
             </div>
           </div>

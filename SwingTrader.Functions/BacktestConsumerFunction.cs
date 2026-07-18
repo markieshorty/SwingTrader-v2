@@ -108,10 +108,15 @@ public class BacktestConsumerFunction(
             // a single fingerprint would be meaningless.
             run.ConfigFingerprint = request.Mode switch
             {
-                // Plain A/B sims count too (candidates[0] = the user column),
-                // but NOT regime-mode runs - those resolve through per-regime
-                // envelopes rather than the live single-book config.
-                "ab" when request.Candidates is { Count: > 0 } && string.IsNullOrEmpty(request.RegimeMode) =>
+                // A/B sims count as share evidence only when the run MIRRORS
+                // how the account actually operates live (candidates[0] = the
+                // user column). Default master book on: live is one fixed book,
+                // so a plain or forced-Default run mirrors it. Default off:
+                // live switches books per detected regime, so only a MIXED run
+                // with no per-regime overrides on the user column mirrors it -
+                // a single-book run would quote returns from a regime posture
+                // the account never trades.
+                "ab" when request.Candidates is { Count: > 0 } && AbMirrorsLive(request, defaultOn) =>
                     ConfigFingerprint.Compute(ToConfig(
                         request.Candidates[0].Weights, request.Candidates[0].BuyThreshold, request.Candidates[0].ExcludeBreakout,
                         request.Candidates[0].AutopauseDuringBear, profile, accountTactics, request.Candidates[0].Rules)),
@@ -148,6 +153,20 @@ public class BacktestConsumerFunction(
             run.CompletedAt = DateTime.UtcNow;
             await runs.UpdateAsync(run);
         }
+    }
+
+    // True when an A/B run replays the account's LIVE trading behaviour: the
+    // fixed Default book when the master switch is on (plain or forced-Default
+    // run), otherwise the Mixed per-regime switching that live actually does -
+    // and only if the user column carries no per-regime envelope overrides,
+    // since those would simulate books the account doesn't run.
+    private static bool AbMirrorsLive(HistoricBacktestRequest request, bool defaultOn)
+    {
+        var mode = request.RegimeMode;
+        if (defaultOn)
+            return string.IsNullOrEmpty(mode) || string.Equals(mode, "default", StringComparison.OrdinalIgnoreCase);
+        return string.Equals(mode, "mixed", StringComparison.OrdinalIgnoreCase)
+            && (request.RegimeOverrides is null || request.RegimeOverrides.Count == 0);
     }
 
     // Config resolution lives in BacktestConfigFactory (shared with the API's
