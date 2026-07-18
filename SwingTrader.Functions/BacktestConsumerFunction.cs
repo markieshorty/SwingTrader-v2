@@ -116,7 +116,8 @@ public class BacktestConsumerFunction(
                 // with no per-regime overrides on the user column mirrors it -
                 // a single-book run would quote returns from a regime posture
                 // the account never trades.
-                "ab" when request.Candidates is { Count: > 0 } && AbMirrorsLive(request, defaultOn) =>
+                "ab" when request.Candidates is { Count: > 0 }
+                    && await AbMirrorsLiveAsync(request, defaultOn, message.AccountId, ct) =>
                     ConfigFingerprint.Compute(ToConfig(
                         request.Candidates[0].Weights, request.Candidates[0].BuyThreshold, request.Candidates[0].ExcludeBreakout,
                         request.Candidates[0].AutopauseDuringBear, profile, accountTactics, request.Candidates[0].Rules)),
@@ -157,16 +158,34 @@ public class BacktestConsumerFunction(
 
     // True when an A/B run replays the account's LIVE trading behaviour: the
     // fixed Default book when the master switch is on (plain or forced-Default
-    // run), otherwise the Mixed per-regime switching that live actually does -
-    // and only if the user column carries no per-regime envelope overrides,
-    // since those would simulate books the account doesn't run.
-    private static bool AbMirrorsLive(HistoricBacktestRequest request, bool defaultOn)
+    // run), otherwise the Mixed per-regime switching that live actually does.
+    // The Lab's Mixed form ALWAYS sends the four envelope levers per regime
+    // (seeded from the live books), so "no overrides" can never happen from
+    // the UI - instead each sent override must EQUAL the live book's value.
+    // The UI rounds fraction fields to 0.1%, hence the small tolerance.
+    private async Task<bool> AbMirrorsLiveAsync(
+        HistoricBacktestRequest request, bool defaultOn, int accountId, CancellationToken ct)
     {
         var mode = request.RegimeMode;
         if (defaultOn)
             return string.IsNullOrEmpty(mode) || string.Equals(mode, "default", StringComparison.OrdinalIgnoreCase);
-        return string.Equals(mode, "mixed", StringComparison.OrdinalIgnoreCase)
-            && (request.RegimeOverrides is null || request.RegimeOverrides.Count == 0);
+        if (!string.Equals(mode, "mixed", StringComparison.OrdinalIgnoreCase))
+            return false;
+        if (request.RegimeOverrides is null || request.RegimeOverrides.Count == 0)
+            return true;
+
+        static bool Near(decimal? a, decimal b) => a is null || Math.Abs(a.Value - b) <= 0.0005m;
+        foreach (var (regimeName, o) in request.RegimeOverrides)
+        {
+            if (!Enum.TryParse<MarketRegime>(regimeName, ignoreCase: true, out var regime))
+                return false;
+            var book = await riskProfileRepo.GetAsync(accountId, regime, ct);
+            if (o.Autopause is not null && o.Autopause != book.AutopauseTrading) return false;
+            if (!Near(o.LockedCapitalPct, book.LockedCapitalPct)) return false;
+            if (!Near(o.PositionFraction, book.FlatPositionPct)) return false;
+            if (o.MaxOpenPositions is not null && o.MaxOpenPositions != book.MaxOpenPositions) return false;
+        }
+        return true;
     }
 
     // Config resolution lives in BacktestConfigFactory (shared with the API's
