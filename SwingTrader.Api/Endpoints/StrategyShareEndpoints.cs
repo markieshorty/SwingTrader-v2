@@ -20,7 +20,9 @@ public static class StrategyShareEndpoints
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     // ---- shapes stored in StrategyShare.EvidenceJson (camelCase) ----
-    public record ShareEvidence(ValidateEvidence? Validate, MonteCarloEvidence? MonteCarlo);
+    public record ShareEvidence(SimEvidence? Sim, ValidateEvidence? Validate, MonteCarloEvidence? MonteCarlo);
+    public record SimEvidence(int RunId, DateTime? CompletedAt, decimal TotalReturnPct, decimal SpyReturnPct,
+        decimal WinRate, int Trades, decimal MaxDrawdownPct);
     public record ValidateEvidence(int RunId, DateTime? CompletedAt, bool HeldUp, string Verdict,
         decimal HoldoutAdjustedExpectancyPct, decimal BaselineHoldoutAdjustedExpectancyPct);
     public record MonteCarloEvidence(int RunId, DateTime? CompletedAt, string Verdict,
@@ -68,9 +70,10 @@ public static class StrategyShareEndpoints
             return Results.Ok(new
             {
                 fingerprint,
+                sim = evidence.Sim,
                 validate = evidence.Validate,
                 monteCarlo = evidence.MonteCarlo,
-                canSend = evidence.Validate is { HeldUp: true } && evidence.MonteCarlo is not null,
+                canSend = evidence.Sim is not null && evidence.Validate is { HeldUp: true } && evidence.MonteCarlo is not null,
                 recipients,
                 history,
             });
@@ -100,12 +103,12 @@ public static class StrategyShareEndpoints
 
             var fingerprint = await shareService.ComputeLiveFingerprintAsync(ctx.AccountId, ct);
             var evidence = await LookupEvidenceAsync(runs, ctx.AccountId, fingerprint, ct);
-            if (evidence.Validate is not { HeldUp: true } || evidence.MonteCarlo is null)
+            if (evidence.Sim is null || evidence.Validate is not { HeldUp: true } || evidence.MonteCarlo is null)
                 return Results.BadRequest(new
                 {
-                    message = "Your current live settings don't have tied evidence yet — run an out-of-sample " +
-                              "validation (and pass it) plus a Monte Carlo run from the Strategy Lab first. " +
-                              "Any settings change invalidates earlier runs.",
+                    message = "Your current live settings don't have the full tied evidence yet — run an A/B " +
+                              "simulation, an out-of-sample validation (and pass it) and a Monte Carlo run from " +
+                              "the Strategy Lab first. Any settings change invalidates earlier runs.",
                 });
 
             var snapshot = await shareService.BuildSnapshotAsync(ctx.AccountId, ct);
@@ -271,6 +274,26 @@ public static class StrategyShareEndpoints
     private static async Task<ShareEvidence> LookupEvidenceAsync(
         IBacktestRunRepository runs, int accountId, string fingerprint, CancellationToken ct)
     {
+        // Full-window A/B simulation of the live config (candidates[0] = the
+        // user column) - the headline "what did it return" leg of the trio.
+        SimEvidence? sim = null;
+        var abRun = await runs.GetLatestCompletedByFingerprintAsync(accountId, "ab", fingerprint, ct);
+        if (abRun?.ResultJson is not null)
+        {
+            using var doc = JsonDocument.Parse(abRun.ResultJson);
+            if (doc.RootElement.TryGetProperty("candidates", out var cands)
+                && cands.ValueKind == JsonValueKind.Array && cands.GetArrayLength() > 0
+                && cands[0].TryGetProperty("result", out var r))
+            {
+                sim = new SimEvidence(abRun.Id, abRun.CompletedAt,
+                    r.GetProperty("totalReturnPct").GetDecimal(),
+                    r.GetProperty("spyReturnPct").GetDecimal(),
+                    r.GetProperty("winRate").GetDecimal(),
+                    r.GetProperty("trades").GetInt32(),
+                    r.GetProperty("maxDrawdownPct").GetDecimal());
+            }
+        }
+
         ValidateEvidence? validate = null;
         var vRun = await runs.GetLatestCompletedByFingerprintAsync(accountId, "validate", fingerprint, ct);
         if (vRun?.ResultJson is not null
@@ -290,11 +313,12 @@ public static class StrategyShareEndpoints
                 m.ProbabilityOfLossPct, m.ProbabilityBeatingSpyPct);
         }
 
-        return new ShareEvidence(validate, mc);
+        return new ShareEvidence(sim, validate, mc);
     }
 
     private static string BuildEmailMarkdown(string senderName, string? message, ShareEvidence evidence, string appBaseUrl)
     {
+        var sim = evidence.Sim!;
         var v = evidence.Validate!;
         var m = evidence.MonteCarlo!;
         var note = string.IsNullOrWhiteSpace(message) ? "" : $"\n> {message.Trim()}\n";
@@ -305,6 +329,7 @@ public static class StrategyShareEndpoints
 
             **Evidence tied to these exact settings:**
 
+            - **Historic simulation:** {sim.TotalReturnPct:F1}% total return over the full backtest window (vs SPY {sim.SpyReturnPct:F1}%), {sim.Trades} trades, {sim.WinRate:P1} win rate, {sim.MaxDrawdownPct:F1}% max drawdown
             - **Out-of-sample validation:** {(v.HeldUp ? "PASSED" : "did not hold up")} — {v.Verdict}
             - **Monte Carlo robustness:** {m.Verdict} (median return {m.MedianTotalReturnPct:F1}%, 5th-percentile {m.P5TotalReturnPct:F1}%, chance of loss {m.ProbabilityOfLossPct:F1}%)
 

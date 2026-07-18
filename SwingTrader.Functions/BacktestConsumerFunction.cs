@@ -108,6 +108,13 @@ public class BacktestConsumerFunction(
             // a single fingerprint would be meaningless.
             run.ConfigFingerprint = request.Mode switch
             {
+                // Plain A/B sims count too (candidates[0] = the user column),
+                // but NOT regime-mode runs - those resolve through per-regime
+                // envelopes rather than the live single-book config.
+                "ab" when request.Candidates is { Count: > 0 } && string.IsNullOrEmpty(request.RegimeMode) =>
+                    ConfigFingerprint.Compute(ToConfig(
+                        request.Candidates[0].Weights, request.Candidates[0].BuyThreshold, request.Candidates[0].ExcludeBreakout,
+                        request.Candidates[0].AutopauseDuringBear, profile, accountTactics, request.Candidates[0].Rules)),
                 "validate" when request.Candidates is { Count: 2 } => ConfigFingerprint.Compute(ToConfig(
                     request.Candidates[0].Weights, request.Candidates[0].BuyThreshold, request.Candidates[0].ExcludeBreakout,
                     request.Candidates[0].AutopauseDuringBear, profile, accountTactics, request.Candidates[0].Rules)),

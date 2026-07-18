@@ -42,6 +42,15 @@ import { errorMessage } from '../../shared/utils/error-message.util';
 
           @if (share.evidence; as ev) {
             <div class="evidence">
+              @if (ev.sim; as sim) {
+                <p class="pass">
+                  ✓ Historic simulation ({{ sim.completedAt | date: 'mediumDate' }}):
+                  {{ sim.totalReturnPct | number: '1.1-1' }}% total return
+                  (vs SPY {{ sim.spyReturnPct | number: '1.1-1' }}%) over {{ sim.trades }} trades,
+                  {{ sim.winRate | percent: '1.0-1' }} win rate,
+                  {{ sim.maxDrawdownPct | number: '1.1-1' }}% max drawdown
+                </p>
+              }
               @if (ev.validate; as v) {
                 <p [class.pass]="v.heldUp" [class.warn]="!v.heldUp">
                   {{ v.heldUp ? '✓' : '⚠️' }} Out-of-sample validation

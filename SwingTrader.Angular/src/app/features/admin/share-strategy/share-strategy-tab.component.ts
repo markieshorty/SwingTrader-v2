@@ -32,10 +32,35 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
         <mat-card class="share-panel">
           <h3>Evidence for your current live settings</h3>
           <p class="intro">
-            Sharing unlocks only when a <strong>passing</strong> out-of-sample validation and a Monte Carlo
-            run exist for your exact current settings — changing any setting invalidates earlier runs.
+            Sharing unlocks only when an A/B simulation, a <strong>passing</strong> out-of-sample validation and a Monte Carlo
+            run all exist for your exact current settings — changing any setting invalidates earlier runs.
             <span class="fingerprint">Fingerprint <code>{{ s.fingerprint.slice(0, 12) }}…</code></span>
           </p>
+
+          <div class="evidence-row" [class.ok]="!!s.sim" [class.missing]="!s.sim">
+            <span class="evidence-icon">{{ s.sim ? '\u2713' : '\u2717' }}</span>
+            <div class="evidence-body">
+              @if (s.sim; as sim) {
+                <div class="evidence-title">
+                  Historic simulation (A/B run)
+                  <span class="evidence-date">{{ sim.completedAt | date: 'medium' }}</span>
+                </div>
+                <div class="evidence-detail">
+                  Full-window replay of these exact settings.
+                </div>
+                <div class="evidence-stats">
+                  <span class="stat-chip">Return {{ sim.totalReturnPct | number: '1.1-1' }}%</span>
+                  <span class="stat-chip">SPY {{ sim.spyReturnPct | number: '1.1-1' }}%</span>
+                  <span class="stat-chip">{{ sim.trades }} trades</span>
+                  <span class="stat-chip">Win rate {{ sim.winRate | percent: '1.0-1' }}</span>
+                  <span class="stat-chip">Max DD {{ sim.maxDrawdownPct | number: '1.1-1' }}%</span>
+                </div>
+              } @else {
+                <div class="evidence-title">No historic simulation yet</div>
+                <div class="evidence-detail">Run an A/B backtest from the Strategy Lab with your current settings in the user column.</div>
+              }
+            </div>
+          </div>
 
           <div class="evidence-row" [class.ok]="s.validate?.heldUp" [class.missing]="!s.validate" [class.failed]="s.validate && !s.validate.heldUp">
             <span class="evidence-icon">{{ s.validate?.heldUp ? '✓' : s.validate ? '⚠' : '✗' }}</span>

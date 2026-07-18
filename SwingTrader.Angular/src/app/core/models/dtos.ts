@@ -1276,7 +1276,18 @@ export interface ShareMonteCarloEvidenceDto {
   probabilityBeatingSpyPct: number;
 }
 
+export interface ShareSimEvidenceDto {
+  runId: number;
+  completedAt: string | null;
+  totalReturnPct: number;
+  spyReturnPct: number;
+  winRate: number;
+  trades: number;
+  maxDrawdownPct: number;
+}
+
 export interface ShareEvidenceDto {
+  sim: ShareSimEvidenceDto | null;
   validate: ShareValidateEvidenceDto | null;
   monteCarlo: ShareMonteCarloEvidenceDto | null;
 }
@@ -1370,6 +1381,7 @@ export interface ShareHistoryItemDto {
 
 export interface ShareAdminStatusDto {
   fingerprint: string;
+  sim: ShareSimEvidenceDto | null;
   validate: ShareValidateEvidenceDto | null;
   monteCarlo: ShareMonteCarloEvidenceDto | null;
   canSend: boolean;
