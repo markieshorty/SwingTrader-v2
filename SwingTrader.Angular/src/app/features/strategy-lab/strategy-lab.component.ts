@@ -771,6 +771,20 @@ export class StrategyLabComponent implements OnDestroy {
     });
   }
 
+  // One click, all three checks of the CURRENT form config: the full
+  // simulation, the out-of-sample validation and the Monte Carlo check.
+  // Each queues its own job and polls independently - the three result
+  // panels fill in as they complete.
+  runAllChecks(): void {
+    if (!this.sumOk()) {
+      this.snackbar.open(`Weights must sum to 1.0 (currently ${this.weightSum().toFixed(2)}).`, 'Dismiss', { duration: 4000 });
+      return;
+    }
+    this.run();
+    this.validateRun();
+    this.monteCarloRun();
+  }
+
   // Out-of-sample validation of the CURRENT form dials+rules: the optimizer's
   // train/holdout split + hold-up verdict, on demand. Hand-tuned configs are
   // in-sample by construction (the user iterated against the full window) -

@@ -353,6 +353,14 @@
               @if (monteCarloRunning()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>casino</mat-icon> }
               Monte Carlo check
             </button>
+
+            <button mat-stroked-button color="accent"
+              [disabled]="running() || validating() || monteCarloRunning() || !sumOk()"
+              (click)="runAllChecks()"
+              matTooltip="Queues all three in one go: the full simulation, the out-of-sample validation and the Monte Carlo check — the complete picture of this configuration (headline result, period luck, order luck).">
+              <mat-icon>checklist</mat-icon>
+              Run all checks
+            </button>
           }
         </div>
       </mat-card>
