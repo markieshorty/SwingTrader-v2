@@ -815,6 +815,12 @@ public class MonitorService(
         }
     }
 
+    public async Task SyncBalanceAsync(int accountId, ITrading212Client t212, CancellationToken ct = default)
+    {
+        var summary = await t212.GetAccountSummaryAsync();
+        await UpdateSnapshotAsync(accountId, summary);
+    }
+
     private async Task UpdateSnapshotAsync(int accountId, T212AccountSummary? summary)
     {
         if (summary is null)

@@ -22,6 +22,24 @@ public class MonitorConsumerFunction(
         CancellationToken ct)
     {
         var message = JsonSerializer.Deserialize<MonitorJobMessage>(messageBody)!;
+
+        // Off-hours slimline variant: refresh the T212 balance snapshot and
+        // nothing else. No job log / heartbeat churn - it runs hourly around
+        // the clock, and an account without a T212 key just skips quietly.
+        if (message.BalanceOnly)
+        {
+            try
+            {
+                var t212Only = await clientFactory.CreateTrading212Async<ITrading212Client>(message.AccountId, ct);
+                await monitor.SyncBalanceAsync(message.AccountId, t212Only, ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "Balance-only sync skipped for account {AccountId} (no key or T212 unavailable)", message.AccountId);
+            }
+            return;
+        }
+
         var jobDate = DateOnly.FromDateTime(message.CycleTime);
         await jobLog.MarkProcessingAsync(message.AccountId, "Monitor", jobDate, ct);
 

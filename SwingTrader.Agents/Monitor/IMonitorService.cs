@@ -27,4 +27,10 @@ public interface IMonitorService
         ITrading212Client t212,
         ITiingoClient? tiingo = null,
         CancellationToken ct = default);
+
+    // Slimline off-hours sync: fetch the T212 account summary and refresh the
+    // portfolio snapshot only - no position checks, no trailing stops, no
+    // exits. Keeps the dashboard balance current on evenings/weekends and
+    // gives brand-new accounts a snapshot before their first monitor cycle.
+    Task SyncBalanceAsync(int accountId, ITrading212Client t212, CancellationToken ct = default);
 }

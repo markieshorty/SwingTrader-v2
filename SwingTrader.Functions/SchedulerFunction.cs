@@ -127,6 +127,15 @@ public class SchedulerFunction(
                 if (isWeekday && InWindow(nowEt, 9, 30, 16, 0))
                     await EnqueueEveryTickAsync("monitor-jobs",
                         new MonitorJobMessage(account.Id, Guid.NewGuid().ToString("N"), nowEt), ct);
+                // Outside the monitor's operating window (evenings + weekends)
+                // an hourly slimline sync keeps the T212 balance snapshot
+                // fresh - without it, an account created on a Saturday showed
+                // no balance until Monday's first monitor cycle. First tick of
+                // each hour only; the consumer's BalanceOnly path skips job
+                // logs and accounts without a T212 key.
+                else if (nowEt.Minute < 5)
+                    await EnqueueEveryTickAsync("monitor-jobs",
+                        new MonitorJobMessage(account.Id, Guid.NewGuid().ToString("N"), nowEt, BalanceOnly: true), ct);
 
                 if (nowEt.Day == 15 && InWindow(nowEt, 8, 0, 23, 55))
                     await TryEnqueueAsync(account.Id, "Refinement", today, "refinement-jobs",

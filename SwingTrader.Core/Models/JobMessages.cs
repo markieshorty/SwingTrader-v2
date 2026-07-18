@@ -22,7 +22,13 @@ public record ReportJobMessage(int AccountId, string JobId, DateOnly ReportDate)
 
 public record ExecutionJobMessage(int AccountId, string JobId, DateOnly TradeDate);
 
-public record MonitorJobMessage(int AccountId, string JobId, DateTime CycleTime);
+// BalanceOnly = the off-hours slimline variant: just fetch the T212 account
+// summary and refresh the portfolio snapshot (no position checks, no exits).
+// Keeps dashboards populated on evenings/weekends - without it, an account
+// created outside market hours showed no balance until Monday's first monitor
+// cycle. Defaulted so in-flight messages from before the field deserialize
+// as full cycles.
+public record MonitorJobMessage(int AccountId, string JobId, DateTime CycleTime, bool BalanceOnly = false);
 
 
 public record RefinementJobMessage(int AccountId, string JobId, DateOnly EvaluationDate);
