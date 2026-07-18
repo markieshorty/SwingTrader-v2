@@ -7,6 +7,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatTabsModule } from '@angular/material/tabs';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../../core/services/api.service';
 import { ShareAdminStatusDto, ShareHistoryItemDto } from '../../../core/models/dtos';
@@ -23,12 +24,14 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
   selector: 'app-share-strategy-tab',
   standalone: true,
   imports: [CommonModule, FormsModule, MatCardModule, MatButtonModule, MatFormFieldModule,
-    MatInputModule, MatSelectModule, LoadingSpinnerComponent],
+    MatInputModule, MatSelectModule, MatTabsModule, LoadingSpinnerComponent],
   template: `
     @if (!loaded()) {
       <app-loading-spinner />
     } @else {
       @if (status(); as s) {
+        <mat-tab-group class="share-tabs">
+          <mat-tab label="Evidence & Send">
         <mat-card class="share-panel">
           <h3>Evidence for your current live settings</h3>
           <p class="intro">
@@ -135,7 +138,9 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
             }
           </div>
         </mat-card>
+          </mat-tab>
 
+          <mat-tab [label]="'Adoption' + (adoptionCounts().applied ? ' (' + adoptionCounts().applied + ' applied)' : '')">
         <mat-card class="share-panel">
           <h3>Who's running your strategy</h3>
           @if (!adoption().length) {
@@ -169,7 +174,9 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
             </div>
           }
         </mat-card>
+          </mat-tab>
 
+          <mat-tab label="Sent history">
         <mat-card class="share-panel">
           <h3>Sent history</h3>
           @if (!s.history.length) {
@@ -196,6 +203,8 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
             </table>
           }
         </mat-card>
+          </mat-tab>
+        </mat-tab-group>
       }
     }
   `,
