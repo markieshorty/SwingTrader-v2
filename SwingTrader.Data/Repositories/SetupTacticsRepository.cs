@@ -45,20 +45,18 @@ public class SetupTacticsRepository(SwingTraderDbContext db) : ISetupTacticsRepo
             }
             // OversoldRecoveryLoose (the unconfirmed variant split out 17 Jul
             // 2026): inherit the confirmed setup's tactics when it has a row -
-            // they were one setup until the split - and seed DISABLED so the
-            // aggressive variant never starts trading without the owner
-            // explicitly switching it on in Settings -> Setup tactics.
-            if (setup == SetupType.OversoldRecoveryLoose)
+            // they were one setup until the split. Seeds ENABLED like every
+            // other setup (changed 18 Jul 2026: it initially seeded disabled
+            // as a caution, but it's part of the strategy being traded and
+            // shared, so new accounts should start with it on).
+            if (setup == SetupType.OversoldRecoveryLoose
+                && existingRows.FirstOrDefault(t => t.SetupType == SetupType.OversoldRecovery) is { } confirmed)
             {
-                if (existingRows.FirstOrDefault(t => t.SetupType == SetupType.OversoldRecovery) is { } confirmed)
-                {
-                    tactics.StopLossPct = confirmed.StopLossPct;
-                    tactics.TargetPct = confirmed.TargetPct;
-                    tactics.GuideHoldDays = confirmed.GuideHoldDays;
-                    tactics.TrailingActivationPct = confirmed.TrailingActivationPct;
-                    tactics.TrailingDistancePct = confirmed.TrailingDistancePct;
-                }
-                tactics.Enabled = false;
+                tactics.StopLossPct = confirmed.StopLossPct;
+                tactics.TargetPct = confirmed.TargetPct;
+                tactics.GuideHoldDays = confirmed.GuideHoldDays;
+                tactics.TrailingActivationPct = confirmed.TrailingActivationPct;
+                tactics.TrailingDistancePct = confirmed.TrailingDistancePct;
             }
             db.SetupTactics.Add(tactics);
             added = true;

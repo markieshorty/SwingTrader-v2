@@ -43,17 +43,15 @@ public class SetupTacticsRepositoryTests
     }
 
     [Fact]
-    public async Task SeedDefaultAsync_SeedsLooseVariantDisabled_OthersEnabled()
+    public async Task SeedDefaultAsync_SeedsEverySetupEnabled_IncludingTheLooseVariant()
     {
-        // The unconfirmed (loose) oversold variant must never start trading
-        // without the owner explicitly switching it on.
+        // Changed 18 Jul 2026: Loose initially seeded disabled as a caution,
+        // but it's part of the strategy being traded and shared - new
+        // accounts start with every setup on.
         await using var db = CreateDb();
         var repo = await SeededRepoAsync(db);
 
-        var all = await repo.GetAllAsync(1);
-
-        all.Single(t => t.SetupType == SetupType.OversoldRecoveryLoose).Enabled.Should().BeFalse();
-        all.Where(t => t.SetupType != SetupType.OversoldRecoveryLoose).Should().OnlyContain(t => t.Enabled);
+        (await repo.GetAllAsync(1)).Should().OnlyContain(t => t.Enabled);
     }
 
     [Fact]
@@ -78,7 +76,7 @@ public class SetupTacticsRepositoryTests
         loose!.StopLossPct.Should().Be(0.03m);
         loose.TargetPct.Should().Be(0.15m);
         loose.GuideHoldDays.Should().Be(7);
-        loose.Enabled.Should().BeFalse();
+        loose.Enabled.Should().BeTrue();
     }
 
     [Fact]
@@ -123,16 +121,13 @@ public class SetupTacticsRepositoryTests
     }
 
     [Fact]
-    public async Task SeededSetups_AreEnabledByDefault_ExceptTheLooseVariant()
+    public async Task SeededSetups_AreAllEnabledByDefault()
     {
         await using var db = CreateDb();
         var repo = await SeededRepoAsync(db);
 
-        (await repo.GetAllAsync(1))
-            .Where(t => t.SetupType != SetupType.OversoldRecoveryLoose)
-            .Should().OnlyContain(t => t.Enabled);
-        // The unconfirmed oversold variant deliberately seeds OFF.
-        (await repo.GetDisabledSetupsAsync(1)).Should().BeEquivalentTo(new[] { SetupType.OversoldRecoveryLoose });
+        (await repo.GetAllAsync(1)).Should().OnlyContain(t => t.Enabled);
+        (await repo.GetDisabledSetupsAsync(1)).Should().BeEmpty();
     }
 
     [Fact]
@@ -146,9 +141,7 @@ public class SetupTacticsRepositoryTests
         await repo.UpdateAsync(t);
 
         (await repo.GetAsync(1, SetupType.Breakout))!.Enabled.Should().BeFalse();
-        // Loose seeds disabled, so the set is Breakout + the loose variant.
-        (await repo.GetDisabledSetupsAsync(1)).Should().BeEquivalentTo(
-            new[] { SetupType.Breakout, SetupType.OversoldRecoveryLoose });
+        (await repo.GetDisabledSetupsAsync(1)).Should().BeEquivalentTo(new[] { SetupType.Breakout });
         // Other setups stay enabled.
         (await repo.GetAsync(1, SetupType.OversoldRecovery))!.Enabled.Should().BeTrue();
     }
