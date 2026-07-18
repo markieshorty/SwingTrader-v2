@@ -166,7 +166,7 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
     }
   `,
   styles: [`
-    :host { display: block; max-width: 860px; }
+    :host { display: block; }
     .share-panel {
       padding: 20px 24px;
       margin: 16px 0;
@@ -177,7 +177,6 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
       font-size: 13px;
       line-height: 1.5;
       margin: 0 0 16px;
-      max-width: 640px;
     }
     .fingerprint { white-space: nowrap; }
     code { font-size: 12px; background: rgba(128, 128, 128, 0.15); border-radius: 4px; padding: 1px 6px; }
