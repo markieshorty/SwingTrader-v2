@@ -35,7 +35,10 @@ public class MonitorConsumerFunction(
             }
             catch (Exception ex)
             {
-                logger.LogDebug(ex, "Balance-only sync skipped for account {AccountId} (no key or T212 unavailable)", message.AccountId);
+                // Warning, not Debug: at Debug this was invisible in App
+                // Insights, and a new account with a bad/missing T212 key
+                // showing no balance was undiagnosable.
+                logger.LogWarning(ex, "Balance-only sync failed for account {AccountId} (no key or T212 unavailable)", message.AccountId);
             }
             return;
         }

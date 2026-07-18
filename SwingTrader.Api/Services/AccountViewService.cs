@@ -19,7 +19,8 @@ public class AccountViewService(
     IAccountRepository accounts,
     IMarketCalendarService marketCalendar,
     IForexService forex,
-    IUserHttpClientFactory clientFactory)
+    IUserHttpClientFactory clientFactory,
+    ILogger<AccountViewService> logger)
 {
     // Portfolio summary card (totals + today P&L + 30-day win rate). Null when
     // the account has no snapshot yet.
@@ -59,7 +60,14 @@ public class AccountViewService(
                     snapshot = await portfolio.GetLatestSnapshotAsync(accountId, account.TradingMode);
                 }
             }
-            catch { /* no key or T212 down - the card stays empty as before */ }
+            catch (Exception ex)
+            {
+                // The card stays empty, but the WHY must be findable - a
+                // missing/invalid T212 key on a new account looked identical
+                // to a working system when this was swallowed silently.
+                logger.LogWarning(ex,
+                    "On-demand T212 balance fetch failed for account {AccountId} - dashboard shows no snapshot", accountId);
+            }
         }
         if (snapshot is null) return null;
 
