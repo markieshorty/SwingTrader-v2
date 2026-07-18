@@ -566,6 +566,19 @@ export class StrategyLabComponent implements OnDestroy {
       },
       error: () => {},
     });
+    // The compare-against dropdown defaults to how the account actually
+    // trades: the Default master book when it's enabled, otherwise Mixed
+    // (live switches books per detected regime). An untouched form + Run
+    // then simulates real production behaviour - and produces the runs the
+    // rest of the system treats as "this account's live results". Only
+    // applied if the user hasn't already picked a mode by the time the
+    // profile loads.
+    this.api.getRiskProfile('Default').subscribe({
+      next: (d) => {
+        if (this.regimeMode() === 'off') this.onRegimeModeChange(d.enabled ? 'default' : 'mixed');
+      },
+      error: () => {},
+    });
     // The bear-autopause dial mirrors the Bear regime book (where the live
     // "pause entries in a bear" decision now lives).
     this.api.getRiskProfile('Bear').subscribe({
