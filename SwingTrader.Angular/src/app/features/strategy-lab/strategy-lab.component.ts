@@ -634,6 +634,58 @@ export class StrategyLabComponent implements OnDestroy {
       },
       error: () => {},
     });
+    // Reattach to in-flight A/B / validate / Monte Carlo runs too - coming
+    // back to the tab mid-run used to show no progress bar even though the
+    // job was still going (only completed results reappeared, via the next
+    // poll-free load). In-flight only: completed results are deliberately
+    // NOT restored here, since a fresh run clears every panel and restoring
+    // stale ones would reintroduce the mixed-config confusion that clear
+    // exists to prevent.
+    this.api.getLatestBacktestRun('ab').subscribe({
+      next: (r) => {
+        if (this.running()) return;
+        if (r.status === 'Queued' || r.status === 'Running') {
+          this.running.set(true);
+          this.pollRun('ab', r.id, 'Running — replaying the historic market data through your dials…',
+            this.historicStatus, (result) => {
+              if (result && 'mode' in result && result.mode === 'ab') this.abResult.set(result);
+              else if (result) this.historicResult.set(result as HistoricResultDto);
+              this.running.set(false);
+            });
+        }
+      },
+      error: () => {},
+    });
+    this.api.getLatestBacktestRun('validate').subscribe({
+      next: (r) => {
+        if (this.validating()) return;
+        if (r.status === 'Queued' || r.status === 'Running') {
+          this.validating.set(true);
+          this.pollRun('validate', r.id,
+            'Validating — tuning window (~70%) and held-out remainder run separately, plus the production baseline on the held-out window…',
+            this.validateStatus, (result) => {
+              if (result && 'mode' in result && result.mode === 'validate') this.validateResult.set(result);
+              this.validating.set(false);
+            });
+        }
+      },
+      error: () => {},
+    });
+    this.api.getLatestBacktestRun('montecarlo').subscribe({
+      next: (r) => {
+        if (this.monteCarloRunning()) return;
+        if (r.status === 'Queued' || r.status === 'Running') {
+          this.monteCarloRunning.set(true);
+          this.pollRun('montecarlo', r.id,
+            'Running — one full-window simulation, then 2,000 reshuffled orderings of its trades…',
+            this.monteCarloStatus, (result) => {
+              if (result && 'mode' in result && result.mode === 'montecarlo') this.monteCarloResult.set(result);
+              this.monteCarloRunning.set(false);
+            });
+        }
+      },
+      error: () => {},
+    });
   }
 
   // Server-side jobs outlive the page, but setInterval doesn't get cleaned up
