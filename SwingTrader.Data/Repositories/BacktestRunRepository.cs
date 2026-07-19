@@ -51,10 +51,19 @@ public class BacktestRunRepository(SwingTraderDbContext db) : IBacktestRunReposi
 
     // Projection keeps ResultJson (potentially hundreds of KB) out of the
     // poll; RequestJson is needed for the mode label so it rides along.
-    public Task<List<BacktestRun>> GetActiveOrRecentAsync(int accountId, DateTime since, CancellationToken ct = default) =>
-        db.BacktestRuns
+    // Stale cutoffs: a worker crash (e.g. the 18 Jul OOM) can leave a run
+    // flagged "Running" forever with nothing processing it - without a
+    // cutoff that ghost spins in the toolbar indefinitely. Functions'
+    // functionTimeout is 3h, so anything Running longer than 4h (or Queued
+    // longer than a day) is dead and drops out of the feed.
+    public Task<List<BacktestRun>> GetActiveOrRecentAsync(int accountId, DateTime since, CancellationToken ct = default)
+    {
+        var runningCutoff = DateTime.UtcNow.AddHours(-4);
+        var queuedCutoff = DateTime.UtcNow.AddHours(-24);
+        return db.BacktestRuns
             .Where(r => r.AccountId == accountId
-                && (r.Status == "Queued" || r.Status == "Running"
+                && ((r.Status == "Queued" && r.CreatedAt >= queuedCutoff)
+                    || (r.Status == "Running" && r.StartedAt != null && r.StartedAt >= runningCutoff)
                     || (r.CompletedAt != null && r.CompletedAt >= since)))
             .Select(r => new BacktestRun
             {
@@ -68,6 +77,7 @@ public class BacktestRunRepository(SwingTraderDbContext db) : IBacktestRunReposi
                 CompletedCandidates = r.CompletedCandidates,
             })
             .ToListAsync(ct);
+    }
 
     public Task<BacktestRun?> GetLatestCompletedByFingerprintAsync(
         int accountId, string mode, string fingerprint, CancellationToken ct = default) =>
