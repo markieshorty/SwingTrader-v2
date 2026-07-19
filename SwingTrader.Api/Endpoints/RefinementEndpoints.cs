@@ -16,19 +16,27 @@ public static class RefinementEndpoints
 {
     public static RouteGroupBuilder MapRefinementEndpoints(this RouteGroupBuilder api)
     {
-        // Regime is shared market data (cached globally in MarketRegimeService), but
-        // still needs one account's Finnhub/Tiingo keys to fetch it with.
+        // The account's OPERATIVE regime - the persisted value Monitor last
+        // classified, which is what actually selects the live risk book. This
+        // used to recompute a FRESH classification from live SPY/VIX data,
+        // which could disagree with the stored value (e.g. a borderline
+        // Bull/Neutral flip between Friday's intraday close and the weekend
+        // recompute) - so the nav badge said one regime while Risk
+        // Management's "Active" chip said another. One source of truth now:
+        // what the system trades on. Also drops two external API calls per
+        // badge load.
         api.MapGet("/refinement/current-regime", async (
-            IMarketRegimeService regimeService,
-            IUserHttpClientFactory clientFactory,
+            IAccountRepository accounts,
             IAccountContext ctx,
             CancellationToken ct) =>
         {
-            var finnhub = await clientFactory.CreateFinnhubAsync<IFinnhubClient>(ctx.AccountId, ct);
-            var tiingo = await clientFactory.CreateTiingoAsync<ITiingoClient>(ctx.AccountId, ct);
-            var result = await regimeService.GetCurrentRegimeAsync(tiingo, finnhub, ct);
-            return Results.Ok(new { regime = result.Regime, detectedAt = DateTime.UtcNow });
-        }).RequireRateLimiting(RateLimitPolicies.ExternalRead);
+            var account = await accounts.GetAsync(ctx.AccountId, ct);
+            return Results.Ok(new
+            {
+                regime = account?.CurrentMarketRegime ?? MarketRegime.Neutral,
+                detectedAt = account?.RegimeUpdatedAt ?? DateTime.UtcNow,
+            });
+        });
 
         api.MapGet("/refinement/status", async (
             IStrategyWeightsRepository weightsRepo,

@@ -700,26 +700,13 @@
       <mat-card class="panel controls">
         <h3>Find optimum weights</h3>
         <p class="muted small">
-          The optimizer runs TWO search pools against the historic dataset. A <strong>deterministic sweep</strong> tries
-          ~400 dial variations around your current production settings — single-dial nudges, pair shifts between every
-          signal, Buy-threshold variants, structurally different mixes, bear-autopause toggles, and a dense random fill
-          of the joint weights + threshold space. An <strong>ML-guided search</strong> then runs CMA-ES (a gradient-free
-          evolutionary optimizer) from 30 independent starting points scattered across the same space, with
-          <strong>successive halving</strong>: every start gets one cheap screening generation, the best half get a
-          few more, and the final 5 get a deep, fully adapted search — broad where nothing is known yet, deep where
-          early evidence says it's worth it. Which starts survive each round is decided by <strong>split-half
-          consistency</strong>, not the headline number: each candidate is scored on the WORSE of its two train-window
-          halves, so a config that only won by getting lucky in one stretch of the window gets cut early rather than
-          spending deep-search budget on it, and the winner shown below still has to earn its keep separately on the
-          <strong>held-out remainder it never saw</strong>. Together the two pools try ~1,200 candidates — with that
-          many tried, out-of-sample validation matters more than ever, since the best of that many on one window is
-          almost guaranteed to look good by chance even before the consistency screen. Both search pools only
-          redistribute weight among the six components historic data exists for (<strong>RSI, MACD, Volume, Setup
-          quality, Relative strength, Price level</strong>); the other two (News sentiment, Fundamental momentum) are
-          held at your production values, because the backtest scores them neutral and "tuning" them would only
-          produce conclusions that don't carry over to live trading. Candidates are judged on <em>market-adjusted</em>
-          expectancy (each trade's return minus SPY's move over the same days), with guardrails: at least {{ 40 }}
-          trades, and a max drawdown no worse than 1.25× the baseline's.
+          Searches ~1,200 variations of your six gate weights + Buy threshold against the historic dataset, using two
+          pools: a <strong>deterministic sweep</strong> (nudges, pair shifts, structural mixes, dense random fill) and a
+          <strong>CMA-ES ML search</strong> with successive halving. Candidates are judged on <em>market-adjusted</em>
+          expectancy with guardrails (min trades, drawdown cap), ranked by <strong>split-half consistency</strong> —
+          the worse of the two train-window halves, so lucky-stretch configs get cut — and the winner must still hold
+          up on a <strong>held-out window it never saw</strong>. Lock any weight below to keep it fixed at its
+          production value; both pools then redistribute only the unlocked weights.
         </p>
         <div class="lock-weights-row">
           <span class="muted small">
