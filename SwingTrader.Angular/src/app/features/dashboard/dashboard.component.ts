@@ -73,6 +73,16 @@ export class DashboardComponent {
 
   closingPosition = signal<number | null>(null);
 
+  // Open positions are what the user actually comes for, so they get the
+  // full row; the activity log lives behind a right-edge tab that animates
+  // out to a 50/50 split on demand. Choice persists across visits.
+  activityOpen = signal(localStorage.getItem('dashboard.activityOpen') === '1');
+
+  toggleActivity(): void {
+    this.activityOpen.update((v) => !v);
+    localStorage.setItem('dashboard.activityOpen', this.activityOpen() ? '1' : '0');
+  }
+
   // Same flow as the Trades page's open-positions card: confirm, then place
   // a REAL market sell in Trading212 via the monitor's exit path.
   closePositionEarly(position: PositionDto): void {

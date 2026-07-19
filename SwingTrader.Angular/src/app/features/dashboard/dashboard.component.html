@@ -64,9 +64,9 @@
     </mat-card>
   }
 
-  <!-- Row 2: Positions + Workers -->
-  <div class="two-col">
-    <mat-card class="panel">
+  <!-- Row 2: Positions full-width; Activity Log collapsed to an edge tab -->
+  <div class="positions-row">
+    <mat-card class="panel positions-panel">
       <h3>Open Positions</h3>
       <div class="positions-scroll">
       @if (positions().length === 0) {
@@ -108,7 +108,13 @@
       </div>
     </mat-card>
 
-    <mat-card class="panel">
+    <div class="activity-panel" [class.open]="activityOpen()">
+      <button class="activity-tab" type="button" (click)="toggleActivity()"
+              [title]="activityOpen() ? 'Collapse the activity log' : 'Show the activity log'">
+        <mat-icon>{{ activityOpen() ? 'chevron_right' : 'chevron_left' }}</mat-icon>
+        <span class="activity-tab-label">Activity</span>
+      </button>
+      <mat-card class="panel activity-card">
       <h3>Activity Log</h3>
       <div class="worker-panel">
         <div class="worker-col">
@@ -169,7 +175,8 @@
           </div>
         </div>
       </div>
-    </mat-card>
+      </mat-card>
+    </div>
   </div>
 
   <!-- Row 3: Today's Signals -->

@@ -91,6 +91,74 @@
   margin-bottom: 16px;
 }
 
+// Positions full-width by default; the activity log collapses into a slim
+// right-edge tab and animates out to a 50/50 split when opened.
+.positions-row {
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+  margin-bottom: 16px;
+
+  .positions-panel {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin-bottom: 0;
+  }
+}
+
+.activity-panel {
+  display: flex;
+  align-items: stretch;
+  flex: 0 0 36px;
+  min-width: 0;
+  overflow: hidden;
+  transition: flex-basis 0.3s ease;
+
+  &.open {
+    flex: 1 1 50%;
+  }
+
+  .activity-tab {
+    flex: 0 0 36px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 0;
+    border: 1px solid var(--st-border);
+    border-radius: 8px 0 0 8px;
+    background: var(--st-card);
+    color: var(--st-muted);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--st-text);
+    }
+
+    .activity-tab-label {
+      writing-mode: vertical-rl;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+  }
+
+  .activity-card {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin-bottom: 0;
+    border-radius: 0 8px 8px 0;
+    opacity: 0;
+    transition: opacity 0.25s ease 0.1s;
+  }
+
+  &.open .activity-card {
+    opacity: 1;
+  }
+}
+
 .panel {
   padding: 16px;
   margin-bottom: 16px;
@@ -330,6 +398,20 @@
   }
   .two-col {
     grid-template-columns: 1fr;
+  }
+  // Small screens: no room for the side-by-side split - stack instead.
+  .positions-row {
+    flex-direction: column;
+  }
+  .activity-panel {
+    flex-basis: auto;
+
+    .activity-tab {
+      display: none;
+    }
+    .activity-card {
+      opacity: 1;
+    }
   }
 }
 
