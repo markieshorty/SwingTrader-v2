@@ -90,10 +90,12 @@
           </span>
         }
         @for (j of finishedJobs(); track j.label + j.kind) {
-          <span class="job-chip" [class.done]="j.status === 'Completed'" [class.failed]="j.status === 'Failed'"
-                [title]="'Finished ' + (j.completedAt | date: 'HH:mm')">
-            {{ j.status === 'Completed' ? '\u2713' : '\u2717' }} {{ jobLabel(j) }}
-          </span>
+          <button type="button" class="job-chip dismissable" [class.done]="j.status === 'Completed'" [class.failed]="j.status === 'Failed'"
+                  (click)="dismissJob(j)"
+                  [title]="'Finished ' + (j.completedAt | date: 'HH:mm') + ' — click to dismiss'">
+            {{ j.status === 'Completed' ? '✓' : '✗' }} {{ jobLabel(j) }}
+            <mat-icon class="dismiss-icon">close</mat-icon>
+          </button>
         }
         <button mat-icon-button (click)="data.refresh()" [disabled]="data.isLoading()" title="Refresh">
           <mat-icon>refresh</mat-icon>

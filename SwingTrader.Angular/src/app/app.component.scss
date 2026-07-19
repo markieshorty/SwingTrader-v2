@@ -167,4 +167,21 @@ mat-toolbar {
     background: rgba(229, 72, 77, 0.18);
     color: var(--st-red, #e5484d);
   }
+
+  &.dismissable {
+    border: none;
+    font-family: inherit;
+    cursor: pointer;
+
+    .dismiss-icon {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+      opacity: 0.6;
+    }
+
+    &:hover .dismiss-icon {
+      opacity: 1;
+    }
+  }
 }

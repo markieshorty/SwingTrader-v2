@@ -100,7 +100,37 @@ export class AppComponent {
   // visible for the API's 10-minute window with a check/cross.
   activeJobs = signal<ActiveJobDto[]>([]);
   runningJobs = computed(() => this.activeJobs().filter((j) => j.status === 'Queued' || j.status === 'Running'));
-  finishedJobs = computed(() => this.activeJobs().filter((j) => j.status === 'Completed' || j.status === 'Failed'));
+  finishedJobs = computed(() => this.activeJobs()
+    .filter((j) => (j.status === 'Completed' || j.status === 'Failed') && !this.dismissedJobs().has(this.jobKey(j))));
+
+  // Click-to-dismiss for finished chips. Keys persist in localStorage so a
+  // poll refresh (or page reload) inside the API's 10-minute window doesn't
+  // resurrect a dismissed chip; entries older than an hour are pruned on
+  // load so the store never grows.
+  private dismissedJobs = signal<Set<string>>(AppComponent.loadDismissedJobs());
+
+  private jobKey(j: ActiveJobDto): string {
+    return `${j.kind}:${j.label}:${j.completedAt ?? ''}`;
+  }
+
+  dismissJob(j: ActiveJobDto): void {
+    const next = new Set(this.dismissedJobs());
+    next.add(this.jobKey(j));
+    this.dismissedJobs.set(next);
+    const store: Record<string, number> = {};
+    for (const k of next) store[k] = Date.now();
+    localStorage.setItem('toolbar.dismissedJobs', JSON.stringify(store));
+  }
+
+  private static loadDismissedJobs(): Set<string> {
+    try {
+      const raw = JSON.parse(localStorage.getItem('toolbar.dismissedJobs') ?? '{}') as Record<string, number>;
+      const cutoff = Date.now() - 3_600_000;
+      return new Set(Object.entries(raw).filter(([, at]) => at >= cutoff).map(([k]) => k));
+    } catch {
+      return new Set();
+    }
+  }
 
   jobLabel(j: ActiveJobDto): string {
     if ((j.status === 'Queued' || j.status === 'Running') && j.progressTotal && j.progressTotal > 0)
