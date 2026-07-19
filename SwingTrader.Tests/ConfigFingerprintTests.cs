@@ -108,6 +108,66 @@ public class ConfigFingerprintTests
     }
 
     [Fact]
+    public void RegimeBooks_ChangeTheHash_AndAreOrderInsensitive()
+    {
+        // Mixed-frame evidence (20 Jul 2026): a Bull-book sizing change must
+        // invalidate evidence; dictionary ordering must not.
+        var books = new Dictionary<MarketRegime, RegimeEnvelope>
+        {
+            [MarketRegime.Bull] = new(false, 3, 0.10m, 0.20m),
+            [MarketRegime.Neutral] = new(false, 3, 0.10m, 0.20m),
+            [MarketRegime.Bear] = new(true, 2, 0.08m, 0.40m),
+            [MarketRegime.Crisis] = new(true, 1, 0.05m, 0.60m),
+        };
+        var mixed = Config() with { RegimeBooks = books };
+        var single = Config();
+
+        ConfigFingerprint.Compute(mixed).Should().NotBe(ConfigFingerprint.Compute(single));
+
+        var reversed = new Dictionary<MarketRegime, RegimeEnvelope>();
+        foreach (var kv in books.Reverse()) reversed[kv.Key] = kv.Value;
+        ConfigFingerprint.Compute(Config() with { RegimeBooks = reversed })
+            .Should().Be(ConfigFingerprint.Compute(mixed));
+
+        var bullResized = new Dictionary<MarketRegime, RegimeEnvelope>(books)
+        {
+            [MarketRegime.Bull] = new(false, 3, 0.15m, 0.20m),
+        };
+        ConfigFingerprint.Compute(Config() with { RegimeBooks = bullResized })
+            .Should().NotBe(ConfigFingerprint.Compute(mixed));
+    }
+
+    [Fact]
+    public void WithLiveRegimeBooks_ParityBetweenBookSourcesAndDirectEnvelopes()
+    {
+        // The consumer stamps from live books via WithLiveRegimeBooks; the
+        // share service does the same - both must hash identically to a
+        // hand-built envelope map with the same values.
+        var books = new Dictionary<MarketRegime, AccountRiskProfile>
+        {
+            [MarketRegime.Bull] = new() { Regime = MarketRegime.Bull, AutopauseTrading = false, MaxOpenPositions = 3, FlatPositionPct = 0.10m, LockedCapitalPct = 0.20m },
+            [MarketRegime.Neutral] = new() { Regime = MarketRegime.Neutral, AutopauseTrading = false, MaxOpenPositions = 3, FlatPositionPct = 0.10m, LockedCapitalPct = 0.20m },
+            [MarketRegime.Bear] = new() { Regime = MarketRegime.Bear, AutopauseTrading = true, MaxOpenPositions = 2, FlatPositionPct = 0.08m, LockedCapitalPct = 0.40m },
+            [MarketRegime.Crisis] = new() { Regime = MarketRegime.Crisis, AutopauseTrading = true, MaxOpenPositions = 1, FlatPositionPct = 0.05m, LockedCapitalPct = 0.60m },
+            [MarketRegime.Default] = new() { Regime = MarketRegime.Default, MaxOpenPositions = 9 }, // must be excluded
+        };
+        var viaFactory = BacktestConfigFactory.WithLiveRegimeBooks(Config(), books);
+
+        var direct = Config() with
+        {
+            RegimeBooks = new Dictionary<MarketRegime, RegimeEnvelope>
+            {
+                [MarketRegime.Bull] = new(false, 3, 0.10m, 0.20m),
+                [MarketRegime.Neutral] = new(false, 3, 0.10m, 0.20m),
+                [MarketRegime.Bear] = new(true, 2, 0.08m, 0.40m),
+                [MarketRegime.Crisis] = new(true, 1, 0.05m, 0.60m),
+            },
+        };
+
+        ConfigFingerprint.Compute(viaFactory).Should().Be(ConfigFingerprint.Compute(direct));
+    }
+
+    [Fact]
     public void FactoryResolvedConfig_MatchesAcrossEquivalentInputs()
     {
         // The consumer resolves from a request DTO; the share service resolves

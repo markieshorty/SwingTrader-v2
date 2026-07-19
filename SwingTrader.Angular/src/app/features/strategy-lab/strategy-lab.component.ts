@@ -915,6 +915,9 @@ export class StrategyLabComponent implements OnDestroy {
       excludeBreakout: this.excludedSetups().includes('Breakout'),
       autopauseDuringBear: this.autopauseBear(),
       rules: this.buildRules(),
+      // Same regime frame as the sim, so all three checks describe one world.
+      regimeMode: this.regimeMode() === 'off' ? 'neutral' : this.regimeMode(),
+      regimeOverrides: this.buildRegimeOverrides(),
     };
     this.api.validateStrategyLab(request).subscribe({
       next: (r) => this.pollRun('validate', r.backtestRunId,
@@ -953,6 +956,8 @@ export class StrategyLabComponent implements OnDestroy {
       excludeBreakout: this.excludedSetups().includes('Breakout'),
       autopauseDuringBear: this.autopauseBear(),
       rules: this.buildRules(),
+      regimeMode: this.regimeMode() === 'off' ? 'neutral' : this.regimeMode(),
+      regimeOverrides: this.buildRegimeOverrides(),
     };
     this.api.monteCarloStrategyLab(request).subscribe({
       next: (r) => this.pollRun('montecarlo', r.backtestRunId,

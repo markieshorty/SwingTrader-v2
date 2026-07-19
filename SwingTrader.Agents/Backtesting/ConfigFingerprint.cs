@@ -14,10 +14,11 @@ namespace SwingTrader.Agents.Backtesting;
 //
 // Canonical form, not JSON: fixed field order, invariant-culture formatting,
 // sorted collections - so dictionary ordering, culture, or serializer changes
-// can never silently break the match. Deliberately EXCLUDES per-day regime
-// switching (RegimeBooks/ForceAutopause) - validate and MC runs are always
-// single-book - and simulator-only pool sizing dials beyond the resolved
-// values themselves.
+// can never silently break the match. Since 20 Jul 2026 the per-day regime
+// envelopes (RegimeBooks) ARE hashed when present - a Mixed-frame account's
+// evidence must be invalidated by a Bull-book sizing change just as surely
+// as by a weight change. Simulator-only pool sizing dials beyond the
+// resolved values stay excluded.
 public static class ConfigFingerprint
 {
     public static string Compute(HistoricConfig cfg)
@@ -77,6 +78,20 @@ public static class ConfigFingerprint
             sb.Append("tac:").Append(kv.Key).Append('=');
             Num("s", t.StopLossPct); Num("t", t.TargetPct); Num("h", t.GuideHoldDays);
             Num("ta", t.TrailingActivationPct); Num("td", t.TrailingDistancePct);
+        }
+
+        // Per-regime exposure envelopes (Mixed frame), sorted by regime name.
+        // Absent = single-book config; the section is simply omitted so all
+        // pre-existing single-book stamps keep their hashes.
+        if (cfg.RegimeBooks is not null)
+        {
+            foreach (var kv in cfg.RegimeBooks.OrderBy(k => k.Key.ToString(), StringComparer.Ordinal))
+            {
+                var e = kv.Value;
+                sb.Append("rb:").Append(kv.Key).Append('=');
+                Num("ap", e.Autopause); Num("mo", e.MaxOpenPositions);
+                Num("pf", e.PositionFraction); Num("lc", e.LockedCapitalPct);
+            }
         }
 
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()))).ToLowerInvariant();

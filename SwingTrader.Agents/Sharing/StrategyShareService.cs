@@ -85,6 +85,15 @@ public class StrategyShareService(
             autopauseDuringBear: bearBook.AutopauseTrading,
             profile, tacticsMap, rules);
 
+        // Default book off = live trades the Mixed frame, so the fingerprint
+        // must cover every regime book's exposure envelope - a Bull-book
+        // sizing change invalidates evidence just like a weight change.
+        if (!defaultOn)
+        {
+            var books = (await riskRepo.GetAllAsync(accountId, ct)).ToDictionary(b => b.Regime);
+            cfg = BacktestConfigFactory.WithLiveRegimeBooks(cfg, books);
+        }
+
         return ConfigFingerprint.Compute(cfg);
     }
 

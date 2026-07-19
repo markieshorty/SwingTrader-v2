@@ -122,42 +122,23 @@ public class BacktestConsumerFunction(
                 logger.LogWarning(ex, "Sector-ETF map unavailable — backtest RS falls back to the legacy map");
             }
 
-            // Validate / Monte Carlo runs get stamped with a fingerprint of the
-            // RESOLVED user config - the strategy-share feature matches this
-            // against an account's live-settings fingerprint to prove the
-            // quoted evidence was produced by exactly the settings being
-            // shared. Other modes (sweeps, ablations...) test many configs, so
-            // a single fingerprint would be meaningless.
-            run.ConfigFingerprint = request.Mode switch
-            {
-                // A/B sims count as share evidence only when the run MIRRORS
-                // how the account actually operates live (candidates[0] = the
-                // user column). Default master book on: live is one fixed book,
-                // so a plain or forced-Default run mirrors it. Default off:
-                // live switches books per detected regime, so only a MIXED run
-                // with no per-regime overrides on the user column mirrors it -
-                // a single-book run would quote returns from a regime posture
-                // the account never trades.
-                "ab" when request.Candidates is { Count: > 0 }
-                    && await AbMirrorsLiveAsync(request, defaultOn, message.AccountId, ct) =>
-                    ConfigFingerprint.Compute(ToConfig(
-                        request.Candidates[0].Weights, request.Candidates[0].BuyThreshold, request.Candidates[0].ExcludeBreakout,
-                        request.Candidates[0].AutopauseDuringBear, profile, accountTactics, request.Candidates[0].Rules)),
-                "validate" when request.Candidates is { Count: 2 } => ConfigFingerprint.Compute(ToConfig(
-                    request.Candidates[0].Weights, request.Candidates[0].BuyThreshold, request.Candidates[0].ExcludeBreakout,
-                    request.Candidates[0].AutopauseDuringBear, profile, accountTactics, request.Candidates[0].Rules)),
-                "montecarlo" => ConfigFingerprint.Compute(ToConfig(
-                    request.Weights, request.BuyThreshold, request.ExcludeBreakout,
-                    request.AutopauseDuringBear, profile, accountTactics, request.Rules)),
-                _ => null,
-            };
+            // Evidence stamping (ab / validate / montecarlo): the fingerprint of
+            // the RESOLVED user config, INCLUDING the live regime envelopes
+            // when the account trades Mixed - matched against the sender's
+            // live-settings fingerprint by the strategy-share gate. A run only
+            // gets stamped when it MIRRORS how the account actually operates
+            // (MirrorsLiveAsync); the envelopes are hashed from the LIVE books
+            // (not the form's rounded copies) so both sides derive identical
+            // values. Other modes test many configs - no stamp.
+            run.ConfigFingerprint = await ComputeEvidenceFingerprintAsync(
+                request, defaultOn, profile, accountTactics, message.AccountId, ct);
 
             run.ResultJson = request.Mode switch
             {
                 "ab" => await RunAbAsync(request, bars, profile, message.AccountId, accountTactics, sectorEtfs, ct),
                 "sweep" => await RunSweepAsync(message.AccountId, run, request, bars, profile, accountTactics, sectorEtfs, ct),
-                "validate" => await RunValidateAsync(request, bars, profile, accountTactics, sectorEtfs, ct),
-                "montecarlo" => await RunMonteCarloAsync(request, bars, profile, accountTactics, sectorEtfs, ct),
+                "validate" => await RunValidateAsync(request, bars, profile, message.AccountId, accountTactics, sectorEtfs, ct),
+                "montecarlo" => await RunMonteCarloAsync(request, bars, profile, message.AccountId, accountTactics, sectorEtfs, ct),
                 "ablation" => await RunSetupAblationAsync(run, request, bars, profile, accountTactics, sectorEtfs, ct),
                 "regime" => await RunRegimeComparisonAsync(run, request, bars, message.AccountId, accountTactics, sectorEtfs, ct),
                 "setupsearch" => await RunSetupSearchAsync(run, request, bars, profile, accountTactics, sectorEtfs, ct),
@@ -185,7 +166,34 @@ public class BacktestConsumerFunction(
     // (seeded from the live books), so "no overrides" can never happen from
     // the UI - instead each sent override must EQUAL the live book's value.
     // The UI rounds fraction fields to 0.1%, hence the small tolerance.
-    private async Task<bool> AbMirrorsLiveAsync(
+    // Resolves the candidate config an evidence run tested (ab/validate ->
+    // candidates[0], montecarlo -> the request itself), checks it mirrors the
+    // live trading frame, and fingerprints it with the live regime envelopes
+    // attached when the Default master book is off. Null = not evidence.
+    private async Task<string?> ComputeEvidenceFingerprintAsync(
+        HistoricBacktestRequest request, bool defaultOn, AccountRiskProfile profile,
+        IReadOnlyDictionary<SetupType, HistoricSetupTactics> accountTactics, int accountId, CancellationToken ct)
+    {
+        HistoricBacktestCandidate? candidate = request.Mode switch
+        {
+            "ab" when request.Candidates is { Count: > 0 } => request.Candidates[0],
+            "validate" when request.Candidates is { Count: 2 } => request.Candidates[0],
+            "montecarlo" => new HistoricBacktestCandidate(
+                "mc", request.Weights, request.BuyThreshold, request.ExcludeBreakout,
+                request.AutopauseDuringBear, request.Rules),
+            _ => null,
+        };
+        if (candidate is null) return null;
+        if (!await MirrorsLiveAsync(request, defaultOn, accountId, ct)) return null;
+
+        var cfg = ToConfig(candidate.Weights, candidate.BuyThreshold, candidate.ExcludeBreakout,
+            candidate.AutopauseDuringBear, profile, accountTactics, candidate.Rules);
+        if (!defaultOn)
+            cfg = BacktestConfigFactory.WithLiveRegimeBooks(cfg, await LoadRegimeBooksAsync(accountId, ct));
+        return ConfigFingerprint.Compute(cfg);
+    }
+
+    private async Task<bool> MirrorsLiveAsync(
         HistoricBacktestRequest request, bool defaultOn, int accountId, CancellationToken ct)
     {
         var mode = request.RegimeMode;
@@ -580,8 +588,9 @@ public class BacktestConsumerFunction(
     // train/holdout split and hold-up verdict, applied on demand. Candidates:
     // [0] = the user's dials+rules, [1] = the production baseline snapshot
     // (needed because "held up" includes beating the baseline out-of-sample).
-    private static async Task<string> RunValidateAsync(
+    private async Task<string> RunValidateAsync(
         HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, AccountRiskProfile profile,
+        int accountId,
         IReadOnlyDictionary<SetupType, HistoricSetupTactics> accountTactics,
         IReadOnlyDictionary<string, string>? sectorEtfs, CancellationToken ct)
     {
@@ -591,16 +600,23 @@ public class BacktestConsumerFunction(
         var user = candidates[0];
         var baseline = candidates[1];
 
+        // Regime-aware (20 Jul 2026): a Mixed request validates under the same
+        // per-day regime-switching envelopes the A/B sim (and live) use, so
+        // the holdout verdict describes the world actually traded. Overrides
+        // apply to the user column only; the baseline replays the live books.
+        var books = string.IsNullOrEmpty(request.RegimeMode) ? null : await LoadRegimeBooksAsync(accountId, ct);
+        HistoricConfig Cfg(HistoricBacktestCandidate c, bool isUser) => books is null
+            ? ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile, accountTactics, c.Rules)
+            : BuildRegimeConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.Rules,
+                request.RegimeMode!, books, isUser ? request.RegimeOverrides : null, accountTactics);
+
         var (train, holdout) = SweepOptimizer.SplitBars(bars, HistoricBacktester.WarmupBars);
         var trainSpy = train["SPY"];
         var holdoutSpy = holdout["SPY"];
 
-        var userTrain = await HistoricBacktester.RunAsync(
-            train, ToConfig(user.Weights, user.BuyThreshold, user.ExcludeBreakout, user.AutopauseDuringBear, profile, accountTactics, user.Rules), sectorEtfs, ct);
-        var userHoldout = await HistoricBacktester.RunAsync(
-            holdout, ToConfig(user.Weights, user.BuyThreshold, user.ExcludeBreakout, user.AutopauseDuringBear, profile, accountTactics, user.Rules), sectorEtfs, ct);
-        var baselineHoldout = await HistoricBacktester.RunAsync(
-            holdout, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear, profile, accountTactics, baseline.Rules), sectorEtfs, ct);
+        var userTrain = await HistoricBacktester.RunAsync(train, Cfg(user, true), sectorEtfs, ct);
+        var userHoldout = await HistoricBacktester.RunAsync(holdout, Cfg(user, true), sectorEtfs, ct);
+        var baselineHoldout = await HistoricBacktester.RunAsync(holdout, Cfg(baseline, false), sectorEtfs, ct);
 
         var validation = SweepOptimizer.BuildValidation(userTrain, userHoldout, baselineHoldout, trainSpy, holdoutSpy);
         return JsonSerializer.Serialize(new ValidateResult("validate", validation), CamelCase);
@@ -610,13 +626,20 @@ public class BacktestConsumerFunction(
     // its trade log to measure how much of the result is trade ORDER luck
     // (sequence risk) versus trade quality - the complement to the
     // train/holdout validate, which measures window (period) luck.
-    private static async Task<string> RunMonteCarloAsync(
+    private async Task<string> RunMonteCarloAsync(
         HistoricBacktestRequest request, Dictionary<string, DailyBar[]> bars, AccountRiskProfile profile,
+        int accountId,
         IReadOnlyDictionary<SetupType, HistoricSetupTactics> accountTactics,
         IReadOnlyDictionary<string, string>? sectorEtfs, CancellationToken ct)
     {
-        var cfg = ToConfig(request.Weights, request.BuyThreshold, request.ExcludeBreakout,
-            request.AutopauseDuringBear, profile, accountTactics, request.Rules);
+        // Regime-aware (20 Jul 2026): same frame as validate above - the
+        // drawdown-to-budget number must describe the envelopes actually
+        // traded, not a single-book approximation of them.
+        var cfg = string.IsNullOrEmpty(request.RegimeMode)
+            ? ToConfig(request.Weights, request.BuyThreshold, request.ExcludeBreakout,
+                request.AutopauseDuringBear, profile, accountTactics, request.Rules)
+            : BuildRegimeConfig(request.Weights, request.BuyThreshold, request.ExcludeBreakout, request.Rules,
+                request.RegimeMode!, await LoadRegimeBooksAsync(accountId, ct), request.RegimeOverrides, accountTactics);
         var result = await HistoricBacktester.RunAsync(bars, cfg, sectorEtfs, ct);
 
         // The equity slice each resampled trade compounds against: flat-mode

@@ -253,7 +253,13 @@ public static class StrategyLabEndpoints
                     [
                         new HistoricBacktestCandidate("Your dials", userWeights, req.BuyThreshold, req.ExcludeBreakout, req.AutopauseDuringBear, req.Rules),
                         baseline,
-                    ])),
+                    ],
+                    // Regime frame rides along so validation replays the SAME
+                    // simulation world as the A/B sim (Mixed switches books per
+                    // detected day) - single-book validate of a Mixed strategy
+                    // measured a different reality than the one traded.
+                    RegimeMode: req.RegimeMode,
+                    RegimeOverrides: req.RegimeOverrides)),
             });
 
             await using var sender = serviceBus.CreateSender("backtest-jobs");
@@ -288,7 +294,9 @@ public static class StrategyLabEndpoints
                     userWeights, req.BuyThreshold, req.ExcludeBreakout,
                     Mode: "montecarlo",
                     AutopauseDuringBear: req.AutopauseDuringBear,
-                    Rules: req.Rules)),
+                    Rules: req.Rules,
+                    RegimeMode: req.RegimeMode,
+                    RegimeOverrides: req.RegimeOverrides)),
             });
 
             await using var sender = serviceBus.CreateSender("backtest-jobs");

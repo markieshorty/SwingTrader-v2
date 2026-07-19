@@ -56,6 +56,25 @@ public static class BacktestConfigFactory
         // DB touch.
         SetupTactics: MergeTactics(accountTactics, rules));
 
+    // Attaches the LIVE regime books' exposure envelopes to a config - the
+    // Mixed frame with no per-regime overrides, i.e. exactly how the account
+    // trades when the Default master book is off. Used by BOTH the consumer's
+    // evidence stamping and the API's live-settings fingerprint so the two
+    // sides can never derive different envelopes from the same books. Default
+    // is excluded (it's never detected day-to-day, only forced).
+    public static HistoricConfig WithLiveRegimeBooks(
+        HistoricConfig cfg, IReadOnlyDictionary<MarketRegime, AccountRiskProfile> books) =>
+        cfg with
+        {
+            RegimeBooks = books
+                .Where(kv => kv.Key != MarketRegime.Default)
+                .ToDictionary(
+                    kv => kv.Key,
+                    kv => new RegimeEnvelope(
+                        kv.Value.AutopauseTrading, kv.Value.MaxOpenPositions,
+                        kv.Value.FlatPositionPct, kv.Value.LockedCapitalPct)),
+        };
+
     // Builds the per-setup tactics map applied to a candidate, layering two
     // kinds of override onto the account's live baseline:
     //   1. UNIFORM rule overrides (rules.StopLossPct/TargetPct/MaxHoldDays/
