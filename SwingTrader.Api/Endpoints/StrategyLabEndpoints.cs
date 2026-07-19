@@ -495,8 +495,9 @@ public static class StrategyLabEndpoints
                     buyThreshold = cfg?.BuyThreshold,
                     rules = cfg?.Rules,
                     // A run has risk overrides to apply if it changed the exit/
-                    // tactic rules OR flipped the bear-autopause vs its baseline.
-                    hasRiskOverrides = cfg is not null && (cfg.Rules is not null || cfg.AutopauseChanged),
+                    // tactic rules, flipped the bear-autopause vs its baseline,
+                    // OR carried Mixed per-regime envelope overrides.
+                    hasRiskOverrides = cfg is not null && (cfg.Rules is not null || cfg.AutopauseChanged || cfg.RegimeOverrides is not null),
                     stats = cfg is null ? null : new
                     {
                         cfg.Stats.Trades,
@@ -540,7 +541,7 @@ public static class StrategyLabEndpoints
                 : run.RequestJson.Contains("\"Mode\":\"sweep\"") ? "sweep" : null;
             var cfg = Agents.Backtesting.BacktestApplyExtractor.Extract(mode, run.RequestJson, run.ResultJson);
             if (cfg is null) return Results.BadRequest(new { message = "This run has no applyable configuration." });
-            if (req.ApplyRiskSettings && cfg.Rules is null && !cfg.AutopauseChanged)
+            if (req.ApplyRiskSettings && cfg.Rules is null && !cfg.AutopauseChanged && cfg.RegimeOverrides is null)
                 return Results.BadRequest(new { message = "This run has no risk-setting overrides to apply." });
 
             var account = await accounts.GetAsync(ctx.AccountId, ct);
@@ -555,12 +556,13 @@ public static class StrategyLabEndpoints
 
             // The risk half of the apply, recorded on the suggestion so the
             // Refinement page's audit trail shows BOTH halves of a Lab apply.
-            var riskRulesJson = req.ApplyRiskSettings && (cfg.Rules is not null || cfg.AutopauseChanged)
+            var riskRulesJson = req.ApplyRiskSettings && (cfg.Rules is not null || cfg.AutopauseChanged || cfg.RegimeOverrides is not null)
                 ? JsonSerializer.Serialize(new
                 {
                     targetRegime = targetRegime.ToString(),
                     autopause = cfg.AutopauseChanged ? cfg.AutopauseDuringBear : (bool?)null,
                     rules = cfg.Rules,
+                    regimeOverrides = cfg.RegimeOverrides,
                 }, new JsonSerializerOptions(JsonSerializerDefaults.Web))
                 : null;
 
@@ -642,6 +644,26 @@ public static class StrategyLabEndpoints
             }
 
             var appliedRisk = false;
+
+            // Mixed per-regime envelopes: each override entry lands on ITS OWN
+            // live book (autopause / max positions / position size / locked
+            // capital) - this is how a Mixed run's tested sizing actually
+            // reaches all the regimes, not just the single target book.
+            if (req.ApplyRiskSettings && cfg.RegimeOverrides is not null)
+            {
+                foreach (var (regimeName, o) in cfg.RegimeOverrides)
+                {
+                    if (!Enum.TryParse<MarketRegime>(regimeName, ignoreCase: true, out var regime)) continue;
+                    var book = await riskRepo.GetAsync(ctx.AccountId, regime, ct);
+                    if (o.Autopause is { } ap) book.AutopauseTrading = ap;
+                    if (o.MaxOpenPositions is { } mo) book.MaxOpenPositions = mo;
+                    if (o.PositionFraction is { } pf) book.FlatPositionPct = pf;
+                    if (o.LockedCapitalPct is { } lc) book.LockedCapitalPct = lc;
+                    await riskRepo.UpdateAsync(book, ct); // validates
+                }
+                appliedRisk = true;
+            }
+
             if (req.ApplyRiskSettings && cfg.Rules is not null)
             {
                 // Profile-level rules (max positions, probation day, health floor,

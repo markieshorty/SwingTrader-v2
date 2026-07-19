@@ -33,7 +33,13 @@ public static class BacktestApplyExtractor
         // from the run's baseline. AutopauseChanged makes an autopause-only
         // winner count as a risk override so it becomes applyable; applying
         // writes AutopauseDuringBear to the Bear regime book.
-        bool AutopauseDuringBear = true, bool AutopauseChanged = false);
+        bool AutopauseDuringBear = true, bool AutopauseChanged = false,
+        // Mixed-run per-regime exposure overrides (the A/B tab's "3 forms":
+        // autopause / max positions / position size / locked capital per
+        // regime). Applying writes each entry onto its matching live book -
+        // without this, "apply risk settings" on a Mixed run silently dropped
+        // the sizing the run actually tested (found 20 Jul 2026).
+        Dictionary<string, RegimeExposureOverride>? RegimeOverrides = null);
 
     public static ApplyableConfig? Extract(string? mode, string? requestJson, string? resultJson)
     {
@@ -55,7 +61,8 @@ public static class BacktestApplyExtractor
                 var baselineAutopause = cands.GetArrayLength() > 1 ? Bool(cands[1], "autopauseDuringBear", true) : userAutopause;
                 return new ApplyableConfig(
                     Label(c0, "A"), weights, Decimal(c0, "buyThreshold"), rules, ParseStats(result),
-                    userAutopause, userAutopause != baselineAutopause);
+                    userAutopause, userAutopause != baselineAutopause,
+                    ExtractRegimeOverrides(requestJson));
             }
 
             if (string.Equals(mode, "sweep", StringComparison.OrdinalIgnoreCase))
@@ -85,6 +92,26 @@ public static class BacktestApplyExtractor
     // The risk-rule overrides that were tested alongside config A - only
     // present on A/B runs, read from the REQUEST (they're not echoed into the
     // result). Null when the run set no overrides (it used production rules).
+    // The user column's Mixed envelope overrides ride the REQUEST (PascalCase),
+    // only when the run was queued in mixed mode - a forced-regime run's
+    // autopause-only overrides don't describe sizing and are not returned.
+    private static Dictionary<string, RegimeExposureOverride>? ExtractRegimeOverrides(string? requestJson)
+    {
+        if (string.IsNullOrWhiteSpace(requestJson)) return null;
+        try
+        {
+            var request = JsonSerializer.Deserialize<HistoricBacktestRequest>(requestJson, CaseInsensitive);
+            return string.Equals(request?.RegimeMode, "mixed", StringComparison.OrdinalIgnoreCase)
+                && request!.RegimeOverrides is { Count: > 0 }
+                ? request.RegimeOverrides
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     private static HistoricTradingRules? ExtractAbRules(string? requestJson)
     {
         if (string.IsNullOrWhiteSpace(requestJson)) return null;
