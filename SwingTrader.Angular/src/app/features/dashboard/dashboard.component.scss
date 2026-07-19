@@ -152,9 +152,14 @@
     border-radius: 0 8px 8px 0;
     opacity: 0;
     transition: opacity 0.25s ease 0.1s;
+    // Collapsed, the card's CONTENT must not set the row height - without
+    // this the hidden log's intrinsic height stretched the positions panel
+    // (align-items: stretch) far taller than two position cards need.
+    display: none;
   }
 
   &.open .activity-card {
+    display: block;
     opacity: 1;
   }
 }
