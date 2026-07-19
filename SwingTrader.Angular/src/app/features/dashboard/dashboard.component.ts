@@ -22,6 +22,7 @@ import { ConvictionBarComponent } from '../../shared/components/conviction-bar/c
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
 import { defaultColDef } from '../../shared/ag-grid-defaults';
 import {
+  RiskProfileDto,
   MarketStatusDto, ActivityLogDto, NextRunDto, PositionDto, SignalDto, TradeDto, TradingConfigDto } from '../../core/models/dtos';
 import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
 import { errorMessage } from '../../shared/utils/error-message.util';
@@ -172,12 +173,39 @@ export class DashboardComponent {
     return { open: false, label: `Market closed \u00b7 opens ${day}${local} (${et} ET)` };
   });
 
+  // The ACTIVE regime risk book (no regime param = the live one) - feeds the
+  // paused-entries capsule so a regime autopause is visible on the dashboard,
+  // not just in Settings.
+  activeRiskBook = signal<RiskProfileDto | null>(null);
+
+  private loadActiveRiskBook(): void {
+    this.api.getRiskProfile().subscribe({
+      next: (b) => this.activeRiskBook.set(b),
+      error: () => {},
+    });
+  }
+
   // Paused-entries capsule for the current mode. Null when not paused. Red for
-  // a circuit-breaker auto-pause, amber for a manual one; the tooltip spells
-  // out that exits still run and where to resume.
+  // a circuit-breaker auto-pause, amber for a manual pause or the active
+  // regime book's autopause; the tooltip spells out why and where to change
+  // it. Gives confidence entries really are paused without opening Settings.
   pauseCapsule = computed(() => {
     const s = this.accountSettings();
-    if (!s?.executionPaused) return null;
+    // Regime autopause: the ACTIVE book pauses new entries even without a
+    // manual/global pause. Manual + circuit-breaker states below win the
+    // label when both apply (they're the more deliberate signal).
+    if (!s?.executionPaused) {
+      const book = this.activeRiskBook();
+      if (book?.autopauseTrading) {
+        return {
+          auto: false,
+          label: `\u23f8 New entries paused \u00b7 ${book.regime} regime`,
+          title: `The active ${book.regime} risk book has autopause on: no new entries while this regime persists. Exits still run. Change it in Settings \u203a Risk Management.`,
+        };
+      }
+      return null;
+    }
+    if (!s.executionPaused) return null;
     const auto = s.executionPauseReason === 'CircuitBreaker';
     const since = s.executionPausedAt ? new Date(s.executionPausedAt) : null;
     const sinceText = since ? ` · since ${since.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : '';
@@ -261,6 +289,7 @@ export class DashboardComponent {
     this.loadMarketStatus();
     this.loadRecentTrades();
     this.loadAccountSettings();
+    this.loadActiveRiskBook();
     this.loadNextRuns();
     this.activeTabIndex.set(readTabIndexFromRoute(this.route, SIGNAL_TAB_NAMES));
   }
