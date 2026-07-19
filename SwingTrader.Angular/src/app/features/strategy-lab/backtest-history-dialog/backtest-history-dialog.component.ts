@@ -96,7 +96,8 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
         <mat-tab label="Full results">
           @if (fullLoading()) {
             <div class="full-loading"><mat-spinner diameter="28"></mat-spinner></div>
-          } @else if (fullAb(); as ab) {
+          } @else {
+          @if (fullAb(); as ab) {
             <div class="ab-grid">
               @for (c of ab.candidates; track c.label) {
                 <div class="ab-column">
@@ -118,7 +119,8 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
               <h4 class="bucket-title">{{ c.label }} — by setup / conviction / exit</h4>
               <ng-container *ngTemplateOutlet="buckets; context: { $implicit: c.result }"></ng-container>
             }
-          } @else if (fullSweep(); as sw) {
+          }
+          @if (fullSweep(); as sw) {
             <div class="ab-grid">
               <div class="ab-column">
                 <h4>Production baseline <span class="muted small">(train window)</span></h4>
@@ -163,8 +165,10 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
                 </div>
               }
             </div>
-          } @else {
+          }
+          @if (!fullAb() && !fullSweep()) {
             <p class="muted">This run has no stored result to show.</p>
+          }
           }
         </mat-tab>
       </mat-tab-group>
