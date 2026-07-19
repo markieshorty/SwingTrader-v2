@@ -233,7 +233,7 @@ export class SettingsComponent {
   // via Save. Reason distinguishes a manual pause from a circuit-breaker
   // auto-pause so the copy can explain it.
   executionPaused = signal(false);
-  executionPauseReason = signal<'Manual' | 'CircuitBreaker'>('Manual');
+  executionPauseReason = signal<'Manual' | 'CircuitBreaker' | 'RegimeAutopause'>('Manual');
   t212AccountId = signal<string | null>(null);
   globalRefinementOptIn = signal(false);
   // Only the Owner can delete the account (enforced server-side too) - hide
