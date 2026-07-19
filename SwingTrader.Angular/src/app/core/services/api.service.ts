@@ -3,6 +3,7 @@ import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  ActiveJobsDto,
   MarketStatusDto,
   StrategyShareDto,
   StrategyShareCountDto,
@@ -511,6 +512,10 @@ export class ApiService {
   }
 
   // ---- Strategy sharing ----
+
+  getActiveJobs(): Observable<ActiveJobsDto> {
+    return this.http.get<ActiveJobsDto>(`${this.baseUrl}/api/jobs/active`);
+  }
 
   getMarketStatus(): Observable<MarketStatusDto> {
     return this.http.get<MarketStatusDto>(`${this.baseUrl}/api/market-status`);

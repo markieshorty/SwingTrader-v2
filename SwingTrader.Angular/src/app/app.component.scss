@@ -140,3 +140,31 @@ mat-toolbar {
   text-align: center;
   display: inline-block;
 }
+
+.job-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 10px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--st-muted);
+  white-space: nowrap;
+
+  &.running {
+    color: var(--st-text);
+  }
+
+  &.done {
+    background: rgba(46, 155, 87, 0.18);
+    color: var(--st-green, #2e9b57);
+  }
+
+  &.failed {
+    background: rgba(229, 72, 77, 0.18);
+    color: var(--st-red, #e5484d);
+  }
+}

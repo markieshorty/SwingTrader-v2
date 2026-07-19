@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, interval, map, startWith } from 'rxjs';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
@@ -8,11 +9,13 @@ import { MatListModule } from '@angular/material/list';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RegimeBadgeComponent } from './shared/components/regime-badge/regime-badge.component';
 import { ErrorCardComponent } from './shared/components/error-card/error-card.component';
 import { RelativeTimePipe } from './shared/pipes/relative-time.pipe';
 import { DashboardDataService } from './core/services/dashboard-data.service';
 import { ApiService } from './core/services/api.service';
+import { ActiveJobDto } from './core/models/dtos';
 import { AuthService } from './core/services/auth.service';
 
 @Component({
@@ -28,6 +31,8 @@ import { AuthService } from './core/services/auth.service';
     MatIconModule,
     MatButtonModule,
     MatDividerModule,
+    MatProgressSpinnerModule,
+    DatePipe,
     RegimeBadgeComponent,
     ErrorCardComponent,
     RelativeTimePipe,
@@ -88,6 +93,31 @@ export class AppComponent {
   // whether the market is open without doing the timezone math by hand.
   private now = signal(new Date());
 
+  // Toolbar job indicator: in-flight long-running jobs (optimizer,
+  // backtests, research, watchlist...) polled so progress survives
+  // navigating away from the page that started them. 15s cadence while
+  // something is running, 45s when idle; recently-finished jobs stay
+  // visible for the API's 10-minute window with a check/cross.
+  activeJobs = signal<ActiveJobDto[]>([]);
+  runningJobs = computed(() => this.activeJobs().filter((j) => j.status === 'Queued' || j.status === 'Running'));
+  finishedJobs = computed(() => this.activeJobs().filter((j) => j.status === 'Completed' || j.status === 'Failed'));
+
+  jobLabel(j: ActiveJobDto): string {
+    if ((j.status === 'Queued' || j.status === 'Running') && j.progressTotal && j.progressTotal > 0)
+      return `${j.label} ${j.progressCompleted ?? 0}/${j.progressTotal}`;
+    if (j.status === 'Completed') return `${j.label} done`;
+    if (j.status === 'Failed') return `${j.label} failed`;
+    return j.status === 'Queued' ? `${j.label} queued` : `${j.label} running`;
+  }
+
+  private pollActiveJobs(): void {
+    if (this.isAuthRoute()) return;
+    this.api.getActiveJobs().subscribe({
+      next: (r) => this.activeJobs.set(r.jobs),
+      error: () => {},
+    });
+  }
+
   // Shared-strategy nav state: the item only renders once the account has
   // ever received a share (total > 0), with a badge for undecided ones.
   // Refreshed on navigation - a cheap count endpoint, no payloads.
@@ -110,6 +140,16 @@ export class AppComponent {
           next: (c) => this.shareCounts.set(c),
           error: () => {},
         });
+        this.pollActiveJobs();
+      });
+
+    // Adaptive poll: quick while a job runs (progress bar feel), lazy idle.
+    let jobTick = 0;
+    interval(15_000)
+      .pipe(takeUntilDestroyed())
+      .subscribe(() => {
+        jobTick++;
+        if (this.runningJobs().length > 0 || jobTick % 3 === 0) this.pollActiveJobs();
       });
   }
 

@@ -25,6 +25,88 @@ public static class StatusEndpoints
             return Results.Ok(new { status = "ok", timestamp = DateTime.UtcNow, runs });
         });
 
+        // Long-running job feed for the toolbar indicator: in-flight backtest
+        // runs (with candidate progress where the mode reports it) and today's
+        // in-flight worker jobs, plus anything that finished in the last 10
+        // minutes so "done" is visible even after navigating away. Polled
+        // (~15s while something runs), so payload columns stay out of the
+        // queries.
+        api.MapGet("/jobs/active", async (
+            IBacktestRunRepository backtests,
+            IJobLogRepository jobLog,
+            IAccountContext ctx,
+            CancellationToken ct) =>
+        {
+            var since = DateTime.UtcNow.AddMinutes(-10);
+            var jobs = new List<object>();
+
+            foreach (var run in await backtests.GetActiveOrRecentAsync(ctx.AccountId, since, ct))
+            {
+                string? mode = null;
+                try
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(run.RequestJson);
+                    if (doc.RootElement.TryGetProperty("Mode", out var m)) mode = m.GetString();
+                }
+                catch { /* unreadable request - generic label */ }
+
+                var label = mode switch
+                {
+                    "sweep" => "Optimizer",
+                    "ab" => "A/B backtest",
+                    "validate" => "Validation",
+                    "montecarlo" => "Monte Carlo",
+                    "ablation" => "Setup contribution",
+                    "regime" => "Regime comparison",
+                    "setupsearch" => "Setup search",
+                    _ => "Backtest",
+                };
+                jobs.Add(new
+                {
+                    kind = "backtest",
+                    label,
+                    status = run.Status,          // Queued | Running | Completed | Failed
+                    startedAt = run.StartedAt,
+                    completedAt = run.CompletedAt,
+                    progressCompleted = run.CompletedCandidates,
+                    progressTotal = run.TotalCandidates,
+                });
+            }
+
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            foreach (var entry in await jobLog.GetActiveOrRecentAsync(ctx.AccountId, today, since, ct))
+            {
+                var label = entry.JobType switch
+                {
+                    "Research" => "Research",
+                    "ResearchMidday" => "Midday rescore",
+                    "Watchlist" => "Watchlist refresh",
+                    "Report" => "Report",
+                    "Execution" => "Execution",
+                    "Refinement" => "Refinement",
+                    _ => entry.JobType,
+                };
+                jobs.Add(new
+                {
+                    kind = "worker",
+                    label,
+                    status = entry.Status switch
+                    {
+                        JobStatus.Enqueued => "Queued",
+                        JobStatus.Processing => "Running",
+                        JobStatus.Failed => "Failed",
+                        _ => "Completed",
+                    },
+                    startedAt = (DateTime?)entry.EnqueuedAt,
+                    completedAt = entry.CompletedAt,
+                    progressCompleted = (int?)null,
+                    progressTotal = (int?)null,
+                });
+            }
+
+            return Results.Ok(new { jobs });
+        });
+
         // Market open/closed for the dashboard capsule. Calendar-aware (the
         // same holiday calendar hold-period accounting uses), regular session
         // only (9:30-16:00 ET) - the platform doesn't trade pre/after-market.

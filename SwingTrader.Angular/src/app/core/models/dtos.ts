@@ -1398,3 +1398,17 @@ export interface MarketStatusDto {
   isOpen: boolean;
   changesAtUtc: string; // close time when open, next open time when closed
 }
+
+export interface ActiveJobDto {
+  kind: 'backtest' | 'worker';
+  label: string;
+  status: 'Queued' | 'Running' | 'Completed' | 'Failed';
+  startedAt: string | null;
+  completedAt: string | null;
+  progressCompleted: number | null;
+  progressTotal: number | null;
+}
+
+export interface ActiveJobsDto {
+  jobs: ActiveJobDto[];
+}

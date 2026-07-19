@@ -20,6 +20,10 @@ public interface IBacktestRunRepository
     // (Optimizer History / A/B History).
     Task<List<BacktestRun>> GetCompletedByModeAsync(int accountId, string mode, int limit, CancellationToken ct = default);
 
+    // In-flight runs plus anything completed/failed after `since` - the
+    // toolbar job-status indicator's feed. Excludes payload columns.
+    Task<List<BacktestRun>> GetActiveOrRecentAsync(int accountId, DateTime since, CancellationToken ct = default);
+
     // Latest COMPLETED run of a mode whose stamped ConfigFingerprint matches -
     // the strategy-share evidence lookup: "has this exact live config passed
     // validate / been Monte Carlo'd?".

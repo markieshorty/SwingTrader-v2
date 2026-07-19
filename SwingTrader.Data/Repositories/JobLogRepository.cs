@@ -11,6 +11,13 @@ public class JobLogRepository(SwingTraderDbContext db) : IJobLogRepository
         db.JobLogEntries.FirstOrDefaultAsync(
             j => j.AccountId == accountId && j.JobType == jobType && j.JobDate == jobDate, ct);
 
+    public Task<List<JobLogEntry>> GetActiveOrRecentAsync(int accountId, DateOnly jobDate, DateTime completedSince, CancellationToken ct = default) =>
+        db.JobLogEntries
+            .Where(j => j.AccountId == accountId && j.JobDate == jobDate
+                && (j.Status == JobStatus.Enqueued || j.Status == JobStatus.Processing
+                    || (j.CompletedAt != null && j.CompletedAt >= completedSince)))
+            .ToListAsync(ct);
+
     public async Task<JobLogEntry> CreateEnqueuedAsync(int accountId, string jobType, DateOnly jobDate, CancellationToken ct = default)
     {
         var entry = new JobLogEntry

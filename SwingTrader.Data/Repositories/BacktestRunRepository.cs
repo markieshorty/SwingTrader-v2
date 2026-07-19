@@ -49,6 +49,26 @@ public class BacktestRunRepository(SwingTraderDbContext db) : IBacktestRunReposi
             .FirstOrDefaultAsync(ct);
     }
 
+    // Projection keeps ResultJson (potentially hundreds of KB) out of the
+    // poll; RequestJson is needed for the mode label so it rides along.
+    public Task<List<BacktestRun>> GetActiveOrRecentAsync(int accountId, DateTime since, CancellationToken ct = default) =>
+        db.BacktestRuns
+            .Where(r => r.AccountId == accountId
+                && (r.Status == "Queued" || r.Status == "Running"
+                    || (r.CompletedAt != null && r.CompletedAt >= since)))
+            .Select(r => new BacktestRun
+            {
+                Id = r.Id,
+                AccountId = r.AccountId,
+                Status = r.Status,
+                RequestJson = r.RequestJson,
+                StartedAt = r.StartedAt,
+                CompletedAt = r.CompletedAt,
+                TotalCandidates = r.TotalCandidates,
+                CompletedCandidates = r.CompletedCandidates,
+            })
+            .ToListAsync(ct);
+
     public Task<BacktestRun?> GetLatestCompletedByFingerprintAsync(
         int accountId, string mode, string fingerprint, CancellationToken ct = default) =>
         db.BacktestRuns
