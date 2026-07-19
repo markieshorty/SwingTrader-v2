@@ -58,6 +58,7 @@ public class ResearchPipeline(
         string symbol, AccountRiskProfile riskProfile,
         IReadOnlyDictionary<string, IReadOnlyList<StockCandle>>? freshCandlesBySymbol = null,
         string? companyName = null,
+        decimal? selectionPercentile = null,
         CancellationToken ct = default)
     {
         symbol = symbol.ToUpperInvariant();
@@ -296,7 +297,7 @@ public class ResearchPipeline(
         }
 
         return await PersistSignalAsync(accountId, symbol, companyName, candles[^1], ind, sentimentScore,
-            newsSummary, setupType, conviction, recommendation, componentScores, regime, earningsCtx, rs, priceLevel,
+            newsSummary, setupType, conviction, recommendation, selectionPercentile, componentScores, regime, earningsCtx, rs, priceLevel,
             adjustmentReasoning.Length > 0 ? adjustmentReasoning : null, fundamentalSnapshot, fundamental, shadow,
             filingDeltaScore, filingDeltaSummary, secondHopScore, secondHopSummary);
     }
@@ -757,6 +758,7 @@ public class ResearchPipeline(
         int accountId, string symbol, string? companyName, StockCandle latest, IndicatorResult ind,
         decimal? sentimentScore, string newsSummary,
         SetupType setupType, decimal conviction, Recommendation recommendation,
+        decimal? selectionPercentile,
         ComponentScores componentScores, MarketRegime? currentRegime, EarningsContext? earningsCtx,
         RelativeStrengthResult? rs = null,
         PriceLevelResult? priceLevel = null, string? earningsReasoning = null,
@@ -787,6 +789,9 @@ public class ResearchPipeline(
         signal.SentimentScore = sentimentScore;
         signal.NewsSummary = newsSummary;
         signal.SetupType = setupType;
+        // Shadow metadata: pick-time cross-sectional rank, kept null when the
+        // symbol wasn't on a screener-picked list (manual adds).
+        signal.SelectionPercentile = selectionPercentile;
         signal.ConvictionScore = conviction;
         signal.Recommendation = recommendation;
         // WasExecuted is deliberately left untouched here - signal is either

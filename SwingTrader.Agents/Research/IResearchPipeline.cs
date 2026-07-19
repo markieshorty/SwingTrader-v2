@@ -22,5 +22,8 @@ public interface IResearchPipeline
         AccountRiskProfile riskProfile,
         IReadOnlyDictionary<string, IReadOnlyList<StockCandle>>? freshCandlesBySymbol = null,
         string? companyName = null,
+        // Watchlist-pick cross-sectional percentile, stamped onto the signal
+        // as shadow metadata (see CrossSectionalRanker).
+        decimal? selectionPercentile = null,
         CancellationToken ct = default);
 }

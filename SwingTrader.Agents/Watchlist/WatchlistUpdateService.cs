@@ -86,6 +86,7 @@ public class WatchlistUpdateService(
                 existing.IsActive = true;
                 existing.CompanyName = selection.CompanyName;
                 existing.Sector = selection.Sector;
+                existing.SelectionPercentile = selection.SelectionPercentile;
                 await watchlist.UpdateAsync(existing);
             }
             else
@@ -97,6 +98,7 @@ public class WatchlistUpdateService(
                     CompanyName = selection.CompanyName,
                     Sector = selection.Sector,
                     IsActive = true,
+                    SelectionPercentile = selection.SelectionPercentile,
                 });
             }
 

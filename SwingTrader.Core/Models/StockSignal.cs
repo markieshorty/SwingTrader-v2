@@ -97,4 +97,9 @@ public class StockSignal : BaseEntity
     // is raised above 0 (SH2). Null = no links / no qualifying events.
     public decimal? SecondHopScore { get; set; }
     public string? SecondHopSummary { get; set; }
+
+    // Cross-sectional selection percentile of this symbol at watchlist-pick
+    // time (0-100 vs that week's screened universe; null pre-feature or for
+    // manual watchlist adds). Shadow metadata - drives nothing yet.
+    public decimal? SelectionPercentile { get; set; }
 }

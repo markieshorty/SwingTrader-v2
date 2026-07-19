@@ -30,7 +30,8 @@ public class WatchlistSelectionService(
         var fearLevel = vix switch { < 15 => "Low fear", < 20 => "Moderate", < 30 => "Elevated", _ => "High fear" };
 
         var candidateLines = string.Join("\n",
-            candidates.Select(c => $"{c.Symbol} | {c.CompanyName} | {c.ChangePercent:+0.00;-0.00}% | {c.Volume:N0} | {(c.IsTopMover ? "\U0001F525 TOP MOVER" : "")}"));
+            candidates.Select(c => $"{c.Symbol} | {c.CompanyName} | {c.ChangePercent:+0.00;-0.00}% | {c.Volume:N0} | " +
+                $"{(c.SelectionPercentile is { } p ? $"rank {p:0}/100" : "")} | {(c.IsTopMover ? "\U0001F525 TOP MOVER" : "")}"));
 
         var systemPrompt =
             "You are an expert swing trader and portfolio manager selecting stocks to monitor for the coming week. " +
@@ -50,7 +51,9 @@ public class WatchlistSelectionService(
             "Current market context:\n" +
             $"- Day's overall market direction: {spyDir} ({spyChangePercent:+0.00;-0.00}%)\n" +
             $"- VIX level: {vix:0.00} ({fearLevel})\n\n" +
-            $"Candidates (symbol | name | change% | volume | flag):\n{candidateLines}\n\n" +
+            "The rank column is a cross-sectional percentile vs today's whole screened universe " +
+            "(blend of momentum magnitude and dollar volume; 100 = strongest). Treat it as one input, not a verdict.\n\n" +
+            $"Candidates (symbol | name | change% | volume | rank | flag):\n{candidateLines}\n\n" +
             "Respond with this exact JSON:\n" +
             "{\n" +
             "  \"selected\": [\n" +
@@ -86,11 +89,16 @@ public class WatchlistSelectionService(
 
             logger.LogInformation("Market commentary: {Commentary}", parsed.MarketCommentary);
 
+            var percentileBySymbol = candidates
+                .GroupBy(c => c.Symbol, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First().SelectionPercentile, StringComparer.OrdinalIgnoreCase);
+
             return parsed.Selected.Select(s => new WatchlistSelection(
                 s.Symbol.ToUpperInvariant(),
                 s.CompanyName,
                 s.Sector,
-                s.Reason
+                s.Reason,
+                percentileBySymbol.GetValueOrDefault(s.Symbol.ToUpperInvariant())
             )).ToList();
         }
         catch (Exception ex)

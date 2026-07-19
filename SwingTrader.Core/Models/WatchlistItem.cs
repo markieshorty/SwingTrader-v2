@@ -25,4 +25,11 @@ public class WatchlistItem : BaseEntity
     // is - so a pick on a disabled/manual watchlist can still be forced
     // straight into the research pipeline without enabling the whole list.
     public bool ForceIntoFinalList { get; set; }
+
+    // Cross-sectional selection percentile vs the screened universe the week
+    // this item was picked (0-100, CrossSectionalRanker). Null for manual
+    // adds and pre-feature picks. Copied onto each StockSignal at research
+    // time so the Intelligence scorecard can test whether selection rank
+    // predicts trade outcomes - inert until that evidence exists.
+    public decimal? SelectionPercentile { get; set; }
 }

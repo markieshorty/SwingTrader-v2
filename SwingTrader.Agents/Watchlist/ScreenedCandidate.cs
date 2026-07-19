@@ -7,5 +7,8 @@ public record ScreenedCandidate(
     decimal ChangePercent,
     decimal Volume,
     string PrimaryExchange,
-    bool IsTopMover = false
+    bool IsTopMover = false,
+    // Cross-sectional selection percentile vs the rest of that day's screened
+    // universe (0-100, see CrossSectionalRanker). Null until stamped.
+    decimal? SelectionPercentile = null
 );

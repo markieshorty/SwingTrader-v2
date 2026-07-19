@@ -120,6 +120,13 @@ public class StockScreener(
         if (await watchlist.IsTopMoversEnabledAsync(accountId, ct))
             await MergeTopMoversAsync(candidates, activeSymbols, openTradeSymbols, cfg, finnhub, ct);
 
+        // Cross-sectional percentile over the WHOLE screened universe (before
+        // the liquidity cut, so the denominator is every name that competed
+        // today, not just the survivors). Inert metadata for now - it rides
+        // through selection onto watchlist items and signals so the scorecard
+        // can judge whether it predicts anything before it drives decisions.
+        candidates = CrossSectionalRanker.StampPercentiles(candidates);
+
         // TopMoverOrderBoost nudges top movers up the ranking without hard-pinning
         // them above everything else regardless of how small their move is.
         var ranked = candidates
