@@ -72,4 +72,41 @@ public class SetupTacticsRuleMapperTests
         changed.Should().BeEmpty();
         rows.Should().OnlyContain(r => r.StopLossPct == 0.05m && r.GuideHoldDays == 10);
     }
+
+    [Fact]
+    public void Apply_ExcludedSetups_SyncsEnabledToggles()
+    {
+        // Parity fix (18 Jul 2026): a non-null exclusion list is a full
+        // statement of the tested book - excluded setups disable, the rest
+        // re-enable, and only rows that actually flipped are returned.
+        var rows = new List<SetupTactics>
+        {
+            new() { SetupType = SetupType.Breakout, Enabled = true },
+            new() { SetupType = SetupType.TrendFollowing, Enabled = true },
+            new() { SetupType = SetupType.OversoldRecovery, Enabled = false },
+        };
+
+        var changed = SetupTacticsRuleMapper.Apply(rows,
+            new HistoricTradingRules(ExcludedSetups: ["TrendFollowing"]));
+
+        rows.Single(r => r.SetupType == SetupType.TrendFollowing).Enabled.Should().BeFalse();
+        rows.Single(r => r.SetupType == SetupType.Breakout).Enabled.Should().BeTrue();
+        rows.Single(r => r.SetupType == SetupType.OversoldRecovery).Enabled.Should().BeTrue();
+        changed.Select(r => r.SetupType).Should().BeEquivalentTo(
+            new[] { SetupType.TrendFollowing, SetupType.OversoldRecovery });
+    }
+
+    [Fact]
+    public void Apply_NullExcludedSetups_LeavesTogglesAlone()
+    {
+        var rows = new List<SetupTactics>
+        {
+            new() { SetupType = SetupType.Breakout, Enabled = false, StopLossPct = 0.05m, TargetPct = 0.08m, GuideHoldDays = 10 },
+        };
+
+        var changed = SetupTacticsRuleMapper.Apply(rows, new HistoricTradingRules(MaxHoldDays: 9));
+
+        rows[0].Enabled.Should().BeFalse();
+        changed.Should().ContainSingle(); // the uniform hold-day change, not a toggle flip
+    }
 }

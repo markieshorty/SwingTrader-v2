@@ -57,6 +57,31 @@ public static class SetupTacticsRuleMapper
             changed.Add(row);
         }
 
+        // 3. Setup exclusions (18 Jul 2026 audit): a run's ExcludedSetups is
+        //    the backtest spelling of the live Enabled toggles, and applying a
+        //    run that excluded a setup must disable it live - otherwise live
+        //    trades a setup the winning test never took. A NON-NULL list is a
+        //    full statement of the tested book, so rows outside it re-enable;
+        //    null means the run inherited the live exclusions - leave toggles
+        //    alone.
+        if (rules.ExcludedSetups is not null)
+        {
+            var excluded = rules.ExcludedSetups
+                .Select(n => Enum.TryParse<SetupType>(n, ignoreCase: true, out var s) ? s : (SetupType?)null)
+                .Where(s => s.HasValue)
+                .Select(s => s!.Value)
+                .ToHashSet();
+            foreach (var row in rows)
+            {
+                var wanted = !excluded.Contains(row.SetupType);
+                if (row.Enabled != wanted)
+                {
+                    row.Enabled = wanted;
+                    changed.Add(row);
+                }
+            }
+        }
+
         return changed.ToList();
     }
 }

@@ -55,4 +55,29 @@ public class BacktestRiskRuleMapperTests
         profile.MaxHoldDays.Should().Be(20);
         profile.StopLossPct.Should().Be(0.08m);
     }
+
+    [Fact]
+    public void Apply_MapsPositionSizingAndLockedCapital()
+    {
+        // Parity fix (18 Jul 2026): a run that tested a different position
+        // size / locked reserve must land those on the book too.
+        var profile = new AccountRiskProfile { FlatPositionPct = 0.10m, LockedCapitalPct = 0.20m };
+
+        BacktestRiskRuleMapper.Apply(profile, new HistoricTradingRules(
+            PositionFraction: 0.15m, LockedCapitalPct: 0.05m));
+
+        profile.FlatPositionPct.Should().Be(0.15m);
+        profile.LockedCapitalPct.Should().Be(0.05m);
+    }
+
+    [Fact]
+    public void Apply_NullSizingFields_LeaveLiveValues()
+    {
+        var profile = new AccountRiskProfile { FlatPositionPct = 0.10m, LockedCapitalPct = 0.20m };
+
+        BacktestRiskRuleMapper.Apply(profile, new HistoricTradingRules(MaxHoldDays: 12));
+
+        profile.FlatPositionPct.Should().Be(0.10m);
+        profile.LockedCapitalPct.Should().Be(0.20m);
+    }
 }
