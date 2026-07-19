@@ -74,7 +74,7 @@
   <div class="positions-row">
     <mat-card class="panel positions-panel">
       <h3>Open Positions</h3>
-      <div class="positions-scroll">
+      <div class="positions-scroll" [class.grid-2]="positions().length >= 3">
       @if (positions().length === 0) {
         <p class="muted">No open positions.</p>
       }
@@ -82,6 +82,7 @@
         <div class="position-card">
           <div class="position-header">
             <span class="symbol" [title]="position.companyName || position.symbol">{{ position.symbol }}</span>
+            <span class="phase-badge" [class]="'phase-' + position.phase.toLowerCase()">{{ phaseLabel(position) }}</span>
             <span
               class="pnl"
               [class.positive]="position.unrealisedPnl >= 0"
@@ -95,11 +96,7 @@
               <mat-icon>sell</mat-icon>
             </button>
           </div>
-          <span class="phase-badge" [class]="'phase-' + position.phase.toLowerCase()">{{ phaseLabel(position) }}</span>
           <app-stop-target-bar [position]="position" />
-          @if (position.momentumHealthVerdict) {
-            <p class="momentum-line">{{ position.momentumHealthScore | number: '1.2-2' }} — {{ position.momentumHealthReasoning }}</p>
-          }
           <div class="position-footer">
             <span>{{ heldLabel(position) }}</span>
             @if (position.isNearStop) {
@@ -107,6 +104,11 @@
             }
             @if (position.isNearTarget) {
               <span class="warning positive">🎯 Near target</span>
+            }
+            @if (position.momentumHealthVerdict) {
+              <span class="momentum-line" [title]="position.momentumHealthReasoning">
+                {{ position.momentumHealthScore | number: '1.2-2' }} — {{ position.momentumHealthReasoning }}
+              </span>
             }
           </div>
         </div>

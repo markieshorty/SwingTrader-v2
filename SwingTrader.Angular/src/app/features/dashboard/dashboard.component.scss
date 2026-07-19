@@ -172,24 +172,45 @@
   color: var(--st-muted);
 }
 
+// One column for 1-2 positions, 2x2 grid from 3 up (component toggles
+// .grid-2) - condensed cards so a typical book fits without a scrollbar.
 .positions-scroll {
-  max-height: 320px;
-  overflow-y: auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+
+  &.grid-2 {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .position-card {
   border: 1px solid var(--st-border);
   border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 12px;
+  padding: 8px 12px;
+  min-width: 0;
 }
 
-.position-header,
+.position-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin-bottom: 4px;
+
+  .pnl {
+    margin-left: auto;
+  }
+}
+
 .position-footer {
   display: flex;
-  justify-content: space-between;
-  font-size: 13px;
-  margin-bottom: 8px;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--st-muted);
+  margin-top: 4px;
+  min-width: 0;
 }
 
 .symbol {
@@ -216,9 +237,9 @@
   display: inline-block;
   font-size: 11px;
   font-weight: 600;
-  padding: 2px 8px;
+  padding: 1px 8px;
   border-radius: 10px;
-  margin-bottom: 6px;
+  white-space: nowrap;
 }
 
 .phase-probation { background: rgba(245, 158, 11, 0.2); color: var(--st-amber); }
@@ -229,7 +250,11 @@
   font-size: 12px;
   font-style: italic;
   color: var(--st-muted);
-  margin: 4px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .worker-panel {
@@ -416,9 +441,10 @@
 }
 
 .mark-closed {
-  width: 32px;
-  height: 32px;
-  line-height: 32px;
+  width: 28px;
+  height: 28px;
+  line-height: 28px;
+  padding: 0;
   opacity: 0.55;
 
   &:hover {
