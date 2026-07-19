@@ -49,6 +49,13 @@
         </div>
       </mat-card>
       <mat-card class="stat-card">
+        <div class="stat-label">Unrealised P&amp;L</div>
+        <div class="stat-value" [class.positive]="p.unrealizedPnl >= 0" [class.negative]="p.unrealizedPnl < 0">
+          {{ p.unrealizedPnl | currencyGbp }}
+          <span class="stat-sub">{{ p.unrealizedPnlPercent | percentSigned }}</span>
+        </div>
+      </mat-card>
+      <mat-card class="stat-card">
         <div class="stat-label">30-Day Win Rate</div>
         <div class="stat-value">{{ p.winRate30d | number: '1.0-1' }}%</div>
       </mat-card>

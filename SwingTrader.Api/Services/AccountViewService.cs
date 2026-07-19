@@ -74,10 +74,22 @@ public class AccountViewService(
         var allTrades = (await trades.GetAllAsync(accountId, account.TradingMode)).ToList();
         var today = DateTime.UtcNow.Date;
 
-        var realizedToday = allTrades
-            .Where(t => t.ClosedAt.HasValue && t.ClosedAt.Value.Date == today && t.RealizedPnl.HasValue)
-            .Sum(t => t.RealizedPnl!.Value);
+        // Non-trading day (weekend/holiday): "Today P&L" is definitionally
+        // zero - nothing traded and prices haven't moved. The old behaviour
+        // summed the OPEN positions' total unrealized P&L into the figure,
+        // which showed a "profit today" on a Sunday.
+        var isTradingDay = marketCalendar.IsMarketDay(DateOnly.FromDateTime(today));
 
+        var realizedToday = isTradingDay
+            ? allTrades
+                .Where(t => t.ClosedAt.HasValue && t.ClosedAt.Value.Date == today && t.RealizedPnl.HasValue)
+                .Sum(t => t.RealizedPnl!.Value)
+            : 0m;
+
+        // Total unrealized P&L across open positions is computed EVERY day
+        // (its own dashboard card; on a weekend the quotes are Friday's close,
+        // which is exactly what "current unrealized" means then) - but it only
+        // feeds the Today figure on trading days.
         var openTrades = allTrades.Where(t => t.Status == TradeStatus.Open).ToList();
         var unrealizedOpen = 0m;
         if (openTrades.Count > 0)
@@ -102,8 +114,9 @@ public class AccountViewService(
             }
         }
 
-        var todayPnl = realizedToday + unrealizedOpen;
+        var todayPnl = isTradingDay ? realizedToday + unrealizedOpen : 0m;
         var todayPnlPercent = snapshot.TotalCapital > 0 ? todayPnl / snapshot.TotalCapital * 100m : 0m;
+        var unrealizedPnlPercent = snapshot.TotalCapital > 0 ? unrealizedOpen / snapshot.TotalCapital * 100m : 0m;
 
         var thirtyDaysAgo = DateTime.UtcNow.AddDays(-30);
         var closedLast30Days = allTrades
@@ -124,6 +137,8 @@ public class AccountViewService(
             snapshot.TotalPnl,
             TodayPnl = todayPnl,
             TodayPnlPercent = todayPnlPercent,
+            UnrealizedPnl = unrealizedOpen,
+            UnrealizedPnlPercent = unrealizedPnlPercent,
             WinRate30d = winRate30d,
         };
     }

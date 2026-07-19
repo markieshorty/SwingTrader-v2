@@ -13,6 +13,8 @@ export interface PortfolioDto {
   totalPnl: number;
   todayPnl: number;
   todayPnlPercent: number;
+  unrealizedPnl: number;
+  unrealizedPnlPercent: number;
   winRate30d: number;
 }
 
