@@ -89,6 +89,26 @@ public class BacktestRunRepository(SwingTraderDbContext db) : IBacktestRunReposi
             .OrderByDescending(r => r.CompletedAt)
             .FirstOrDefaultAsync(ct);
 
+    // Raw SQL because EF can't express JSON_QUERY; the whole point is that
+    // ResultJson never leaves the server. Paths are camelCase to match the
+    // consumer's serialization (SQL JSON paths are case-sensitive).
+    public Task<List<BacktestHistorySlice>> GetHistorySlicesAsync(int accountId, string mode, int limit, CancellationToken ct = default)
+    {
+        var slicePath = mode == "sweep" ? "$.winner" : "$.candidates";
+        return db.Database
+            .SqlQuery<BacktestHistorySlice>($"""
+                SELECT TOP ({limit}) Id, CompletedAt, RequestJson,
+                       JSON_QUERY(ResultJson, {slicePath}) AS SliceJson
+                FROM BacktestRuns
+                WHERE AccountId = {accountId}
+                  AND Status = 'Completed'
+                  AND ResultJson IS NOT NULL
+                  AND RequestJson LIKE '%' + {"\"Mode\":\"" + mode + "\""} + '%'
+                ORDER BY CompletedAt DESC
+                """)
+            .ToListAsync(ct);
+    }
+
     public Task<List<BacktestRun>> GetCompletedByModeAsync(int accountId, string mode, int limit, CancellationToken ct = default) =>
         db.BacktestRuns
             .Where(r => r.AccountId == accountId

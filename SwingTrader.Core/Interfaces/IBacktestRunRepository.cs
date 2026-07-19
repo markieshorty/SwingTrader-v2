@@ -20,6 +20,13 @@ public interface IBacktestRunRepository
     // (Optimizer History / A/B History).
     Task<List<BacktestRun>> GetCompletedByModeAsync(int accountId, string mode, int limit, CancellationToken ct = default);
 
+    // History-tab projection: only the JSON SLICE the apply extractor needs
+    // ($.winner for a sweep, $.candidates for an A/B) is cut out of
+    // ResultJson server-side. A full sweep ResultJson carries ~1,200
+    // candidates (MBs); pulling 20 of those over the Basic-tier DB is what
+    // made the history tabs crawl.
+    Task<List<BacktestHistorySlice>> GetHistorySlicesAsync(int accountId, string mode, int limit, CancellationToken ct = default);
+
     // In-flight runs plus anything completed/failed after `since` - the
     // toolbar job-status indicator's feed. Excludes payload columns.
     Task<List<BacktestRun>> GetActiveOrRecentAsync(int accountId, DateTime since, CancellationToken ct = default);

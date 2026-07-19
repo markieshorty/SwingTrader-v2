@@ -28,6 +28,17 @@ public class BacktestRun : BaseEntity
     public string? ConfigFingerprint { get; set; }
 }
 
+// One row of the Strategy Lab history projection (see
+// IBacktestRunRepository.GetHistorySlicesAsync): SliceJson is the JSON_QUERY
+// cut of ResultJson the apply extractor needs, not the full payload.
+public class BacktestHistorySlice
+{
+    public int Id { get; set; }
+    public DateTime? CompletedAt { get; set; }
+    public string? RequestJson { get; set; }
+    public string? SliceJson { get; set; }
+}
+
 // Shared request shape serialized into BacktestRun.RequestJson by the Strategy
 // Lab endpoint and deserialized by BacktestConsumerFunction - lives in Core so
 // Api and Functions use the identical type.

@@ -464,10 +464,18 @@ public static class StrategyLabEndpoints
             if (mode is not ("ab" or "sweep"))
                 return Results.BadRequest(new { message = "mode must be 'ab' or 'sweep'." });
 
-            var list = await runs.GetCompletedByModeAsync(ctx.AccountId, mode, Math.Clamp(limit ?? 20, 1, 100), ct);
+            // Server-side JSON_QUERY projection: only the winner/candidates
+            // slice leaves the DB, not the multi-MB sweep ResultJson - this
+            // list used to take ages on the Basic tier purely from payload
+            // transfer. The slice is re-wrapped so the extractor sees the
+            // shape it always parsed.
+            var list = await runs.GetHistorySlicesAsync(ctx.AccountId, mode, Math.Clamp(limit ?? 20, 1, 100), ct);
             var items = list.Select(r =>
             {
-                var cfg = Agents.Backtesting.BacktestApplyExtractor.Extract(mode, r.RequestJson, r.ResultJson);
+                var wrapped = r.SliceJson is null ? null
+                    : mode == "sweep" ? $"{{\"winner\":{r.SliceJson}}}"
+                    : $"{{\"candidates\":{r.SliceJson}}}";
+                var cfg = Agents.Backtesting.BacktestApplyExtractor.Extract(mode, r.RequestJson, wrapped);
                 return new
                 {
                     r.Id,
