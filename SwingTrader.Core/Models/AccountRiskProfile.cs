@@ -84,6 +84,8 @@ public class AccountRiskProfile : BaseEntity
     {
         >= 0.80m => "Very Conservative",
         >= 0.70m => "Conservative",
+        // No (or minimal) protected reserve: the whole account can be deployed.
+        < 0.10m => "Aggressive",
         _ when FlatPositionPct >= 0.15m => "Moderate-Aggressive",
         _ => "Moderate",
     };

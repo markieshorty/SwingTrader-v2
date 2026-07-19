@@ -98,7 +98,7 @@ public class AccountRiskProfileRepositoryTests
         {
             var repo = new AccountRiskProfileRepository(updateDb);
             var profile = await repo.GetAsync(1);
-            profile.LockedCapitalPct = 0.10m;
+            profile.LockedCapitalPct = 0.95m; // above the 90% ceiling
 
             var act = async () => await repo.UpdateAsync(profile);
 

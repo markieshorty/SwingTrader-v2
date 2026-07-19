@@ -106,7 +106,7 @@ public class AccountRiskProfileTests
     }
 
     [Theory]
-    [InlineData(0.49)]
+    [InlineData(-0.01)]
     [InlineData(0.91)]
     public void Validate_LockedCapitalPctOutOfRange_Throws(decimal pct)
     {

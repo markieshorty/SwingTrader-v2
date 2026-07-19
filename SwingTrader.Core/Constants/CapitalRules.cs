@@ -82,7 +82,11 @@ public static class CapitalRules
     // Hard safety bounds for AccountRiskProfile.Validate() — a misconfigured
     // profile can never allow a single bad day to wipe an account, no
     // matter what the account owner tries to set it to.
-    public const decimal MinLockedCapitalPct = 0.50m;
+    // 0 = the whole account is deployable into positions (no protected
+    // reserve). Lowered from 0.50 on 20 Jul 2026 - the floor forced at least
+    // half the account to sit idle, which is a policy choice, not a safety
+    // invariant (position count and size are capped separately).
+    public const decimal MinLockedCapitalPct = 0m;
     public const decimal MaxLockedCapitalPct = 0.90m;
     public const int MinMaxOpenPositions = 1;
     public const int MaxMaxOpenPositions = 10;
