@@ -162,6 +162,10 @@ export class StrategyLabComponent implements OnDestroy {
 
   // The six gate weights (sentiment/fundamental drive the live Forward score,
   // not the backtestable gate, so they're tuned in Settings, not here).
+  // Whether the Default master book governs live (drives which single book
+  // the sweep simulates, and therefore which book "Test winner" replays).
+  private defaultBookOn = false;
+
   readonly dials: WeightDial[] = [
     { key: 'rsi', label: 'RSI', hint: 'Dip-buying signal — favours pullbacks recovering from oversold' },
     { key: 'macd', label: 'MACD', hint: 'Momentum direction — rewards rising, positive momentum' },
@@ -607,6 +611,7 @@ export class StrategyLabComponent implements OnDestroy {
     // profile loads.
     this.api.getRiskProfile('Default').subscribe({
       next: (d) => {
+        this.defaultBookOn = d.enabled;
         if (this.regimeMode() === 'off') this.onRegimeModeChange(d.enabled ? 'default' : 'mixed');
       },
       error: () => {},
@@ -1361,7 +1366,11 @@ export class StrategyLabComponent implements OnDestroy {
     }
 
     this.dataSource.set('historic');
-    this.regimeMode.set('neutral'); // compare vs production under the Neutral book
+    // Replay under the SAME single book the sweep simulated: the Default
+    // master book when it's on, else Neutral. Set directly (not via the
+    // change handler) so the winner's rule overrides just loaded above
+    // aren't clobbered by a book reload.
+    this.regimeMode.set(this.defaultBookOn ? 'default' : 'neutral');
     this.labTabIndex.set(0);
     this.snackbar.open(
       `Winner's full config ("${w.label}") loaded — including its rule/setup overrides. Hit Run Simulation for the head-to-head vs production.`,
