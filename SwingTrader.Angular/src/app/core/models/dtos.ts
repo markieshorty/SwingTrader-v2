@@ -337,7 +337,7 @@ export interface TradingConfigDto {
   // Whether new-position executions ("entries") are paused for the current
   // mode, and — while paused — why and since when.
   executionPaused: boolean;
-  executionPauseReason: 'Manual' | 'CircuitBreaker';
+  executionPauseReason: 'Manual' | 'CircuitBreaker' | 'RegimeAutopause';
   executionPausedAt: string | null;
   role: 'Owner' | 'Member';
 }

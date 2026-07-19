@@ -209,6 +209,16 @@ export class DashboardComponent {
     const auto = s.executionPauseReason === 'CircuitBreaker';
     const since = s.executionPausedAt ? new Date(s.executionPausedAt) : null;
     const sinceText = since ? ` · since ${since.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : '';
+    // Monitor-engaged regime autopause: name the regime rather than showing
+    // the generic manual-pause label.
+    if (s.executionPauseReason === 'RegimeAutopause') {
+      const regime = this.activeRiskBook()?.regime ?? 'current';
+      return {
+        auto: false,
+        label: `⏸ New entries paused · ${regime} regime`,
+        title: `${s.tradingMode} entries auto-paused${sinceText} — the ${regime} risk book has autopause on. Exits still run; entries resume automatically when the regime permits. Change it in Settings › Risk Management.`,
+      };
+    }
     return auto
       ? {
           auto,
