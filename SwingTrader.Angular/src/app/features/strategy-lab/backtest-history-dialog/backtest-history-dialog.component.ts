@@ -82,6 +82,10 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
       }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
+      <button mat-stroked-button (click)="ref.close('view')"
+        matTooltip="Loads this run's stored result into the main results view - the same full breakdown you see when a run finishes live.">
+        View full results
+      </button>
       <button mat-button mat-dialog-close>Close</button>
       <button mat-raised-button color="primary"
         [disabled]="!item.canApply || applying() || (checkboxesShown && !applyWeights() && !applyRisk())"
@@ -107,7 +111,7 @@ export class BacktestHistoryDialogComponent {
   private api = inject(ApiService);
   private dialog = inject(MatDialog);
   private snackbar = inject(MatSnackBar);
-  private ref = inject(MatDialogRef<BacktestHistoryDialogComponent, boolean>);
+  ref = inject(MatDialogRef<BacktestHistoryDialogComponent, boolean>);
 
   item = inject<BacktestHistoryItemDto>(MAT_DIALOG_DATA);
   applying = signal(false);

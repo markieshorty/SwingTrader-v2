@@ -463,6 +463,9 @@
           <button mat-icon-button class="panel-close" (click)="abResult.set(null)" matTooltip="Dismiss">
             <mat-icon>close</mat-icon>
           </button>
+          @if (abResultCompletedAt(); as completedAt) {
+            <p class="muted small">Restored from the run completed {{ completedAt | date: 'dd MMM yyyy, HH:mm' }}.</p>
+          }
           <h3>
             Head-to-head — your dials vs production,
             {{ ab.candidates[0].result.from | date: 'dd/MM/yyyy' }} to {{ ab.candidates[0].result.to | date: 'dd/MM/yyyy' }}

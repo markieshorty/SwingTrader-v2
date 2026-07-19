@@ -123,9 +123,41 @@ export class StrategyLabComponent implements OnDestroy {
     this.dialog
       .open(BacktestHistoryDialogComponent, { width: '620px', maxWidth: '95vw', data: item })
       .afterClosed()
-      .subscribe((applied) => {
-        if (applied) this.loadHistory(item.mode, true);
+      .subscribe((result) => {
+        if (result === 'view') this.viewHistoryRunResults(item);
+        else if (result) this.loadHistory(item.mode, true);
       });
+  }
+
+  // "View full results" from a history row: load the run's STORED result into
+  // the main results view - the identical panels a live run shows on
+  // completion (head-to-head tables, per-setup buckets, validation verdicts),
+  // not the dialog's summary stats. Captioned with the run's completion date
+  // so it can't be mistaken for a fresh run.
+  abResultCompletedAt = signal<string | null>(null);
+
+  private viewHistoryRunResults(item: BacktestHistoryItemDto): void {
+    this.api.getBacktestRun(item.id).subscribe({
+      next: (r) => {
+        if (!r.result || !('mode' in r.result)) {
+          this.snackbar.open('This run has no stored result to show.', 'Dismiss', { duration: 4000 });
+          return;
+        }
+        if (item.mode === 'sweep' && r.result.mode === 'sweep') {
+          this.sweepResult.set(r.result);
+          this.sweepResultCompletedAt.set(r.completedAt);
+          this.labTabIndex.set(1);
+        } else if (item.mode === 'ab' && r.result.mode === 'ab') {
+          this.historicResult.set(null);
+          this.abResult.set(r.result);
+          this.abResultCompletedAt.set(r.completedAt);
+          this.labTabIndex.set(0);
+        } else {
+          this.snackbar.open('Stored result has an unexpected shape for this run.', 'Dismiss', { duration: 4000 });
+        }
+      },
+      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to load the stored result.'), 'Dismiss', { duration: 4000 }),
+    });
   }
 
   // The six gate weights (sentiment/fundamental drive the live Forward score,
@@ -765,6 +797,7 @@ export class StrategyLabComponent implements OnDestroy {
     this.response.set(null);
     this.historicResult.set(null);
     this.abResult.set(null);
+    this.abResultCompletedAt.set(null);
     this.analysis.set(null);
     this.historicStatus.set(null);
     this.validateResult.set(null);
