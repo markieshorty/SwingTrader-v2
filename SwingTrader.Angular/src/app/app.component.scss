@@ -13,20 +13,38 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 20px 16px;
-    font-size: 18px;
+    padding: 14px 16px;
+    font-size: 17px;
     font-weight: 600;
     color: var(--st-text);
   }
 
+  // Compact rows: the nav has grown enough items (plus the conditional
+  // Shared Strategies and Admin entries) that Material's default 48px rows
+  // overflowed the viewport and the list scrolled. Smaller text + tighter
+  // rows keep every item visible without scrolling.
   mat-nav-list {
     flex: 1;
+    overflow: hidden;
+    padding-top: 0;
 
     a {
       color: var(--st-muted);
+      // MDC pins list rows at 48px and the label font on an inner span -
+      // both need explicit overrides or the height/font declarations lose.
+      height: 38px !important;
+
+      ::ng-deep .mdc-list-item__primary-text {
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+      }
 
       mat-icon {
-        margin-right: 12px;
+        margin-right: 10px;
+        font-size: 19px;
+        width: 19px;
+        height: 19px;
       }
 
       &.active {
