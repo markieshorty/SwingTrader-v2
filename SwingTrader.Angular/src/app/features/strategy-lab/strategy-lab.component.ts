@@ -121,7 +121,7 @@ export class StrategyLabComponent implements OnDestroy {
 
   openHistory(item: BacktestHistoryItemDto): void {
     this.dialog
-      .open(BacktestHistoryDialogComponent, { width: '620px', maxWidth: '95vw', data: item })
+      .open(BacktestHistoryDialogComponent, { width: '960px', maxWidth: '95vw', data: item })
       .afterClosed()
       .subscribe((result) => {
         if (result === 'view') this.viewHistoryRunResults(item);
