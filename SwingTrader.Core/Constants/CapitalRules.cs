@@ -57,7 +57,11 @@ public static class CapitalRules
     // FlatPositionPct x MaxOpenPositions <= 1 - locked.
     public const decimal DefaultFlatPositionPct = 0.10m;
     public const decimal MinFlatPositionPct = 0.02m;
-    public const decimal MaxFlatPositionPct = 0.25m;
+    // Absolute ceiling only - the REAL cap is the joint constraint in
+    // AccountRiskProfile.Validate (size x positions <= un-locked share), so
+    // 1 open position with 0% locked can legitimately size at 100%. Raised
+    // from 0.25 on 20 Jul 2026.
+    public const decimal MaxFlatPositionPct = 1.0m;
 
     // How many symbols Claude selects for the weekly AI-managed watchlist
     // refresh (WatchlistSelectionService). Bounded below by having enough

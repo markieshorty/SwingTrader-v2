@@ -465,9 +465,36 @@ export class SettingsComponent {
     this.loadRiskProfile(regime);
   }
 
+  // Position size can't exceed what the OTHER two dials leave available:
+  // (1 - locked) / max positions. 1 position + 0% locked => 100% is legal;
+  // 3 positions + 20% locked caps at ~26%. Recomputed live as either dial
+  // moves; the slider max follows and the draft value is clamped down.
+  flatPositionMax(): number {
+    const draft = this.riskProfileDraft();
+    const profile = this.riskProfile();
+    if (!draft || !profile) return 0.25;
+    const budget = (1 - draft.lockedCapitalPct) / Math.max(1, draft.maxOpenPositions);
+    return Math.max(profile.allowedRanges.flatPositionPct.min,
+      Math.min(profile.allowedRanges.flatPositionPct.max, Math.floor(budget * 100) / 100));
+  }
+
   updateRiskDraftField(key: keyof UpdateRiskProfileDto, value: number | boolean | string): void {
     const draft = this.riskProfileDraft();
     if (!draft) return;
+
+    // Shrinking the budget (more positions / more locked capital) can strand
+    // the position size above its new ceiling - clamp it down rather than
+    // letting Save bounce off the server validation.
+    if ((key === 'maxOpenPositions' || key === 'lockedCapitalPct') && typeof value === 'number') {
+      const next = { ...draft, [key]: value };
+      const budget = (1 - next.lockedCapitalPct) / Math.max(1, next.maxOpenPositions);
+      const cap = Math.floor(budget * 100) / 100;
+      if (next.flatPositionPct > cap) {
+        this.riskProfileDraft.set({ ...next, flatPositionPct: cap });
+        this.snackbar.open(`Position size clamped to ${Math.round(cap * 100)}% to fit the un-locked share.`, 'Dismiss', { duration: 4000 });
+        return;
+      }
+    }
 
     if (key === 'minHoldDays' && typeof value === 'number' && value >= draft.maxHoldDays) {
       // Auto-adjust rather than reject — the user is dragging toward a valid

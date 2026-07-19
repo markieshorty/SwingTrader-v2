@@ -309,6 +309,12 @@ export class StrategyLabComponent implements OnDestroy {
   rulesPositionFraction = signal(10);      // percent of equity per trade (flat, mirrors live)
   rulesLockedCapitalPct = signal(20);      // percent of account held in reserve (mirrors live)
 
+  // Position size ceiling implied by the other two rule dials:
+  // (100 - locked%) / max positions. Mirrors the live Validate() constraint
+  // so a Lab config that runs can also be applied.
+  labMaxPositionFractionPct = computed(() =>
+    Math.floor((100 - this.rulesLockedCapitalPct()) / Math.max(1, this.rulesMaxOpenPositions())));
+
   // ── Per-setup tactics editor (Phase 4) ─────────────────────────────────────
   // Prefilled from the account's live SetupTactics so an untouched grid mirrors
   // live. Editing a row overrides that setup's stop/target/guide-hold/trailing

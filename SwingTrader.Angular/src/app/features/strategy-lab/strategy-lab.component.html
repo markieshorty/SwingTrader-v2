@@ -259,7 +259,7 @@
                   <mat-form-field appearance="outline" subscriptSizing="dynamic"
                     matTooltip="Each position as a % of equity. Mirrors your live Flat position size.">
                     <mat-label>Position size (% of equity)</mat-label>
-                    <input matInput type="number" min="1" max="50" step="0.5" [ngModel]="rulesPositionFraction()"
+                    <input matInput type="number" min="1" [max]="labMaxPositionFractionPct()" step="0.5" [ngModel]="rulesPositionFraction()"
                       (ngModelChange)="rulesPositionFraction.set($event)" />
                   </mat-form-field>
                   <mat-form-field appearance="outline" subscriptSizing="dynamic"

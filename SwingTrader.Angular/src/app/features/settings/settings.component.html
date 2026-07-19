@@ -348,7 +348,7 @@
             <label>Position Size: {{ draft.flatPositionPct | percent: '1.0-0' }} of the whole account</label>
             <mat-slider
               [min]="profile.allowedRanges.flatPositionPct.min"
-              [max]="profile.allowedRanges.flatPositionPct.max"
+              [max]="flatPositionMax()"
               step="0.01"
               [disabled]="draft.autopauseTrading"
               discrete
