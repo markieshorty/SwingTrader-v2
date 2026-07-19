@@ -74,11 +74,20 @@ public static class MlSweepOptimizer
         HistoricBacktestCandidate baseline,
         Func<HistoricBacktestCandidate, CancellationToken, Task<HistoricResult>> runBacktest,
         DailyBar[] trainSpy, decimal baselineMaxDrawdownPct, int baselineTrades, CancellationToken ct,
-        int maxParallelism = 1)
+        int maxParallelism = 1,
+        // Locked gate-weight indices (the UI's lock checkboxes): held at the
+        // baseline value, softmax redistributes only the unlocked dials. The
+        // search still runs in the fixed 7-dim space (Dimensions/Lambda and
+        // ActualCandidateCount stay deterministic); coordinates beyond the
+        // unlocked count are simply inert.
+        int[]? lockedIndices = null)
     {
         var minTrades = SweepOptimizer.MinTradesFor(baselineTrades);
         var baseArr = SweepOptimizer.ToArray(baseline.Weights);
-        var liveBudget = SweepOptimizer.LiveIndices.Sum(i => baseArr[i]);
+        var lives = lockedIndices is { Length: > 0 }
+            ? SweepOptimizer.LiveIndices.Where(i => !lockedIndices.Contains(i)).ToArray()
+            : SweepOptimizer.LiveIndices;
+        var liveBudget = lives.Sum(i => baseArr[i]);
 
         // Keyed by the exact x-array instance CmaEs hands to evaluate (and
         // stores in its History), so results can be reassembled in
@@ -96,7 +105,6 @@ public static class MlSweepOptimizer
         HistoricBacktestCandidate MapToCandidate(double[] x)
         {
             var arr = (decimal[])baseArr.Clone();
-            var lives = SweepOptimizer.LiveIndices;
             var numerators = new double[lives.Length];
             double denominator = 0;
             for (var i = 0; i < lives.Length; i++)
@@ -106,7 +114,7 @@ public static class MlSweepOptimizer
             }
             for (var i = 0; i < lives.Length; i++)
                 arr[lives[i]] = Math.Round((decimal)(numerators[i] / denominator) * liveBudget, 4);
-            SweepOptimizer.RenormaliseLive(arr, liveBudget);
+            SweepOptimizer.RenormaliseLive(arr, liveBudget, lives);
 
             var threshold = Math.Clamp(
                 baseline.BuyThreshold + (decimal)x[^1] * ThresholdUnitPerCoordinate, 3.0m, 9.0m);

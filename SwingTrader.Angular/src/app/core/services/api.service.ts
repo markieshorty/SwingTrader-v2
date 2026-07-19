@@ -235,8 +235,8 @@ export class ApiService {
   // Queues the optimizer sweep (candidates around production weights, train/
   // holdout validated). Poll the returned run id like any historic run.
   // searchRules also adds trading-rule candidates to the search space.
-  runStrategyLabOptimize(searchRules = false): Observable<{ backtestRunId: number }> {
-    return this.http.post<{ backtestRunId: number }>(`${this.baseUrl}/api/strategy-lab/optimize`, { searchRules });
+  runStrategyLabOptimize(searchRules = false, lockedComponents: string[] = []): Observable<{ backtestRunId: number }> {
+    return this.http.post<{ backtestRunId: number }>(`${this.baseUrl}/api/strategy-lab/optimize`, { searchRules, lockedComponents });
   }
 
   runSetupContribution(): Observable<{ backtestRunId: number }> {

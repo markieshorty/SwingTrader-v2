@@ -210,6 +210,21 @@ public class BacktestConsumerFunction(
         return true;
     }
 
+    // Gate-weight components an optimizer run holds FIXED at the baseline
+    // value (the UI's lock checkboxes). Names are the camelCase dial keys;
+    // unknown names are ignored like ParseSetups does.
+    private static int[]? ParseLockedComponents(List<string>? names)
+    {
+        if (names is null || names.Count == 0) return null;
+        var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["rsi"] = 0, ["macd"] = 1, ["volume"] = 2,
+            ["setupQuality"] = 3, ["relativeStrength"] = 4, ["priceLevel"] = 5,
+        };
+        var idx = names.Where(map.ContainsKey).Select(n => map[n]).Distinct().ToArray();
+        return idx.Length == 0 ? null : idx;
+    }
+
     // Config resolution lives in BacktestConfigFactory (shared with the API's
     // strategy-share fingerprinting) - thin delegates keep the call sites here
     // unchanged.
@@ -384,7 +399,8 @@ public class BacktestConsumerFunction(
             MomentumHealthThreshold: profile.MomentumHealthThreshold,
             PositionFraction: profile.FlatPositionPct,
             LockedCapitalPct: profile.LockedCapitalPct);
-        var candidates = SweepOptimizer.GenerateCandidates(baseline, request.SearchRules, productionRules, accountTactics);
+        var lockedIndices = ParseLockedComponents(request.LockedComponents);
+        var candidates = SweepOptimizer.GenerateCandidates(baseline, request.SearchRules, productionRules, accountTactics, lockedIndices);
 
         // Progress the UI polls: total covers BOTH search pools (traditional
         // sweep + ML search) up front, completed ticks up per candidate below
@@ -463,7 +479,8 @@ public class BacktestConsumerFunction(
                 return r;
             },
             trainSpy, baselineTrain.MaxDrawdownPct, baselineTrain.Trades, ct,
-            maxParallelism: Math.Clamp(Environment.ProcessorCount, 1, 4));
+            maxParallelism: Math.Clamp(Environment.ProcessorCount, 1, 4),
+            lockedIndices: lockedIndices);
 
         foreach (var e in mlEvaluations)
         {

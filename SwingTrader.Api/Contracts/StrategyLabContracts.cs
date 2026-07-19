@@ -143,4 +143,7 @@ public record BacktestApplyRequest(bool ApplyWeights, bool ApplyRiskSettings);
 
 // Body of POST /strategy-lab/optimize. SearchRules adds trading-rule
 // candidates (exit/probation/position grids) to the sweep's search space.
-public record OptimizeRequest(bool SearchRules = false);
+public record OptimizeRequest(bool SearchRules = false,
+    // Gate-weight dials to hold FIXED at the current production value while
+    // the sweep redistributes the rest (camelCase keys, e.g. "setupQuality").
+    List<string>? LockedComponents = null);

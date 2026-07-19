@@ -138,17 +138,25 @@ public static class SweepOptimizer
         // The account's live per-setup tactics, so the rule search can nudge a
         // single setup's guide-hold off its real current value. Null = skip the
         // per-setup search (older callers / tests).
-        IReadOnlyDictionary<SetupType, HistoricSetupTactics>? accountTactics = null)
+        IReadOnlyDictionary<SetupType, HistoricSetupTactics>? accountTactics = null,
+        // Gate-weight indices the user LOCKED at the baseline value (the UI's
+        // lock checkboxes, e.g. "Setup quality stays 30%"). Locked dials are
+        // never nudged, shifted or randomised; the remaining budget is
+        // redistributed among the unlocked dials only.
+        int[]? lockedIndices = null)
     {
         var candidates = new List<HistoricBacktestCandidate> { baseline with { Label = "Production baseline" } };
         var names = new[] { "RSI", "MACD", "Volume", "Setup quality", "Relative strength", "Price level" };
         var baseArr = ToArray(baseline.Weights);
-        var liveBudget = LiveIndices.Sum(i => baseArr[i]); // what the live dials must always sum to
+        var live = lockedIndices is { Length: > 0 }
+            ? LiveIndices.Where(i => !lockedIndices.Contains(i)).ToArray()
+            : LiveIndices;
+        var liveBudget = live.Sum(i => baseArr[i]); // what the swept (unlocked) dials must always sum to
 
         // Single-dial nudges: ±5pp and ±10pp on each LIVE weight, other live
         // weights renormalised to keep the live total (and therefore the
         // overall sum) unchanged.
-        foreach (var i in LiveIndices)
+        foreach (var i in live)
         {
             foreach (var delta in new[] { 0.05m, -0.05m, 0.10m, -0.10m })
             {
@@ -156,7 +164,7 @@ public static class SweepOptimizer
                 var nv = arr[i] + delta;
                 if (nv < 0.02m || nv > 0.45m) continue;
                 arr[i] = nv;
-                RenormaliseLive(arr, liveBudget);
+                RenormaliseLive(arr, liveBudget, live);
                 candidates.Add(baseline with
                 {
                     Label = $"{names[i]} {(delta > 0 ? "+" : "−")}{Math.Abs(delta) * 100:0}pp",
@@ -183,22 +191,33 @@ public static class SweepOptimizer
         // each spreads/concentrates the same live budget differently, dead
         // dials untouched. Proportions follow LiveIndices order: RSI, MACD,
         // Volume, Setup quality, Relative strength, Price level.
-        var structural = new (string Label, decimal[] Proportions)[]
+        if (live.Length == LiveIndices.Length)
         {
-            ("Equal live weights", [1m / 6, 1m / 6, 1m / 6, 1m / 6, 1m / 6, 1m / 6]),
-            ("Momentum tilt (MACD/Volume heavy)", [0.10m, 0.28m, 0.28m, 0.10m, 0.14m, 0.10m]),
-            ("Pattern tilt (RSI/Setup heavy)", [0.26m, 0.08m, 0.10m, 0.30m, 0.08m, 0.18m]),
-            ("Structure tilt (RelStrength/PriceLevel heavy)", [0.12m, 0.10m, 0.12m, 0.16m, 0.25m, 0.25m]),
-        };
-        foreach (var (label, proportions) in structural)
-            candidates.Add(MakeLiveMix(baseline, baseArr, liveBudget, label, proportions));
+            var structural = new (string Label, decimal[] Proportions)[]
+            {
+                ("Equal live weights", [1m / 6, 1m / 6, 1m / 6, 1m / 6, 1m / 6, 1m / 6]),
+                ("Momentum tilt (MACD/Volume heavy)", [0.10m, 0.28m, 0.28m, 0.10m, 0.14m, 0.10m]),
+                ("Pattern tilt (RSI/Setup heavy)", [0.26m, 0.08m, 0.10m, 0.30m, 0.08m, 0.18m]),
+                ("Structure tilt (RelStrength/PriceLevel heavy)", [0.12m, 0.10m, 0.12m, 0.16m, 0.25m, 0.25m]),
+            };
+            foreach (var (label, proportions) in structural)
+                candidates.Add(MakeLiveMix(baseline, baseArr, liveBudget, label, proportions, live));
+        }
+        else if (live.Length > 1)
+        {
+            // With locks the named tilts don't apply (their proportions cover
+            // all six dials) - one even spread of the unlocked budget stands in
+            // as the "structurally different" probe.
+            var equal = Enumerable.Repeat(1m / live.Length, live.Length).ToArray();
+            candidates.Add(MakeLiveMix(baseline, baseArr, liveBudget, "Equal unlocked weights", equal, live));
+        }
 
         // Pair trades among live components: shift 4pp and 8pp from each live
         // dial to each other - every "this signal matters more than that one"
         // hypothesis, both directions, two magnitudes.
-        foreach (var from in LiveIndices)
+        foreach (var from in live)
         {
-            foreach (var to in LiveIndices)
+            foreach (var to in live)
             {
                 if (from == to) continue;
                 foreach (var magnitude in new[] { 0.04m, 0.08m })
@@ -243,9 +262,9 @@ public static class SweepOptimizer
         {
             k++;
             var arr = (decimal[])baseArr.Clone();
-            foreach (var i in LiveIndices)
+            foreach (var i in live)
                 arr[i] = Math.Max(0.02m, baseArr[i] + (decimal)(rng.NextDouble() - 0.5) * 0.30m);
-            RenormaliseLive(arr, liveBudget);
+            RenormaliseLive(arr, liveBudget, live);
 
             var jitterThreshold = k % 2 == 0;
             var nt = jitterThreshold
@@ -387,12 +406,13 @@ public static class SweepOptimizer
     // A candidate whose live dials follow the given proportions of the live
     // budget, dead dials kept at baseline.
     private static HistoricBacktestCandidate MakeLiveMix(
-        HistoricBacktestCandidate baseline, decimal[] baseArr, decimal liveBudget, string label, decimal[] liveProportions)
+        HistoricBacktestCandidate baseline, decimal[] baseArr, decimal liveBudget,
+        string label, decimal[] liveProportions, int[] live)
     {
         var arr = (decimal[])baseArr.Clone();
-        for (var k = 0; k < LiveIndices.Length; k++)
-            arr[LiveIndices[k]] = liveProportions[k] * liveBudget;
-        RenormaliseLive(arr, liveBudget); // absorb rounding so the sum is exact
+        for (var k = 0; k < live.Length; k++)
+            arr[live[k]] = liveProportions[k] * liveBudget;
+        RenormaliseLive(arr, liveBudget, live); // absorb rounding so the sum is exact
         return baseline with { Label = label, Weights = FromArray(arr) };
     }
 
@@ -579,14 +599,18 @@ public static class SweepOptimizer
     // Scales only the live components so they sum to the fixed live budget
     // (total minus the untouched dead weights) - the overall sum stays exactly
     // 1.0 without moving any dead dial.
-    internal static void RenormaliseLive(decimal[] arr, decimal liveBudget)
+    internal static void RenormaliseLive(decimal[] arr, decimal liveBudget) =>
+        RenormaliseLive(arr, liveBudget, LiveIndices);
+
+    internal static void RenormaliseLive(decimal[] arr, decimal liveBudget, int[] live)
     {
-        var liveSum = LiveIndices.Sum(i => arr[i]);
+        if (live.Length == 0) return;
+        var liveSum = live.Sum(i => arr[i]);
         if (liveSum <= 0m) return;
-        foreach (var i in LiveIndices) arr[i] = Math.Round(arr[i] / liveSum * liveBudget, 4);
+        foreach (var i in live) arr[i] = Math.Round(arr[i] / liveSum * liveBudget, 4);
         // Rounding drift lands on the largest live component so the sum is exact.
-        var drift = liveBudget - LiveIndices.Sum(i => arr[i]);
-        var maxIdx = LiveIndices.OrderByDescending(i => arr[i]).First();
+        var drift = liveBudget - live.Sum(i => arr[i]);
+        var maxIdx = live.OrderByDescending(i => arr[i]).First();
         arr[maxIdx] += drift;
     }
 }

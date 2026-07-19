@@ -672,3 +672,13 @@ h3 .bad {
 
   &:hover { opacity: 1; }
 }
+
+.lock-weights-row {
+  margin: 8px 0 4px;
+}
+
+.lock-weights-boxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 18px;
+}

@@ -123,6 +123,10 @@ public static class StrategyLabEndpoints
             if (baseline is null)
                 return Results.BadRequest(new { message = "No active production weights found to optimize around." });
 
+            // At least one dial must stay free or there's nothing to sweep.
+            if (req?.LockedComponents is { Count: >= 6 })
+                return Results.BadRequest(new { message = "Leave at least one weight unlocked - locking all six leaves nothing to optimize." });
+
             var run = await runs.AddAsync(new BacktestRun
             {
                 AccountId = ctx.AccountId,
@@ -130,7 +134,8 @@ public static class StrategyLabEndpoints
                     baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout,
                     Mode: "sweep",
                     Candidates: [baseline],
-                    SearchRules: req?.SearchRules ?? false)),
+                    SearchRules: req?.SearchRules ?? false,
+                    LockedComponents: req?.LockedComponents)),
             });
 
             await using var sender = serviceBus.CreateSender("backtest-jobs");

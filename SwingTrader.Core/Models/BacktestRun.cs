@@ -108,7 +108,11 @@ public record HistoricBacktestRequest(
     // field inherits the live book). Under a forced regime only Autopause is
     // used; under Mixed all four exposure levers apply per regime (the "3 forms"
     // editor). Defaulted so older queued requests deserialize.
-    Dictionary<string, RegimeExposureOverride>? RegimeOverrides = null);
+    Dictionary<string, RegimeExposureOverride>? RegimeOverrides = null,
+    // Sweep-only: gate-weight components the optimizer holds FIXED at the
+    // baseline value (camelCase names matching the UI dials, e.g.
+    // "setupQuality"). Defaulted so older queued requests deserialize.
+    List<string>? LockedComponents = null);
 
 // A per-regime override of the exposure envelope for the user column of a Lab
 // run. Each null field inherits that regime's live risk book, so an untouched

@@ -721,6 +721,22 @@
           expectancy (each trade's return minus SPY's move over the same days), with guardrails: at least {{ 40 }}
           trades, and a max drawdown no worse than 1.25× the baseline's.
         </p>
+        <div class="lock-weights-row">
+          <span class="muted small">
+            Lock a weight to keep it FIXED at its current production value — the sweep (both pools) redistributes
+            only the unlocked weights among themselves:
+          </span>
+          <div class="lock-weights-boxes">
+            @for (c of lockableComponents; track c.key) {
+              <mat-checkbox
+                [checked]="lockedComponents().includes(c.key)"
+                (change)="toggleLock(c.key)"
+                [disabled]="optimizing() || (lockedComponents().length >= 5 && !lockedComponents().includes(c.key))">
+                {{ lockLabel(c) }}
+              </mat-checkbox>
+            }
+          </div>
+        </div>
         <div class="search-rules-row">
           <mat-checkbox [(ngModel)]="searchRules" [disabled]="optimizing()"
             matTooltip="Adds trading-rule candidates to the search: uniform hold-day, stop, target, trailing-stop, probation and position-cap grids, a few combined risk postures, PLUS a per-setup search of each setup's guide-hold, stop and target (does OversoldRecovery want a wider stop than Breakout?). Also runs a greedy second pass — the best weight mix with the rules re-searched on top. Thorough but slower (more candidates); rule candidates face the same out-of-sample validation as every weight candidate, and a winner's rules apply to live from Optimizer History.">

@@ -879,12 +879,39 @@ export class StrategyLabComponent implements OnDestroy {
   // candidates to the sweep alongside the weight search.
   searchRules = signal(false);
 
+  // Lock checkboxes: dials held at their current production value while the
+  // sweep redistributes the rest. Keys match the API's camelCase names.
+  readonly lockableComponents = [
+    { key: 'rsi', label: 'RSI' },
+    { key: 'macd', label: 'MACD' },
+    { key: 'volume', label: 'Volume' },
+    { key: 'setupQuality', label: 'Setup quality' },
+    { key: 'relativeStrength', label: 'Relative strength' },
+    { key: 'priceLevel', label: 'Price level' },
+  ];
+  lockedComponents = signal<string[]>([]);
+
+  toggleLock(key: string): void {
+    this.lockedComponents.update((l) => (l.includes(key) ? l.filter((k) => k !== key) : [...l, key]));
+  }
+
+  lockLabel(c: { key: string; label: string }): string {
+    const w = this.productionWeights();
+    if (!w) return c.label;
+    const value = {
+      rsi: w.rsiWeight, macd: w.macdWeight, volume: w.volumeWeight,
+      setupQuality: w.setupQualityWeight, relativeStrength: w.relativeStrengthWeight,
+      priceLevel: w.priceLevelWeight,
+    }[c.key];
+    return value === undefined ? c.label : c.label + ' (' + Math.round(value * 100) + '%)';
+  }
+
   runOptimizer(): void {
     this.optimizing.set(true);
     this.sweepResult.set(null);
     this.sweepProgress.set(null);
     this.sweepResultCompletedAt.set(null); // fresh run - the "from a past run" caption no longer applies
-    this.api.runStrategyLabOptimize(this.searchRules()).subscribe({
+    this.api.runStrategyLabOptimize(this.searchRules(), this.lockedComponents()).subscribe({
       next: (r) => this.startSweepPoll(r.backtestRunId),
       error: (err) => {
         this.snackbar.open(errorMessage(err, 'Failed to queue the optimizer.'), 'Dismiss', { duration: 5000 });

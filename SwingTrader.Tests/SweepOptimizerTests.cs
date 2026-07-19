@@ -419,6 +419,40 @@ public class SweepOptimizerTests
 
         summary.Rules.Should().Be(rules);
     }
+
+    [Fact]
+    public void GenerateCandidates_LockedComponent_StaysFixedInEveryCandidate()
+    {
+        // Lock Setup quality (index 3): every generated candidate must keep it
+        // at exactly the baseline value while the rest still sum to 1.0.
+        var candidates = SweepOptimizer.GenerateCandidates(Baseline(), lockedIndices: [3]);
+
+        candidates.Should().HaveCountGreaterThan(100);
+        candidates.Should().OnlyContain(c => c.Weights.SetupQuality == ProdWeights.SetupQuality);
+        candidates.Should().OnlyContain(c => Math.Abs(Sum(c.Weights) - 1.0m) < 0.0001m);
+        // The unlocked dials are still actually searched.
+        candidates.Select(c => c.Weights.Rsi).Distinct().Count().Should().BeGreaterThan(10);
+    }
+
+    [Fact]
+    public void GenerateCandidates_MultipleLocks_AllStayFixed()
+    {
+        var candidates = SweepOptimizer.GenerateCandidates(Baseline(), lockedIndices: [3, 0]);
+
+        candidates.Should().OnlyContain(c =>
+            c.Weights.SetupQuality == ProdWeights.SetupQuality && c.Weights.Rsi == ProdWeights.Rsi);
+        candidates.Should().OnlyContain(c => Math.Abs(Sum(c.Weights) - 1.0m) < 0.0001m);
+        candidates.Select(c => c.Weights.Volume).Distinct().Count().Should().BeGreaterThan(5);
+    }
+
+    [Fact]
+    public void GenerateCandidates_NoLocks_BehavesAsBefore()
+    {
+        var unlocked = SweepOptimizer.GenerateCandidates(Baseline());
+        var explicitNull = SweepOptimizer.GenerateCandidates(Baseline(), lockedIndices: null);
+
+        explicitNull.Select(c => c.Label).Should().Equal(unlocked.Select(c => c.Label));
+    }
 }
 
 // Claude response parsing for the Lab analysis: strict-JSON happy path,
