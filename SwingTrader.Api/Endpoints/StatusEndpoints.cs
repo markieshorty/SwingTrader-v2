@@ -73,14 +73,7 @@ public static class StatusEndpoints
                 });
             }
 
-            // Job-log dates are stamped with the EASTERN date (the scheduler's
-            // clock), not UTC - querying by UTC date made every evening job
-            // (like the Sunday 20:00 ET watchlist refresh) invisible in the
-            // toolbar once UTC rolled past midnight.
-            var etZone = TimeZoneInfo.FindSystemTimeZoneById(
-                OperatingSystem.IsWindows() ? "Eastern Standard Time" : "America/New_York");
-            var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, etZone));
-            foreach (var entry in await jobLog.GetActiveOrRecentAsync(ctx.AccountId, today, since, ct))
+            foreach (var entry in await jobLog.GetActiveOrRecentAsync(ctx.AccountId, since, ct))
             {
                 var label = entry.JobType switch
                 {

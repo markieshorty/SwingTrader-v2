@@ -19,7 +19,9 @@ public interface IJobLogRepository
     Task MarkFailedAsync(int accountId, string jobType, DateOnly jobDate, string errorMessage, CancellationToken ct = default);
     Task DeleteAsync(int accountId, string jobType, DateOnly jobDate, CancellationToken ct = default);
 
-    // Today's in-flight entries plus anything that finished after
-    // completedSince - the toolbar job-status indicator's feed.
-    Task<List<JobLogEntry>> GetActiveOrRecentAsync(int accountId, DateOnly jobDate, DateTime completedSince, CancellationToken ct = default);
+    // In-flight entries (any job date - a Sunday-dated watchlist message
+    // re-run on Monday must still show) with activity in the last 24h, plus
+    // anything that finished after completedSince - the toolbar job-status
+    // indicator's feed.
+    Task<List<JobLogEntry>> GetActiveOrRecentAsync(int accountId, DateTime completedSince, CancellationToken ct = default);
 }

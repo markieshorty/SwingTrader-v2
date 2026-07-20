@@ -11,12 +11,19 @@ public class JobLogRepository(SwingTraderDbContext db) : IJobLogRepository
         db.JobLogEntries.FirstOrDefaultAsync(
             j => j.AccountId == accountId && j.JobType == jobType && j.JobDate == jobDate, ct);
 
-    public Task<List<JobLogEntry>> GetActiveOrRecentAsync(int accountId, DateOnly jobDate, DateTime completedSince, CancellationToken ct = default) =>
-        db.JobLogEntries
-            .Where(j => j.AccountId == accountId && j.JobDate == jobDate
-                && (j.Status == JobStatus.Enqueued || j.Status == JobStatus.Processing
+    // No jobDate filter for in-flight entries: a re-run of a prior day's
+    // message (Sunday's watchlist job retried Monday morning) is keyed to the
+    // ORIGINAL job date, and date-filtering made it invisible in the toolbar.
+    // The 24h activity window keeps crashed-host ghosts out instead.
+    public Task<List<JobLogEntry>> GetActiveOrRecentAsync(int accountId, DateTime completedSince, CancellationToken ct = default)
+    {
+        var activeSince = DateTime.UtcNow.AddHours(-24);
+        return db.JobLogEntries
+            .Where(j => j.AccountId == accountId
+                && (((j.Status == JobStatus.Enqueued || j.Status == JobStatus.Processing) && j.UpdatedAt >= activeSince)
                     || (j.CompletedAt != null && j.CompletedAt >= completedSince)))
             .ToListAsync(ct);
+    }
 
     public async Task<JobLogEntry> CreateEnqueuedAsync(int accountId, string jobType, DateOnly jobDate, CancellationToken ct = default)
     {
