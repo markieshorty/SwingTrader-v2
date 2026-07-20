@@ -84,7 +84,7 @@
         <span>{{ pageTitle() }}</span>
         <span class="spacer"></span>
         @for (j of runningJobs(); track j.label + j.kind) {
-          <span class="job-chip running" [title]="'Started ' + (j.startedAt | date: 'HH:mm')">
+          <span class="job-chip running" [title]="j.detail || ('Started ' + (j.startedAt | date: 'HH:mm'))">
             <mat-spinner diameter="14"></mat-spinner>
             {{ jobLabel(j) }}
           </span>

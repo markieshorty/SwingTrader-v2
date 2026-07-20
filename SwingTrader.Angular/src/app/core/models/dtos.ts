@@ -1409,6 +1409,8 @@ export interface ActiveJobDto {
   completedAt: string | null;
   progressCompleted: number | null;
   progressTotal: number | null;
+  // Live stage breadcrumb for long worker runs (watchlist refresh stages).
+  detail: string | null;
 }
 
 export interface ActiveJobsDto {

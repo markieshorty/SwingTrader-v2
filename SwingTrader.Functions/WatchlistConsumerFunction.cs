@@ -53,11 +53,20 @@ public class WatchlistConsumerFunction(
 
         try
         {
+            // Stage breadcrumbs (20 Jul 2026): a refresh is 10-15 externally
+            // rate-limited minutes, and "slow" was indistinguishable from
+            // "stuck". Each stage updates the Watchlist heartbeat, which the
+            // toolbar job chip surfaces live - a failure names its stage.
+            Task StageAsync(string text) =>
+                heartbeats.UpsertAsync(message.AccountId, "Watchlist", "Running", text);
+
             var finnhub = await clientFactory.CreateFinnhubAsync<IFinnhubClient>(message.AccountId, ct);
             var claude = await clientFactory.CreateClaudeAsync<IClaudeClient>(message.AccountId, ct);
 
+            await StageAsync("1/5 Screening the universe (quote sweep + liquidity floor)…");
             var screenResult = await screener.ScreenAsync(message.AccountId, finnhub, ct);
             var candidates = screenResult.Candidates;
+            await StageAsync($"2/5 Screened {screenResult.UniverseCount} symbols → {candidates.Count} candidates. Pausing for rate budget…");
 
             // A large chunk of the universe failing its quote fetch together
             // (rate limiting, Finnhub outage) quietly shrinks the candidate
@@ -107,6 +116,7 @@ public class WatchlistConsumerFunction(
 
             var account = await accounts.GetAsync(message.AccountId, ct);
             var targetSize = account?.TargetWatchlistSize ?? Core.Constants.CapitalRules.DefaultTargetWatchlistSize;
+            await StageAsync($"3/5 Claude selecting {targetSize} from {candidates.Count} candidates…");
             var selections = await selector.SelectAsync(claude, candidates, spyChange, vix, targetSize, ct);
             if (selections is null || selections.Count == 0)
             {
@@ -117,6 +127,7 @@ public class WatchlistConsumerFunction(
             }
 
             var updateResult = await updater.UpdateAsync(message.AccountId, selections, ct);
+            await StageAsync($"4/5 Applied: {updateResult.Added} added, {updateResult.Removed} removed, {updateResult.Kept} kept. Qualitative picks next…");
 
             // Qualitative sibling list (docs/qualitative-watchlist-plan):
             // Claude picks over the whole universe on narrative grounds,
@@ -148,6 +159,8 @@ public class WatchlistConsumerFunction(
                 await activityLog.LogAsync(message.AccountId, "WorkerRun", "Qualitative Watchlist", "Warning",
                     $"Qualitative refresh failed ({ex.GetType().Name}) — previous picks stand, retries next week.", ct);
             }
+
+            await StageAsync("5/5 Refreshing second-hop economic links…");
 
             // Second-hop economic graph refresh rides this weekly job
             // (docs/second-hop-plan): rebuild links for whichever of the

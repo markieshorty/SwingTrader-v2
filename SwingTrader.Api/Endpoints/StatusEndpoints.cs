@@ -34,6 +34,7 @@ public static class StatusEndpoints
         api.MapGet("/jobs/active", async (
             IBacktestRunRepository backtests,
             IJobLogRepository jobLog,
+            IWorkerHeartbeatRepository heartbeats,
             IAccountContext ctx,
             CancellationToken ct) =>
         {
@@ -70,6 +71,7 @@ public static class StatusEndpoints
                     completedAt = run.CompletedAt,
                     progressCompleted = run.CompletedCandidates,
                     progressTotal = run.TotalCandidates,
+                    detail = (string?)null,
                 });
             }
 
@@ -85,6 +87,15 @@ public static class StatusEndpoints
                     "Refinement" => "Refinement",
                     _ => entry.JobType,
                 };
+                // The running watchlist chip carries its live STAGE (the
+                // consumer's heartbeat breadcrumb) so a 10-15 minute run is
+                // never a silent spinner.
+                string? detail = null;
+                if (entry.JobType == "Watchlist" && entry.Status == JobStatus.Processing)
+                {
+                    var hb = await heartbeats.GetAsync("Watchlist");
+                    if (hb?.LastRunResult == "Running") detail = hb.LastRunMessage;
+                }
                 jobs.Add(new
                 {
                     kind = "worker",
@@ -100,6 +111,7 @@ public static class StatusEndpoints
                     completedAt = entry.CompletedAt,
                     progressCompleted = (int?)null,
                     progressTotal = (int?)null,
+                    detail,
                 });
             }
 
