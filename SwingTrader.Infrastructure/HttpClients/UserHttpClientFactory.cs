@@ -36,6 +36,13 @@ public class UserHttpClientFactory(
     // burning through the rest of the run's per-symbol tasks one by one.
     private static readonly TimeSpan HttpClientTimeout = TimeSpan.FromMinutes(3);
 
+    // Claude gets its own, longer ceiling (20 Jul 2026): with adaptive
+    // thinking enabled a big selection call (thinking + ~8k-token JSON) can
+    // legitimately run past 3 minutes - account 446's watchlist selection
+    // died at the ceiling while 458's identical call fit inside it. Weekly
+    // cadence tolerates slow; it does not tolerate dead.
+    private static readonly TimeSpan ClaudeTimeout = TimeSpan.FromMinutes(10);
+
     // Every Create*Async call used to build a brand-new HttpClientHandler
     // (and therefore a brand-new socket/connection pool) per call, per
     // account, per job. HttpClient/HttpClientHandler are meant to be
@@ -121,7 +128,7 @@ public class UserHttpClientFactory(
     public async Task<TClient> CreateClaudeAsync<TClient>(int accountId, CancellationToken ct = default)
     {
         var apiKey = await GetDecryptedKeyAsync(accountId, ApiKeyProviders.Claude, ct);
-        var httpClient = new HttpClient(ClaudeHandler, disposeHandler: false) { BaseAddress = new Uri(ClaudeBaseUrl), Timeout = HttpClientTimeout };
+        var httpClient = new HttpClient(ClaudeHandler, disposeHandler: false) { BaseAddress = new Uri(ClaudeBaseUrl), Timeout = ClaudeTimeout };
         httpClient.DefaultRequestHeaders.TryAddWithoutValidation("x-api-key", apiKey);
         httpClient.DefaultRequestHeaders.TryAddWithoutValidation("anthropic-version", "2023-06-01");
         return RestService.For<TClient>(httpClient);
