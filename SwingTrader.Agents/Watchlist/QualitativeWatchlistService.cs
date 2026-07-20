@@ -15,11 +15,15 @@ namespace SwingTrader.Agents.Watchlist;
 
 public interface IQualitativeWatchlistService
 {
-    // Weekly refresh of the account's qualitative AI watchlist. Returns the
-    // number of picks applied (0 = disabled / selection failed - the
-    // previous list stands, next week retries).
-    Task<int> RefreshAsync(int accountId, IClaudeClient claude, CancellationToken ct = default);
+    // Weekly refresh of the account's qualitative AI watchlist. Applied = the
+    // number of picks written; Failure is non-null when the refresh WANTED to
+    // run but couldn't (universe outage, Claude failure, every pick dropped) -
+    // the consumer surfaces that in the activity log so a stale list is never
+    // silent. A deliberately disabled feature returns (0, null).
+    Task<QualitativeRefreshResult> RefreshAsync(int accountId, IClaudeClient claude, CancellationToken ct = default);
 }
+
+public readonly record struct QualitativeRefreshResult(int Applied, string? Failure);
 
 // The qualitative sibling of the technical AI watchlist
 // (docs/qualitative-watchlist-plan): Claude picks over the WHOLE universe on
@@ -43,10 +47,10 @@ public class QualitativeWatchlistService(
     private const string ListName = "Claude Qualitative";
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
-    public async Task<int> RefreshAsync(int accountId, IClaudeClient claude, CancellationToken ct = default)
+    public async Task<QualitativeRefreshResult> RefreshAsync(int accountId, IClaudeClient claude, CancellationToken ct = default)
     {
         var cfg = config.Value;
-        if (!cfg.QualitativeEnabled) return 0;
+        if (!cfg.QualitativeEnabled) return new(0, null);
 
         // The pick count is an account-level setting (Watchlists page slider);
         // fall back to the config default only if the account can't be loaded.
@@ -57,7 +61,7 @@ public class QualitativeWatchlistService(
         if (universeNames.Count == 0)
         {
             logger.LogWarning("Qualitative watchlist skipped for account {AccountId} — universe unavailable", accountId);
-            return 0;
+            return new(0, "stock universe unavailable — previous picks stand");
         }
         var universeSymbols = universeNames.Select(u => u.Symbol).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -79,7 +83,7 @@ public class QualitativeWatchlistService(
         if (candidatePool.Count == 0)
         {
             logger.LogWarning("Qualitative watchlist skipped for account {AccountId} — every universe symbol is already tracked elsewhere", accountId);
-            return 0;
+            return new(0, "every universe symbol is already tracked on another list");
         }
 
         // Recent-context grounding: the archive's strongest movers (watchlist
@@ -89,7 +93,7 @@ public class QualitativeWatchlistService(
             DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-14)), 15, ct);
 
         var picks = await SelectAsync(claude, candidatePool, movers, qualitativeSize, ct);
-        if (picks is null) return 0; // selection failed - previous list stands
+        if (picks is null) return new(0, "Claude selection failed — previous picks stand"); 
 
         // Hallucinated tickers are a certainty, not a risk: silently drop
         // anything not in the universe (however firmly the prompt forbade
@@ -101,12 +105,12 @@ public class QualitativeWatchlistService(
         if (dropped.Count > 0)
             logger.LogWarning("Qualitative selection: {Dropped} pick(s) dropped (not in universe, or already tracked on another list): {Symbols}",
                 dropped.Count, string.Join(", ", dropped));
-        if (valid.Count == 0) return 0;
+        if (valid.Count == 0) return new(0, "every pick was dropped (hallucinated or already tracked) — previous picks stand");
 
         var namesBySymbol = universeNames
             .GroupBy(u => u.Symbol, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-        return await ApplyAsync(accountId, valid, namesBySymbol, ct);
+        return new(await ApplyAsync(accountId, valid, namesBySymbol, ct), null);
     }
 
     private async Task<List<QualitativePick>?> SelectAsync(

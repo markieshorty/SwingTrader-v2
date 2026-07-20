@@ -32,6 +32,22 @@ public class WatchlistConsumerFunction(
     {
         var message = JsonSerializer.Deserialize<WatchlistJobMessage>(messageBody)!;
         var jobDate = DateOnly.FromDateTime(message.ScheduledFor);
+
+        // Duplicate-run guard (20 Jul 2026): overlapping deliveries (a queue
+        // redelivery racing a manual/admin invocation) used to run the same
+        // account's selection twice, back to back, bursting the Claude API.
+        // A RECENT Processing entry means another run is genuinely in flight -
+        // skip. A stale one (crashed host) falls through and re-runs.
+        var existing = await jobLog.FindAsync(message.AccountId, "Watchlist", jobDate, ct);
+        if (existing is { Status: Core.Enums.JobStatus.Processing }
+            && existing.UpdatedAt > DateTime.UtcNow.AddMinutes(-90))
+        {
+            logger.LogInformation(
+                "Watchlist job for account {AccountId} on {JobDate} is already processing (since {UpdatedAt:u}) — duplicate delivery skipped",
+                message.AccountId, jobDate, existing.UpdatedAt);
+            return;
+        }
+
         await jobLog.MarkProcessingAsync(message.AccountId, "Watchlist", jobDate, ct);
         await activityLog.LogAsync(message.AccountId, "WorkerRun", "Watchlist", "Started", "Screening universe and selecting this week's watchlist…", ct);
 
@@ -109,13 +125,28 @@ public class WatchlistConsumerFunction(
             // picks and never fails the technical refresh.
             try
             {
-                var qualitativeApplied = await qualitative.RefreshAsync(message.AccountId, claude, ct);
-                if (qualitativeApplied > 0)
-                    logger.LogInformation("Qualitative watchlist: {Count} pick(s) applied (account {AccountId})", qualitativeApplied, message.AccountId);
+                var qualitativeResult = await qualitative.RefreshAsync(message.AccountId, claude, ct);
+                if (qualitativeResult.Applied > 0)
+                {
+                    logger.LogInformation("Qualitative watchlist: {Count} pick(s) applied (account {AccountId})", qualitativeResult.Applied, message.AccountId);
+                    await activityLog.LogAsync(message.AccountId, "WorkerRun", "Qualitative Watchlist", "Success",
+                        $"{qualitativeResult.Applied} qualitative pick(s) refreshed.", ct);
+                }
+                else if (qualitativeResult.Failure is not null)
+                {
+                    // Durable breadcrumb: telemetry proved unreliable on the
+                    // per-function-scaled instances (20 Jul incident), so a
+                    // failed refresh must be visible in the dashboard's
+                    // activity log, not just a maybe-ingested warning.
+                    await activityLog.LogAsync(message.AccountId, "WorkerRun", "Qualitative Watchlist", "Warning",
+                        $"Qualitative refresh did not apply: {qualitativeResult.Failure}", ct);
+                }
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Qualitative watchlist refresh failed (account {AccountId}) — retries next week", message.AccountId);
+                await activityLog.LogAsync(message.AccountId, "WorkerRun", "Qualitative Watchlist", "Warning",
+                    $"Qualitative refresh failed ({ex.GetType().Name}) — previous picks stand, retries next week.", ct);
             }
 
             // Second-hop economic graph refresh rides this weekly job

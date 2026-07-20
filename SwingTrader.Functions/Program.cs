@@ -222,6 +222,16 @@ if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("APPLICATIONINSIGHT
     builder.Services.AddOpenTelemetry()
         .UseFunctionsWorkerDefaults()
         .UseAzureMonitorExporter();
+    // ILogger records previously reached App Insights ONLY via platform
+    // console scraping of Serilog's console sink - which silently dropped
+    // everything the watchlist-consumer instances logged during the 20 Jul
+    // incident. This bridges ILogger into the OpenTelemetry pipeline so the
+    // Azure Monitor exporter ships logs directly, console or no console.
+    builder.Logging.AddOpenTelemetry(o =>
+    {
+        o.IncludeFormattedMessage = true;
+        o.IncludeScopes = true;
+    });
 }
 
 builder.Build().Run();
