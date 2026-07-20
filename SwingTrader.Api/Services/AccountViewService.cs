@@ -80,41 +80,72 @@ public class AccountViewService(
         // which showed a "profit today" on a Sunday.
         var isTradingDay = marketCalendar.IsMarketDay(DateOnly.FromDateTime(today));
 
-        var realizedToday = isTradingDay
-            ? allTrades
-                .Where(t => t.ClosedAt.HasValue && t.ClosedAt.Value.Date == today && t.RealizedPnl.HasValue)
-                .Sum(t => t.RealizedPnl!.Value)
-            : 0m;
-
-        // Total unrealized P&L across open positions is computed EVERY day
-        // (its own dashboard card; on a weekend the quotes are Friday's close,
-        // which is exactly what "current unrealized" means then) - but it only
-        // feeds the Today figure on trading days.
+        // "Today" means TODAY'S PRICE MOVE, not lifetime P&L (fixed 20 Jul
+        // 2026 - a position held overnight used to dump its entire since-entry
+        // gain into the Today figure). Per position, today's baseline is:
+        //   - opened today  -> entry price (the whole move happened today)
+        //   - held overnight -> yesterday's close (Finnhub quote 'pc')
+        // Applies to still-open positions AND ones closed today.
         var openTrades = allTrades.Where(t => t.Status == TradeStatus.Open).ToList();
-        var unrealizedOpen = 0m;
-        if (openTrades.Count > 0)
+        var closedToday = allTrades
+            .Where(t => t.ClosedAt.HasValue && t.ClosedAt.Value.Date == today)
+            .ToList();
+
+        IFinnhubClient? finnhub = null;
+        if (openTrades.Count > 0 || closedToday.Count > 0)
         {
-            IFinnhubClient? finnhub = null;
             try { finnhub = await clientFactory.CreateFinnhubAsync<IFinnhubClient>(accountId, ct); }
             catch { /* no Finnhub key - unrealized contribution stays 0 rather than failing the card */ }
+        }
 
-            foreach (var trade in openTrades)
+        // One quote per symbol (current price + previous close).
+        var quotes = new Dictionary<string, (decimal? Current, decimal? PrevClose)>(StringComparer.OrdinalIgnoreCase);
+        if (finnhub is not null)
+        {
+            foreach (var symbol in openTrades.Select(t => t.Symbol)
+                         .Concat(closedToday.Select(t => t.Symbol))
+                         .Distinct(StringComparer.OrdinalIgnoreCase))
             {
-                var currentPrice = trade.EntryPrice;
-                if (finnhub is not null)
+                try
                 {
-                    try
-                    {
-                        var quote = await finnhub.GetQuoteAsync(trade.Symbol);
-                        if (quote.CurrentPrice is > 0) currentPrice = quote.CurrentPrice.Value;
-                    }
-                    catch { /* keep the entry-price fallback for this one symbol */ }
+                    var quote = await finnhub.GetQuoteAsync(symbol);
+                    quotes[symbol] = (quote.CurrentPrice, quote.PreviousClose);
                 }
-                unrealizedOpen += (currentPrice - trade.EntryPrice) * trade.Quantity;
+                catch { /* per-symbol fallback below */ }
             }
         }
 
-        var todayPnl = isTradingDay ? realizedToday + unrealizedOpen : 0m;
+        var unrealizedOpen = 0m;   // lifetime, for the Unrealised card
+        var todayOpenMove = 0m;    // today's move only, for the Today card
+        foreach (var trade in openTrades)
+        {
+            var (current, prevClose) = quotes.GetValueOrDefault(trade.Symbol);
+            var currentPrice = current is > 0 ? current.Value : trade.EntryPrice;
+            unrealizedOpen += (currentPrice - trade.EntryPrice) * trade.Quantity;
+
+            var openedToday = trade.OpenedAt.Date == today;
+            var baseline = openedToday || prevClose is not > 0 ? trade.EntryPrice : prevClose.Value;
+            todayOpenMove += (currentPrice - baseline) * trade.Quantity;
+        }
+
+        // Trades closed today: same baseline logic against the exit price.
+        // Falls back to RealizedPnl (lifetime) when no previous close is
+        // available - for a same-day round trip they are the same number.
+        var realizedToday = 0m;
+        if (isTradingDay)
+        {
+            foreach (var trade in closedToday)
+            {
+                var openedToday = trade.OpenedAt.Date == today;
+                var (_, prevClose) = quotes.GetValueOrDefault(trade.Symbol);
+                if (!openedToday && prevClose is > 0 && trade.ExitPrice.HasValue)
+                    realizedToday += (trade.ExitPrice.Value - prevClose.Value) * trade.Quantity;
+                else if (trade.RealizedPnl.HasValue)
+                    realizedToday += trade.RealizedPnl.Value;
+            }
+        }
+
+        var todayPnl = isTradingDay ? realizedToday + todayOpenMove : 0m;
         var todayPnlPercent = snapshot.TotalCapital > 0 ? todayPnl / snapshot.TotalCapital * 100m : 0m;
         var unrealizedPnlPercent = snapshot.TotalCapital > 0 ? unrealizedOpen / snapshot.TotalCapital * 100m : 0m;
 
