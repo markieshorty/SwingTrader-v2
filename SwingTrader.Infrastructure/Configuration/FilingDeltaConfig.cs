@@ -13,7 +13,7 @@ public class FilingDeltaConfig
 
     // EDGAR requires a declared User-Agent identifying the caller; anonymous
     // requests are blocked. Fair-use cap is 10 req/s - we stay far under it.
-    public string EdgarUserAgent { get; set; } = "SwingTrader/1.0 (contact: mark.ross.short@gmail.com)";
+    public string EdgarUserAgent { get; set; } = "Cadentic/1.0 (contact: mark.ross.short@gmail.com)";
     public int EdgarDelayMs { get; set; } = 250;
 
     // Deltas predict returns over months (Lazy Prices), so the effective

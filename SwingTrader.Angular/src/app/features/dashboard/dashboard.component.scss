@@ -167,10 +167,15 @@
 .panel {
   padding: 16px;
   margin-bottom: 16px;
+}
 
-  h3 {
-    margin-top: 0;
-  }
+// Section headers ("Open Positions", "Today's Signals", ...): the browser
+// h3 default reads oversized against the card content - calmer at 15px.
+h3 {
+  margin-top: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 .muted {
