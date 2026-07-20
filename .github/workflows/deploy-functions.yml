@@ -11,6 +11,11 @@ on:
       - 'SwingTrader.Infrastructure/**'
       - 'SwingTrader.Tests/**'
   workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Skip the busy-queue wait and deploy immediately'
+        required: false
+        default: 'false'
 
 # One deploy at a time: duplicate webhook deliveries (GitHub re-sent a push
 # twice on 20 Jul 2026) raced each other into ContainerAppOperationInProgress.
@@ -61,6 +66,31 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Deploys abandon in-flight Service Bus locks (Flex Consumption gives no
+      # long drain), so a push mid-watchlist/backtest/research used to kill the
+      # run. Hold the deploy until the long-running job queues are quiet - up
+      # to 30 minutes, then proceed anyway (MaxDeliveryCount 10 is the
+      # backstop). workflow_dispatch runs can skip via force_deploy.
+      - name: Wait for long-running jobs to finish
+        if: ${{ github.event.inputs.force_deploy != 'true' }}
+        run: |
+          NAMESPACE="swingtrader-sb-prod"
+          QUEUES="watchlist-jobs backtest-jobs research-jobs refinement-jobs candlesync-jobs"
+          for i in $(seq 1 30); do
+            busy=0
+            for q in $QUEUES; do
+              n=$(az servicebus queue show                 --resource-group ${{ secrets.RESOURCE_GROUP }}                 --namespace-name $NAMESPACE --name $q                 --query countDetails.activeMessageCount -o tsv)
+              busy=$((busy + n))
+            done
+            if [ "$busy" -eq 0 ]; then
+              echo "Job queues quiet - deploying."
+              exit 0
+            fi
+            echo "Attempt $i/30: $busy active job message(s) in flight - waiting 60s..."
+            sleep 60
+          done
+          echo "::warning::Job queues still busy after 30 minutes - deploying anyway (MaxDeliveryCount=10 absorbs the churn)."
 
       - name: Deploy to Function App
         uses: azure/functions-action@v1

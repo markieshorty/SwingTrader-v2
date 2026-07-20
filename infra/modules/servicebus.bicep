@@ -30,7 +30,11 @@ resource queue 'Microsoft.ServiceBus/namespaces/queues@2022-10-01-preview' = [
     parent: namespace
     name: queueName
     properties: {
-      maxDeliveryCount: 3
+      // 10 (was 3) for job queues: Flex Consumption deploys/scale-ins abandon
+      // in-flight locks, and 30-60 min consumers burned all 3 deliveries on
+      // instance churn alone (watchlist DLQ'd 20 Jul 2026). Monitor stays at
+      // 3 - a stale tick is superseded by the next one within 5 minutes.
+      maxDeliveryCount: queueName == 'monitor-jobs' ? 3 : 10
       lockDuration: 'PT5M'
       defaultMessageTimeToLive: 'P1D'
     }
