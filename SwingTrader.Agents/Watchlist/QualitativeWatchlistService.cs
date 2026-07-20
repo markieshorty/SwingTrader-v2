@@ -125,7 +125,9 @@ public class QualitativeWatchlistService(
         var systemPrompt =
             "You are an expert equity strategist picking stocks on QUALITATIVE grounds - narrative, business " +
             "quality, crowd attention, catalysts - for a swing-trading system whose technical gate makes the " +
-            "actual entry decisions. Your picks only need to be worth WATCHING. Respond only with valid JSON.";
+            "actual entry decisions. Your picks only need to be worth WATCHING. The supplied universe is " +
+            "US-listed equities only - do not consider foreign-listed names; they will be discarded and " +
+            "waste a pick. Respond only with valid JSON.";
 
         var userPrompt =
             $"Today is {DateTime.UtcNow:yyyy-MM-dd}. Pick exactly {target} stocks worth watching for the coming " +
