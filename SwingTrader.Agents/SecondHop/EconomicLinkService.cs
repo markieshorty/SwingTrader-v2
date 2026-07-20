@@ -92,8 +92,11 @@ public class EconomicLinkService(
             "name the specific commercial relationship.";
 
         await claudeRateLimiter.WaitAsync(ct);
+        // +30k thinking headroom, same as the watchlist selections (20 Jul
+        // 2026): adaptive thinking shares max_tokens with the answer, and an
+        // answer-sized budget can come back with no text block at all.
         var response = await claude.SendMessageAsync(new ClaudeRequest(
-            claudeConfig.Value.PremiumModel, claudeConfig.Value.MaxTokens, systemPrompt,
+            claudeConfig.Value.PremiumModel, claudeConfig.Value.MaxTokens + 30000, systemPrompt,
             [new ClaudeMessage("user", userPrompt)]));
         var raw = response.Content.FirstOrDefault(c => c.Type == "text")?.Text ?? string.Empty;
 
