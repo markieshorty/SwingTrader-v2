@@ -92,7 +92,12 @@ public class QualitativeWatchlistService(
         var movers = await sentimentArchive.GetTopMoversSinceAsync(
             DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-14)), 15, ct);
 
-        var picks = await SelectAsync(claude, candidatePool, movers, qualitativeSize, ct);
+        // Over-ask by 10: the validity filter below routinely drops a few
+        // picks (memory-recalled tickers outside the universe, symbols
+        // already tracked elsewhere), which used to leave the list short of
+        // target (7/10 and 6/10 on 20 Jul 2026). Extra picks cost ~40 tokens
+        // each; the first qualitativeSize survivors are applied.
+        var picks = await SelectAsync(claude, candidatePool, movers, qualitativeSize + 10, ct);
         if (picks is null) return new(0, "Claude selection failed — previous picks stand"); 
 
         // Hallucinated tickers are a certainty, not a risk: silently drop
@@ -106,6 +111,7 @@ public class QualitativeWatchlistService(
             logger.LogWarning("Qualitative selection: {Dropped} pick(s) dropped (not in universe, or already tracked on another list): {Symbols}",
                 dropped.Count, string.Join(", ", dropped));
         if (valid.Count == 0) return new(0, "every pick was dropped (hallucinated or already tracked) — previous picks stand");
+        if (valid.Count > qualitativeSize) valid = valid.Take(qualitativeSize).ToList();
 
         var namesBySymbol = universeNames
             .GroupBy(u => u.Symbol, StringComparer.OrdinalIgnoreCase)
