@@ -341,8 +341,10 @@ public class FilingSyncService(
             "materiality 0. Judge only what is IN the diff - do not speculate beyond it.";
 
         await claudeRateLimiter.WaitAsync(ct);
+        // +30k adaptive-thinking headroom (20 Jul 2026): Sonnet 5's
+        // thinking shares max_tokens with the answer and can starve it.
         var response = await claude.SendMessageAsync(new ClaudeRequest(
-            model, claudeConfig.Value.MaxTokens, systemPrompt,
+            model, claudeConfig.Value.MaxTokens + 30000, systemPrompt,
             [new ClaudeMessage("user", userPrompt)]));
         var raw = response.Content.FirstOrDefault(c => c.Type == "text")?.Text ?? string.Empty;
 

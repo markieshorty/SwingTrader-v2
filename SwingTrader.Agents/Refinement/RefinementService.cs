@@ -180,9 +180,11 @@ public class RefinementService(
                               "should regime-specific weights be applied or is general data sufficient? Max 5 sentences total.";
             }
 
+            // +30k adaptive-thinking headroom (20 Jul 2026): Sonnet 5's
+            // thinking shares max_tokens with the answer and can starve it.
             var request = new ClaudeRequest(
                 claudeConfig.Value.RefinementModel ?? claudeConfig.Value.PremiumModel,
-                claudeConfig.Value.MaxTokens,
+                claudeConfig.Value.MaxTokens + 30000,
                 systemPrompt,
                 [new ClaudeMessage("user", userPrompt)]);
 

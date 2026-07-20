@@ -84,8 +84,10 @@ public class StrategyLabAnalysisService(
         {
             var claude = await clientFactory.CreateClaudeAsync<IClaudeClient>(accountId, ct);
             var cfg = claudeConfig.Value;
+            // +30k adaptive-thinking headroom (20 Jul 2026): Sonnet 5's
+            // thinking shares max_tokens with the answer and can starve it.
             var response = await claude.SendMessageAsync(new ClaudeRequest(
-                cfg.RefinementModel ?? cfg.PremiumModel, cfg.MaxTokens,
+                cfg.RefinementModel ?? cfg.PremiumModel, cfg.MaxTokens + 30000,
                 LabAnalysisPrompts.SystemPrompt,
                 [new ClaudeMessage("user", userPrompt)]));
 
