@@ -20,6 +20,17 @@ public class KeepWarmFunction(IHttpClientFactory httpClientFactory, IConfigurati
             return;
         }
 
+        // Overnight quiet window (20 Jul 2026): keeping a replica warm 24/7
+        // was ~30% of the Container Apps bill for hours nobody uses. Between
+        // 23:00 and 06:00 UTC the app scales to zero; the first morning
+        // request pays a single cold start.
+        var hourUtc = DateTime.UtcNow.Hour;
+        if (hourUtc >= 23 || hourUtc < 6)
+        {
+            logger.LogDebug("KeepWarm skipped - overnight quiet window (23:00-06:00 UTC).");
+            return;
+        }
+
         try
         {
             var client = httpClientFactory.CreateClient("KeepWarm");

@@ -232,6 +232,12 @@ if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("APPLICATIONINSIGHT
         o.IncludeFormattedMessage = true;
         o.IncludeScopes = true;
     });
+    // Ingestion cap (20 Jul 2026): the bridge ships EVERYTHING, and EF logs
+    // every SQL statement at Information - App Insights bills per GB, so
+    // framework chatter goes Warning-and-up while app logs stay verbose.
+    builder.Logging.AddFilter("Microsoft.EntityFrameworkCore", LogLevel.Warning);
+    builder.Logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
+    builder.Logging.AddFilter("Azure", LogLevel.Warning);
 }
 
 builder.Build().Run();

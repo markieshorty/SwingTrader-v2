@@ -89,14 +89,19 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      # Build on the (free) GitHub runner and push, instead of `az acr build`:
+      # ACR Tasks billed ~9 GBP/month of "Task vCPU Duration" for compute the
+      # runner already provides (found 20 Jul 2026 in the cost breakdown).
       - name: Build and push to ACR
         run: |
-          az acr build \
-            --registry ${{ secrets.ACR_NAME }} \
-            --image ${{ env.IMAGE_NAME }}:${{ github.sha }} \
-            --image ${{ env.IMAGE_NAME }}:latest \
+          az acr login --name ${{ secrets.ACR_NAME }}
+          docker build \
             --file SwingTrader.Api/Dockerfile \
+            --tag ${{ secrets.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --tag ${{ secrets.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest \
             .
+          docker push ${{ secrets.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker push ${{ secrets.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
 
       - name: Register ACR credentials on Container App
         run: |
