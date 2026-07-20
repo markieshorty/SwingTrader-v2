@@ -33,6 +33,31 @@ public class WatchlistConsumerFunction(
         var message = JsonSerializer.Deserialize<WatchlistJobMessage>(messageBody)!;
         var jobDate = DateOnly.FromDateTime(message.ScheduledFor);
 
+        // Qualitative-only repair run: no screening, no selection, no job-log
+        // involvement (so it can never collide with, or block, the weekly
+        // full run). Refreshes the AI picks and leaves everything else alone.
+        if (message.QualitativeOnly == true)
+        {
+            try
+            {
+                var qClaude = await clientFactory.CreateClaudeAsync<IClaudeClient>(message.AccountId, ct);
+                var result = await qualitative.RefreshAsync(message.AccountId, qClaude, ct);
+                if (result.Applied > 0)
+                    await activityLog.LogAsync(message.AccountId, "WorkerRun", "Qualitative Watchlist", "Success",
+                        $"{result.Applied} qualitative pick(s) refreshed (qualitative-only run).", ct);
+                else
+                    await activityLog.LogAsync(message.AccountId, "WorkerRun", "Qualitative Watchlist", "Warning",
+                        $"Qualitative-only refresh did not apply: {result.Failure ?? "feature disabled"}", ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Qualitative-only refresh failed (account {AccountId})", message.AccountId);
+                await activityLog.LogAsync(message.AccountId, "WorkerRun", "Qualitative Watchlist", "Warning",
+                    $"Qualitative-only refresh failed ({ex.GetType().Name}) — previous picks stand.", ct);
+            }
+            return;
+        }
+
         // Duplicate-run guard (20 Jul 2026): overlapping deliveries (a queue
         // redelivery racing a manual/admin invocation) used to run the same
         // account's selection twice, back to back, bursting the Claude API.

@@ -16,7 +16,11 @@ namespace SwingTrader.Core.Models;
 // deserialize.
 public record ResearchJobMessage(int AccountId, string JobId, DateOnly TradeDate, DateTime ScheduledFor, string JobType = "Research", bool ForceRescore = false);
 
-public record WatchlistJobMessage(int AccountId, string JobId, DateTime ScheduledFor);
+// QualitativeOnly (nullable so pre-existing queued messages still
+// deserialize): true = skip screening/selection entirely and refresh only the
+// account's qualitative AI watchlist - an out-of-band repair path for when
+// the weekly run's qualitative half failed (first used 20 Jul 2026).
+public record WatchlistJobMessage(int AccountId, string JobId, DateTime ScheduledFor, bool? QualitativeOnly = null);
 
 public record ReportJobMessage(int AccountId, string JobId, DateOnly ReportDate);
 
