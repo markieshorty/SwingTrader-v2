@@ -203,6 +203,31 @@ public class WatchlistRepository(SwingTraderDbContext db) : IWatchlistRepository
         return watchlist;
     }
 
+    public async Task<Watchlist> EnsureSystemWatchlistAsync(int accountId, WatchlistType type, string name, string? description, CancellationToken ct = default)
+    {
+        if (type == WatchlistType.Manual)
+            throw new ValidationException("Manual lists go through CreateWatchlistAsync.");
+
+        var existing = await db.Watchlists.FirstOrDefaultAsync(w => w.AccountId == accountId && w.Type == type, ct);
+        if (existing is not null) return existing;
+
+        var now = DateTime.UtcNow;
+        var watchlist = new Watchlist
+        {
+            AccountId = accountId,
+            Name = name,
+            Type = type,
+            Description = description,
+            IsEnabled = false,   // system lists arrive disabled: a human reviews, then enables
+            IsDefault = false,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+        db.Watchlists.Add(watchlist);
+        await db.SaveChangesAsync(ct);
+        return watchlist;
+    }
+
     public async Task UpdateWatchlistAsync(int accountId, int watchlistId, string name, string? description, bool topMoversEnabled, CancellationToken ct = default)
     {
         var watchlist = await db.Watchlists.FirstOrDefaultAsync(w => w.AccountId == accountId && w.Id == watchlistId, ct)

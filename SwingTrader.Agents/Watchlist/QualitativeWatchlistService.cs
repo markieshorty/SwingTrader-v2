@@ -231,10 +231,8 @@ public class QualitativeWatchlistService(
         var account = await accountRepo.GetAsync(accountId, ct)
             ?? throw new InvalidOperationException($"Account {accountId} not found.");
 
-        var all = await watchlists.GetAllWatchlistsAsync(accountId, ct);
-        var list = all.FirstOrDefault(w => w.Type == WatchlistType.AiQualitative)
-            ?? await watchlists.CreateWatchlistAsync(accountId, ListName, WatchlistType.AiQualitative,
-                "Weekly Claude picks on qualitative grounds — review the rationales, then enable.", ct);
+        var list = await watchlists.EnsureSystemWatchlistAsync(accountId, WatchlistType.AiQualitative, ListName,
+            "Weekly Claude picks on qualitative grounds — review the rationales, then enable.", ct);
 
         var current = await watchlists.GetSymbolsAsync(accountId, list.Id, ct);
         var currentSymbols = current.Select(i => i.Symbol).ToHashSet(StringComparer.OrdinalIgnoreCase);
