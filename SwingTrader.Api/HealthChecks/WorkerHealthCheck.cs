@@ -20,10 +20,14 @@ public class WorkerHealthCheck(SwingTraderDbContext db) : IHealthCheck
         // Cadence-aware (see WorkerCadence): the previous flat 25h threshold
         // flagged the weekly workers (CandleSync, Watchlist) stale for most
         // of every week, keeping this check permanently Degraded.
+        // Heartbeats are per-account rows; a worker counts as alive if ANY
+        // account has a fresh row (legacy system-account rows go stale by
+        // design once per-account rows take over).
         var now = DateTime.UtcNow;
         var stale = heartbeats
-            .Where(h => Services.WorkerCadence.IsStale(h.WorkerName, h.LastHeartbeatAt, now))
-            .Select(h => h.WorkerName)
+            .GroupBy(h => h.WorkerName)
+            .Where(g => Services.WorkerCadence.IsStale(g.Key, g.Max(h => h.LastHeartbeatAt), now))
+            .Select(g => g.Key)
             .ToList();
 
         return stale.Count == 0

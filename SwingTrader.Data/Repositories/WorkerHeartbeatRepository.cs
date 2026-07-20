@@ -9,14 +9,14 @@ public class WorkerHeartbeatRepository(SwingTraderDbContext context, IActivityLo
     public async Task UpsertAsync(int accountId, string workerName, string result, string? message)
     {
         var existing = await context.WorkerHeartbeats
-            .FirstOrDefaultAsync(x => x.WorkerName == workerName);
+            .FirstOrDefaultAsync(x => x.AccountId == accountId && x.WorkerName == workerName);
 
         var now = DateTime.UtcNow;
         if (existing is null)
         {
             context.WorkerHeartbeats.Add(new WorkerHeartbeat
             {
-                AccountId = SwingTraderDbContext.SystemAccountId,
+                AccountId = accountId,
                 WorkerName = workerName,
                 LastHeartbeatAt = now,
                 LastRunResult = result,
@@ -37,8 +37,8 @@ public class WorkerHeartbeatRepository(SwingTraderDbContext context, IActivityLo
         await activityLog.LogAsync(accountId, "WorkerRun", workerName, result, message);
     }
 
-    public Task<WorkerHeartbeat?> GetAsync(string workerName) =>
-        context.WorkerHeartbeats.FirstOrDefaultAsync(x => x.WorkerName == workerName);
+    public Task<WorkerHeartbeat?> GetAsync(int accountId, string workerName) =>
+        context.WorkerHeartbeats.FirstOrDefaultAsync(x => x.AccountId == accountId && x.WorkerName == workerName);
 
     public async Task<IEnumerable<WorkerHeartbeat>> GetAllAsync() =>
         await context.WorkerHeartbeats.OrderBy(x => x.WorkerName).ToListAsync();

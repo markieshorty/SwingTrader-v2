@@ -294,10 +294,12 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.HasKey(x => x.Id);
             e.Property(x => x.WorkerName).IsRequired().HasMaxLength(50);
             e.Property(x => x.LastRunResult).IsRequired().HasMaxLength(20);
-            // Worker heartbeats are process-wide (one Functions app), not
-            // per-account, but still carry AccountId via BaseEntity - kept
-            // unique on WorkerName alone rather than per-account.
-            e.HasIndex(x => x.WorkerName).IsUnique();
+            // Per-account since 20 Jul 2026: heartbeats were unique on
+            // WorkerName alone, so two accounts' watchlist runs in flight at
+            // once overwrote each other's stage breadcrumbs. Legacy rows
+            // (AccountId = SystemAccountId) stay valid under this index and
+            // simply go stale as per-account rows take over.
+            e.HasIndex(x => new { x.AccountId, x.WorkerName }).IsUnique();
         });
 
         modelBuilder.Entity<RefinementSuggestion>(e =>

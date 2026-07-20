@@ -93,7 +93,7 @@ public static class StatusEndpoints
                 string? detail = null;
                 if (entry.JobType == "Watchlist" && entry.Status == JobStatus.Processing)
                 {
-                    var hb = await heartbeats.GetAsync("Watchlist");
+                    var hb = await heartbeats.GetAsync(ctx.AccountId, "Watchlist");
                     if (hb?.LastRunResult == "Running") detail = hb.LastRunMessage;
                 }
                 jobs.Add(new

@@ -25,7 +25,7 @@ public class WorkerHeartbeatRepositoryTests
 
         await repo.UpsertAsync(1, "ResearchWorker", "Success", "ran fine");
 
-        var result = await repo.GetAsync("ResearchWorker");
+        var result = await repo.GetAsync(1, "ResearchWorker");
         result.Should().NotBeNull();
         result!.LastRunResult.Should().Be("Success");
     }
@@ -40,7 +40,7 @@ public class WorkerHeartbeatRepositoryTests
         await repo.UpsertAsync(1, "ResearchWorker", "Failed", "second run");
 
         db.WorkerHeartbeats.Count(w => w.WorkerName == "ResearchWorker").Should().Be(1);
-        var result = await repo.GetAsync("ResearchWorker");
+        var result = await repo.GetAsync(1, "ResearchWorker");
         result!.LastRunResult.Should().Be("Failed");
         result.UpdatedAt.Should().NotBe(default);
     }
@@ -62,7 +62,7 @@ public class WorkerHeartbeatRepositoryTests
         await using var db = CreateDb();
         var repo = new WorkerHeartbeatRepository(db, _activityLog);
 
-        var result = await repo.GetAsync("Nonexistent");
+        var result = await repo.GetAsync(1, "Nonexistent");
 
         result.Should().BeNull();
     }
@@ -79,5 +79,19 @@ public class WorkerHeartbeatRepositoryTests
 
         result.Should().HaveCount(2);
         result[0].WorkerName.Should().Be("AWorker");
+    }
+
+    [Fact]
+    public async Task UpsertAsync_SameWorkerDifferentAccounts_KeepsSeparateRows()
+    {
+        await using var db = CreateDb();
+        var repo = new WorkerHeartbeatRepository(db, _activityLog);
+
+        await repo.UpsertAsync(1, "Watchlist", "Running", "1/5 screening");
+        await repo.UpsertAsync(2, "Watchlist", "Running", "3/5 selecting");
+
+        db.WorkerHeartbeats.Count(w => w.WorkerName == "Watchlist").Should().Be(2);
+        (await repo.GetAsync(1, "Watchlist"))!.LastRunMessage.Should().Be("1/5 screening");
+        (await repo.GetAsync(2, "Watchlist"))!.LastRunMessage.Should().Be("3/5 selecting");
     }
 }
