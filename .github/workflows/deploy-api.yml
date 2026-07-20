@@ -13,6 +13,13 @@ on:
       - 'SwingTrader.Tests/**'
   workflow_dispatch:
 
+# One deploy at a time: duplicate webhook deliveries (GitHub re-sent a push
+# twice on 20 Jul 2026) raced each other into ContainerAppOperationInProgress.
+# Queued, never cancelled - a deploy that started should finish.
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+
 permissions:
   id-token: write
   contents: read
