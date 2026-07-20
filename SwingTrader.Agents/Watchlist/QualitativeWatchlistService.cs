@@ -147,15 +147,27 @@ public class QualitativeWatchlistService(
 
         try
         {
-            await claudeRateLimiter.WaitAsync(ct);
             // Same truncation guard as the technical selection: the response
             // budget must scale with the pick count or a large target comes
-            // back as unparseable half-JSON.
-            var response = await claude.SendMessageAsync(new ClaudeRequest(
+            // back as unparseable half-JSON. Same empty-body diagnostics +
+            // single retry too (20 Jul 2026: 200 responses with no text block).
+            var request = new ClaudeRequest(
                 claudeConfig.Value.WatchlistModel ?? claudeConfig.Value.PremiumModel,
                 Math.Max(claudeConfig.Value.MaxTokens, target * 170 + 1000), systemPrompt,
-                [new ClaudeMessage("user", userPrompt)]));
-            var raw = response.Content.FirstOrDefault(c => c.Type == "text")?.Text ?? string.Empty;
+                [new ClaudeMessage("user", userPrompt)]);
+            var raw = string.Empty;
+            for (var attempt = 1; attempt <= 2 && raw.Length == 0; attempt++)
+            {
+                await claudeRateLimiter.WaitAsync(ct);
+                var response = await claude.SendMessageAsync(request);
+                raw = response.Content.FirstOrDefault(c => c.Type == "text")?.Text ?? string.Empty;
+                if (raw.Length == 0)
+                    logger.LogWarning(
+                        "Claude qualitative selection returned no text (attempt {Attempt}): stop_reason={StopReason}, blocks=[{Blocks}], output_tokens={OutputTokens}",
+                        attempt, response.StopReason,
+                        string.Join(",", response.Content.Select(c => c.Type)),
+                        response.Usage?.OutputTokens);
+            }
             return ParsePicks(raw);
         }
         catch (Exception ex)

@@ -81,9 +81,23 @@ public class WatchlistSelectionService(
                 systemPrompt,
                 [new ClaudeMessage("user", userPrompt)]);
 
-            await claudeRateLimiter.WaitAsync(ct);
-            var response = await claude.SendMessageAsync(request);
-            var raw = response.Content.FirstOrDefault(c => c.Type == "text")?.Text ?? string.Empty;
+            // 20 Jul 2026: a run came back HTTP 200 with NO text block at all
+            // ("input does not contain any JSON tokens") and the old code threw
+            // away the response shape, leaving nothing to diagnose. Log the
+            // shape and retry once - an empty body has so far been transient.
+            var raw = string.Empty;
+            for (var attempt = 1; attempt <= 2 && raw.Length == 0; attempt++)
+            {
+                await claudeRateLimiter.WaitAsync(ct);
+                var response = await claude.SendMessageAsync(request);
+                raw = response.Content.FirstOrDefault(c => c.Type == "text")?.Text ?? string.Empty;
+                if (raw.Length == 0)
+                    logger.LogWarning(
+                        "Claude watchlist selection returned no text (attempt {Attempt}): stop_reason={StopReason}, blocks=[{Blocks}], output_tokens={OutputTokens}",
+                        attempt, response.StopReason,
+                        string.Join(",", response.Content.Select(c => c.Type)),
+                        response.Usage?.OutputTokens);
+            }
             var text = ClaudeJson.Extract(raw);
 
             var parsed = JsonSerializer.Deserialize<ClaudeWatchlistResponse>(text, JsonOpts);
