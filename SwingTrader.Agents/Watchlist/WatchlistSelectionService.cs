@@ -54,6 +54,9 @@ public class WatchlistSelectionService(
             "The rank column is a cross-sectional percentile vs today's whole screened universe " +
             "(blend of momentum magnitude and dollar volume; 100 = strongest). Treat it as one input, not a verdict.\n\n" +
             $"Candidates (symbol | name | change% | volume | rank | flag):\n{candidateLines}\n\n" +
+            $"IMPORTANT: return EXACTLY {target} picks. A downstream computer system relies on the count " +
+            $"being exactly {target} - count your selections before responding and add or remove picks until " +
+            $"the \"selected\" array has exactly {target} entries.\n\n" +
             "Respond with this exact JSON:\n" +
             "{\n" +
             "  \"selected\": [\n" +

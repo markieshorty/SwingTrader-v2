@@ -138,6 +138,9 @@ public class QualitativeWatchlistService(
             $"Recent notable news-sentiment moves (from our own scored archive):\n{moverLines}\n\n" +
             "You MUST pick only from this universe (symbol | company):\n" +
             $"{universeLines}\n\n" +
+            $"IMPORTANT: return EXACTLY {target} picks. A downstream computer system relies on the count " +
+            $"being exactly {target} - count your picks before responding and add or remove entries until " +
+            $"the \"picks\" array has exactly {target}.\n\n" +
             "Respond with this exact JSON:\n" +
             "{\n" +
             "  \"picks\": [\n" +
