@@ -10,7 +10,7 @@ public class EmailConfig
     public string SmtpHost { get; set; } = string.Empty;
     public int SmtpPort { get; set; } = 587;
     public string FromAddress { get; set; } = string.Empty;
-    // Display name shown on the "From" line, e.g. "Acme Trading <support@…>".
+    // Display name shown on the "From" line, e.g. "Cadentic <support@…>".
     // Optional - EmailService falls back to the brand name if empty.
     public string FromName { get; set; } = string.Empty;
     public string Username { get; set; } = string.Empty;

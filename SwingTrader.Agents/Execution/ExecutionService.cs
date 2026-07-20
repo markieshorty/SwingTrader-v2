@@ -460,7 +460,7 @@ public class ExecutionService(
             {
                 var mdLines = new List<string>
                 {
-                    $"# Acme Trading Execution Report — {date:dd MMM yyyy}",
+                    $"# Cadentic Execution Report — {date:dd MMM yyyy}",
                     string.Empty,
                     $"| | Count |",
                     $"|---|---|",
@@ -486,7 +486,7 @@ public class ExecutionService(
                     await emailService.SendSimpleEmailAsync(
                         toAddresses,
                         string.Join(Environment.NewLine, mdLines),
-                        $"Acme Trading Execution — {date:dd MMM yyyy}");
+                        $"Cadentic Execution — {date:dd MMM yyyy}");
             }
             catch (Exception ex)
             {

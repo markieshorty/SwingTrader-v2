@@ -212,7 +212,7 @@ public static class AccountEndpoints
                     {
                         message = $"You have {openInCurrentMode.Count} open {account.TradingMode} position(s) " +
                             $"({string.Join(", ", openInCurrentMode.Select(t => t.Symbol))}). " +
-                            $"Acme Trading stops monitoring them the moment you switch modes.",
+                            $"Cadentic stops monitoring them the moment you switch modes.",
                         canForce = true,
                     });
             }

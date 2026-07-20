@@ -1,6 +1,6 @@
 # Branding, marketing site, custom domains & email
 
-Everything user-facing currently uses the **placeholder brand `Acme Trading`** and
+Everything user-facing currently uses the **placeholder brand `Cadentic`** and
 **`example.com`** placeholder domains, so nothing here is committed to a final
 name. This doc is the checklist to (a) rename to the real brand and (b) stand up
 the marketing site, custom domains and the `support@` sender.
@@ -16,13 +16,13 @@ the marketing site, custom domains and the `support@` sender.
 
 User-facing text only. It's a single find/replace of the placeholder token:
 
-- Replace **`Acme Trading`** → your real brand across `SwingTrader.Angular/src/**`,
+- Replace **`Cadentic`** → your real brand across `SwingTrader.Angular/src/**`,
   the email subjects/body in `SwingTrader.Agents/**`, `SwingTrader.Infrastructure/**`,
   `SwingTrader.Api/**`, `SwingTrader.Functions/**`, and `marketing/**`.
-- The email sender display name falls back to `"Acme Trading"` in
+- The email sender display name falls back to `"Cadentic"` in
   `EmailService.cs`; either update that literal or set the `Email:FromName`
   Key Vault secret (preferred — no redeploy).
-- In `marketing/index.html` + `styles.css`, replace `Acme Trading` and swap the
+- In `marketing/index.html` + `styles.css`, replace `Cadentic` and swap the
   `example.com` links (`app.example.com`, `support@example.com`).
 
 ## 2. Marketing site (Azure Static Web App)
@@ -80,7 +80,7 @@ sender is a secrets change, not a code change. Set these Key Vault secrets
 | `Email--SmtpHost` | `smtp.office365.com` |
 | `Email--SmtpPort` | `587` |
 | `Email--FromAddress` | `support@<domain>` |
-| `Email--FromName` | your brand (e.g. `Acme Trading`) |
+| `Email--FromName` | your brand (e.g. `Cadentic`) |
 | `Email--Username` | `support@<domain>` |
 | `Email--Password` | the mailbox password **or an app password** |
 

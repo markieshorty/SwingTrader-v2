@@ -503,7 +503,7 @@ public class ReportGenerationService(
         var now = ToEastern(DateTime.UtcNow);
         var runTime = $"{cfg.RunHourEastern}:{cfg.RunMinuteEastern:D2}";
 
-        sb.AppendLine($"# \U0001F4CA Acme Trading Daily Brief");
+        sb.AppendLine($"# \U0001F4CA Cadentic Daily Brief");
         sb.AppendLine($"### {reportDate.DayOfWeek} {reportDate:dd MMM yyyy}");
         sb.AppendLine($"#### {narratives.MarketContext}");
         sb.AppendLine();

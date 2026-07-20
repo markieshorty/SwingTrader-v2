@@ -31,7 +31,7 @@ describe('AppComponent', () => {
     expect(app).toBeTruthy();
   });
 
-  it('should render the sidenav with the Acme Trading logo on an in-app route', async () => {
+  it('should render the sidenav with the Cadentic logo on an in-app route', async () => {
     // The default '/' route is the public splash page (no chrome) - the
     // sidenav only renders on actual in-app routes, so navigate there first.
     const router = TestBed.inject(Router);
@@ -40,7 +40,7 @@ describe('AppComponent', () => {
     const fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.logo')?.textContent).toContain('Acme Trading');
+    expect(compiled.querySelector('.logo')?.textContent).toContain('Cadentic');
   });
 
   it('should not render the sidenav on the splash route', () => {

@@ -118,7 +118,7 @@ public class MonitorService(
                     ? $"**New {account.TradingMode} entries have been auto-paused** — resume them in Settings › Trading when you're ready.\n\n"
                     : "") +
                 $"**No positions were closed automatically — review and close manually in Trading212.**",
-                "\U0001F6A8 Acme Trading — CIRCUIT BREAKER TRIGGERED, manual review needed",
+                "\U0001F6A8 Cadentic — CIRCUIT BREAKER TRIGGERED, manual review needed",
                 NotificationCategory.CircuitBreaker);
 
             return new MonitorCycleResult(openTrades.Count, 0, flagged, true);
@@ -301,7 +301,7 @@ public class MonitorService(
                 "\n\nSwingTrader tried to close these positions automatically but the order failed " +
                 "(see the activity log for details). It will retry next cycle, but you may want to " +
                 "close them manually in Trading212 if this persists.",
-                $"Acme Trading — {flaggedExits.Count} position(s) failed to auto-close",
+                $"Cadentic — {flaggedExits.Count} position(s) failed to auto-close",
                 NotificationCategory.Execution);
         }
 
@@ -362,7 +362,7 @@ public class MonitorService(
                     $"New {mode} entries are paused because this regime's risk book has auto-pause on; open positions are still " +
                     $"managed (stops, targets and exits keep working). Entries resume automatically when the regime moves to a " +
                     $"book that permits them. You can change this per regime on the Risk Management page.",
-                    "Acme Trading — entries paused (market regime)",
+                    "Cadentic — entries paused (market regime)",
                     NotificationCategory.CircuitBreaker);
                 logger.LogWarning("Regime autopause engaged for account {AccountId} ({Mode}): {Label}", account.Id, mode, regime.Label);
             }
@@ -374,7 +374,7 @@ public class MonitorService(
                     $"{mode} entries auto-resumed — {regime.Label} permits entries.");
                 await SendAlertAsync(account.Id,
                     $"# ✅ Entries resumed\n\n{mode} entries have auto-resumed — {regime.Label}.",
-                    "Acme Trading — entries resumed",
+                    "Cadentic — entries resumed",
                     NotificationCategory.CircuitBreaker);
                 logger.LogInformation("Regime autopause released for account {AccountId} ({Mode}): {Label}", account.Id, mode, regime.Label);
             }

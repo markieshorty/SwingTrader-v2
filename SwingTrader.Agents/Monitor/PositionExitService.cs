@@ -164,12 +164,12 @@ public class PositionExitService(
             // fill reconciliation (T212's realisedProfitLoss).
             var markdown =
                 $"# \U0001F4C9 {label} — {trade.Symbol}\n\n" +
-                $"Position closed automatically by Acme Trading — no action needed in Trading212.\n\n" +
+                $"Position closed automatically by Cadentic — no action needed in Trading212.\n\n" +
                 $"**Exit price:** ${exitPrice:F2}\n" +
                 $"**Estimated P&L:** {pnlSign}${realizedPnl:F2} (confirmed £ figure follows T212's fill)\n" +
                 $"**Reason:** {reasonDetail}";
 
-            await emailService.SendSimpleEmailAsync(toAddresses, markdown, $"Acme Trading — {trade.Symbol} closed ({label})");
+            await emailService.SendSimpleEmailAsync(toAddresses, markdown, $"Cadentic — {trade.Symbol} closed ({label})");
         }
         catch (Exception ex)
         {

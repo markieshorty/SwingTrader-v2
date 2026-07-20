@@ -38,10 +38,10 @@ public class EmailService(IOptions<EmailConfig> options, ILogger<EmailService> l
 
         using var message = new MailMessage
         {
-            // Display name so recipients see "Acme Trading <support@…>" rather
+            // Display name so recipients see "Cadentic <support@…>" rather
             // than a bare address. Falls back to the brand default if unset.
             From = new MailAddress(_config.FromAddress,
-                string.IsNullOrWhiteSpace(_config.FromName) ? "Acme Trading" : _config.FromName),
+                string.IsNullOrWhiteSpace(_config.FromName) ? "Cadentic" : _config.FromName),
             Subject = subject,
             Body = htmlBody,
             IsBodyHtml = true
@@ -66,7 +66,7 @@ public class EmailService(IOptions<EmailConfig> options, ILogger<EmailService> l
         var bodyHtml = Markdown.ToHtml(reportMarkdown, Pipeline);
         var fullHtml = WrapHtml(bodyHtml);
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        await SendAsync(recipients, $"Acme Trading Daily Brief — {today:dd MMM yyyy}", fullHtml);
+        await SendAsync(recipients, $"Cadentic Daily Brief — {today:dd MMM yyyy}", fullHtml);
     }
 
     private static string WrapHtml(string body)
