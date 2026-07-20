@@ -87,21 +87,11 @@ builder.Services.AddScoped<INotificationRecipientRepository, NotificationRecipie
 builder.Services.AddMemoryCache();
 // Separate limiters per provider so a heavy Finnhub run can't eat into the
 // budget Tiingo needs (or vice versa) - see ITiingoRateLimiter/IFinnhubRateLimiter.
-// Tiingo pacing is config-driven (RateLimiting:TiingoMaxPerHour) because the
-// right value depends on the PLAN of the configured key: free tier is 50/hour,
-// Power is 10,000/hour. The code default stays at the free-tier 50 so a
-// missing/removed config value can never burst a free key - set the config to
-// e.g. 3600 (1 req/s, ~36% of the Power cap, leaving headroom for candle sync,
-// Lab backtests and regime checks) when a Power key is in use. Note the Power
-// limits are PER TOKEN: the platform candle-sync key and per-user keys share
-// the budget when they're the same Tiingo account.
-var tiingoMaxPerHour = int.TryParse(builder.Configuration["RateLimiting:TiingoMaxPerHour"], out var tph) && tph > 0 ? tph : 50;
-builder.Services.AddSingleton<ITiingoRateLimiter>(_ => new RateLimiter(tiingoMaxPerHour, TimeSpan.FromHours(1)));
-// The shared platform Power key's pacer (accounts flagged UsePlatformTiingo):
-// 3600/hr = 1 req/s, far under Tiingo Power's 10k/hr ceiling but 72x the
-// free-tier pace - the difference between a ~90-minute research run and
-// a ~10-minute one. One bucket host-wide because every flagged account
-// shares the ONE platform key.
+// The shared platform Power key's pacer (every account since 21 Jul 2026 -
+// the per-account free-tier path is gone): 3600/hr = 1 req/s, far under
+// Tiingo Power's 10k/hr ceiling, leaving headroom for candle sync, Lab
+// backtests and regime checks. One bucket host-wide because everyone shares
+// the ONE platform key.
 var tiingoPowerMaxPerHour = int.TryParse(builder.Configuration["RateLimiting:TiingoPowerMaxPerHour"], out var tpp) && tpp > 0 ? tpp : 3600;
 builder.Services.AddSingleton<ITiingoPowerRateLimiter>(_ => new RateLimiter(tiingoPowerMaxPerHour, TimeSpan.FromHours(1)));
 builder.Services.AddSingleton<IFinnhubRateLimiter>(_ => new RateLimiter(maxCallsPerMinute: 50));

@@ -9,7 +9,6 @@ public interface IRateLimiter
 // across the whole app shared one IRateLimiter instance, so a heavy Finnhub
 // run (earnings, sentiment, fundamentals) could eat into the budget Tiingo
 // needed for candles and vice versa. Each provider now gets its own bucket.
-public interface ITiingoRateLimiter : IRateLimiter { }
 public interface IFinnhubRateLimiter : IRateLimiter { }
 
 // The shared platform Tiingo POWER key's pacer (RateLimiting:TiingoPowerMaxPerHour,

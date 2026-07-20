@@ -102,8 +102,7 @@ public class AdminRepository(SwingTraderDbContext db) : IAdminRepository
             winRate,
             riskProfile?.RiskLabel ?? "Unknown",
             enabledWatchlistCount,
-            account?.IsDeleted ?? false,
-            account?.UsePlatformTiingo ?? false);
+            account?.IsDeleted ?? false);
     }
 
     public async Task<List<AdminJobFailure>> GetJobFailuresAsync(TimeSpan lookback, CancellationToken ct = default)

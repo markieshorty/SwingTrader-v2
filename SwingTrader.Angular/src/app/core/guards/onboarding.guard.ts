@@ -7,7 +7,7 @@ import { ApiKeyProvider, KeyStatusesDto } from '../models/dtos';
 // Keys required before the account can actually run research/execution.
 // Claude isn't required - it has a shared fallback key (see
 // UserKeyService.GetKeyAsync), so accounts never need their own.
-const REQUIRED_PROVIDERS: ApiKeyProvider[] = ['Finnhub', 'Tiingo'];
+const REQUIRED_PROVIDERS: ApiKeyProvider[] = ['Finnhub'];
 
 // Trading212 issues separate credentials per environment, and the account's
 // TradingMode toggle only allows switching to whichever environment already

@@ -176,9 +176,6 @@ export class ApiService {
     return this.http.post(`${this.baseUrl}/api/admin/users/${userId}/reset-onboarding`, {});
   }
 
-  setPlatformTiingo(userId: string, enabled: boolean): Observable<unknown> {
-    return this.http.post(`${this.baseUrl}/api/admin/users/${userId}/platform-tiingo`, { enabled });
-  }
 
   forceUserDemo(userId: string): Observable<unknown> {
     return this.http.post(`${this.baseUrl}/api/admin/users/${userId}/force-demo`, {});

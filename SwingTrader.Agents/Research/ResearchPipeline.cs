@@ -34,7 +34,6 @@ public class ResearchPipeline(
     IMarketRegimeService marketRegimeService,
     IFundamentalDataService fundamentalDataService,
     IFundamentalScoringService fundamentalScoringService,
-    ITiingoRateLimiter tiingoRateLimiter,
     ITiingoPowerRateLimiter tiingoPowerRateLimiter,
     IFinnhubRateLimiter finnhubRateLimiter,
     IClaudeRateLimiter claudeRateLimiter,
@@ -66,13 +65,9 @@ public class ResearchPipeline(
         var account = await accountRepo.GetAsync(accountId, ct)
             ?? throw new InvalidOperationException($"Account {accountId} not found.");
 
-        // Power-flagged accounts pace their Tiingo calls on the shared platform
-        // key's Power bucket (~1s/call); everyone else stays on the legacy
-        // free-tier bucket (~72s/call). Chosen once per symbol run and threaded
-        // into every Tiingo touch below.
-        var tiingoLimiter = account.UsePlatformTiingo
-            ? (IRateLimiter)tiingoPowerRateLimiter
-            : tiingoRateLimiter;
+        // All accounts pace Tiingo on the shared platform Power bucket
+        // (~1s/call) - the free-tier path is gone (21 Jul 2026).
+        var tiingoLimiter = (IRateLimiter)tiingoPowerRateLimiter;
 
         // Step 0 — earnings gate: block BUY if earnings are within GateDays
         var earningsCtx = await earningsService.GetEarningsContextAsync(finnhub, symbol, ct, riskProfile.EarningsGateDays);

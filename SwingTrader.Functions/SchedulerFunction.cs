@@ -58,21 +58,13 @@ public class SchedulerFunction(
                 // the 7:35 tick and every later tick see the JobLog row and
                 // skip. Start times are unchanged; only the "too late to
                 // bother" cutoffs are new.
-                // Research start is per-account (17 Jul 2026):
-                //  - Free-tier Tiingo pacing (~72s/call) makes a full rescore
-                //    take ~90 minutes, so those accounts start at 6:30 ET to
-                //    finish ~8:00 with margin before Report at 8:30. Trade-off
-                //    consciously accepted 14 Jul 2026: 7:00-8:00 ET earnings
-                //    releases land after scoring (the midday rescore or
-                //    tomorrow's run catches them).
-                //  - Platform-Power accounts (Account.UsePlatformTiingo) run in
-                //    ~10 minutes, so they start at 7:30 ET instead - fresher
-                //    pre-market data (including 7:00-7:30 earnings/news) and
-                //    still done well before Report.
-                // JobScheduleInfo (the dashboard's next-run labels) mirrors
-                // these times - keep the two in sync.
-                var (researchHour, researchMin) = account.UsePlatformTiingo ? (7, 30) : (6, 30);
-                if (isWeekday && InWindow(nowEt, researchHour, researchMin, 15, 55))
+                // Research at 7:30 ET for everyone (21 Jul 2026): all
+                // accounts ride the platform Tiingo Power key, so a full
+                // rescore takes ~10 minutes - fresher pre-market data
+                // (including 7:00-7:30 earnings/news) and still done well
+                // before Report at 8:30. The per-account 6:30 free-tier path
+                // is gone. JobScheduleInfo mirrors this time - keep in sync.
+                if (isWeekday && InWindow(nowEt, 7, 30, 15, 55))
                     await TryEnqueueAsync(account.Id, "Research", today, "research-jobs",
                         new ResearchJobMessage(account.Id, Guid.NewGuid().ToString("N"), today, nowEt), ct);
 

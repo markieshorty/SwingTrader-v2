@@ -124,18 +124,6 @@
                 <button mat-stroked-button (click)="resetOnboarding(user)">Reset Onboarding</button>
                 <button mat-stroked-button (click)="forceDemo(user)">Force Demo</button>
                 <button mat-stroked-button color="warn" (click)="deleteUser(user)">Delete Account</button>
-                <!-- Account-level flag, so it lives on the account's one Owner
-                     row only - a member row would just be a second handle on
-                     the same underlying account. -->
-                @if (user.role === 'Owner') {
-                  <mat-slide-toggle
-                    [checked]="user.usePlatformTiingo"
-                    (change)="setPlatformTiingo(user, $event.checked)"
-                    matTooltip="On: this account's market-data calls use the shared Tiingo Power key — research runs in minutes and starts at 7:30 ET. Off: their own Tiingo key at free-tier pacing — research starts at 6:30 ET and takes ~90 minutes."
-                  >
-                    Platform Tiingo (Power)
-                  </mat-slide-toggle>
-                }
               </div>
             }
           </mat-card>

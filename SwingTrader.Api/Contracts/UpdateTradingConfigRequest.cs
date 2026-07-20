@@ -84,6 +84,5 @@ public record ForceWatchlistSymbolRequest(bool Force);
 
 public record SuspendUserRequest(string? Reason);
 
-public record SetPlatformTiingoRequest(bool Enabled);
 
 public record RetryJobRequest(int JobLogId);

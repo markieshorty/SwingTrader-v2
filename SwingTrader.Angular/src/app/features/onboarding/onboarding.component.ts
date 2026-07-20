@@ -51,12 +51,6 @@ const STEPS: WizardStep[] = [
     fields: [{ key: 'Finnhub', label: 'API key', placeholder: 'Paste your Finnhub API key', required: true }],
   },
   {
-    title: 'Tiingo',
-    description: 'Provides historical candles used for indicators and relative-strength scoring.',
-    helpUrl: 'https://www.tiingo.com/account/api/token',
-    fields: [{ key: 'Tiingo', label: 'API key', placeholder: 'Paste your Tiingo API token', required: true }],
-  },
-  {
     title: 'Trading 212',
     description:
       'Trading 212 issues separate API credentials for demo and live accounts, so both are stored independently. ' +

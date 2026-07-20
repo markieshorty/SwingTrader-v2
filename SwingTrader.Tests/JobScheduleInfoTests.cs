@@ -29,14 +29,14 @@ public class JobScheduleInfoTests
     [Fact]
     public void GetNextRuns_ResearchBeforeTodaysWindow_IsLaterToday()
     {
-        // 5:30am ET Monday - before the 6:30 ET Research window (this test
-        // previously pinned the stale 4:00 slot, which is exactly the drift
-        // the display bug shipped with).
+        // 5:30am ET Monday - before the 7:30 ET Research window (universal
+        // since 21 Jul 2026: every account rides the platform Tiingo Power
+        // key, so the 6:30 free-tier head start no longer exists).
         var beforeWindowUtc = new DateTime(2026, 7, 6, 9, 30, 0, DateTimeKind.Utc);
         var runs = JobScheduleInfo.GetNextRuns(beforeWindowUtc);
 
         var research = runs.Single(r => r.JobType == "Research");
-        (research.NextRunAtUtc - beforeWindowUtc).Should().BeLessThan(TimeSpan.FromHours(2));
+        (research.NextRunAtUtc - beforeWindowUtc).Should().Be(TimeSpan.FromHours(2)); // 7:30 ET today
     }
 
     [Fact]

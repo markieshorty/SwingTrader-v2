@@ -70,7 +70,6 @@ const FORWARD_WEIGHT_FIELDS: { key: keyof StrategyWeightsDto; label: string }[] 
 
 const PROVIDER_LABELS: Partial<Record<ApiKeyProvider, string>> = {
   Finnhub: 'Finnhub',
-  Tiingo: 'Tiingo',
   Trading212DemoKey: 'Trading 212 API Key (Demo)',
   Trading212DemoSecret: 'Trading 212 API Secret (Demo)',
   Trading212LiveKey: 'Trading 212 API Key (Live)',

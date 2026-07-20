@@ -171,35 +171,6 @@ public static class AdminEndpoints
             return Results.Ok();
         });
 
-        // Toggle the account onto/off the shared platform Tiingo Power key:
-        // fast research pacing + a later (7:30 ET) research start when on;
-        // the account's own key at free-tier pacing (6:30 start) when off.
-        // Admin decision per user - platform quota is a shared resource.
-        adminGroup.MapPost("/users/{userId}/platform-tiingo", async (
-            string userId,
-            SetPlatformTiingoRequest req,
-            IUserRepository users,
-            IAccountRepository accounts,
-            IAdminLogRepository adminLog,
-            HttpContext http,
-            CancellationToken ct) =>
-        {
-            var user = await users.FindAsync(userId, ct);
-            if (user?.AccountId is null) return Results.NotFound();
-
-            var account = await accounts.GetAsync(user.AccountId.Value);
-            if (account is null) return Results.NotFound();
-
-            account.UsePlatformTiingo = req.Enabled;
-            await accounts.UpdateAsync(account, ct);
-            await adminLog.LogAsync(new AdminActionLog
-            {
-                AdminUserId = AdminId(http), TargetUserId = userId,
-                Action = req.Enabled ? "PlatformTiingoOn" : "PlatformTiingoOff",
-            }, ct);
-            return Results.Ok();
-        });
-
         adminGroup.MapPost("/users/{userId}/force-demo", async (
             string userId,
             IUserRepository users,

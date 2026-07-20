@@ -13,7 +13,7 @@ namespace SwingTrader.Infrastructure.RateLimiting;
 // is released no sooner than minDelay after the previous, so the aggregate
 // rate is the configured rate no matter how many callers are queued. Callers
 // manage their own in-flight concurrency after WaitAsync returns.
-public class RateLimiter : ITiingoRateLimiter, ITiingoPowerRateLimiter, IFinnhubRateLimiter, IClaudeRateLimiter
+public class RateLimiter : ITiingoPowerRateLimiter, IFinnhubRateLimiter, IClaudeRateLimiter
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly int _minDelayMs;

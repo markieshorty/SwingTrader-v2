@@ -161,27 +161,6 @@ export class AdminComponent {
     });
   }
 
-  // Platform Tiingo (Power) toggle: on = this account's Tiingo calls ride the
-  // shared Power key (fast research, 7:30 ET start); off = their own key at
-  // free-tier pacing (6:30 ET start). Default off for new users.
-  setPlatformTiingo(user: AdminUserSummaryDto, enabled: boolean): void {
-    this.api.setPlatformTiingo(user.userId, enabled).subscribe({
-      next: () => {
-        this.snackbar.open(
-          enabled
-            ? `${user.displayName} now uses the platform Tiingo Power key — research runs fast and starts at 7:30 ET`
-            : `${user.displayName} back on their own Tiingo key — research starts at 6:30 ET`,
-          'Dismiss', { duration: 4000 });
-        this.loadUsers();
-        this.loadLogs();
-      },
-      error: () => {
-        this.snackbar.open('Failed to update the platform Tiingo setting.', 'Dismiss', { duration: 4000 });
-        this.loadUsers(); // snap the toggle back to the server state
-      },
-    });
-  }
-
   deleteUser(user: AdminUserSummaryDto): void {
     this.dialog
       .open(ConfirmDialogComponent, {

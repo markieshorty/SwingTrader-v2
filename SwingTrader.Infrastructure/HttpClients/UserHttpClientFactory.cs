@@ -78,20 +78,17 @@ public class UserHttpClientFactory(
 
     public async Task<TClient> CreateTiingoAsync<TClient>(int accountId, CancellationToken ct = default)
     {
-        // Admin-flagged accounts (Account.UsePlatformTiingo) ride the shared
-        // platform Power-plan key instead of their own - the flag's whole
-        // point. Falls back to the account key (with a warning) if the
-        // platform key isn't configured, so a missing app setting degrades to
-        // the legacy path rather than failing the run.
-        string? apiKey = null;
-        var account = await accounts.GetAsync(accountId, ct);
-        if (account?.UsePlatformTiingo == true)
+        // Every account rides the shared platform Power-plan key (21 Jul
+        // 2026 - the per-account free-key path and the UsePlatformTiingo flag
+        // are gone; users no longer supply a Tiingo key at all). Falls back
+        // to a legacy per-account key with a warning if the platform key app
+        // setting is missing, so a config slip degrades instead of failing.
+        var apiKey = config["Tiingo:PlatformApiKey"];
+        if (string.IsNullOrEmpty(apiKey))
         {
-            apiKey = config["Tiingo:PlatformApiKey"];
-            if (string.IsNullOrEmpty(apiKey))
-                logger.LogWarning("Account {AccountId} is flagged UsePlatformTiingo but Tiingo:PlatformApiKey is not configured — using the account's own key", accountId);
+            logger.LogWarning("Tiingo:PlatformApiKey is not configured — falling back to account {AccountId}'s own key", accountId);
+            apiKey = await GetDecryptedKeyAsync(accountId, ApiKeyProviders.Tiingo, ct);
         }
-        apiKey ??= await GetDecryptedKeyAsync(accountId, ApiKeyProviders.Tiingo, ct);
 
         var httpClient = new HttpClient(TiingoHandler, disposeHandler: false) { BaseAddress = new Uri(TiingoBaseUrl), Timeout = HttpClientTimeout };
         httpClient.DefaultRequestHeaders.Authorization =

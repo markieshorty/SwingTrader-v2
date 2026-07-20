@@ -157,14 +157,8 @@ public static class StatusEndpoints
         });
 
         // Next scheduled run per job type, for the Dashboard's per-job cards -
-        // mirrors SchedulerFunction's windows (see JobScheduleInfo). Research's
-        // start is per-account now (6:30 free-tier Tiingo / 7:30 platform
-        // Power), so the caller's account decides the Research label.
-        api.MapGet("/jobs/next-runs", async (IAccountRepository accounts, IAccountContext ctx, CancellationToken ct) =>
-        {
-            var account = await accounts.GetAsync(ctx.AccountId, ct);
-            return Results.Ok(JobScheduleInfo.GetNextRuns(DateTime.UtcNow, account?.UsePlatformTiingo == true));
-        });
+        // mirrors SchedulerFunction's windows (see JobScheduleInfo).
+        api.MapGet("/jobs/next-runs", () => Results.Ok(JobScheduleInfo.GetNextRuns(DateTime.UtcNow)));
 
         return api;
     }

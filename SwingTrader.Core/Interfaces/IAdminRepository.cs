@@ -32,10 +32,7 @@ public record AdminUserSummary(
     // visible rather than filtered out entirely so admin can still click
     // Delete on it to run the real cleanup, instead of it being invisibly
     // stuck forever.
-    bool AccountDeleted,
-    // Admin-granted: this account's Tiingo calls use the shared platform
-    // Power key + Power pacing (fast research, later start). Default off.
-    bool UsePlatformTiingo = false);
+    bool AccountDeleted);
 
 public record AdminStats(
     int TotalUsers,

@@ -11,15 +11,13 @@ public static class JobScheduleInfo
     private static readonly TimeZoneInfo EasternTimeZone =
         TimeZoneInfo.FindSystemTimeZoneById(OperatingSystem.IsWindows() ? "Eastern Standard Time" : "America/New_York");
 
-    public static List<NextRunDto> GetNextRuns(DateTime utcNow, bool usePlatformTiingo = false)
+    public static List<NextRunDto> GetNextRuns(DateTime utcNow)
     {
         var nowEt = TimeZoneInfo.ConvertTimeFromUtc(utcNow, EasternTimeZone);
 
-        // Per-account research start, mirroring SchedulerFunction: platform-
-        // Power Tiingo accounts run in minutes so they start later (7:30 ET,
-        // fresher pre-market data); free-tier accounts need the 6:30 head
-        // start to finish their ~90-minute run before Report.
-        var (researchHour, researchMin) = usePlatformTiingo ? (7, 30) : (6, 30);
+        // Research at 7:30 ET for everyone, mirroring SchedulerFunction (all
+        // accounts ride the platform Tiingo Power key since 21 Jul 2026).
+        var (researchHour, researchMin) = (7, 30);
 
         var runs = new List<(string JobType, DateTime NextEt)>
         {
