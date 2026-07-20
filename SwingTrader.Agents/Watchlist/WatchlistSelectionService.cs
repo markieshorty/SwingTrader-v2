@@ -69,9 +69,15 @@ public class WatchlistSelectionService(
 
         try
         {
+            // Response budget scales with the pick count: each pick costs
+            // ~120-160 tokens of JSON, so a 50-pick list at the flat 4,000-token
+            // config cap came back TRUNCATED, failed to parse, and silently
+            // left the previous week's list standing (found 20 Jul 2026 when a
+            // target of 50 froze the watchlist at the old 31 picks).
+            var maxTokens = Math.Max(claudeConfig.Value.MaxTokens, target * 170 + 1000);
             var request = new ClaudeRequest(
                 claudeConfig.Value.WatchlistModel ?? claudeConfig.Value.PremiumModel,
-                claudeConfig.Value.MaxTokens,
+                maxTokens,
                 systemPrompt,
                 [new ClaudeMessage("user", userPrompt)]);
 

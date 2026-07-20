@@ -148,9 +148,12 @@ public class QualitativeWatchlistService(
         try
         {
             await claudeRateLimiter.WaitAsync(ct);
+            // Same truncation guard as the technical selection: the response
+            // budget must scale with the pick count or a large target comes
+            // back as unparseable half-JSON.
             var response = await claude.SendMessageAsync(new ClaudeRequest(
                 claudeConfig.Value.WatchlistModel ?? claudeConfig.Value.PremiumModel,
-                claudeConfig.Value.MaxTokens, systemPrompt,
+                Math.Max(claudeConfig.Value.MaxTokens, target * 170 + 1000), systemPrompt,
                 [new ClaudeMessage("user", userPrompt)]));
             var raw = response.Content.FirstOrDefault(c => c.Type == "text")?.Text ?? string.Empty;
             return ParsePicks(raw);
