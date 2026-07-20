@@ -11,8 +11,18 @@ public record ClaudeRequest(
     [property: JsonPropertyName("model")] string Model,
     [property: JsonPropertyName("max_tokens")] int MaxTokens,
     [property: JsonPropertyName("system")] string System,
-    [property: JsonPropertyName("messages")] List<ClaudeMessage> Messages
+    [property: JsonPropertyName("messages")] List<ClaudeMessage> Messages,
+    // Adaptive-thinking control. Null = omit (model default). Structured
+    // JSON-extraction calls pass Disabled: 20 Jul 2026, Sonnet 5's adaptive
+    // thinking consumed the ENTIRE max_tokens budget on thinking blocks and
+    // returned no text at all, whatever the budget.
+    [property: JsonPropertyName("thinking"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ClaudeThinking? Thinking = null
 );
+
+public record ClaudeThinking([property: JsonPropertyName("type")] string Type)
+{
+    public static readonly ClaudeThinking Disabled = new("disabled");
+}
 
 public record ClaudeContentBlock(
     [property: JsonPropertyName("type")] string Type,

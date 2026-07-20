@@ -75,11 +75,14 @@ public class WatchlistSelectionService(
             // left the previous week's list standing (found 20 Jul 2026 when a
             // target of 50 froze the watchlist at the old 31 picks).
             var maxTokens = Math.Max(claudeConfig.Value.MaxTokens, target * 170 + 1000);
+            // Thinking disabled: this is a formatting/selection task and
+            // adaptive thinking starved the JSON out of the budget (20 Jul).
             var request = new ClaudeRequest(
                 claudeConfig.Value.WatchlistModel ?? claudeConfig.Value.PremiumModel,
                 maxTokens,
                 systemPrompt,
-                [new ClaudeMessage("user", userPrompt)]);
+                [new ClaudeMessage("user", userPrompt)],
+                ClaudeThinking.Disabled);
 
             // 20 Jul 2026: a run came back HTTP 200 with NO text block at all
             // ("input does not contain any JSON tokens") and the old code threw

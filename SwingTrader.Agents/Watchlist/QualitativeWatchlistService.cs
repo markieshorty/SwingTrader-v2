@@ -154,7 +154,8 @@ public class QualitativeWatchlistService(
             var request = new ClaudeRequest(
                 claudeConfig.Value.WatchlistModel ?? claudeConfig.Value.PremiumModel,
                 Math.Max(claudeConfig.Value.MaxTokens, target * 170 + 1000), systemPrompt,
-                [new ClaudeMessage("user", userPrompt)]);
+                [new ClaudeMessage("user", userPrompt)],
+                ClaudeThinking.Disabled);
             var raw = string.Empty;
             for (var attempt = 1; attempt <= 2 && raw.Length == 0; attempt++)
             {
