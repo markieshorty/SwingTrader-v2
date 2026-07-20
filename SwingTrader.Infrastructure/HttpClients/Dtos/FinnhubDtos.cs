@@ -51,7 +51,12 @@ public record MarketMoverItem(
     [property: JsonPropertyName("symbol")] string Symbol,
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("last")] decimal Price,
-    decimal Change,
+    // Not part of the wire payload. Without JsonIgnore the web-defaults
+    // naming policy mapped this to "change", COLLIDING with ChangePercent's
+    // explicit mapping - System.Text.Json throws on the collision, so every
+    // top-movers deserialization failed and screening always saw 0 movers
+    // (found 20 Jul 2026 via the qualitative-refresh failure breadcrumb).
+    [property: JsonIgnore] decimal Change,
     [property: JsonPropertyName("change")] decimal ChangePercent,
     [property: JsonPropertyName("volume")] long Volume
 );
