@@ -151,11 +151,12 @@ public class QualitativeWatchlistService(
             // budget must scale with the pick count or a large target comes
             // back as unparseable half-JSON. Same empty-body diagnostics +
             // single retry too (20 Jul 2026: 200 responses with no text block).
+            // Same budget shape as the technical selection: answer size plus
+            // generous adaptive-thinking headroom (thinking shares max_tokens).
             var request = new ClaudeRequest(
                 claudeConfig.Value.WatchlistModel ?? claudeConfig.Value.PremiumModel,
-                Math.Max(claudeConfig.Value.MaxTokens, target * 170 + 1000), systemPrompt,
-                [new ClaudeMessage("user", userPrompt)],
-                ClaudeThinking.Disabled);
+                Math.Max(claudeConfig.Value.MaxTokens, target * 170 + 1000) + 30000, systemPrompt,
+                [new ClaudeMessage("user", userPrompt)]);
             var raw = string.Empty;
             for (var attempt = 1; attempt <= 2 && raw.Length == 0; attempt++)
             {

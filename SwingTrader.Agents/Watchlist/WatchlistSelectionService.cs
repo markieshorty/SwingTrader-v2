@@ -69,20 +69,19 @@ public class WatchlistSelectionService(
 
         try
         {
-            // Response budget scales with the pick count: each pick costs
-            // ~120-160 tokens of JSON, so a 50-pick list at the flat 4,000-token
-            // config cap came back TRUNCATED, failed to parse, and silently
-            // left the previous week's list standing (found 20 Jul 2026 when a
-            // target of 50 froze the watchlist at the old 31 picks).
-            var maxTokens = Math.Max(claudeConfig.Value.MaxTokens, target * 170 + 1000);
-            // Thinking disabled: this is a formatting/selection task and
-            // adaptive thinking starved the JSON out of the budget (20 Jul).
+            // Budget = JSON answer (~120-170 tokens per pick; a 50-pick list
+            // at the flat 4,000-token cap came back truncated, 20 Jul 2026)
+            // PLUS very generous adaptive-thinking headroom. Thinking shares
+            // max_tokens with the answer and the observed run spent 9,500
+            // tokens purely thinking, so an answer-sized budget returns no
+            // text at all. Reasoning is deliberately kept ON - the weekly
+            // shortlist is a judgment call worth the extra ~$0.2/run.
+            var maxTokens = Math.Max(claudeConfig.Value.MaxTokens, target * 170 + 1000) + 30000;
             var request = new ClaudeRequest(
                 claudeConfig.Value.WatchlistModel ?? claudeConfig.Value.PremiumModel,
                 maxTokens,
                 systemPrompt,
-                [new ClaudeMessage("user", userPrompt)],
-                ClaudeThinking.Disabled);
+                [new ClaudeMessage("user", userPrompt)]);
 
             // 20 Jul 2026: a run came back HTTP 200 with NO text block at all
             // ("input does not contain any JSON tokens") and the old code threw
