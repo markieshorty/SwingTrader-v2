@@ -70,7 +70,7 @@ public static class CapitalRules
     // than the candidate pool it's shown doesn't make sense - and by Research/
     // Monitor cycle time, since every extra symbol here is extra Tiingo/
     // Finnhub calls each cycle against rate limits already tight at 25.
-    public const int DefaultTargetWatchlistSize = 25;
+    public const int DefaultTargetWatchlistSize = 40; // was 25; raised 20 Jul 2026
     public const int MinTargetWatchlistSize = 10;
     public const int MaxTargetWatchlistSize = 50;
 
@@ -79,7 +79,7 @@ public static class CapitalRules
     // list is a probe, not a portfolio, and the list is created disabled so
     // every pick is reviewed before it costs research. Kept well under the
     // technical list's bounds for the same rate-limit reasons.
-    public const int DefaultQualitativeWatchlistSize = 10;
+    public const int DefaultQualitativeWatchlistSize = 20; // was 10; raised 20 Jul 2026
     public const int MinQualitativeWatchlistSize = 5;
     public const int MaxQualitativeWatchlistSize = 20;
 

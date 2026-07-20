@@ -40,7 +40,7 @@ public interface IWatchlistRepository
     // ("only a manual custom list can be created") stays strict while system
     // callers can still lazily create their own lists - the qualitative
     // refresh was ValidationException-ing on exactly that (20 Jul 2026).
-    Task<Watchlist> EnsureSystemWatchlistAsync(int accountId, WatchlistType type, string name, string? description, CancellationToken ct = default);
+    Task<Watchlist> EnsureSystemWatchlistAsync(int accountId, WatchlistType type, string name, string? description, bool enabled = false, CancellationToken ct = default);
     Task UpdateWatchlistAsync(int accountId, int watchlistId, string name, string? description, bool topMoversEnabled, CancellationToken ct = default);
 
     // Whether the account's default (AiManaged + IsDefault) watchlist wants

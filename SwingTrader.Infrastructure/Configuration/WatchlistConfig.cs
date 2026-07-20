@@ -34,5 +34,5 @@ public class WatchlistConfig
     // disabled so picks are reviewable before they cost research; a themed
     // list is a probe, not a portfolio, hence the small default size.
     public bool QualitativeEnabled { get; set; } = true;
-    public int QualitativeSize { get; set; } = 10;
+    public int QualitativeSize { get; set; } = 20;
 }

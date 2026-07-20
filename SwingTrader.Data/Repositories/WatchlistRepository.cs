@@ -203,7 +203,7 @@ public class WatchlistRepository(SwingTraderDbContext db) : IWatchlistRepository
         return watchlist;
     }
 
-    public async Task<Watchlist> EnsureSystemWatchlistAsync(int accountId, WatchlistType type, string name, string? description, CancellationToken ct = default)
+    public async Task<Watchlist> EnsureSystemWatchlistAsync(int accountId, WatchlistType type, string name, string? description, bool enabled = false, CancellationToken ct = default)
     {
         if (type == WatchlistType.Manual)
             throw new ValidationException("Manual lists go through CreateWatchlistAsync.");
@@ -218,7 +218,7 @@ public class WatchlistRepository(SwingTraderDbContext db) : IWatchlistRepository
             Name = name,
             Type = type,
             Description = description,
-            IsEnabled = false,   // system lists arrive disabled: a human reviews, then enables
+            IsEnabled = enabled, // caller decides; qualitative arrives enabled since 20 Jul 2026
             IsDefault = false,
             CreatedAt = now,
             UpdatedAt = now,

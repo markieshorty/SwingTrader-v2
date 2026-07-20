@@ -238,7 +238,7 @@ public class QualitativeWatchlistService(
             ?? throw new InvalidOperationException($"Account {accountId} not found.");
 
         var list = await watchlists.EnsureSystemWatchlistAsync(accountId, WatchlistType.AiQualitative, ListName,
-            "Weekly Claude picks on qualitative grounds — review the rationales, then enable.", ct);
+            "Weekly Claude picks on qualitative grounds — enabled by default, disable any time.", enabled: true, ct: ct);
 
         var current = await watchlists.GetSymbolsAsync(accountId, list.Id, ct);
         var currentSymbols = current.Select(i => i.Symbol).ToHashSet(StringComparer.OrdinalIgnoreCase);
