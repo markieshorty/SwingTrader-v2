@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
+import { MatTabsModule } from '@angular/material/tabs';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../../core/services/api.service';
 import { WeightEditorComponent } from '../weight-editor/weight-editor.component';
@@ -15,10 +16,12 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
 @Component({
   selector: 'app-refinement-detail-dialog',
   standalone: true,
-  imports: [CommonModule, MatDialogModule, MatButtonModule, WeightEditorComponent],
+  imports: [CommonModule, MatDialogModule, MatButtonModule, MatTabsModule, WeightEditorComponent],
   template: `
     <h2 mat-dialog-title>Refinement run — {{ s.generatedAt | date: 'medium' }}</h2>
     <mat-dialog-content>
+      <mat-tab-group>
+        <mat-tab label="Summary">
       <div class="chips">
         <span class="confidence" [class]="s.confidenceLevel.toLowerCase()">{{ s.confidenceLevel }} confidence</span>
         <span class="origin-chip" [class.lab]="s.origin === 'StrategyLab'" [class.share]="s.origin === 'SharedStrategy'">
@@ -57,6 +60,12 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
       <h4>Weights</h4>
       <app-weight-editor [currentWeights]="s.currentWeights" [suggestedWeights]="s.suggestedWeights" />
 
+      @if (s.isShadowMode) {
+        <p class="shadow-note">Shadow mode - enable Refinement:Active before these can be applied.</p>
+      }
+        </mat-tab>
+
+        <mat-tab label="More details">
       @if (s.suggestedRiskRules; as rr) {
         <h4>Risk settings in this apply — {{ rr.targetRegime }} book</h4>
         <div class="risk-chips">
@@ -86,9 +95,11 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
         </p>
       }
 
-      @if (s.isShadowMode) {
-        <p class="shadow-note">Shadow mode — enable Refinement:Active before these can be applied.</p>
+      @if (!s.suggestedRiskRules) {
+        <p class="shadow-note">No risk settings rode along with this run - it covered strategy weights only.</p>
       }
+        </mat-tab>
+      </mat-tab-group>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close>Close</button>
@@ -98,6 +109,8 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
     </mat-dialog-actions>
   `,
   styles: [`
+    mat-tab-group { margin-top: 4px; }
+    .mat-mdc-tab-body-wrapper { padding-top: 12px; }
     .chips { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
     .confidence { font-weight: 600; }
     .confidence.low { color: var(--st-red); }
