@@ -80,7 +80,7 @@
 
     <mat-sidenav-content>
       <mat-toolbar>
-        <span>{{ pageTitle() }}</span>
+        <span class="page-title">{{ pageTitle() }}</span>
         <span class="spacer"></span>
         @for (j of runningJobs(); track j.label + j.kind) {
           <span class="job-chip running" [title]="j.detail || ('Started ' + (j.startedAt | date: 'HH:mm'))">

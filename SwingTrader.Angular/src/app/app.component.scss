@@ -107,6 +107,14 @@ mat-toolbar {
   background: var(--st-card);
   border-bottom: 1px solid var(--st-border);
 
+  // Deliberately smaller than the 19px Cadentic wordmark - the brand leads,
+  // the page title labels (Material's toolbar default is a heavy 20px).
+  .page-title {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--st-text);
+  }
+
   .spacer {
     flex: 1 1 auto;
   }
