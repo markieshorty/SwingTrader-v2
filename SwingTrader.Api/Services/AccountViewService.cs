@@ -80,6 +80,16 @@ public class AccountViewService(
         // which showed a "profit today" on a Sunday.
         var isTradingDay = marketCalendar.IsMarketDay(DateOnly.FromDateTime(today));
 
+        // Today P&L stays ZERO until the session actually opens (9:30 ET) -
+        // pre-market, Finnhub's "current" price is still yesterday's last
+        // trade, so computing a move would just replay yesterday's figure
+        // (reported 21 Jul 2026). After the open the previous-close baseline
+        // takes over; after the close the figure keeps showing today's move.
+        var etZone = TimeZoneInfo.FindSystemTimeZoneById(
+            OperatingSystem.IsWindows() ? "Eastern Standard Time" : "America/New_York");
+        var nowEt = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, etZone);
+        var sessionHasOpened = isTradingDay && nowEt.TimeOfDay >= new TimeSpan(9, 30, 0);
+
         // "Today" means TODAY'S PRICE MOVE, not lifetime P&L (fixed 20 Jul
         // 2026 - a position held overnight used to dump its entire since-entry
         // gain into the Today figure). Per position, today's baseline is:
@@ -145,7 +155,7 @@ public class AccountViewService(
             }
         }
 
-        var todayPnl = isTradingDay ? realizedToday + todayOpenMove : 0m;
+        var todayPnl = sessionHasOpened ? realizedToday + todayOpenMove : 0m;
         var todayPnlPercent = snapshot.TotalCapital > 0 ? todayPnl / snapshot.TotalCapital * 100m : 0m;
         var unrealizedPnlPercent = snapshot.TotalCapital > 0 ? unrealizedOpen / snapshot.TotalCapital * 100m : 0m;
 
