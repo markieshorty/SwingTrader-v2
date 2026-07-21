@@ -3,6 +3,16 @@
 } @else {
   <!-- Row 0: Status capsules -->
   <div class="capsule-row">
+    @if (regime(); as r) {
+      <span class="capsule"
+        [class.green]="r.regime === 'Bull'"
+        [class.amber]="r.regime === 'Neutral'"
+        [class.red]="r.regime === 'Bear' || r.regime === 'Crisis'"
+        [title]="'Current market regime, detected ' + (r.detectedAt | date: 'd MMM HH:mm') + '. Drives which risk book is active.'">
+        <span class="capsule-dot"></span>
+        {{ r.regime }} Regime
+      </span>
+    }
     @if (marketCapsule(); as market) {
       <span class="capsule" [class.green]="market.open" [class.grey]="!market.open">
         <span class="capsule-dot"></span>

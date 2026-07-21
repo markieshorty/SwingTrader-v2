@@ -61,6 +61,7 @@ export class DashboardComponent {
   data = inject(DashboardDataService);
 
   portfolio = toSignal(this.data.portfolio$, { initialValue: null });
+  regime = toSignal(this.data.regime$, { initialValue: null });
   positions = toSignal(this.data.positions$, { initialValue: [] });
   signals = toSignal(this.data.signals$, { initialValue: null });
   status = toSignal(this.data.status$, { initialValue: null });

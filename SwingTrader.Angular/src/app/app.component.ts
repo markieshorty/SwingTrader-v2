@@ -10,7 +10,6 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { RegimeBadgeComponent } from './shared/components/regime-badge/regime-badge.component';
 import { ErrorCardComponent } from './shared/components/error-card/error-card.component';
 import { RelativeTimePipe } from './shared/pipes/relative-time.pipe';
 import { DashboardDataService } from './core/services/dashboard-data.service';
@@ -33,7 +32,6 @@ import { AuthService } from './core/services/auth.service';
     MatDividerModule,
     MatProgressSpinnerModule,
     DatePipe,
-    RegimeBadgeComponent,
     ErrorCardComponent,
     RelativeTimePipe,
   ],
@@ -45,7 +43,6 @@ export class AppComponent {
   auth = inject(AuthService);
   private router = inject(Router);
 
-  regime = toSignal(this.data.regime$, { initialValue: null });
   lastUpdated = this.data.lastUpdated;
 
   private currentTitle = toSignal(
