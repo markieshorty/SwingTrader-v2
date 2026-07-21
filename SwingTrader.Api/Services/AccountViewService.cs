@@ -125,22 +125,39 @@ public class AccountViewService(
             }
         }
 
+        // Price deltas below are in the instrument's own currency (USD from
+        // Finnhub) but the cards display GBP - found 21 Jul 2026 when the
+        // Unrealised card showed $45 of price movement as pounds. Each trade's
+        // recorded EntryValueGbp (the pounds actually paid at entry) anchors
+        // the conversion: GBP delta = entry GBP value scaled by the fractional
+        // price move. Uses the entry-day FX rate, which is the right anchor
+        // for "how many pounds is this move worth" without a live FX feed.
+        static decimal GbpDelta(Core.Models.Trade t, decimal priceDelta)
+        {
+            var usdDelta = priceDelta * t.Quantity;
+            var entryUsd = t.EntryPrice * t.Quantity;
+            if (t.EntryValueGbp is > 0 && entryUsd > 0)
+                return usdDelta * (t.EntryValueGbp.Value / entryUsd);
+            return usdDelta; // no GBP anchor recorded - raw delta beats nothing
+        }
+
         var unrealizedOpen = 0m;   // lifetime, for the Unrealised card
         var todayOpenMove = 0m;    // today's move only, for the Today card
         foreach (var trade in openTrades)
         {
             var (current, prevClose) = quotes.GetValueOrDefault(trade.Symbol);
             var currentPrice = current is > 0 ? current.Value : trade.EntryPrice;
-            unrealizedOpen += (currentPrice - trade.EntryPrice) * trade.Quantity;
+            unrealizedOpen += GbpDelta(trade, currentPrice - trade.EntryPrice);
 
             var openedToday = trade.OpenedAt.Date == today;
             var baseline = openedToday || prevClose is not > 0 ? trade.EntryPrice : prevClose.Value;
-            todayOpenMove += (currentPrice - baseline) * trade.Quantity;
+            todayOpenMove += GbpDelta(trade, currentPrice - baseline);
         }
 
         // Trades closed today: same baseline logic against the exit price.
-        // Falls back to RealizedPnl (lifetime) when no previous close is
-        // available - for a same-day round trip they are the same number.
+        // Falls back to RealizedPnl (already GBP from the broker fills) when
+        // no previous close is available - for a same-day round trip they are
+        // the same number.
         var realizedToday = 0m;
         if (isTradingDay)
         {
@@ -149,7 +166,7 @@ public class AccountViewService(
                 var openedToday = trade.OpenedAt.Date == today;
                 var (_, prevClose) = quotes.GetValueOrDefault(trade.Symbol);
                 if (!openedToday && prevClose is > 0 && trade.ExitPrice.HasValue)
-                    realizedToday += (trade.ExitPrice.Value - prevClose.Value) * trade.Quantity;
+                    realizedToday += GbpDelta(trade, trade.ExitPrice.Value - prevClose.Value);
                 else if (trade.RealizedPnl.HasValue)
                     realizedToday += trade.RealizedPnl.Value;
             }
