@@ -42,14 +42,14 @@ import { environment } from '../../../environments/environment';
             only belong to one Account at a time. Redirecting to your dashboard…
           </p>
         } @else if (inviteToken()) {
-          <p class="blurb">You've been invited to join an Cadentic account.</p>
+          <p class="blurb">You've been invited to join a Cadentic account.</p>
           <div class="actions">
             <button mat-raised-button color="primary" (click)="joinAccount()">Join Account</button>
           </div>
         } @else {
           <p class="blurb">
-            An autonomous swing trading system that screens the market, scores setups, and manages positions with
-            disciplined, data-driven rules — so you don't have to watch every tick.
+            A private workspace that automates the routine of following markets — focused watchlists,
+            daily research and a morning brief, on a steady cadence.
           </p>
           <div class="actions">
             <button mat-raised-button color="primary" (click)="authenticate()">Register</button>
@@ -57,7 +57,7 @@ import { environment } from '../../../environments/environment';
           </div>
         }
 
-        <p class="disclaimer">Trading involves risk. This system is not financial advice.</p>
+        <p class="disclaimer">Private, invite-only software. Not financial advice. Investing involves risk.</p>
       </div>
     </div>
     }
