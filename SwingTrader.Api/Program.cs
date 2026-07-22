@@ -368,6 +368,22 @@ app.MapAdminEndpoints();
 app.MapStrategyShareAdminEndpoints();
 
 // Angular static files (Phase 10b populates wwwroot)
+// www.cadentic.trade serves the static marketing page (copied into
+// wwwroot/marketing by the Angular build script) instead of the app -
+// one Container App, one cert pipeline, host-based split.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Host.Host.Equals("www.cadentic.trade", StringComparison.OrdinalIgnoreCase))
+    {
+        var path = context.Request.Path.Value ?? "/";
+        if (path == "/")
+            context.Request.Path = "/marketing/index.html";
+        else if (!path.StartsWith("/marketing/", StringComparison.OrdinalIgnoreCase))
+            context.Request.Path = "/marketing" + path;
+    }
+    await next();
+});
+
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
