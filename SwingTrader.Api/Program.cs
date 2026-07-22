@@ -368,18 +368,16 @@ app.MapAdminEndpoints();
 app.MapStrategyShareAdminEndpoints();
 
 // Angular static files (Phase 10b populates wwwroot)
-// www.cadentic.trade serves the static marketing page (copied into
-// wwwroot/marketing by the Angular build script) instead of the app -
-// one Container App, one cert pipeline, host-based split.
+// The bare domain belongs to the marketing site, which lives on Static
+// Web Apps at www (GoDaddy can't ALIAS an apex to SWA, but the apex
+// already reaches this app with a working cert - so redirect). The app
+// itself lives on app.cadentic.trade.
 app.Use(async (context, next) =>
 {
-    if (context.Request.Host.Host.Equals("www.cadentic.trade", StringComparison.OrdinalIgnoreCase))
+    if (context.Request.Host.Host.Equals("cadentic.trade", StringComparison.OrdinalIgnoreCase))
     {
-        var path = context.Request.Path.Value ?? "/";
-        if (path == "/")
-            context.Request.Path = "/marketing/index.html";
-        else if (!path.StartsWith("/marketing/", StringComparison.OrdinalIgnoreCase))
-            context.Request.Path = "/marketing" + path;
+        context.Response.Redirect("https://www.cadentic.trade" + context.Request.Path + context.Request.QueryString, permanent: true);
+        return;
     }
     await next();
 });
