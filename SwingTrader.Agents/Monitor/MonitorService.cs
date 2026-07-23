@@ -31,6 +31,8 @@ public class MonitorService(
     IFilingRepository filingRepo,
     IOptions<ExecutionConfig> executionConfig,
     IOptions<FilingDeltaConfig> filingDeltaConfig,
+    ISignalRepository signalRepo,
+    IJobLogRepository jobLog,
     ILogger<MonitorService> logger) : IMonitorService
 {
     private readonly ExecutionConfig _execution = executionConfig.Value;
@@ -581,10 +583,42 @@ public class MonitorService(
                 logger.LogWarning(
                     "Pending order for {Symbol} (account {AccountId}) had no matching T212 order after {Grace}m — marking Cancelled (never placed)",
                     trade.Symbol, accountId, PendingReconcileGraceMinutes);
+
+                // Same-day retry re-arm (23 Jul 2026): reconciliation has just
+                // CONFIRMED the order never reached the broker, so re-placing
+                // carries no double-buy risk - the one hazard that forbids
+                // retrying at placement time. Un-mark the signal and clear the
+                // day's Execution job-log row; the scheduler's self-healing
+                // window re-enqueues execution on its next 5-minute tick.
+                // (Found the hard way: T212 rejected 9:20 pre-market orders
+                // for three mornings and each day's opportunity silently died.)
+                var rearmed = false;
+                try
+                {
+                    var et = TimeZoneInfo.FindSystemTimeZoneById(
+                        OperatingSystem.IsWindows() ? "Eastern Standard Time" : "America/New_York");
+                    var todayEt = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, et));
+                    var signal = (await signalRepo.GetByDateAsync(accountId, todayEt))
+                        .FirstOrDefault(x => x.Symbol.Equals(trade.Symbol, StringComparison.OrdinalIgnoreCase) && x.WasExecuted);
+                    if (signal is not null)
+                    {
+                        signal.WasExecuted = false;
+                        await signalRepo.UpdateAsync(signal);
+                        await jobLog.DeleteAsync(accountId, "Execution", todayEt);
+                        rearmed = true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to re-arm same-day execution retry for {Symbol} (account {AccountId})", trade.Symbol, accountId);
+                }
+
                 try
                 {
                     await activityLog.LogAsync(accountId, "SystemEvent", "Order Not Placed", "Warning",
-                        $"{trade.Symbol}: execution intent could not be confirmed at the broker and was cancelled.");
+                        rearmed
+                            ? $"{trade.Symbol}: execution intent could not be confirmed at the broker and was cancelled. The signal has been re-armed — execution retries automatically within a few minutes."
+                            : $"{trade.Symbol}: execution intent could not be confirmed at the broker and was cancelled.");
                 }
                 catch (Exception ex)
                 {

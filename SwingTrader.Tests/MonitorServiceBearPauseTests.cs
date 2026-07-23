@@ -69,6 +69,8 @@ public class MonitorServiceBearPauseTests
         Substitute.For<IFilingRepository>(),
         Options.Create(new ExecutionConfig { DelayBetweenOrdersSeconds = 0 }),
         Options.Create(new SwingTrader.Infrastructure.Configuration.FilingDeltaConfig()),
+        Substitute.For<ISignalRepository>(),
+        Substitute.For<IJobLogRepository>(),
         NullLogger<MonitorService>.Instance);
 
     private void SetupRegime(MarketRegime regime) =>
