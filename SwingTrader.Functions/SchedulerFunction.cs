@@ -102,7 +102,11 @@ public class SchedulerFunction(
                 // TryEnqueueAsync's job-log dedup means only one execution fires
                 // per day — the approve endpoint deletes the job log entry to
                 // allow re-enqueue after a late approval.
-                if (isWeekday && InWindow(nowEt, 9, 20, 15, 55))
+                // 9:31 ET (was 9:20): T212 began rejecting pre-market
+                // market orders ~22 Jul 2026 - three mornings of placements
+                // failed at 9:20 while identical orders succeeded after the
+                // bell. First tick after the open places within seconds.
+                if (isWeekday && InWindow(nowEt, 9, 31, 15, 55))
                     await TryEnqueueAsync(account.Id, "Execution", today, "execution-jobs",
                         new ExecutionJobMessage(account.Id, Guid.NewGuid().ToString("N"), today), ct);
 

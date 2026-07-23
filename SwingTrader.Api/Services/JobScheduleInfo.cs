@@ -29,7 +29,7 @@ public static class JobScheduleInfo
             ("Research", NextWeekdayAt(nowEt, researchHour, researchMin)),
             ("Watchlist", NextWeeklyAt(nowEt, DayOfWeek.Sunday, 20, 0)),
             ("Report", NextWeekdayAt(nowEt, 8, 30)),
-            ("Execution", NextWeekdayAt(nowEt, 9, 20)),
+            ("Execution", NextWeekdayAt(nowEt, 9, 31)), // post-open; T212 rejects pre-market orders
             ("Refinement", NextMonthlyDayAt(nowEt, 15, 8, 0)),
         }
         .Select(x => new NextRunDto(
