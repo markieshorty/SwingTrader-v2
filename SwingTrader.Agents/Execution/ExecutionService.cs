@@ -413,6 +413,20 @@ public class ExecutionService(
                 availableCash -= sizing.EstimatedCost;
                 deployedThisRun += sizing.EstimatedCost;
                 logger.LogError(ex, "Order placement outcome unknown for {Symbol} ({Ticker}), account {AccountId} — left as Pending for reconciliation", signal.Symbol, ticker, accountId);
+
+                // Durable diagnosis (23 Jul 2026): telemetry from these
+                // instances is unreliable and the generic activity message hid
+                // WHY the broker call failed for days. Persist the broker's
+                // status + response body (or the exception) where it can't get
+                // lost - the dashboard activity log.
+                var detail = ex switch
+                {
+                    Refit.ApiException api =>
+                        $"T212 responded {(int)api.StatusCode} {api.StatusCode}: {Truncate(api.Content, 220)}",
+                    _ => $"{ex.GetType().Name}: {Truncate(ex.Message, 220)}",
+                };
+                await activityLog.LogAsync(accountId, "TradeEvent", "Order Failed", "Warning",
+                    $"{signal.Symbol} ({ticker}) qty={sizing.Quantity} est=£{sizing.EstimatedCost:F2} — {detail}", ct);
                 failed++;
             }
         }
@@ -558,4 +572,7 @@ public class ExecutionService(
         cache.Set(cacheKey, ticker, TimeSpan.FromHours(24));
         return ticker;
     }
+
+    private static string Truncate(string? text, int max) =>
+        string.IsNullOrEmpty(text) ? "(no response body)" : (text.Length <= max ? text : text[..max] + "…");
 }
