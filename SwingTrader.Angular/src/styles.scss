@@ -94,6 +94,10 @@ body.light-theme {
     mat-nav-list a:hover:not(.active) {
       background: #eef5fc;
     }
+
+    .logo .tld {
+      color: var(--st-blue);
+    }
   }
 
   // Signal recommendation badges (Buy/Watch/Hold/Avoid) use solid DARK
