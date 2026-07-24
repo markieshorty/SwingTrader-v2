@@ -46,15 +46,29 @@ $light-theme: mat.define-light-theme(
 body.light-theme {
   @include mat.all-component-colors($light-theme);
 
-  --st-navy: #eaf2fa;
-  --st-card: #f7fafd;
-  --st-border: #c9dcee;
+  --st-navy: #f2f7fc;
+  --st-card: #fcfdff;
+  --st-border: #dbe8f4;
   --st-text: #0b1220;
   --st-muted: #52657a;
   --st-green: #15803d;
   --st-red: #dc2626;
   --st-amber: #b45309;
   --st-blue: #2563eb;
+
+  // Capsule pills were tinted with WHITE for the dark theme (invisible on a
+  // pale page) and the blue variant hardcoded a light-blue text colour.
+  .capsule {
+    background: rgba(15, 43, 76, 0.06);
+
+    &.green { background: rgba(21, 128, 61, 0.12); }
+    &.red   { background: rgba(220, 38, 38, 0.12); }
+    &.amber { background: rgba(180, 83, 9, 0.12); }
+    &.blue  { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
+    &.grey  { background: rgba(15, 43, 76, 0.06); }
+  }
+
+  .status-dot.blue { background: #2563eb; }
 }
 
 :root {
