@@ -69,6 +69,15 @@ body.light-theme {
   }
 
   .status-dot.blue { background: #2563eb; }
+
+  // Signal recommendation badges (Buy/Watch/Hold/Avoid) use solid DARK
+  // backgrounds in the dark theme; with light-mode's darkened text colours
+  // they became dark-on-dark. Pastel tints instead.
+  .badge.buy   { background: rgba(21, 128, 61, 0.14); }
+  .badge.watch { background: rgba(180, 83, 9, 0.14); }
+  .badge.hold  { background: rgba(37, 99, 235, 0.12); }
+  .badge.avoid,
+  .badge.sell  { background: rgba(220, 38, 38, 0.12); }
 }
 
 :root {
