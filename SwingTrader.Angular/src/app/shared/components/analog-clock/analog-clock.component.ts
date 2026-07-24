@@ -112,6 +112,17 @@ export class AnalogClockComponent implements AfterViewInit, OnDestroy {
       ctx.stroke();
     }
 
+    // Quarter-hour numerals
+    ctx.fillStyle = muted;
+    ctx.font = '600 9px Roboto, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const nr = r - 15;
+    ctx.fillText('12', 0, -nr);
+    ctx.fillText('3', nr, 0.5);
+    ctx.fillText('6', 0, nr);
+    ctx.fillText('9', -nr, 0.5);
+
     const hand = (angle: number, length: number, width: number, color: string) => {
       ctx.beginPath();
       ctx.moveTo(0, 0);
