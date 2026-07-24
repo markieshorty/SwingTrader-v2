@@ -70,6 +70,25 @@ body.light-theme {
 
   .status-dot.blue { background: #2563eb; }
 
+  // Sidebar inverts in light mode: white chrome (background + brand strip),
+  // with the pale blue promoted to the highlight colour for the active item.
+  .sidenav {
+    background: #ffffff;
+
+    .logo {
+      background: #ffffff;
+    }
+
+    mat-nav-list a.active {
+      background: #dcebf9;
+      color: var(--st-text);
+    }
+
+    mat-nav-list a:hover:not(.active) {
+      background: #eef5fc;
+    }
+  }
+
   // Signal recommendation badges (Buy/Watch/Hold/Avoid) use solid DARK
   // backgrounds in the dark theme; with light-mode's darkened text colours
   // they became dark-on-dark. Pastel tints instead.
