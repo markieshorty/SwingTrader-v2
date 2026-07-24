@@ -30,6 +30,33 @@ $theme: mat.define-dark-theme(
 
 @include mat.all-component-themes($theme);
 
+// Light mode: very pale blues, near-black text. Toggled by ThemeService via
+// a body class; the CSS-var overrides below cascade through every component
+// (including AG Grid, whose --ag-* vars map onto the same --st-* vars).
+$light-theme: mat.define-light-theme(
+  (
+    color: (
+      primary: $primary,
+      accent: $accent,
+      warn: $warn,
+    ),
+  )
+);
+
+body.light-theme {
+  @include mat.all-component-colors($light-theme);
+
+  --st-navy: #eaf2fa;
+  --st-card: #f7fafd;
+  --st-border: #c9dcee;
+  --st-text: #0b1220;
+  --st-muted: #52657a;
+  --st-green: #15803d;
+  --st-red: #dc2626;
+  --st-amber: #b45309;
+  --st-blue: #2563eb;
+}
+
 :root {
   --st-navy: #0f172a;
   --st-card: #1e293b;

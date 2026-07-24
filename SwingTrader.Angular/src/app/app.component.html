@@ -96,6 +96,9 @@
             <mat-icon class="dismiss-icon">close</mat-icon>
           </button>
         }
+        <button mat-icon-button (click)="theme.toggle()" [title]="theme.theme() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
+          <mat-icon>{{ theme.theme() === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
+        </button>
         <button mat-icon-button (click)="data.refresh()" [disabled]="data.isLoading()" title="Refresh">
           <mat-icon>refresh</mat-icon>
         </button>

@@ -13,6 +13,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ErrorCardComponent } from './shared/components/error-card/error-card.component';
 import { RelativeTimePipe } from './shared/pipes/relative-time.pipe';
 import { DashboardDataService } from './core/services/dashboard-data.service';
+import { ThemeService } from './core/services/theme.service';
 import { ApiService } from './core/services/api.service';
 import { ActiveJobDto } from './core/models/dtos';
 import { AuthService } from './core/services/auth.service';
@@ -40,6 +41,7 @@ import { AuthService } from './core/services/auth.service';
 })
 export class AppComponent {
   data = inject(DashboardDataService);
+  theme = inject(ThemeService);
   auth = inject(AuthService);
   private router = inject(Router);
 
