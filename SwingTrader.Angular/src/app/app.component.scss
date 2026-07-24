@@ -63,11 +63,11 @@
   }
 
   .clock-panel {
-    padding: 8px 16px;
+    padding: 10px 12px;
     border-top: 1px solid var(--st-border);
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
 
     .clock-row {
       display: flex;

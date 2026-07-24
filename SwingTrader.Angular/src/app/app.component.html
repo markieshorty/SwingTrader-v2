@@ -63,14 +63,8 @@
       </mat-nav-list>
 
       <div class="clock-panel">
-        <div class="clock-row">
-          <span class="clock-label">Local</span>
-          <span class="clock-value">{{ localTime() }}</span>
-        </div>
-        <div class="clock-row">
-          <span class="clock-label">ET</span>
-          <span class="clock-value">{{ easternTime() }}</span>
-        </div>
+        <app-analog-clock label="Eastern Time" timeZone="America/New_York" />
+        <app-analog-clock label="UK Time" timeZone="Europe/London" />
       </div>
 
       <div class="sidenav-footer">

@@ -14,6 +14,7 @@ import { ErrorCardComponent } from './shared/components/error-card/error-card.co
 import { RelativeTimePipe } from './shared/pipes/relative-time.pipe';
 import { DashboardDataService } from './core/services/dashboard-data.service';
 import { ThemeService } from './core/services/theme.service';
+import { AnalogClockComponent } from './shared/components/analog-clock/analog-clock.component';
 import { ApiService } from './core/services/api.service';
 import { ActiveJobDto } from './core/models/dtos';
 import { AuthService } from './core/services/auth.service';
@@ -34,6 +35,7 @@ import { AuthService } from './core/services/auth.service';
     MatProgressSpinnerModule,
     DatePipe,
     ErrorCardComponent,
+    AnalogClockComponent,
     RelativeTimePipe,
   ],
   templateUrl: './app.component.html',
@@ -182,14 +184,4 @@ export class AppComponent {
       });
   }
 
-  private static readonly timeFormat: Intl.DateTimeFormatOptions = {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  };
-
-  localTime = computed(() => this.now().toLocaleTimeString([], AppComponent.timeFormat));
-  easternTime = computed(() =>
-    this.now().toLocaleTimeString([], { ...AppComponent.timeFormat, timeZone: 'America/New_York' }),
-  );
 }
