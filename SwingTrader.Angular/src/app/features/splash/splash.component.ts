@@ -34,7 +34,7 @@ import { environment } from '../../../environments/environment';
     } @else {
     <div class="splash-container">
       <div class="splash-content">
-        <h1>Cadentic</h1>
+        <h1>Cadentic<span class="tld">.trade</span></h1>
 
         @if (alreadySignedIn()) {
           <p class="blurb">
@@ -77,9 +77,15 @@ import { environment } from '../../../environments/environment';
         max-width: 480px;
       }
       h1 {
+        font-family: 'Manrope', 'Roboto', sans-serif;
         font-size: 40px;
         margin-bottom: 8px;
         color: var(--st-text, white);
+
+        .tld {
+          font-weight: 500;
+          color: var(--st-muted, #94a3b8);
+        }
       }
       .blurb {
         color: var(--st-muted);
