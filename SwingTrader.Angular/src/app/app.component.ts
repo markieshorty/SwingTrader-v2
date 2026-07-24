@@ -85,8 +85,11 @@ export class AppComponent {
     const path = this.router.url.split('?')[0];
     const segment = path.split('/')[1] ?? 'dashboard';
     if (!segment) return 'Dashboard';
-    if (segment === 'shared-strategies') return 'Shared Strategies';
-    return segment.charAt(0).toUpperCase() + segment.slice(1);
+    // "strategy-lab" -> "Strategy Lab", "shared-strategies" -> "Shared Strategies"
+    return segment
+      .split('-')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
   }
 
   // Live clocks under the nav menu - Eastern is the market's own timezone,
