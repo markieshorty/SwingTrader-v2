@@ -25,6 +25,8 @@ import {
   RiskProfileDto,
   MarketStatusDto, ActivityLogDto, NextRunDto, PositionDto, SignalDto, TradeDto, TradingConfigDto } from '../../core/models/dtos';
 import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
+import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
+import { PulseOnChangeDirective } from '../../shared/directives/pulse-on-change.directive';
 import { errorMessage } from '../../shared/utils/error-message.util';
 
 const SIGNAL_TAB_NAMES = ['buy', 'watch', 'hold', 'avoid'] as const;
@@ -46,6 +48,8 @@ const AGENTS = ['Research', 'Watchlist', 'Report', 'Execution', 'Monitor', 'Refi
     StopTargetBarComponent,
     ConvictionBarComponent,
     LoadingSpinnerComponent,
+    EmptyStateComponent,
+    PulseOnChangeDirective,
   ],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',

@@ -40,27 +40,37 @@
     }
   </div>
 
-  <!-- Row 1: Stat cards -->
+  <!-- Row 1: Stat cards (skeleton shimmer while first load is in flight) -->
+  @if (!portfolio()) {
+    <div class="stat-row">
+      @for (i of [1, 2, 3, 4, 5]; track i) {
+        <mat-card class="stat-card">
+          <div class="stat-label">&nbsp;</div>
+          <div class="skeleton skeleton-value"></div>
+        </mat-card>
+      }
+    </div>
+  }
   @if (portfolio(); as p) {
     <div class="stat-row">
       <mat-card class="stat-card">
         <div class="stat-label">Total Capital</div>
-        <div class="stat-value">{{ p.totalCapital | currencyGbp }}</div>
+        <div class="stat-value" [appPulseOnChange]="p">{{ p.totalCapital | currencyGbp }}</div>
       </mat-card>
       <mat-card class="stat-card">
         <div class="stat-label">Cash Available</div>
-        <div class="stat-value">{{ p.cashAvailable | currencyGbp }}</div>
+        <div class="stat-value" [appPulseOnChange]="p">{{ p.cashAvailable | currencyGbp }}</div>
       </mat-card>
       <mat-card class="stat-card">
         <div class="stat-label">Today P&amp;L</div>
-        <div class="stat-value" [class.positive]="p.todayPnl >= 0" [class.negative]="p.todayPnl < 0">
+        <div class="stat-value" [appPulseOnChange]="p" [class.positive]="p.todayPnl >= 0" [class.negative]="p.todayPnl < 0">
           {{ p.todayPnl | currencyGbp }}
           <span class="stat-sub">{{ p.todayPnlPercent | percentSigned }}</span>
         </div>
       </mat-card>
       <mat-card class="stat-card">
         <div class="stat-label">Unrealised P&amp;L</div>
-        <div class="stat-value" [class.positive]="p.unrealizedPnl >= 0" [class.negative]="p.unrealizedPnl < 0">
+        <div class="stat-value" [appPulseOnChange]="p" [class.positive]="p.unrealizedPnl >= 0" [class.negative]="p.unrealizedPnl < 0">
           {{ p.unrealizedPnl | currencyGbp }}
           <span class="stat-sub">{{ p.unrealizedPnlPercent | percentSigned }}</span>
         </div>
@@ -86,7 +96,7 @@
       <h3>Open Positions</h3>
       <div class="positions-scroll" [class.grid-2]="positions().length >= 3">
       @if (positions().length === 0) {
-        <p class="muted">No open positions.</p>
+        <app-empty-state icon="work_outline" message="No open positions — the next Buy signal fills this panel." />
       }
       @for (position of positions(); track position.id) {
         <div class="position-card">
@@ -139,7 +149,7 @@
           <h4>Activity</h4>
           <div class="run-log">
             @if (jobActivity().length === 0) {
-              <p class="muted">No activity yet.</p>
+              <app-empty-state icon="history" message="No activity yet today." />
             }
             @for (run of jobActivity(); track run.occurredAt + run.title) {
               <div class="run-row">
@@ -172,7 +182,7 @@
           <h4>Monitor</h4>
           <div class="run-log">
             @if (monitorRuns().length === 0) {
-              <p class="muted">No runs yet.</p>
+              <app-empty-state icon="schedule" message="No runs yet." />
             }
             @for (run of monitorRuns(); track run.occurredAt) {
               <div class="run-row">
@@ -208,7 +218,7 @@
     </mat-tab-group>
 
     @if (activeSignals().length === 0) {
-      <p class="muted">No signals in this category today.</p>
+      <app-empty-state icon="filter_none" message="No signals in this category today." />
     }
     <div class="signal-grid">
       @for (signal of activeSignals(); track signal.id) {

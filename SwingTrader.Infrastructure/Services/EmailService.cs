@@ -71,21 +71,40 @@ public class EmailService(IOptions<EmailConfig> options, ILogger<EmailService> l
 
     private static string WrapHtml(string body)
     {
+        // Branded wrapper (24 Jul 2026): navy masthead with the Cadentic.trade
+        // wordmark, brand-blue accents, pale-blue table striping - matches the
+        // app's palette. Email-safe fonts only (no webfont loading in mail
+        // clients); inline-ish CSS kept simple for client compatibility.
         const string css = """
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-                   max-width: 700px; margin: 0 auto; padding: 20px; color: #1a1a1a; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                   margin: 0; padding: 0; background: #f2f7fc; color: #0b1220; }
+            .frame { max-width: 700px; margin: 0 auto; padding: 0 0 28px; }
+            .masthead { background: #0f172a; border-radius: 0 0 10px 10px; padding: 16px 24px; }
+            .masthead .brand { color: #f1f5f9; font-size: 20px; font-weight: 800; letter-spacing: 0.5px; }
+            .masthead .brand .tld { color: #94a3b8; font-weight: 500; }
+            .content { background: #ffffff; border: 1px solid #dbe8f4; border-radius: 10px;
+                       margin-top: 14px; padding: 22px 26px; }
             table { border-collapse: collapse; width: 100%; margin: 8px 0; }
-            td, th { border: 1px solid #ddd; padding: 6px 10px; text-align: left; }
-            tr:nth-child(even) { background: #f9f9f9; }
-            blockquote { border-left: 4px solid #e0e0e0; margin: 8px 0; padding: 4px 12px;
-                         color: #666; background: #fafafa; }
-            hr { border: none; border-top: 1px solid #e0e0e0; margin: 20px 0; }
-            h1 { font-size: 1.6em; margin-bottom: 4px; }
-            h2 { font-size: 1.2em; color: #333; margin-top: 24px; }
-            h3 { font-size: 1.05em; color: #555; margin-top: 16px; }
-            code { background: #f4f4f4; padding: 2px 4px; border-radius: 3px; font-size: 0.9em; }
+            td, th { border: 1px solid #dbe8f4; padding: 6px 10px; text-align: left; }
+            th { background: #eaf2fa; color: #0b1220; }
+            tr:nth-child(even) { background: #f7fafd; }
+            blockquote { border-left: 4px solid #2563eb; margin: 8px 0; padding: 4px 12px;
+                         color: #52657a; background: #f2f7fc; }
+            hr { border: none; border-top: 1px solid #dbe8f4; margin: 20px 0; }
+            h1 { font-size: 1.5em; margin: 0 0 4px; color: #0b1220; }
+            h2 { font-size: 1.15em; color: #1d4ed8; margin-top: 24px; }
+            h3 { font-size: 1.02em; color: #52657a; margin-top: 16px;
+                 text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.82em; }
+            code { background: #eaf2fa; padding: 2px 4px; border-radius: 3px; font-size: 0.9em; }
+            a { color: #2563eb; }
+            .footer { text-align: center; color: #94a3b8; font-size: 11px; margin-top: 16px; }
             """;
 
-        return $"<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>{css}</style></head><body>{body}</body></html>";
+        return "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>" + css + "</style></head><body>"
+            + "<div class=\"frame\">"
+            + "<div class=\"masthead\"><span class=\"brand\">Cadentic<span class=\"tld\">.trade</span></span></div>"
+            + "<div class=\"content\">" + body + "</div>"
+            + "<div class=\"footer\">Cadentic — markets, on a cadence. Not financial advice.</div>"
+            + "</div></body></html>";
     }
 }

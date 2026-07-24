@@ -435,6 +435,12 @@
   .stat-row {
     grid-template-columns: repeat(2, 1fr);
   }
+  .capsule-row {
+    flex-wrap: wrap;
+  }
+  .signal-grid {
+    grid-template-columns: 1fr;
+  }
   .two-col {
     grid-template-columns: 1fr;
   }

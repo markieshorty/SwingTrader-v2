@@ -141,6 +141,10 @@ mat-toolbar {
       display: none;
     }
 
+    .clock-panel {
+      display: none; // no room in the 72px collapsed rail
+    }
+
     mat-nav-list a span {
       display: none;
     }

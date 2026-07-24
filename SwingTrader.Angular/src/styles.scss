@@ -214,6 +214,36 @@ mat-card.panel > h3 {
   }
 }
 
+// Loading skeleton shimmer + value pulse (dashboard stat cards and friends).
+.skeleton {
+  border-radius: 6px;
+  background: linear-gradient(
+    100deg,
+    rgba(128, 128, 128, 0.10) 40%,
+    rgba(128, 128, 128, 0.22) 50%,
+    rgba(128, 128, 128, 0.10) 60%
+  );
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+.skeleton-value {
+  height: 26px;
+  width: 70%;
+  margin-top: 2px;
+}
+@keyframes skeleton-shimmer {
+  from { background-position: 120% 0; }
+  to { background-position: -80% 0; }
+}
+
+.value-pulse {
+  animation: value-pulse 0.7s ease-out;
+}
+@keyframes value-pulse {
+  0% { opacity: 0.35; }
+  100% { opacity: 1; }
+}
+
 .stat-card,
 mat-card {
   background: var(--st-card) !important;
