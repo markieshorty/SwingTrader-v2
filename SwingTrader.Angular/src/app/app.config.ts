@@ -31,7 +31,13 @@ const msalConfig = {
     postLogoutRedirectUri: typeof window !== 'undefined' ? window.location.origin : '',
   },
   cache: {
-    cacheLocation: BrowserCacheLocation.SessionStorage,
+    // LocalStorage (was SessionStorage, 24 Jul 2026): per-tab SessionStorage
+    // wiped tokens on every browser close, forcing a full interactive login
+    // each session - maximising exposure to Microsoft's stale-login-page
+    // AADSTS165000 failures - and caused state_not_found when a redirect
+    // landed in a tab that didn't own the login state. LocalStorage shares
+    // tokens across tabs and survives restarts; MSAL renews silently.
+    cacheLocation: BrowserCacheLocation.LocalStorage,
   },
 };
 
@@ -59,9 +65,11 @@ function initializeMsal(): () => Promise<void> {
       // and boot to the splash for a one-click retry.
       .catch((err) => {
         console.error('MSAL redirect handling failed — booting to splash for a clean retry', err);
-        Object.keys(sessionStorage)
-          .filter((k) => k.startsWith('msal.') && k.includes('interaction'))
-          .forEach((k) => sessionStorage.removeItem(k));
+        for (const store of [sessionStorage, localStorage]) {
+          Object.keys(store)
+            .filter((k) => k.startsWith('msal.') && k.includes('interaction'))
+            .forEach((k) => store.removeItem(k));
+        }
       });
 }
 
