@@ -50,7 +50,7 @@ describe('AppComponent', () => {
     expect(compiled.querySelector('.logo')).toBeNull();
   });
 
-  it('should render live local and Eastern clocks under the nav menu', async () => {
+  it('should render Eastern and UK analog clocks under the nav menu', async () => {
     const router = TestBed.inject(Router);
     await router.navigateByUrl('/dashboard');
 
@@ -58,12 +58,14 @@ describe('AppComponent', () => {
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
 
-    const rows = compiled.querySelectorAll('.clock-panel .clock-row');
-    expect(rows.length).toBe(2);
-    expect(rows[0].querySelector('.clock-label')?.textContent).toContain('Local');
-    expect(rows[1].querySelector('.clock-label')?.textContent).toContain('ET');
-    // Both should render a formatted time (HH:MM:SS), not be empty.
-    expect(rows[0].querySelector('.clock-value')?.textContent).toMatch(/\d{1,2}:\d{2}:\d{2}/);
-    expect(rows[1].querySelector('.clock-value')?.textContent).toMatch(/\d{1,2}:\d{2}:\d{2}/);
+    const clocks = compiled.querySelectorAll('.clock-panel app-analog-clock');
+    expect(clocks.length).toBe(2);
+    expect(clocks[0].querySelector('.tz-label')?.textContent).toContain('Eastern Time');
+    expect(clocks[1].querySelector('.tz-label')?.textContent).toContain('UK Time');
+    // Each renders a formatted digital time (HH:MM:SS) and a canvas face.
+    expect(clocks[0].querySelector('.digital')?.textContent).toMatch(/\d{2}:\d{2}:\d{2}/);
+    expect(clocks[1].querySelector('.digital')?.textContent).toMatch(/\d{2}:\d{2}:\d{2}/);
+    expect(clocks[0].querySelector('canvas')).toBeTruthy();
+    expect(clocks[1].querySelector('canvas')).toBeTruthy();
   });
 });
