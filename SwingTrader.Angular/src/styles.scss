@@ -70,6 +70,13 @@ body.light-theme {
 
   .status-dot.blue { background: #2563eb; }
 
+  // Tab headers pick up the pale-blue surface tint in light mode; white
+  // reads cleaner against the near-white cards they sit on.
+  .mat-mdc-tab-header,
+  .mat-mdc-tab-group {
+    background: #ffffff;
+  }
+
   // Sidebar inverts in light mode: white chrome (background + brand strip),
   // with the pale blue promoted to the highlight colour for the active item.
   .sidenav {
