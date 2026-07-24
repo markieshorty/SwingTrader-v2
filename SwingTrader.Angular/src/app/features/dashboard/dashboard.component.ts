@@ -324,7 +324,7 @@ export class DashboardComponent {
 
   onSignalTabChange(index: number): void {
     this.activeTabIndex.set(index);
-    writeTabIndexToRoute(this.router, this.route, SIGNAL_TAB_NAMES, index, this.titleService, 'Dashboard');
+    writeTabIndexToRoute(this.router, this.route, SIGNAL_TAB_NAMES, index);
   }
 
   private loadNextRuns(): void {

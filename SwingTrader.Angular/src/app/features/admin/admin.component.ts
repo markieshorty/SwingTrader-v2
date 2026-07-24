@@ -70,7 +70,7 @@ export class AdminComponent {
 
   onTabChange(index: number): void {
     this.selectedTabIndex.set(index);
-    writeTabIndexToRoute(this.router, this.route, TAB_NAMES, index, this.titleService, 'Admin');
+    writeTabIndexToRoute(this.router, this.route, TAB_NAMES, index);
   }
 
   private loadStats(): void {

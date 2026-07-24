@@ -135,7 +135,7 @@ export class SettingsComponent {
 
   onTabChange(index: number): void {
     this.selectedTabIndex.set(index);
-    writeTabIndexToRoute(this.router, this.route, TAB_NAMES, index, this.titleService, 'Settings');
+    writeTabIndexToRoute(this.router, this.route, TAB_NAMES, index);
   }
 
   keyStatuses = signal<KeyStatusesDto | null>(null);
@@ -737,7 +737,7 @@ export class SettingsComponent {
           ref.onAction().subscribe(() => {
             const idx = TAB_NAMES.indexOf('notifications');
             this.selectedTabIndex.set(idx);
-            writeTabIndexToRoute(this.router, this.route, TAB_NAMES, idx, this.titleService, 'Settings');
+            writeTabIndexToRoute(this.router, this.route, TAB_NAMES, idx);
           });
         } else {
           this.snackbar.open('Trading settings saved', 'Dismiss', { duration: 3000 });

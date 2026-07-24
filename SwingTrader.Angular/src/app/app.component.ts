@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Title } from '@angular/platform-browser';
 import { filter, interval, map, startWith } from 'rxjs';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { MatSidenavModule } from '@angular/material/sidenav';
@@ -42,6 +43,7 @@ import { AuthService } from './core/services/auth.service';
   styleUrl: './app.component.scss',
 })
 export class AppComponent {
+  private browserTitle = inject(Title);
   data = inject(DashboardDataService);
   theme = inject(ThemeService);
   auth = inject(AuthService);
@@ -86,10 +88,27 @@ export class AppComponent {
     const segment = path.split('/')[1] ?? 'dashboard';
     if (!segment) return 'Dashboard';
     // "strategy-lab" -> "Strategy Lab", "shared-strategies" -> "Shared Strategies"
-    return segment
+    return AppComponent.prettify(segment);
+  }
+
+  private static prettify(slug: string): string {
+    return slug
       .split('-')
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ');
+  }
+
+  // Browser tab title: "Cadentic.trade - Page - Tab" composed from the URL on
+  // every navigation (tab changes are query-param navigations, so they update
+  // it too). The splash/auth routes get the bare brand.
+  private updateBrowserTitle(): void {
+    const parts = ['Cadentic.trade'];
+    if (!this.isAuthRoute()) {
+      parts.push(this.titleFromUrl());
+      const tab = this.router.parseUrl(this.router.url).queryParams['tab'];
+      if (tab) parts.push(AppComponent.prettify(String(tab)));
+    }
+    this.browserTitle.setTitle(parts.join(' - '));
   }
 
   // Live clocks under the nav menu - Eastern is the market's own timezone,
@@ -169,6 +188,7 @@ export class AppComponent {
         takeUntilDestroyed(),
       )
       .subscribe(() => {
+        this.updateBrowserTitle();
         if (this.isAuthRoute()) return;
         this.api.getStrategyShareCounts().subscribe({
           next: (c) => this.shareCounts.set(c),
