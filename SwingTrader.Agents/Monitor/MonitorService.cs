@@ -541,6 +541,18 @@ public class MonitorService(
         {
             if (pos.Quantity <= 0 || pos.AveragePrice <= 0) return; // shorts/bad data: not adoptable
 
+            // Only US listings are adoptable: research data, quotes and exit
+            // monitoring all assume a US symbol. Adopting the Xetra listing
+            // "APCd_EQ" (30 Jul 2026) gave the monitor a symbol Finnhub can't
+            // quote - the $0 "price" read as a stop-loss hit and the system
+            // sold the owner's manual position seconds after adopting it.
+            if (!Execution.T212InstrumentResolver.IsUsListing(pos.Ticker))
+            {
+                await LogPositionDriftAsync(accountId,
+                    $"{pos.Ticker}: held at the broker (qty {pos.Quantity:0.####}) with no local record — non-US listing, not adopted; monitoring/exits assume US symbols, review manually.", ct);
+                return;
+            }
+
             var profile = await riskProfileRepo.GetAsync(accountId, ct);
             var symbol = pos.Ticker.Split('_')[0];
             var openedAt = DateTime.TryParse(

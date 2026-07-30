@@ -14,6 +14,13 @@ public class PositionMonitorService(IMarketCalendarService marketCalendar) : IPo
         double trailingDistancePct,
         CancellationToken ct = default)
     {
+        // A non-positive price is a FAILED quote (unknown symbol, feed outage),
+        // never a real market price - acting on it sold a healthy position as a
+        // "$0.00 stop-loss hit" (APCd, 30 Jul 2026). No data means no decision.
+        if (currentPrice <= 0)
+            return Task.FromResult(new PositionCheckResult(
+                ExitReason.None, currentPrice, null));
+
         // Step 1 — stop loss (highest priority)
         if (currentPrice <= trade.StopLossPrice)
             return Task.FromResult(new PositionCheckResult(
