@@ -177,8 +177,9 @@ public class ExecutionService(
         var openPositionsValue = accountSummary.Investments.CurrentValue;
         var totalPortfolioValue = accountSummary.TotalValue;
         logger.LogInformation(
-            "Execution starting for account {AccountId}: {Date} | Cash={Cash:F2} | OpenPositionsValue={Positions:F2} | TotalPortfolio={Portfolio:F2} | Signals={Count}",
-            accountId, date, availableCash, openPositionsValue, totalPortfolioValue, signals.Count);
+            "Execution starting for account {AccountId}: {Date} | Cash={Cash:F2} | ReservedForOrders={Reserved:F2} | InPies={Pies:F2} | OpenPositionsValue={Positions:F2} | TotalPortfolio={Portfolio:F2} | Signals={Count}",
+            accountId, date, availableCash, accountSummary.Cash.ReservedForOrders, accountSummary.Cash.InPies,
+            openPositionsValue, totalPortfolioValue, signals.Count);
 
         // Pre-fetch instruments once to avoid 429s from per-symbol calls
         var instrumentsCacheKey = $"t212_instruments_all_{accountId}";
