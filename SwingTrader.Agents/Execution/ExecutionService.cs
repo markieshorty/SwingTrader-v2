@@ -218,9 +218,26 @@ public class ExecutionService(
                 continue;
             }
 
+            // Size from a LIVE quote, not the signal's 7:30 ET research price:
+            // by the open the stock can have gapped enough that a quantity
+            // computed off the stale price costs more than the estimate and
+            // T212 rejects the market order with insufficient funds (seen
+            // live 30 Jul 2026). The same quote re-anchors stop/target below.
+            decimal? livePrice = null;
+            try
+            {
+                await rateLimiter.WaitAsync(ct);
+                var quote = await finnhub.GetQuoteAsync(signal.Symbol);
+                if (quote.CurrentPrice is > 0) livePrice = quote.CurrentPrice;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Could not fetch live quote for {Symbol} (account {AccountId}) — sizing from the research price", signal.Symbol, accountId);
+            }
+
             var sizing = await sizingService.CalculateAsync(
                 signal, openTrades.Count, availableCash, totalPortfolioValue, riskProfile,
-                priceOverride: signal.CurrentPrice * gbpUsd,
+                priceOverride: (livePrice ?? signal.CurrentPrice) * gbpUsd,
                 openPositionsValue: openPositionsValue + deployedThisRun);
 
             if (!sizing.CanTrade)
@@ -274,21 +291,11 @@ public class ExecutionService(
 
             var stopLossPrice = signal.CalculatedStopLoss ?? signal.CurrentPrice * (1 - stopPct);
             var targetPrice = signal.CalculatedTarget ?? signal.CurrentPrice * (1 + targetPct);
-            try
+            if (livePrice is { } lp)
             {
-                await rateLimiter.WaitAsync(ct);
-                var freshQuote = await finnhub.GetQuoteAsync(signal.Symbol);
-                if (freshQuote.CurrentPrice is > 0)
-                {
-                    var (freshStop, freshTarget) = EntryLevelCalculator.Calculate(
-                        freshQuote.CurrentPrice.Value, stopPct, targetPct);
-                    stopLossPrice = freshStop;
-                    targetPrice = freshTarget;
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Could not refresh entry levels for {Symbol} (account {AccountId}) — using Report's precomputed levels", signal.Symbol, accountId);
+                var (freshStop, freshTarget) = EntryLevelCalculator.Calculate(lp, stopPct, targetPct);
+                stopLossPrice = freshStop;
+                targetPrice = freshTarget;
             }
 
             // ── Intraday entry confirmation (flagged, default off) ───────────
@@ -399,6 +406,25 @@ public class ExecutionService(
 
                 if (placed < signals.Count)
                     await Task.Delay(TimeSpan.FromSeconds(_execution.DelayBetweenOrdersSeconds), ct);
+            }
+            catch (Refit.ApiException api) when ((int)api.StatusCode is >= 400 and < 500
+                && api.Content?.Contains("insufficient-free-for-stocks-buy") == true)
+            {
+                // Not enough free cash for THIS order right now - an account
+                // condition, not a broker limit on the symbol. Cancel the
+                // intent and un-claim the signal (it stays eligible for a
+                // same-day re-run once cash frees up), then try the next
+                // signal - a smaller position may still fit.
+                trade.Status = TradeStatus.Cancelled;
+                await tradeRepo.UpdateAsync(trade);
+                signal.WasExecuted = false;
+                await signalRepo.UpdateAsync(signal);
+                await activityLog.LogAsync(accountId, "TradeEvent", "Order Rejected", "Warning",
+                    $"{signal.Symbol} ({ticker}): T212 reported insufficient funds for ~£{sizing.EstimatedCost:F2} — signal stays eligible for a later run; trying the next signal.", ct);
+                logger.LogWarning("Insufficient funds for {Symbol} (account {AccountId}, est £{Cost:F2}) — signal left eligible, moving on",
+                    signal.Symbol, accountId, sizing.EstimatedCost);
+                failed++;
+                continue;
             }
             catch (Refit.ApiException api) when ((int)api.StatusCode is >= 400 and < 500 && api.StatusCode != System.Net.HttpStatusCode.RequestTimeout)
             {
