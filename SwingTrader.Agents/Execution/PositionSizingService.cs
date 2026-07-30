@@ -76,8 +76,14 @@ public class PositionSizingService : IPositionSizingService
             return Task.FromResult(new PositionSizeResult(false, 0, 0,
                 $"Deployable capital (£{deployable:F2}) is fully committed (£{openPositionsValue:F2} in open positions)"));
 
-        // 2% cash buffer: never spend more than (available - 2% of total)
-        var spendableCash = availableCash - totalPortfolioValue * 0.02m;
+        // T212 reserves ~5% ABOVE a market order's value as a price-movement
+        // buffer when accepting it (confirmed live 30 Jul 2026: £2,387 order
+        // refused "insufficient funds" with £2,503 free). Size against the
+        // cash T212 will actually accept an order for, not the raw free cash.
+        var acceptableCash = availableCash / 1.05m;
+
+        // 2% cash buffer: never spend more than (acceptable - 2% of total)
+        var spendableCash = acceptableCash - totalPortfolioValue * 0.02m;
         if (spendableCash <= 0)
             return Task.FromResult(new PositionSizeResult(false, 0, 0,
                 "Insufficient cash after applying 2% buffer"));
