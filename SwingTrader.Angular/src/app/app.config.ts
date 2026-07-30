@@ -49,9 +49,27 @@ const msalInstance = new PublicClientApplication(msalConfig);
 // completes before route guards run under standalone bootstrapApplication.
 // Without this, authGuard's loginRedirect() call throws
 // "uninitialized_public_client_application" on first load.
+// LocalStorage regression guard (24 Jul 2026): with the token cache in
+// LocalStorage, an interrupted login's "interaction in progress" marker no
+// longer dies with the tab - it persists FOREVER and bricks every future
+// loginRedirect on that browser profile (users could only log in from
+// incognito). A fresh page load that is NOT processing an auth redirect can
+// never legitimately have an interaction in flight, so sweep the stale
+// interaction/temp markers before MSAL initialises.
+function sweepStaleInteractionMarkers(): void {
+  const processingRedirect = window.location.hash.includes('code=') || window.location.hash.includes('state=');
+  if (processingRedirect) return;
+  for (const store of [sessionStorage, localStorage]) {
+    Object.keys(store)
+      .filter((k) => k.startsWith('msal.') && (k.includes('interaction') || k.includes('request.params') || k.includes('request.origin')))
+      .forEach((k) => store.removeItem(k));
+  }
+}
+
 function initializeMsal(): () => Promise<void> {
-  return () =>
-    msalInstance.initialize()
+  return () => {
+    sweepStaleInteractionMarkers();
+    return msalInstance.initialize()
       .then(() => msalInstance.handleRedirectPromise())
       .then(() => undefined)
       // A rejected handleRedirectPromise (transient token-exchange failure,
@@ -71,6 +89,7 @@ function initializeMsal(): () => Promise<void> {
             .forEach((k) => store.removeItem(k));
         }
       });
+  };
 }
 
 export const appConfig: ApplicationConfig = {
