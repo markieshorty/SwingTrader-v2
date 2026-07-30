@@ -76,14 +76,15 @@ public class PositionSizingService : IPositionSizingService
             return Task.FromResult(new PositionSizeResult(false, 0, 0,
                 $"Deployable capital (£{deployable:F2}) is fully committed (£{openPositionsValue:F2} in open positions)"));
 
-        // T212 demands free cash WELL above a market order's value before
-        // accepting it. Measured live 30 Jul 2026 with reservedForOrders=0
-        // and inPies=0: free/order = 1.096 passed, 1.094 was refused as
-        // insufficient - so the real gate is ~1.095x (price-movement buffer +
-        // FX guard), roughly double the ~5% one might expect. 1.12 gives
-        // margin over the measured threshold; the cost is a slightly smaller
-        // position, which the 2% buffer below already made inexact anyway.
-        var acceptableCash = availableCash / 1.12m;
+        // T212 reserves ~5% above a market order's value as a price-movement
+        // buffer when accepting it; 1.06 covers that plus a point of
+        // slippage. (This was briefly 1.12 on 30 Jul 2026 while chasing
+        // "insufficient funds" refusals that turned out to be a corrupt
+        // practice account whose order gate ignored its real balance - fixed
+        // by resetting the account, so the extra headroom came back off.
+        // The shrink-retry ladder in ExecutionService remains the backstop
+        // if a broker-side gate ever misbehaves again.)
+        var acceptableCash = availableCash / 1.06m;
 
         // 2% cash buffer: never spend more than (acceptable - 2% of total)
         var spendableCash = acceptableCash - totalPortfolioValue * 0.02m;
