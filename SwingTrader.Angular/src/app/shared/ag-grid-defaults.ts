@@ -26,6 +26,15 @@ export const defaultColDef: ColDef = {
 // Grid date cells: "29 Jul 2026" instead of the raw ISO timestamp. The raw
 // value stays on the row for sorting (ISO strings order correctly) - only the
 // display goes through this.
+// Sort comparator for close-date columns: an open trade has no close date,
+// and "still open" is the freshest state there is - treat null as newest so
+// the default descending sort shows open trades first, then closed trades
+// most-recent-first.
+export function closedAtComparator(a: string | null | undefined, b: string | null | undefined): number {
+  const ts = (v: string | null | undefined) => (v ? Date.parse(v) : Number.MAX_SAFE_INTEGER);
+  return ts(a) - ts(b);
+}
+
 export function formatTradeDate(value: string | null | undefined): string {
   if (!value) return '-';
   const d = new Date(value);

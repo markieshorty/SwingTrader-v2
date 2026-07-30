@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, computed, input } from '@angular/core';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
-import { defaultColDef, formatTradeDate } from '../../../shared/ag-grid-defaults';
+import { closedAtComparator, defaultColDef, formatTradeDate } from '../../../shared/ag-grid-defaults';
 import { TradeDto } from '../../../core/models/dtos';
 
 @Component({
@@ -49,8 +49,10 @@ export class TradeHistoryComponent {
       field: 'closedAt',
       headerName: 'Closed',
       sort: 'desc',
-      // ISO strings sort correctly as-is; only the display is formatted.
-      valueFormatter: (p) => formatTradeDate(p.value),
+      // This grid is closed-trades-only today, but the comparator still
+      // treats a missing close date as newest so any open row would lead.
+      comparator: closedAtComparator,
+      valueFormatter: (p) => (p.data && !p.value ? 'Open' : formatTradeDate(p.value)),
     },
     {
       field: 'openedAt',

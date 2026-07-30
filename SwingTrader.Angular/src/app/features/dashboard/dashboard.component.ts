@@ -20,7 +20,7 @@ import { PercentSignedPipe } from '../../shared/pipes/percent-signed.pipe';
 import { StopTargetBarComponent } from '../../shared/components/stop-target-bar/stop-target-bar.component';
 import { ConvictionBarComponent } from '../../shared/components/conviction-bar/conviction-bar.component';
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
-import { defaultColDef, formatTradeDate } from '../../shared/ag-grid-defaults';
+import { closedAtComparator, defaultColDef, formatTradeDate } from '../../shared/ag-grid-defaults';
 import {
   RiskProfileDto,
   MarketStatusDto, ActivityLogDto, NextRunDto, PositionDto, SignalDto, TradeDto, TradingConfigDto } from '../../core/models/dtos';
@@ -263,8 +263,10 @@ export class DashboardComponent {
       field: 'closedAt',
       headerName: 'Date',
       sort: 'desc',
-      // ISO strings sort correctly as-is; only the display is formatted.
-      valueFormatter: (p) => formatTradeDate(p.value),
+      // Open trades (no close date) count as newest: they lead the grid,
+      // then closed trades most-recent-first.
+      comparator: closedAtComparator,
+      valueFormatter: (p) => (p.data && !p.value ? 'Open' : formatTradeDate(p.value)),
     },
     {
       colId: 'symbol',
