@@ -9,7 +9,11 @@ public class SecondHopConfig
 
     // Master switch for the BellwetherSync job and the research relevance
     // pass (both degrade to null downstream when off - always safe).
-    public bool Enabled { get; set; } = true;
+    // Default flipped OFF 30 Jul 2026 as a Claude cost cut: the signal is
+    // shadow-only (SH2 promotion declined), so it was burning API calls
+    // without driving any money. Set SecondHop:Enabled=true to resume
+    // collecting shadow evidence.
+    public bool Enabled { get; set; } = false;
 
     // Days of archived linked-company events the relevance pass considers -
     // the documented propagation window is days-to-weeks; 5 trading-ish days

@@ -25,8 +25,6 @@ public class BacktestConsumerFunction(
     IHistoricalCandleRepository candles,
     IAccountRiskProfileRepository riskProfileRepo,
     ISetupTacticsRepository setupTacticsRepo,
-    IUserHttpClientFactory clientFactory,
-    IOptions<ClaudeConfig> claudeConfig,
     SwingTrader.Infrastructure.Market.IMarketUniverseService universe,
     ILogger<BacktestConsumerFunction> logger)
 {
@@ -576,7 +574,9 @@ public class BacktestConsumerFunction(
         var validation = SweepOptimizer.BuildValidation(
             trainResults[winnerSummary.Label], winnerHoldout, baselineHoldout, trainSpy, holdoutSpy);
 
-        var explanation = await TryExplainAsync(accountId, baselineSummary, winnerSummary, validation, summaries, ct);
+        // Claude sweep writeups removed 30 Jul 2026 (cost cut) - the UI hides
+        // the panel when explanation is null; the numbers speak for themselves.
+        string? explanation = null;
 
         var sweep = new SweepResult(
             "sweep", baselineSummary, winnerSummary, validation, summaries, explanation,
@@ -650,32 +650,6 @@ public class BacktestConsumerFunction(
 
         var mc = MonteCarloSimulator.Run(result, fraction);
         return JsonSerializer.Serialize(mc, CamelCase);
-    }
-
-    private async Task<string?> TryExplainAsync(
-        int accountId, SweepCandidateResult baseline, SweepCandidateResult winner,
-        SweepValidation validation, List<SweepCandidateResult> candidates, CancellationToken ct)
-    {
-        try
-        {
-            var claude = await clientFactory.CreateClaudeAsync<IClaudeClient>(accountId, ct);
-            var cfg = claudeConfig.Value;
-            // +30k adaptive-thinking headroom (20 Jul 2026): Sonnet 5's
-            // thinking shares max_tokens with the answer and can starve it.
-            var response = await claude.SendMessageAsync(new ClaudeRequest(
-                cfg.RefinementModel ?? cfg.PremiumModel, cfg.MaxTokens + 30000,
-                LabAnalysisPrompts.SystemPrompt,
-                [new ClaudeMessage("user", LabAnalysisPrompts.BuildSweepExplanationPrompt(baseline, winner, validation, candidates))]));
-            var raw = response.Content.FirstOrDefault(c => c.Type == "text")?.Text;
-            if (string.IsNullOrWhiteSpace(raw)) return null;
-            var (analysis, _) = LabAnalysisPrompts.ParseResponse(raw);
-            return analysis;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Sweep explanation failed for account {AccountId} — result ships without a writeup", accountId);
-            return null;
-        }
     }
 
     // Setup-contribution (leave-one-out ablation): measures each setup's MARGINAL

@@ -10,10 +10,7 @@ using SwingTrader.Infrastructure.RateLimiting;
 namespace SwingTrader.Agents.Research;
 
 public class FundamentalScoringService(
-    IOptions<ClaudeConfig> claudeConfig,
-    IOptions<FundamentalConfig> fundamentalConfig,
-    IClaudeRateLimiter claudeRateLimiter,
-    ILogger<FundamentalScoringService> logger) : IFundamentalScoringService
+    IOptions<FundamentalConfig> fundamentalConfig) : IFundamentalScoringService
 {
     public async Task<FundamentalScore> ScoreAsync(IClaudeClient claude, string symbol, FundamentalSnapshot snapshot, CancellationToken ct)
     {
@@ -21,9 +18,12 @@ public class FundamentalScoringService(
         // human-readable narrative. Keeping the number deterministic means the Refinement
         // Agent can reliably correlate FundamentalMomentumScore with trade outcomes; a score
         // that varied with Claude's interpretation would lose statistical interpretability.
+        // Cost cut (30 Jul 2026): the reasoning is now always the deterministic
+        // template - Claude previously wrote a one-sentence blurb here that cost
+        // an API call per symbol per day and changed nothing about the score.
         var score = CalculateScore(snapshot, fundamentalConfig.Value);
-        var reasoning = await GetNarrativeAsync(claude, symbol, snapshot, score, ct);
-        return new FundamentalScore(score, reasoning);
+        var reasoning = BuildFallbackReasoning(snapshot);
+        return new FundamentalScore(score, await Task.FromResult(reasoning));
     }
 
     private static decimal CalculateScore(FundamentalSnapshot s, FundamentalConfig cfg)
@@ -79,49 +79,6 @@ public class FundamentalScoringService(
                (insiderScore * cfg.InsiderSubWeight) +
                (earningsScore * cfg.EarningsSubWeight) +
                (revenueScore * cfg.RevenueSubWeight);
-    }
-
-    private async Task<string> GetNarrativeAsync(IClaudeClient claude, string symbol, FundamentalSnapshot s, decimal score, CancellationToken ct)
-    {
-        try
-        {
-            var systemPrompt =
-                "You are a financial analyst writing a brief fundamental assessment for a systematic trading system. " +
-                "Write exactly one sentence. Maximum 30 words. Be specific about what the data shows. " +
-                "State whether the fundamental picture supports, contradicts, or is neutral toward a swing trade entry. " +
-                "Return only the sentence. No preamble. No punctuation at the end other than a full stop.";
-
-            var userPrompt =
-                $"Symbol: {symbol}\n" +
-                $"Analyst consensus: {s.AnalystTrend} ({s.AnalystCount} analysts, revision velocity over 3 months)\n" +
-                $"Insider activity (90 days): {s.InsiderActivity} ({s.InsiderBuyerCount} buyers, {s.InsiderSellerCount} sellers" +
-                (s.InsiderMspr is { } mspr ? $", MSPR {mspr:+0.0;-0.0}" : "") + ")\n" +
-                $"Earnings track record (4 quarters): {s.EarningsConsistency}" +
-                (s.SurpriseTrendPct is { } trend ? $" (surprise trend {trend:+0.0;-0.0}pp)" : "") + "\n" +
-                $"Revenue estimate direction: {s.RevenueDirection}\n" +
-                $"Fundamental score: {score:F2}/1.0\n\n" +
-                "Write one sentence assessing whether this fundamental picture supports a swing trade entry right now.";
-
-            var request = new ClaudeRequest(
-                claudeConfig.Value.Model,
-                claudeConfig.Value.MaxTokens,
-                systemPrompt,
-                [new ClaudeMessage("user", userPrompt)]);
-
-            await claudeRateLimiter.WaitAsync(ct);
-            var response = await claude.SendMessageAsync(request);
-            var text = response.Content.FirstOrDefault(c => c.Type == "text")?.Text;
-
-            if (string.IsNullOrWhiteSpace(text))
-                throw new InvalidOperationException("Claude returned no text content");
-
-            return text.Trim();
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Fundamental narrative Claude call failed for {Symbol} — using template fallback", symbol);
-            return BuildFallbackReasoning(s);
-        }
     }
 
     private static string BuildFallbackReasoning(FundamentalSnapshot s)

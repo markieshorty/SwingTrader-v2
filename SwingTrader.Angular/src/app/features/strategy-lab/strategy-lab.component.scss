@@ -80,29 +80,6 @@ mat-tab-group .panel:first-of-type {
 }
 
 // ── Claude analysis ──────────────────────────────────────────────────────────
-.analysis-card {
-  h3, h4 {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .analysis-text {
-    white-space: pre-line;
-    line-height: 1.5;
-  }
-  .analysis-suggestion {
-    border: 1px dashed rgba(128, 128, 128, 0.3);
-    border-radius: 8px;
-    padding: 10px 12px;
-    margin: 8px 0;
-  }
-  &.inline {
-    margin: 12px 0;
-    border-top: 1px solid rgba(128, 128, 128, 0.15);
-    padding-top: 10px;
-  }
-}
-
 // ── Optimizer validation ─────────────────────────────────────────────────────
 .validation-grid {
   display: grid;

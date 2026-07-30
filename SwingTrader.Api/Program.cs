@@ -222,7 +222,6 @@ builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IMarketCalendarService, MarketCalendarService>();
 builder.Services.AddScoped<AccountViewService>();
 builder.Services.AddScoped<StrategyLabService>();
-builder.Services.AddScoped<StrategyLabAnalysisService>();
 builder.Services.AddScoped<SwingTrader.Agents.Scorecard.IForwardScorecardService, SwingTrader.Agents.Scorecard.ForwardScorecardService>();
 builder.Services.Configure<ClaudeConfig>(builder.Configuration.GetSection(ClaudeConfig.SectionName));
 builder.Services.Configure<FilingDeltaConfig>(builder.Configuration.GetSection(FilingDeltaConfig.SectionName));

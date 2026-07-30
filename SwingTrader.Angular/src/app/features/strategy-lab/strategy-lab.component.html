@@ -447,11 +447,6 @@
             <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applyToProduction()">
               <mat-icon>rocket_launch</mat-icon> Apply these dials to production
             </button>
-            <button mat-stroked-button [disabled]="analysing()" (click)="analyseRun()"
-              matTooltip="Claude reads this result and suggests what might be worth testing next. Advisory only — nothing is run or applied for you.">
-              @if (analysing()) { <mat-spinner diameter="16"></mat-spinner> } @else { <mat-icon>psychology</mat-icon> }
-              Analyse this run
-            </button>
             <span class="muted small">Apply sets your live strategy weights + Buy threshold. Owner only.</span>
           </div>
         </mat-card>
@@ -514,11 +509,6 @@
           <div class="apply-row">
             <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applyToProduction()">
               <mat-icon>rocket_launch</mat-icon> Apply your dials to production
-            </button>
-            <button mat-stroked-button [disabled]="analysing()" (click)="analyseRun()"
-              matTooltip="Claude compares both runs — what actually drives the gap, whether it's big enough to matter — and suggests what might be worth testing next. Advisory only.">
-              @if (analysing()) { <mat-spinner diameter="16"></mat-spinner> } @else { <mat-icon>psychology</mat-icon> }
-              Analyse this comparison
             </button>
             <span class="muted small">Applies the dials in the form above (the "Your dials" column). Owner only.</span>
           </div>
@@ -593,38 +583,227 @@
             <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applyToProduction()">
               <mat-icon>rocket_launch</mat-icon> Apply these dials to production
             </button>
-            <button mat-stroked-button [disabled]="analysing()" (click)="analyseRun()"
-              matTooltip="Claude reads this result and suggests what might be worth testing next. Advisory only — nothing is run or applied for you.">
-              @if (analysing()) { <mat-spinner diameter="16"></mat-spinner> } @else { <mat-icon>psychology</mat-icon> }
-              Analyse this run
+            <span class="muted small">Apply sets your live strategy weights + Buy threshold. Owner only.</span>
+          </div>
+        </mat-card>
+      }
+
+      @if (response(); as r) {
+        @if (r.warning) {
+          <mat-card class="panel warning-card"><mat-icon>warning</mat-icon> {{ r.warning }}</mat-card>
+        }
+
+        <mat-card class="panel results">
+          <button mat-icon-button class="panel-close" (click)="response.set(null)" matTooltip="Dismiss">
+            <mat-icon>close</mat-icon>
+          </button>
+          <h3>What would have happened</h3>
+          <p class="summary">{{ r.result.summary }}</p>
+
+          <div class="stat-grid">
+            <div class="stat">
+              <span class="stat-value">{{ r.result.tradesKept }} / {{ r.result.totalClosedTrades }}</span>
+              <span class="stat-label">trades these dials would have taken</span>
+            </div>
+            <div class="stat" [class.good]="r.result.simAvgReturnPct > r.result.actualAvgReturnPct"
+                 [class.bad]="r.result.simAvgReturnPct < r.result.actualAvgReturnPct">
+              <span class="stat-value">{{ r.result.simAvgReturnPct | number: '1.2-2' }}%</span>
+              <span class="stat-label">avg return/trade (actual: {{ r.result.actualAvgReturnPct | number: '1.2-2' }}%)</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">{{ r.result.simWinRate | percent: '1.0-1' }}</span>
+              <span class="stat-label">win rate (actual: {{ r.result.actualWinRate | percent: '1.0-1' }})</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">{{ r.result.droppedLosers }} / {{ r.result.droppedWinners }}</span>
+              <span class="stat-label">losers avoided vs winners missed</span>
+            </div>
+          </div>
+
+          @if (r.baseline; as b) {
+            <div class="baseline-strip">
+              <h4>vs current production dials over the same history</h4>
+              <div class="baseline-row head muted small">
+                <span></span><span>Your dials</span><span>Production</span>
+              </div>
+              <div class="baseline-row">
+                <span>Trades kept</span>
+                <span class="num">{{ r.result.tradesKept }}</span>
+                <span class="num">{{ b.result.tradesKept }}</span>
+              </div>
+              <div class="baseline-row">
+                <span matTooltip="Average market-adjusted return of the kept trades (each trade's return minus SPY's move while it was open)">Avg return / trade</span>
+                <span class="num" [class.good]="r.result.simAvgReturnPct > b.result.simAvgReturnPct"
+                      [class.bad]="r.result.simAvgReturnPct < b.result.simAvgReturnPct">{{ r.result.simAvgReturnPct | number: '1.2-2' }}%</span>
+                <span class="num">{{ b.result.simAvgReturnPct | number: '1.2-2' }}%</span>
+              </div>
+              <div class="baseline-row">
+                <span>Win rate</span>
+                <span class="num" [class.good]="r.result.simWinRate > b.result.simWinRate"
+                      [class.bad]="r.result.simWinRate < b.result.simWinRate">{{ r.result.simWinRate | percent: '1.0-1' }}</span>
+                <span class="num">{{ b.result.simWinRate | percent: '1.0-1' }}</span>
+              </div>
+              <p class="muted small">
+                Same replayable history, two filters: your dials vs the production dials live right now. Green = your
+                dials did better on that measure. Remember this can only compare how each config <em>filters</em> the
+                trades you actually took.
+              </p>
+            </div>
+          }
+
+          <div class="apply-row">
+            <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applyToProduction()">
+              <mat-icon>rocket_launch</mat-icon> Apply these dials to production
             </button>
             <span class="muted small">Apply sets your live strategy weights + Buy threshold. Owner only.</span>
           </div>
         </mat-card>
       }
 
-      <!-- Claude analysis of the last completed run -->
-      @if (analysis(); as a) {
-        <mat-card class="panel analysis-card">
-          <button mat-icon-button class="panel-close" (click)="analysis.set(null)" matTooltip="Dismiss">
+      @if (response(); as r) {
+        @if (r.warning) {
+          <mat-card class="panel warning-card"><mat-icon>warning</mat-icon> {{ r.warning }}</mat-card>
+        }
+
+        <mat-card class="panel results">
+          <button mat-icon-button class="panel-close" (click)="response.set(null)" matTooltip="Dismiss">
             <mat-icon>close</mat-icon>
           </button>
-          <h3><mat-icon>psychology</mat-icon> Claude's read on this run</h3>
-          <p class="analysis-text">{{ a.analysis }}</p>
-          @if (a.suggestion; as s) {
-            <div class="analysis-suggestion">
-              <p><strong>Worth testing next:</strong> {{ s.rationale }}</p>
-              <button mat-stroked-button (click)="tryAnalysisSuggestion(s)">
-                <mat-icon>tune</mat-icon> Load suggested dials
-              </button>
+          <h3>What would have happened</h3>
+          <p class="summary">{{ r.result.summary }}</p>
+
+          <div class="stat-grid">
+            <div class="stat">
+              <span class="stat-value">{{ r.result.tradesKept }} / {{ r.result.totalClosedTrades }}</span>
+              <span class="stat-label">trades these dials would have taken</span>
+            </div>
+            <div class="stat" [class.good]="r.result.simAvgReturnPct > r.result.actualAvgReturnPct"
+                 [class.bad]="r.result.simAvgReturnPct < r.result.actualAvgReturnPct">
+              <span class="stat-value">{{ r.result.simAvgReturnPct | number: '1.2-2' }}%</span>
+              <span class="stat-label">avg return/trade (actual: {{ r.result.actualAvgReturnPct | number: '1.2-2' }}%)</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">{{ r.result.simWinRate | percent: '1.0-1' }}</span>
+              <span class="stat-label">win rate (actual: {{ r.result.actualWinRate | percent: '1.0-1' }})</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">{{ r.result.droppedLosers }} / {{ r.result.droppedWinners }}</span>
+              <span class="stat-label">losers avoided vs winners missed</span>
+            </div>
+          </div>
+
+          @if (r.baseline; as b) {
+            <div class="baseline-strip">
+              <h4>vs current production dials over the same history</h4>
+              <div class="baseline-row head muted small">
+                <span></span><span>Your dials</span><span>Production</span>
+              </div>
+              <div class="baseline-row">
+                <span>Trades kept</span>
+                <span class="num">{{ r.result.tradesKept }}</span>
+                <span class="num">{{ b.result.tradesKept }}</span>
+              </div>
+              <div class="baseline-row">
+                <span matTooltip="Average market-adjusted return of the kept trades (each trade's return minus SPY's move while it was open)">Avg return / trade</span>
+                <span class="num" [class.good]="r.result.simAvgReturnPct > b.result.simAvgReturnPct"
+                      [class.bad]="r.result.simAvgReturnPct < b.result.simAvgReturnPct">{{ r.result.simAvgReturnPct | number: '1.2-2' }}%</span>
+                <span class="num">{{ b.result.simAvgReturnPct | number: '1.2-2' }}%</span>
+              </div>
+              <div class="baseline-row">
+                <span>Win rate</span>
+                <span class="num" [class.good]="r.result.simWinRate > b.result.simWinRate"
+                      [class.bad]="r.result.simWinRate < b.result.simWinRate">{{ r.result.simWinRate | percent: '1.0-1' }}</span>
+                <span class="num">{{ b.result.simWinRate | percent: '1.0-1' }}</span>
+              </div>
+              <p class="muted small">
+                Same replayable history, two filters: your dials vs the production dials live right now. Green = your
+                dials did better on that measure. Remember this can only compare how each config <em>filters</em> the
+                trades you actually took.
+              </p>
             </div>
           }
-          <p class="muted small">
-            This is a hypothesis, not a verified result — it hasn't been simulated. Load the dials and run the
-            simulation yourself before trusting any of it.
-          </p>
+
+          <div class="apply-row">
+            <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applyToProduction()">
+              <mat-icon>rocket_launch</mat-icon> Apply these dials to production
+            </button>
+            <span class="muted small">Apply sets your live strategy weights + Buy threshold. Owner only.</span>
+          </div>
         </mat-card>
       }
+
+      @if (response(); as r) {
+        @if (r.warning) {
+          <mat-card class="panel warning-card"><mat-icon>warning</mat-icon> {{ r.warning }}</mat-card>
+        }
+
+        <mat-card class="panel results">
+          <button mat-icon-button class="panel-close" (click)="response.set(null)" matTooltip="Dismiss">
+            <mat-icon>close</mat-icon>
+          </button>
+          <h3>What would have happened</h3>
+          <p class="summary">{{ r.result.summary }}</p>
+
+          <div class="stat-grid">
+            <div class="stat">
+              <span class="stat-value">{{ r.result.tradesKept }} / {{ r.result.totalClosedTrades }}</span>
+              <span class="stat-label">trades these dials would have taken</span>
+            </div>
+            <div class="stat" [class.good]="r.result.simAvgReturnPct > r.result.actualAvgReturnPct"
+                 [class.bad]="r.result.simAvgReturnPct < r.result.actualAvgReturnPct">
+              <span class="stat-value">{{ r.result.simAvgReturnPct | number: '1.2-2' }}%</span>
+              <span class="stat-label">avg return/trade (actual: {{ r.result.actualAvgReturnPct | number: '1.2-2' }}%)</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">{{ r.result.simWinRate | percent: '1.0-1' }}</span>
+              <span class="stat-label">win rate (actual: {{ r.result.actualWinRate | percent: '1.0-1' }})</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">{{ r.result.droppedLosers }} / {{ r.result.droppedWinners }}</span>
+              <span class="stat-label">losers avoided vs winners missed</span>
+            </div>
+          </div>
+
+          @if (r.baseline; as b) {
+            <div class="baseline-strip">
+              <h4>vs current production dials over the same history</h4>
+              <div class="baseline-row head muted small">
+                <span></span><span>Your dials</span><span>Production</span>
+              </div>
+              <div class="baseline-row">
+                <span>Trades kept</span>
+                <span class="num">{{ r.result.tradesKept }}</span>
+                <span class="num">{{ b.result.tradesKept }}</span>
+              </div>
+              <div class="baseline-row">
+                <span matTooltip="Average market-adjusted return of the kept trades (each trade's return minus SPY's move while it was open)">Avg return / trade</span>
+                <span class="num" [class.good]="r.result.simAvgReturnPct > b.result.simAvgReturnPct"
+                      [class.bad]="r.result.simAvgReturnPct < b.result.simAvgReturnPct">{{ r.result.simAvgReturnPct | number: '1.2-2' }}%</span>
+                <span class="num">{{ b.result.simAvgReturnPct | number: '1.2-2' }}%</span>
+              </div>
+              <div class="baseline-row">
+                <span>Win rate</span>
+                <span class="num" [class.good]="r.result.simWinRate > b.result.simWinRate"
+                      [class.bad]="r.result.simWinRate < b.result.simWinRate">{{ r.result.simWinRate | percent: '1.0-1' }}</span>
+                <span class="num">{{ b.result.simWinRate | percent: '1.0-1' }}</span>
+              </div>
+              <p class="muted small">
+                Same replayable history, two filters: your dials vs the production dials live right now. Green = your
+                dials did better on that measure. Remember this can only compare how each config <em>filters</em> the
+                trades you actually took.
+              </p>
+            </div>
+          }
+
+          <div class="apply-row">
+            <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applyToProduction()">
+              <mat-icon>rocket_launch</mat-icon> Apply these dials to production
+            </button>
+            <span class="muted small">Apply sets your live strategy weights + Buy threshold. Owner only.</span>
+          </div>
+        </mat-card>
+      }
+
 
       @if (response(); as r) {
         @if (r.suggestions.length > 0) {
@@ -847,13 +1026,6 @@
             All three numbers are market-adjusted expectancy: the average a trade made per trade <em>beyond</em> what
             simply holding SPY over the same days would have made.
           </p>
-
-          @if (sw.explanation) {
-            <div class="analysis-card inline">
-              <h4><mat-icon>psychology</mat-icon> What the sweep found</h4>
-              <p class="analysis-text">{{ sw.explanation }}</p>
-            </div>
-          }
 
           <mat-expansion-panel class="suggestion-row">
             <mat-expansion-panel-header>

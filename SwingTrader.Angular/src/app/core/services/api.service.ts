@@ -44,8 +44,6 @@ import {
   SignalGroupDto,
   StatusDto,
   BacktestRunStatusDto,
-  LabAnalyseRequestDto,
-  LabAnalyseResponseDto,
   LabApplyRequestDto,
   LabDataStatusDto,
   StrategyLabRequestDto,
@@ -247,11 +245,6 @@ export class ApiService {
 
   runSetupSearch(): Observable<{ backtestRunId: number }> {
     return this.http.post<{ backtestRunId: number }>(`${this.baseUrl}/api/strategy-lab/setup-search`, {});
-  }
-
-  // Claude analysis of a completed run — advisory only.
-  analyseStrategyLabRun(request: LabAnalyseRequestDto): Observable<LabAnalyseResponseDto> {
-    return this.http.post<LabAnalyseResponseDto>(`${this.baseUrl}/api/strategy-lab/analyse`, request);
   }
 
   // Apply Lab dials to production with a full audit trail (refinement history).

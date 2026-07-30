@@ -93,33 +93,6 @@ public record StrategyLabResponse(
     LabBaseline? Baseline = null);  // present when CompareBaseline was requested
 
 // ── Claude analysis ("Analyse this run") ────────────────────────────────────
-// Advisory only: Claude reads a completed run and suggests a next config worth
-// TESTING. Nothing is run or applied on its behalf - the user loads the dials
-// and clicks Run Simulation themselves.
-
-public record LabAnalyseOwnResult(
-    int TotalClosedTrades, int TradesKept, int DroppedWinners, int DroppedLosers,
-    decimal ActualAvgReturnPct, decimal SimAvgReturnPct, decimal ActualWinRate, decimal SimWinRate);
-
-public record LabAnalyseRequest(
-    string DataSource,              // "own" | "historic"
-    LabWeights Weights,             // the config that produced the run
-    decimal BuyThreshold,
-    bool ExcludeBreakout,
-    LabAnalyseOwnResult? OwnResult, // own mode: the result the UI displayed
-    int? BacktestRunId,             // historic mode: result loaded server-side
-    bool AutopauseDuringBear = true);
-
-public record LabAnalyseSuggestion(
-    string Rationale,               // one sentence: what this tests and why
-    LabWeights Weights,
-    decimal BuyThreshold,
-    bool ExcludeBreakout);
-
-public record LabAnalyseResponse(
-    string Analysis,                    // plain-text paragraphs
-    LabAnalyseSuggestion? Suggestion);  // null when the data doesn't justify one
-
 // ── Apply from the Strategy Lab ─────────────────────────────────────────────
 // One-click apply that still leaves a full audit trail: the endpoint records a
 // RefinementSuggestion (Origin = StrategyLab) and immediately applies it via

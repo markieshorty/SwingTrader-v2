@@ -24,22 +24,16 @@ public class FundamentalScoringServiceTests
         RevenueSubWeight = 0.25m,
     };
 
-    private FundamentalScoringService CreateSut() =>
-        new(Options.Create(new ClaudeConfig()), Options.Create(_config),
-            Substitute.For<IClaudeRateLimiter>(), NullLogger<FundamentalScoringService>.Instance);
+    private FundamentalScoringService CreateSut() => new(Options.Create(_config));
 
     private static FundamentalSnapshot Snapshot(
         AnalystTrend analyst, InsiderActivity insider, EarningsConsistency earnings, RevenueDirection revenue) =>
         new("AAPL", analyst, insider, earnings, revenue, AnalystCount: 10, InsiderBuyerCount: 0, InsiderSellerCount: 0,
             NetInsiderShares: null, FetchedAt: DateTime.UtcNow);
 
-    private void FailClaudeCall() =>
-        _claude.SendMessageAsync(Arg.Any<ClaudeRequest>()).Returns<Task<ClaudeResponse>>(_ => throw new Exception("no claude in tests"));
-
     [Fact]
     public async Task ScoreAsync_BestCaseSnapshot_ScoresAtMaximum()
     {
-        FailClaudeCall();
         var snapshot = Snapshot(AnalystTrend.StronglyBullish, InsiderActivity.StrongBuying, EarningsConsistency.ConsistentBeater, RevenueDirection.Accelerating);
 
         var result = await CreateSut().ScoreAsync(_claude, "AAPL", snapshot, CancellationToken.None);
@@ -50,7 +44,6 @@ public class FundamentalScoringServiceTests
     [Fact]
     public async Task ScoreAsync_WorstCaseSnapshot_ScoresNearMinimum()
     {
-        FailClaudeCall();
         var snapshot = Snapshot(AnalystTrend.StronglyBearish, InsiderActivity.ClusterSelling, EarningsConsistency.ConsistentMisser, RevenueDirection.Decelerating);
 
         var result = await CreateSut().ScoreAsync(_claude, "AAPL", snapshot, CancellationToken.None);
@@ -63,7 +56,6 @@ public class FundamentalScoringServiceTests
     [Fact]
     public async Task ScoreAsync_AllNeutralInputs_ScoresAtMidpoint()
     {
-        FailClaudeCall();
         var snapshot = Snapshot(AnalystTrend.Neutral, InsiderActivity.Neutral, EarningsConsistency.Mixed, RevenueDirection.Stable);
 
         var result = await CreateSut().ScoreAsync(_claude, "AAPL", snapshot, CancellationToken.None);
@@ -72,39 +64,23 @@ public class FundamentalScoringServiceTests
     }
 
     [Fact]
-    public async Task ScoreAsync_ScoreIsDeterministic_IndependentOfClaudeOutput()
+    public async Task ScoreAsync_ReasoningIsAlwaysTheDeterministicTemplate()
     {
-        // The numeric score must never depend on Claude's response - only the
-        // narrative text does - so the Refinement agent can trust it as a
-        // stable, reproducible input.
-        _claude.SendMessageAsync(Arg.Any<ClaudeRequest>()).Returns(new ClaudeResponse(
-            "id", "message", "assistant",
-            [new ClaudeContentBlock("text", "Some narrative unrelated to the score.")],
-            "model", "end_turn", new ClaudeUsage(10, 10)));
-        var snapshot = Snapshot(AnalystTrend.StronglyBullish, InsiderActivity.StrongBuying, EarningsConsistency.ConsistentBeater, RevenueDirection.Accelerating);
-
-        var result = await CreateSut().ScoreAsync(_claude, "AAPL", snapshot, CancellationToken.None);
-
-        result.Score.Should().Be(1.0m);
-        result.Reasoning.Should().Contain("Some narrative");
-    }
-
-    [Fact]
-    public async Task ScoreAsync_ClaudeThrows_FallsBackToTemplateReasoningWithoutBlowingUp()
-    {
-        FailClaudeCall();
+        // Claude was removed from fundamentals scoring entirely (30 Jul 2026
+        // cost cut) - the reasoning must come from the template and never be
+        // empty, with no Claude client involvement at all.
         var snapshot = Snapshot(AnalystTrend.StronglyBullish, InsiderActivity.StrongBuying, EarningsConsistency.ConsistentBeater, RevenueDirection.Accelerating);
 
         var result = await CreateSut().ScoreAsync(_claude, "AAPL", snapshot, CancellationToken.None);
 
         result.Score.Should().Be(1.0m);
         result.Reasoning.Should().NotBeNullOrWhiteSpace();
+        await _claude.DidNotReceive().SendMessageAsync(Arg.Any<ClaudeRequest>());
     }
 
     [Fact]
     public async Task ScoreAsync_InsufficientDataEnumValues_TreatedAsNeutralNotPenalised()
     {
-        FailClaudeCall();
         var snapshot = Snapshot(AnalystTrend.Insufficient, InsiderActivity.Neutral, EarningsConsistency.Insufficient, RevenueDirection.Insufficient);
 
         var result = await CreateSut().ScoreAsync(_claude, "AAPL", snapshot, CancellationToken.None);
@@ -115,7 +91,6 @@ public class FundamentalScoringServiceTests
     [Fact]
     public async Task ScoreAsync_SurpriseAcceleration_TiltsTheEarningsSubScore_Bounded()
     {
-        FailClaudeCall();
         var baseSnapshot = Snapshot(AnalystTrend.Neutral, InsiderActivity.Neutral, EarningsConsistency.RecentBeater, RevenueDirection.Stable);
 
         var flat = await CreateSut().ScoreAsync(_claude, "AAPL", baseSnapshot, CancellationToken.None);

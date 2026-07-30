@@ -697,22 +697,6 @@ public static class StrategyLabEndpoints
             return Results.Ok(new { success = true, weightsId, appliedWeights = req.ApplyWeights, appliedRisk });
         });
 
-        // "Analyse this run": Claude reads a completed run and suggests a next
-        // config worth TESTING. Advisory only - the user loads the suggestion
-        // and runs it themselves. Rate-limited like the other Claude-backed
-        // endpoints since every call costs an API request.
-        api.MapPost("/strategy-lab/analyse", async (
-            LabAnalyseRequest req,
-            StrategyLabAnalysisService analysis,
-            IAccountContext ctx,
-            CancellationToken ct) =>
-        {
-            var (response, error) = await analysis.AnalyseAsync(ctx.AccountId, req, ct);
-            return error is not null
-                ? Results.BadRequest(new { message = error })
-                : Results.Ok(response);
-        }).RequireRateLimiting(RateLimitPolicies.ClaudeJobs);
-
         // Availability of the shared historic dataset, so the UI can enable/
         // disable the historic option and show data freshness.
         api.MapGet("/strategy-lab/data-status", async (

@@ -457,6 +457,38 @@ public class ResearchPipeline(
         if (articles.Count == 0)
             return (0.0m, "No recent news found.", null);
 
+        // Cost guard (30 Jul 2026): before paying for a Claude call, try the
+        // archive. Two reuse cases:
+        //  - another account already scored this symbol TODAY (the four
+        //    accounts' watchlists overlap heavily, and the archive is global);
+        //  - nothing has been published since yesterday's archived score, so
+        //    Claude would be re-reading the exact same articles.
+        // Reuse skips catalyst detection for that symbol-day (null = none
+        // detected) - catalysts only annotate signals, they never gate entry.
+        try
+        {
+            var todayUtc = DateOnly.FromDateTime(DateTime.UtcNow);
+            var archived = await sentimentArchive.GetRecentScoresAsync(symbol, todayUtc.AddDays(1), 2, ct);
+            var reusable = archived.LastOrDefault(a => a.Date == todayUtc)
+                ?? (articles.Max(a => a.PublishedAtUtc) < DateTime.UtcNow.Date
+                    ? archived.LastOrDefault(a => a.Date == todayUtc.AddDays(-1))
+                    : null);
+            if (reusable is not null)
+            {
+                var reuseMomentum = await BlendSentimentMomentumAsync(symbol, reusable.Score, ct);
+                var why = reusable.Date == todayUtc
+                    ? "already scored today"
+                    : "no new articles since yesterday's score";
+                return (reuseMomentum.BlendedScore,
+                    $"Archived sentiment reused ({why}: {reusable.Score:+0.00;-0.00} from {reusable.ArticleCount} articles on {reusable.Date:yyyy-MM-dd}).",
+                    null);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Sentiment archive reuse check failed for {Symbol} — scoring fresh", symbol);
+        }
+
         var articlesText = string.Join("\n---\n", articles.Select(n =>
             $"[{n.Source}] Headline: {n.Title}\nSummary: {n.Summary}"));
 

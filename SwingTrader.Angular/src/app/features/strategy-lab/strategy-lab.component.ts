@@ -25,8 +25,6 @@ import {
   BacktestHistoryItemDto,
   BacktestResultDto,
   HistoricResultDto,
-  LabAnalyseResponseDto,
-  LabAnalyseSuggestionDto,
   LabDataStatusDto,
   LabSuggestionDto,
   LabTradingRulesDto,
@@ -511,10 +509,6 @@ export class StrategyLabComponent implements OnDestroy {
   private lastHistoricConfigFingerprint: string | null = null;
   private lastHistoricWasAb = false;
 
-  // ── Claude analysis (advisory only) ────────────────────────────────────────
-  analysing = signal(false);
-  analysis = signal<LabAnalyseResponseDto | null>(null);
-
   // Programmatic tab control (the "Test winner in A/B" shortcut jumps tabs).
   labTabIndex = signal(0);
 
@@ -809,7 +803,6 @@ export class StrategyLabComponent implements OnDestroy {
     this.historicResult.set(null);
     this.abResult.set(null);
     this.abResultCompletedAt.set(null);
-    this.analysis.set(null);
     this.historicStatus.set(null);
     this.validateResult.set(null);
     this.monteCarloResult.set(null);
@@ -1184,49 +1177,6 @@ export class StrategyLabComponent implements OnDestroy {
       });
     }, 5000);
     this.pollHandles.set(kind, timer);
-  }
-
-  // ── Claude analysis ────────────────────────────────────────────────────────
-
-  analyseRun(): void {
-    if (!this.ranWeights) return;
-    const own = this.response()?.result ?? null;
-    this.analysing.set(true);
-    this.analysis.set(null);
-    this.api.analyseStrategyLabRun({
-      dataSource: this.dataSource(),
-      weights: this.ranWeights,
-      buyThreshold: this.ranThreshold,
-      excludeBreakout: this.ranExcludeBreakout,
-      ownResult: this.dataSource() === 'own' && own
-        ? {
-            totalClosedTrades: own.totalClosedTrades, tradesKept: own.tradesKept,
-            droppedWinners: own.droppedWinners, droppedLosers: own.droppedLosers,
-            actualAvgReturnPct: own.actualAvgReturnPct, simAvgReturnPct: own.simAvgReturnPct,
-            actualWinRate: own.actualWinRate, simWinRate: own.simWinRate,
-          }
-        : null,
-      backtestRunId: this.dataSource() === 'historic' ? this.lastHistoricRunId : null,
-      autopauseDuringBear: this.ranAutopauseBear,
-    }).subscribe({
-      next: (r) => {
-        this.analysis.set(r);
-        this.analysing.set(false);
-      },
-      error: (err) => {
-        this.snackbar.open(errorMessage(err, 'Analysis failed.'), 'Dismiss', { duration: 5000 });
-        this.analysing.set(false);
-      },
-    });
-  }
-
-  tryAnalysisSuggestion(s: LabAnalyseSuggestionDto): void {
-    this.weights.set({ ...s.weights });
-    this.buyThreshold.set(s.buyThreshold);
-    // Leave the excluded-setups selection as-is: suggestions vary the scoring
-    // dials, not which setups the run skips, so overwriting it here would
-    // silently drop a non-breakout exclusion the user had chosen.
-    this.snackbar.open('Suggested dials loaded — hit Run Simulation to test the hypothesis.', 'Dismiss', { duration: 4000 });
   }
 
   // ── Diff tables ────────────────────────────────────────────────────────────

@@ -839,41 +839,6 @@ export interface BacktestRunStatusDto {
   result: BacktestResultDto | null;
 }
 
-// Claude "Analyse this run": advisory text + an optional next config worth
-// testing. Never runs or applies anything itself.
-export interface LabAnalyseOwnResultDto {
-  totalClosedTrades: number;
-  tradesKept: number;
-  droppedWinners: number;
-  droppedLosers: number;
-  actualAvgReturnPct: number;
-  simAvgReturnPct: number;
-  actualWinRate: number;
-  simWinRate: number;
-}
-
-export interface LabAnalyseRequestDto {
-  dataSource: 'own' | 'historic';
-  weights: LabWeightsDto;
-  buyThreshold: number;
-  excludeBreakout: boolean;
-  ownResult: LabAnalyseOwnResultDto | null;
-  backtestRunId: number | null;
-  autopauseDuringBear?: boolean;
-}
-
-export interface LabAnalyseSuggestionDto {
-  rationale: string;
-  weights: LabWeightsDto;
-  buyThreshold: number;
-  excludeBreakout: boolean;
-}
-
-export interface LabAnalyseResponseDto {
-  analysis: string;
-  suggestion: LabAnalyseSuggestionDto | null;
-}
-
 // Apply from the Lab: one click, but audited - records an immediately-applied
 // RefinementSuggestion (origin StrategyLab) carrying the run's evidence.
 export interface LabApplyRequestDto {
