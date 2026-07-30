@@ -197,7 +197,7 @@
                 <mat-form-field appearance="outline" subscriptSizing="dynamic"
                   matTooltip="A SOFT guide-hold applied to every setup (per-setup overrides below win). Reaching it doesn't force a sale — a healthy position runs on; the hard time-exit is 2.5× this. Live uses per-setup guide-holds.">
                   <mat-label>Guide hold — all setups (trading days)</mat-label>
-                  <input matInput type="number" min="2" max="30" [ngModel]="rulesMaxHoldDays()"
+                  <input matInput type="number" min="2" max="60" [ngModel]="rulesMaxHoldDays()"
                     (ngModelChange)="rulesMaxHoldDays.set($event)" />
                 </mat-form-field>
                 @if (!isMixed()) {

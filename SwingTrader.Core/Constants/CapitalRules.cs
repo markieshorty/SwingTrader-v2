@@ -13,7 +13,10 @@ public static class CapitalRules
     // Per-account trading behaviour defaults and allowed ranges
     public const int DefaultMaxHoldDays = 10;
     public const int MinMaxHoldDays = 5;
-    public const int MaxMaxHoldDays = 30;
+    // Raised 30 -> 60 (30 Jul 2026) so longer guide holds can be backtested
+    // in the Lab and applied per risk book / setup tactics if the evidence
+    // supports them.
+    public const int MaxMaxHoldDays = 60;
 
     public const double DefaultTrailingActivationPct = 0.05;
     public const double MinTrailingActivationPct = 0.02;

@@ -304,7 +304,7 @@ public static class SweepOptimizer
         void AddRule(string label, HistoricTradingRules rules) =>
             result.Add(baseCandidate with { Label = labelPrefix + label, Rules = rules with { ExcludedSetups = baseExcluded } });
 
-        foreach (var v in new[] { 5, 8, 12, 15, 20, 30 })
+        foreach (var v in new[] { 5, 8, 12, 15, 20, 30, 45, 60 })
             if (v != productionRules?.MaxHoldDays)
                 AddRule($"Max hold {v}d", new HistoricTradingRules(MaxHoldDays: v));
 
@@ -379,7 +379,7 @@ public static class SweepOptimizer
                 // Guide-hold: ×0.5/×1.5/×2.0, clamped, distinct (the top two can
                 // clamp to the same value, which would duplicate a candidate).
                 foreach (var gh in new[] { 0.5m, 1.5m, 2.0m }
-                    .Select(m => Math.Clamp((int)Math.Round(tac.GuideHoldDays * m), 5, 30))
+                    .Select(m => Math.Clamp((int)Math.Round(tac.GuideHoldDays * m), 5, CapitalRules.MaxMaxHoldDays))
                     .Where(gh => gh != tac.GuideHoldDays).Distinct())
                     AddRule($"{s} guide-hold {gh}d", new HistoricTradingRules(SetupTactics: [Ov(gh, tac.StopLossPct, tac.TargetPct)]));
 
