@@ -167,10 +167,33 @@ public class ExecutionService(
         var availableCash = accountSummary.Cash.AvailableToTrade;
         var openTrades = (await tradeRepo.GetOpenTradesAsync(accountId, account.TradingMode)).ToList();
 
-        // GBP per USD. Available cash / portfolio value are GBP (T212 base), but the
-        // signal price is USD — convert it before sizing so the budget (GBP) and the
-        // price share a currency and the quantity isn't off by ~the FX rate.
-        var gbpUsd = await forex.GetGbpUsdRateAsync(ct);
+        // Cash/portfolio figures are in the account's BASE currency - which is
+        // whatever the T212 account was opened in, not necessarily GBP. The
+        // signal price is USD; convert it into the account currency before
+        // sizing so budget and price share a currency. Assuming GBP for a
+        // USD-denominated account inflated every quantity by ~34% and made
+        // T212 refuse each order as insufficient funds (account 440, 30 Jul
+        // 2026: summary "free 2499" was DOLLARS - a £2,135 ≈ $2,854 order
+        // could never fit).
+        var usdToBase = 1m;
+        try
+        {
+            var info = await t212.GetAccountInfoAsync();
+            if (string.Equals(info.CurrencyCode, "GBP", StringComparison.OrdinalIgnoreCase))
+                usdToBase = await forex.GetGbpUsdRateAsync(ct);
+            else if (!string.Equals(info.CurrencyCode, "USD", StringComparison.OrdinalIgnoreCase))
+                logger.LogWarning("Account {AccountId} T212 currency is {Currency} — no FX conversion available, sizing as if USD",
+                    accountId, info.CurrencyCode);
+            logger.LogInformation("Account {AccountId} T212 base currency: {Currency} (usdToBase={Rate:F4})",
+                accountId, info.CurrencyCode, usdToBase);
+        }
+        catch (Exception ex)
+        {
+            // Info endpoint down: fall back to the long-standing GBP assumption.
+            usdToBase = await forex.GetGbpUsdRateAsync(ct);
+            logger.LogWarning(ex, "Could not read T212 account currency for {AccountId} — assuming GBP", accountId);
+        }
+        var gbpUsd = usdToBase;
 
         // TotalValue/Investments.CurrentValue are already in the account's
         // base currency (GBP), computed by T212 itself.
