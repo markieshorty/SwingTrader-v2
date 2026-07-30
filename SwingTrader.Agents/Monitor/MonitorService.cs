@@ -481,13 +481,38 @@ public class MonitorService(
             var match = brokerHeld.FirstOrDefault(p => TickerMatchesTrade(p.Ticker, trade));
             if (match is null)
             {
-                await LogPositionDriftAsync(accountId,
-                    $"{trade.Symbol}: open locally (qty {trade.Quantity:0.####}) but not held at the broker — possible unrecorded exit or manual close.", ct);
+                // An exit order of ours may be in flight - fill reconciliation
+                // owns that path; only a trade with NO exit order was sold
+                // manually at the broker and needs closing here.
+                if (trade.ExitOrderId is not null)
+                {
+                    await LogPositionDriftAsync(accountId,
+                        $"{trade.Symbol}: open locally (qty {trade.Quantity:0.####}) but not held at the broker — exit order {trade.ExitOrderId} awaiting fill confirmation.", ct);
+                    continue;
+                }
+                await CloseManuallySoldTradeAsync(accountId, trade, t212, ct);
             }
             else if (Math.Abs(match.Quantity - trade.Quantity) > Math.Max(0.0001m, Math.Abs(trade.Quantity) * 0.01m))
             {
-                await LogPositionDriftAsync(accountId,
-                    $"{trade.Symbol}: quantity mismatch — local {trade.Quantity:0.####} vs broker {match.Quantity:0.####}.", ct);
+                // The broker is the source of truth: the owner topped up (or
+                // partially sold) manually in the T212 app. Adopt the broker's
+                // quantity and weighted-average entry so P&L, exits and the
+                // dashboard track the REAL position. Stop/target prices are
+                // left where the original entry anchored them - the monitor
+                // keeps enforcing them, now against the full quantity.
+                var oldQty = trade.Quantity;
+                var oldEntry = trade.EntryPrice;
+                trade.Quantity = match.Quantity;
+                if (match.AveragePrice > 0)
+                    trade.EntryPrice = match.AveragePrice;
+                trade.Notes = (trade.Notes ?? string.Empty).TrimEnd() +
+                    $" | Synced from T212: qty {oldQty:0.####} -> {match.Quantity:0.####}, avg entry {oldEntry:0.####} -> {trade.EntryPrice:0.####} (manual change at the broker).";
+                await tradeRepo.UpdateAsync(trade);
+                logger.LogWarning(
+                    "Position synced for {Symbol} (account {AccountId}): quantity {OldQty} -> {NewQty}, avg entry {OldEntry} -> {NewEntry} — adopted from T212",
+                    trade.Symbol, accountId, oldQty, match.Quantity, oldEntry, trade.EntryPrice);
+                await activityLog.LogAsync(accountId, "SystemEvent", "Position Synced", "Info",
+                    $"{trade.Symbol}: T212 shows {match.Quantity:0.####} shares vs {oldQty:0.####} on record — quantity and average entry adopted from the broker (manual change in the T212 app). Stop/target unchanged.", ct);
             }
         }
 
@@ -499,11 +524,114 @@ public class MonitorService(
             var tracked = openTrades.Any(t => TickerMatchesTrade(pos.Ticker, t))
                 || pendingTrades.Any(t => TickerMatchesTrade(pos.Ticker, t));
             if (!tracked)
+                await AdoptUntrackedBrokerPositionAsync(accountId, tradingMode, pos, ct);
+        }
+    }
+
+    // The owner bought something directly in the T212 app (or a manual buy
+    // outran our records) - adopt it as a real local position so it gets
+    // stop-loss/target/time-exit monitoring instead of a daily drift warning.
+    // Stop/target are derived from the active risk book against the broker's
+    // average entry; the frozen per-setup tactic fields stay null, so the
+    // monitor falls back to the account's live risk settings for this trade.
+    private async Task AdoptUntrackedBrokerPositionAsync(
+        int accountId, TradingMode tradingMode, PortfolioPositionResponse pos, CancellationToken ct)
+    {
+        try
+        {
+            if (pos.Quantity <= 0 || pos.AveragePrice <= 0) return; // shorts/bad data: not adoptable
+
+            var profile = await riskProfileRepo.GetAsync(accountId, ct);
+            var symbol = pos.Ticker.Split('_')[0];
+            var openedAt = DateTime.TryParse(
+                    pos.InitialFillDate, null, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var filled)
+                ? filled : DateTime.UtcNow;
+
+            var trade = new Trade
             {
-                await LogPositionDriftAsync(accountId,
-                    $"{pos.Ticker}: held at the broker (qty {pos.Quantity:0.####}) with no matching open position on record.", ct);
+                AccountId = accountId,
+                TradingMode = tradingMode,
+                Symbol = symbol,
+                BrokerTicker = pos.Ticker,
+                Direction = TradeDirection.Long,
+                EntryPrice = pos.AveragePrice,
+                Quantity = pos.Quantity,
+                StopLossPrice = pos.AveragePrice * (1 - profile.StopLossPct),
+                TargetPrice = pos.AveragePrice * (1 + profile.TargetPct),
+                Status = TradeStatus.Open,
+                OpenedAt = openedAt,
+                EntryFillConfirmedAt = DateTime.UtcNow,
+                Notes = "Adopted from T212 — opened manually at the broker; stop/target derived from the active risk book.",
+            };
+            await tradeRepo.AddAsync(trade);
+            logger.LogWarning(
+                "Adopted untracked T212 position for account {AccountId}: {Ticker} qty {Qty} @ {Avg} — now monitored",
+                accountId, pos.Ticker, pos.Quantity, pos.AveragePrice);
+            await activityLog.LogAsync(accountId, "SystemEvent", "Position Synced", "Info",
+                $"{symbol}: held at T212 ({pos.Quantity:0.####} @ {pos.AveragePrice:0.####}) with no local record — adopted as a monitored position with stop {trade.StopLossPrice:0.####} / target {trade.TargetPrice:0.####} from the risk book.", ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to adopt untracked T212 position {Ticker} for account {AccountId} — will retry next cycle",
+                pos.Ticker, accountId);
+        }
+    }
+
+    // Close a local trade whose position the owner sold directly at the
+    // broker. Best effort on the exit details: the most recent filled SELL
+    // for the ticker in T212 order history supplies price/fees/authoritative
+    // P&L; if history has rolled past it, the trade still closes with an
+    // estimated exit at the broker-reported values we last knew.
+    private async Task CloseManuallySoldTradeAsync(int accountId, Trade trade, ITrading212Client t212, CancellationToken ct)
+    {
+        HistoricalFillDetail? sellFill = null;
+        DateTime? soldAt = null;
+        try
+        {
+            var history = await t212.GetOrderHistoryAsync(limit: 50);
+            var sell = history.Items
+                .Where(i => i.Fill is not null
+                    && i.Fill.Quantity < 0
+                    && TickerMatchesSymbol(i.Order.Ticker, trade.Symbol)
+                    && i.Fill.FilledAt >= trade.OpenedAt)
+                .OrderByDescending(i => i.Fill!.FilledAt)
+                .FirstOrDefault();
+            if (sell is not null)
+            {
+                sellFill = sell.Fill;
+                soldAt = sell.Fill!.FilledAt;
+                trade.ExitOrderId = sell.Order.Id.ToString();
             }
         }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not fetch T212 order history for manual-sale close of {Symbol} (account {AccountId}) — closing with estimated exit",
+                trade.Symbol, accountId);
+        }
+
+        trade.Status = TradeStatus.Closed;
+        trade.ClosedAt = soldAt ?? DateTime.UtcNow;
+        if (sellFill is not null)
+        {
+            trade.ExitPrice = sellFill.Price;
+            trade.ExitValueGbp = sellFill.WalletImpact?.NetValue;
+            trade.ExitFeesGbp = SumFeesGbp(sellFill);
+            trade.RealizedPnl = sellFill.WalletImpact?.RealisedProfitLoss
+                ?? (sellFill.Price - trade.EntryPrice) * trade.Quantity;
+            trade.ExitFillConfirmedAt = DateTime.UtcNow;
+        }
+        trade.Notes = (trade.Notes ?? string.Empty).TrimEnd() +
+            $" | Synced from T212: position sold manually at the broker{(sellFill is null ? " (sell details not found in order history — exit price unknown)" : string.Empty)}.";
+        await tradeRepo.UpdateAsync(trade);
+
+        logger.LogWarning(
+            "Closed manually-sold position for {Symbol} (account {AccountId}): broker no longer holds it{Detail}",
+            trade.Symbol, accountId, sellFill is null ? " (no sell fill found in history)" : $" — exit {sellFill.Price} P&L {trade.RealizedPnl}");
+        await activityLog.LogAsync(accountId, "SystemEvent", "Position Synced", "Info",
+            $"{trade.Symbol}: sold manually at T212 — local position closed" +
+            (sellFill is not null
+                ? $" at {sellFill.Price:0.####} (P&L {trade.RealizedPnl:+0.00;-0.00})."
+                : " (sell not found in recent order history; exit price unrecorded)."), ct);
     }
 
     private async Task LogPositionDriftAsync(int accountId, string message, CancellationToken ct)

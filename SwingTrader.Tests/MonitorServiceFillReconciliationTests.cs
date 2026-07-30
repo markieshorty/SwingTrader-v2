@@ -380,18 +380,48 @@ public class MonitorServiceFillReconciliationTests
     };
 
     [Fact]
-    public async Task RunCycleAsync_LocalOpenNotHeldAtBroker_FlagsPositionDrift()
+    public async Task RunCycleAsync_LocalOpenNotHeldAtBroker_ClosesTradeFromSellFill()
     {
         // Broker still holds OTHER positions (so the response is trusted), but
-        // not this one - a genuine per-position phantom.
+        // not this one - the owner sold it manually in the T212 app. The local
+        // trade must CLOSE (exact sync), adopting the sell fill's price/P&L
+        // from order history.
         SetupNoOpenPositions();
-        _tradeRepo.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade> { ConfirmedOpen("AAPL", 10m) });
+        var trade = ConfirmedOpen("AAPL", 10m);
+        _tradeRepo.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade> { trade });
+        _t212.GetPortfolioAsync().Returns(new List<PortfolioPositionResponse> { BrokerPosition("MSFT_US_EQ", 5m) });
+        _t212.GetOrderHistoryAsync(50, null, null).Returns(new HistoricalOrdersResponse(
+            [new HistoricalOrderItem(
+                new HistoricalOrderDetail(777, "AAPL_US_EQ", "FILLED", -10m, -10m, 1065m),
+                new HistoricalFillDetail(DateTime.UtcNow, 106.5m, -10m, null))],
+            null));
+
+        await CreateSut().RunCycleAsync(1, _finnhub, _t212);
+
+        trade.Status.Should().Be(TradeStatus.Closed);
+        trade.ExitPrice.Should().Be(106.5m);
+        trade.ExitOrderId.Should().Be("777");
+        await _tradeRepo.Received().UpdateAsync(Arg.Is<Trade>(t => t.Id == trade.Id && t.Status == TradeStatus.Closed));
+        await _activityLog.Received(1).LogAsync(1, "SystemEvent", "Position Synced", "Info",
+            Arg.Is<string>(m => m.Contains("AAPL") && m.Contains("sold manually")), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RunCycleAsync_LocalOpenNotHeldAtBroker_ExitOrderInFlight_OnlyWarns()
+    {
+        // Our own exit order is awaiting fill confirmation - the fill
+        // reconciliation path owns closing it; the sync must not double-close.
+        SetupNoOpenPositions();
+        var trade = ConfirmedOpen("AAPL", 10m);
+        trade.ExitOrderId = "555";
+        _tradeRepo.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade> { trade });
         _t212.GetPortfolioAsync().Returns(new List<PortfolioPositionResponse> { BrokerPosition("MSFT_US_EQ", 5m) });
 
         await CreateSut().RunCycleAsync(1, _finnhub, _t212);
 
+        trade.Status.Should().Be(TradeStatus.Open);
         await _activityLog.Received(1).LogAsync(1, "SystemEvent", "Position Drift", "Warning",
-            Arg.Is<string>(m => m.Contains("AAPL") && m.Contains("not held at the broker")), Arg.Any<CancellationToken>());
+            Arg.Is<string>(m => m.Contains("AAPL") && m.Contains("awaiting fill confirmation")), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -416,28 +446,45 @@ public class MonitorServiceFillReconciliationTests
     }
 
     [Fact]
-    public async Task RunCycleAsync_BrokerHoldingWithNoLocalRecord_FlagsPositionDrift()
+    public async Task RunCycleAsync_BrokerHoldingWithNoLocalRecord_AdoptsAsMonitoredPosition()
     {
+        // The owner bought directly in the T212 app - exact sync means the
+        // holding becomes a real local position with stop/target from the
+        // risk book, not a daily drift warning.
         SetupNoOpenPositions(); // no local open trades
         _t212.GetPortfolioAsync().Returns(new List<PortfolioPositionResponse> { BrokerPosition("TSLA_US_EQ", 5m) });
 
         await CreateSut().RunCycleAsync(1, _finnhub, _t212);
 
-        await _activityLog.Received(1).LogAsync(1, "SystemEvent", "Position Drift", "Warning",
-            Arg.Is<string>(m => m.Contains("TSLA_US_EQ") && m.Contains("no matching open position")), Arg.Any<CancellationToken>());
+        await _tradeRepo.Received(1).AddAsync(Arg.Is<Trade>(t =>
+            t.Symbol == "TSLA"
+            && t.BrokerTicker == "TSLA_US_EQ"
+            && t.Quantity == 5m
+            && t.EntryPrice == 100m
+            && t.Status == TradeStatus.Open
+            && t.StopLossPrice > 0 && t.StopLossPrice < 100m
+            && t.TargetPrice > 100m));
+        await _activityLog.Received(1).LogAsync(1, "SystemEvent", "Position Synced", "Info",
+            Arg.Is<string>(m => m.Contains("TSLA") && m.Contains("adopted")), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task RunCycleAsync_QuantityMismatch_FlagsPositionDrift()
+    public async Task RunCycleAsync_QuantityMismatch_AdoptsBrokerQuantityAndAverageEntry()
     {
+        // Manual top-up (or partial sell) in the T212 app: the broker's
+        // quantity and weighted-average entry become the local truth.
         SetupNoOpenPositions();
-        _tradeRepo.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade> { ConfirmedOpen("AAPL", 10m) });
+        var trade = ConfirmedOpen("AAPL", 10m);
+        _tradeRepo.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade> { trade });
         _t212.GetPortfolioAsync().Returns(new List<PortfolioPositionResponse> { BrokerPosition("AAPL_US_EQ", 7m) });
 
         await CreateSut().RunCycleAsync(1, _finnhub, _t212);
 
-        await _activityLog.Received(1).LogAsync(1, "SystemEvent", "Position Drift", "Warning",
-            Arg.Is<string>(m => m.Contains("quantity mismatch")), Arg.Any<CancellationToken>());
+        trade.Quantity.Should().Be(7m);
+        trade.EntryPrice.Should().Be(100m); // BrokerPosition's averagePrice
+        await _tradeRepo.Received().UpdateAsync(Arg.Is<Trade>(t => t.Id == trade.Id && t.Quantity == 7m));
+        await _activityLog.Received(1).LogAsync(1, "SystemEvent", "Position Synced", "Info",
+            Arg.Is<string>(m => m.Contains("AAPL") && m.Contains("adopted from the broker")), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -522,8 +569,10 @@ public class MonitorServiceFillReconciliationTests
 
         await CreateSut().RunCycleAsync(1, _finnhub, _t212);
 
-        // Local HAL phantom + untracked HALO holding = drift flagged.
-        await _activityLog.Received().LogAsync(1, "SystemEvent", "Position Drift", "Warning", Arg.Any<string>(), Arg.Any<CancellationToken>());
+        // Local HAL phantom -> closed as a manual sale; untracked HALO
+        // holding -> adopted. Exact sync in both directions.
+        await _tradeRepo.Received().UpdateAsync(Arg.Is<Trade>(t => t.Symbol == "HAL" && t.Status == TradeStatus.Closed));
+        await _tradeRepo.Received(1).AddAsync(Arg.Is<Trade>(t => t.Symbol == "HALO" && t.Status == TradeStatus.Open));
     }
 
     [Fact]
