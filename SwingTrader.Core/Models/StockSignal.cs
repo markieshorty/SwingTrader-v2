@@ -5,6 +5,12 @@ namespace SwingTrader.Core.Models;
 public class StockSignal : BaseEntity
 {
     public string Symbol { get; set; } = string.Empty;
+
+    // Set when the broker DEFINITIVELY rejected this signal's order (e.g.
+    // T212 per-instrument position-size limits) - execution treats the
+    // signal as unproceedable for the rest of the day and moves on to the
+    // next eligible Buy. Signals are per-day rows, so tomorrow starts clean.
+    public DateTime? BrokerRejectedAt { get; set; }
     // Copied from the WatchlistItem this signal was scored from (itself
     // sourced from Finnhub's company profile when the symbol was added) -
     // avoids a second Finnhub call just to display a hover tooltip.

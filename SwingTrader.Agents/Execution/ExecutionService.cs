@@ -100,6 +100,7 @@ public class ExecutionService(
 
         var allSignals = (await signalRepo.GetByDateAsync(accountId, date))
             .Where(s => s.Recommendation == Recommendation.Buy && !s.WasExecuted
+                && s.BrokerRejectedAt == null
                 && !closedTodaySymbols.Contains(s.Symbol) && !pendingSymbols.Contains(s.Symbol))
             .OrderByDescending(s => s.ConvictionScore)
             .ToList();
@@ -398,6 +399,25 @@ public class ExecutionService(
 
                 if (placed < signals.Count)
                     await Task.Delay(TimeSpan.FromSeconds(_execution.DelayBetweenOrdersSeconds), ct);
+            }
+            catch (Refit.ApiException api) when ((int)api.StatusCode is >= 400 and < 500 && api.StatusCode != System.Net.HttpStatusCode.RequestTimeout)
+            {
+                // A 4xx is the broker actively REFUSING the order (T212
+                // per-instrument position-size limits, quantity precision,
+                // etc.) - nothing was placed, so there is no double-buy risk.
+                // Cancel the intent, flag the signal unproceedable for the
+                // rest of the day, release the cash and move on to the next
+                // eligible signal in this same round.
+                trade.Status = TradeStatus.Cancelled;
+                await tradeRepo.UpdateAsync(trade);
+                signal.BrokerRejectedAt = DateTime.UtcNow;
+                await signalRepo.UpdateAsync(signal);
+                await activityLog.LogAsync(accountId, "TradeEvent", "Order Rejected", "Warning",
+                    $"{signal.Symbol} ({ticker}): T212 refused the order ({(int)api.StatusCode} {api.StatusCode}: {Truncate(api.Content, 160)}) — flagged unproceedable for today, moving to the next signal.", ct);
+                logger.LogWarning("Broker rejected {Symbol} ({Ticker}) with {Status} for account {AccountId} — signal flagged unproceedable today",
+                    signal.Symbol, ticker, api.StatusCode, accountId);
+                failed++;
+                continue;
             }
             catch (Exception ex)
             {

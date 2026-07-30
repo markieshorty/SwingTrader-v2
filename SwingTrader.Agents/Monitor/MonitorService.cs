@@ -602,7 +602,12 @@ public class MonitorService(
                         .FirstOrDefault(x => x.Symbol.Equals(trade.Symbol, StringComparison.OrdinalIgnoreCase) && x.WasExecuted);
                     if (signal is not null)
                     {
+                        // Un-claim it but ALSO flag it broker-rejected: the
+                        // retry round should move on to the next eligible
+                        // signal rather than re-attempt one the broker has
+                        // already refused once today.
                         signal.WasExecuted = false;
+                        signal.BrokerRejectedAt = DateTime.UtcNow;
                         await signalRepo.UpdateAsync(signal);
                         await jobLog.DeleteAsync(accountId, "Execution", todayEt);
                         rearmed = true;
