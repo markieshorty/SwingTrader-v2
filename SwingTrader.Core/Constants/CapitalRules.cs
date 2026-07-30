@@ -4,7 +4,11 @@ public static class CapitalRules
 {
     public const decimal LockedCapitalPct = 0.60m;
     public const int MaxOpenPositions = 3;
-    public const decimal DailyLossCircuitBreakerPct = 0.05m;
+    // Raised 5% -> 10% (30 Jul 2026): during the diagnose-issues phase the
+    // priority is trades flowing through the system; 5% tripped on normal
+    // two-position volatility. Per risk book, adjustable in Settings > Risk
+    // Management (Min/MaxDailyLossCircuitBreakerPct bound the slider).
+    public const decimal DailyLossCircuitBreakerPct = 0.10m;
 
     // Per-account trading behaviour defaults and allowed ranges
     public const int DefaultMaxHoldDays = 10;
