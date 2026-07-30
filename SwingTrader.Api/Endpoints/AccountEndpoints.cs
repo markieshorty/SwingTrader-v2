@@ -240,9 +240,20 @@ public static class AccountEndpoints
                 ?? throw new InvalidOperationException("Authenticated caller has no account.");
 
             if (paused)
+            {
                 account.PauseExecution(account.TradingMode, ExecutionPauseReason.Manual, DateTime.UtcNow);
+            }
             else
-                account.ResumeExecution(account.TradingMode);
+            {
+                // A manual resume of an auto pause vetoes further auto pauses
+                // for the rest of the ET trading day - without this, the next
+                // Monitor cycle re-checked the same drawdown/regime and
+                // flipped the pause straight back on.
+                var et = TimeZoneInfo.FindSystemTimeZoneById(
+                    OperatingSystem.IsWindows() ? "Eastern Standard Time" : "America/New_York");
+                var todayEt = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, et));
+                account.ResumeExecution(account.TradingMode, vetoAutoPauseForEtDay: todayEt);
+            }
 
             await accounts.UpdateAsync(account);
 

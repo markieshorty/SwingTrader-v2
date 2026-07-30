@@ -88,8 +88,18 @@ public class MonitorService(
         // transient T212 blip would be worse than surfacing the drift.
         await ReconcilePositionsAsync(accountId, account.TradingMode, t212, ct);
 
-        // Step 1 — circuit breaker check
-        if (await circuitBreaker.ShouldTriggerAsync(accountId, summary, ct))
+        // Step 1 — circuit breaker check. If the owner manually resumed an
+        // auto pause earlier today, the whole block (pause + alert) stands
+        // down until the ET day rolls over: they have already seen the
+        // drawdown and explicitly chosen to keep trading, so re-firing every
+        // 5-minute cycle would just flip their decision back and spam alerts.
+        if (account.IsAutoPauseVetoed(account.TradingMode, TodayEt()))
+        {
+            logger.LogInformation(
+                "Circuit breaker check skipped for account {AccountId} — owner manually resumed entries today (veto active until the next ET trading day)",
+                accountId);
+        }
+        else if (await circuitBreaker.ShouldTriggerAsync(accountId, summary, ct))
         {
             var openTrades = (await tradeRepo.GetOpenTradesAsync(accountId, account.TradingMode)).ToList();
             var flagged = openTrades.Select(t => new FlaggedExit(t.Symbol, ExitReason.CircuitBreaker, t.EntryPrice)).ToList();
@@ -352,7 +362,7 @@ public class MonitorService(
             // The active regime's book decides whether entries pause.
             var pauseWanted = (await riskProfileRepo.GetAsync(account.Id, regime.Regime, ct)).AutopauseTrading;
 
-            if (pauseWanted && !account.IsExecutionPaused(mode))
+            if (pauseWanted && !account.IsExecutionPaused(mode) && !account.IsAutoPauseVetoed(mode, TodayEt()))
             {
                 account.PauseExecution(mode, ExecutionPauseReason.RegimeAutopause, DateTime.UtcNow);
                 await accountRepo.UpdateAsync(account, ct);
@@ -387,6 +397,13 @@ public class MonitorService(
             // the last-known regime and pause state carry to the next check.
             logger.LogWarning(ex, "Regime autopause check failed for account {AccountId} — will retry next cycle", account.Id);
         }
+    }
+
+    private static DateOnly TodayEt()
+    {
+        var et = TimeZoneInfo.FindSystemTimeZoneById(
+            OperatingSystem.IsWindows() ? "Eastern Standard Time" : "America/New_York");
+        return DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, et));
     }
 
     // A local position younger than this is exempt from the phantom/mismatch

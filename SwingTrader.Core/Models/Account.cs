@@ -40,6 +40,16 @@ public class Account : UnscopedEntity
     public DateTime? ExecutionPausedAtDemo { get; set; }
     public DateTime? ExecutionPausedAtLive { get; set; }
 
+    // Set (to the ET trading date) when the owner manually resumes entries
+    // that an AUTO pause had stopped (circuit breaker or regime autopause).
+    // While today's ET date matches, Monitor's auto-pause paths stand down:
+    // a deliberate manual resume is the owner overruling the machine for the
+    // rest of that trading day, not an invitation to re-pause five minutes
+    // later. Manual pauses are unaffected, and the veto expires by itself at
+    // the next ET day rollover.
+    public DateOnly? AutoPauseVetoDateDemo { get; set; }
+    public DateOnly? AutoPauseVetoDateLive { get; set; }
+
     // The last market regime Monitor detected (MarketRegimeService). Persisted
     // so it crosses the API/Functions process boundary (separate memory
     // caches): the risk-profile repository resolves the ACTIVE regime book
@@ -59,6 +69,9 @@ public class Account : UnscopedEntity
 
     public DateTime? ExecutionPausedAtFor(TradingMode mode) =>
         mode == TradingMode.Live ? ExecutionPausedAtLive : ExecutionPausedAtDemo;
+
+    public bool IsAutoPauseVetoed(TradingMode mode, DateOnly todayEt) =>
+        (mode == TradingMode.Live ? AutoPauseVetoDateLive : AutoPauseVetoDateDemo) == todayEt;
 
     // Pause entries for a mode, recording why and when. No-op on the
     // reason/timestamp if already paused, so a circuit-breaker trip can't
@@ -81,17 +94,25 @@ public class Account : UnscopedEntity
         }
     }
 
-    public void ResumeExecution(TradingMode mode)
+    // vetoAutoPauseForEtDay: pass today's ET date on a MANUAL resume - if the
+    // pause being cleared was an auto pause, auto-pausing is vetoed for the
+    // rest of that trading day. Auto-resumes (regime release) pass null.
+    public void ResumeExecution(TradingMode mode, DateOnly? vetoAutoPauseForEtDay = null)
     {
+        var wasAutoPause = IsExecutionPaused(mode)
+            && ExecutionPauseReasonFor(mode) is ExecutionPauseReason.CircuitBreaker or ExecutionPauseReason.RegimeAutopause;
+
         if (mode == TradingMode.Live)
         {
             ExecutionPausedLive = false;
             ExecutionPausedAtLive = null;
+            if (wasAutoPause && vetoAutoPauseForEtDay is { } dLive) AutoPauseVetoDateLive = dLive;
         }
         else
         {
             ExecutionPausedDemo = false;
             ExecutionPausedAtDemo = null;
+            if (wasAutoPause && vetoAutoPauseForEtDay is { } dDemo) AutoPauseVetoDateDemo = dDemo;
         }
     }
     // Soft-delete: the account's own children (WatchlistItems,
