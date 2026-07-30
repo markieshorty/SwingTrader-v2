@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, computed, input } from '@angular/core';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
-import { defaultColDef } from '../../../shared/ag-grid-defaults';
+import { defaultColDef, formatTradeDate } from '../../../shared/ag-grid-defaults';
 import { TradeDto } from '../../../core/models/dtos';
 
 @Component({
@@ -41,7 +41,22 @@ export class TradeHistoryComponent {
 
   defaultColDef = defaultColDef;
 
+  // Leftmost = most important: when it closed, what it was, how it did and
+  // why (setup). Price/cash mechanics and entry-time metadata follow.
+  // Newest-first by default.
   columnDefs: ColDef<TradeDto>[] = [
+    {
+      field: 'closedAt',
+      headerName: 'Closed',
+      sort: 'desc',
+      // ISO strings sort correctly as-is; only the display is formatted.
+      valueFormatter: (p) => formatTradeDate(p.value),
+    },
+    {
+      field: 'openedAt',
+      headerName: 'Opened',
+      valueFormatter: (p) => formatTradeDate(p.value),
+    },
     {
       colId: 'symbol',
       headerName: 'Symbol',
@@ -51,6 +66,19 @@ export class TradeHistoryComponent {
       // trades with no stored company name.
       valueGetter: (p) => (p.data?.companyName ? `${p.data.companyName} (${p.data.symbol})` : (p.data?.symbol ?? '')),
     },
+    {
+      field: 'realizedPnl',
+      headerName: 'P&L',
+      valueFormatter: (p) => (p.value != null ? `£${p.value.toFixed(2)}` : '-'),
+    },
+    {
+      field: 'realizedPnlPercent',
+      headerName: 'Return %',
+      valueFormatter: (p) => (p.value != null ? `${p.value.toFixed(1)}%` : '-'),
+    },
+    { field: 'status', headerName: 'Outcome' },
+    { field: 'setupType', headerName: 'Setup Type' },
+    { field: 'daysHeld', headerName: 'Hold Days' },
     // Share price is the instrument's own per-share price (USD for US-listed
     // stocks) - Real Money is the actual £ that left/entered the account for
     // that leg, from T212's own reported fill (post FX-conversion/fees), not
@@ -76,18 +104,6 @@ export class TradeHistoryComponent {
       headerName: 'Fees',
       valueFormatter: (p) => (p.value != null ? `£${p.value.toFixed(2)}` : '-'),
     },
-    {
-      field: 'realizedPnl',
-      headerName: 'P&L',
-      valueFormatter: (p) => (p.value != null ? `£${p.value.toFixed(2)}` : '-'),
-    },
-    {
-      field: 'realizedPnlPercent',
-      headerName: 'Return %',
-      valueFormatter: (p) => (p.value != null ? `${p.value.toFixed(1)}%` : '-'),
-    },
-    { field: 'daysHeld', headerName: 'Hold Days' },
-    { field: 'setupType', headerName: 'Setup Type' },
     { field: 'convictionScoreAtEntry', headerName: 'Conviction' },
     {
       field: 'forwardScoreAtEntry',
@@ -116,7 +132,6 @@ export class TradeHistoryComponent {
       },
     },
     { field: 'marketRegimeAtEntry', headerName: 'Regime' },
-    { field: 'status', headerName: 'Outcome' },
   ];
 
   winRate = computed(() => {

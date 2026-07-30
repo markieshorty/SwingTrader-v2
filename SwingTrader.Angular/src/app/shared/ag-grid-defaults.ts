@@ -22,3 +22,14 @@ export const defaultColDef: ColDef = {
     backgroundColor: 'var(--st-card)',
   },
 };
+
+// Grid date cells: "29 Jul 2026" instead of the raw ISO timestamp. The raw
+// value stays on the row for sorting (ISO strings order correctly) - only the
+// display goes through this.
+export function formatTradeDate(value: string | null | undefined): string {
+  if (!value) return '-';
+  const d = new Date(value);
+  return isNaN(d.getTime())
+    ? '-'
+    : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}

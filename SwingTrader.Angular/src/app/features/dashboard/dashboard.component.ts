@@ -20,7 +20,7 @@ import { PercentSignedPipe } from '../../shared/pipes/percent-signed.pipe';
 import { StopTargetBarComponent } from '../../shared/components/stop-target-bar/stop-target-bar.component';
 import { ConvictionBarComponent } from '../../shared/components/conviction-bar/conviction-bar.component';
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
-import { defaultColDef } from '../../shared/ag-grid-defaults';
+import { defaultColDef, formatTradeDate } from '../../shared/ag-grid-defaults';
 import {
   RiskProfileDto,
   MarketStatusDto, ActivityLogDto, NextRunDto, PositionDto, SignalDto, TradeDto, TradingConfigDto } from '../../core/models/dtos';
@@ -256,7 +256,16 @@ export class DashboardComponent {
 
   defaultColDef = defaultColDef;
 
+  // Leftmost = most important: when did it close, what was it, how did it do.
+  // Prices/cash mechanics follow; sorted newest-first by default.
   tradeColumnDefs: ColDef<TradeDto>[] = [
+    {
+      field: 'closedAt',
+      headerName: 'Date',
+      sort: 'desc',
+      // ISO strings sort correctly as-is; only the display is formatted.
+      valueFormatter: (p) => formatTradeDate(p.value),
+    },
     {
       colId: 'symbol',
       headerName: 'Symbol',
@@ -264,7 +273,14 @@ export class DashboardComponent {
       // trades with no stored company name.
       valueGetter: (p) => (p.data?.companyName ? `${p.data.companyName} (${p.data.symbol})` : (p.data?.symbol ?? '')),
     },
-    { field: 'direction', headerName: 'Direction' },
+    { field: 'realizedPnl', headerName: 'P&L', valueFormatter: (p) => (p.value != null ? `£${p.value.toFixed(2)}` : '-') },
+    {
+      field: 'realizedPnlPercent',
+      headerName: 'P&L %',
+      valueFormatter: (p) => (p.value != null ? `${p.value.toFixed(1)}%` : '-'),
+    },
+    { field: 'status', headerName: 'Result' },
+    { field: 'daysHeld', headerName: 'Days' },
     // Share price is the instrument's own per-share price (USD for US-listed
     // stocks) - Real Money is the actual £ that left/entered the account for
     // that leg, from T212's own reported fill (post FX-conversion/fees).
@@ -289,15 +305,7 @@ export class DashboardComponent {
       headerName: 'Fees',
       valueFormatter: (p) => (p.value != null ? `£${p.value.toFixed(2)}` : '-'),
     },
-    { field: 'realizedPnl', headerName: 'P&L', valueFormatter: (p) => (p.value != null ? `£${p.value.toFixed(2)}` : '-') },
-    {
-      field: 'realizedPnlPercent',
-      headerName: 'P&L %',
-      valueFormatter: (p) => (p.value != null ? `${p.value.toFixed(1)}%` : '-'),
-    },
-    { field: 'daysHeld', headerName: 'Days' },
-    { field: 'status', headerName: 'Result' },
-    { field: 'closedAt', headerName: 'Date' },
+    { field: 'direction', headerName: 'Direction' },
   ];
 
   constructor() {
