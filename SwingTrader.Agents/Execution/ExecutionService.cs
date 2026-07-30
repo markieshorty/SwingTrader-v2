@@ -165,6 +165,27 @@ public class ExecutionService(
         }
 
         var availableCash = accountSummary.Cash.AvailableToTrade;
+        try
+        {
+            // The cash endpoint exposes fields the summary hides (notably
+            // 'blocked') - logged while diagnosing 440's phantom
+            // insufficient-funds rejections (30 Jul 2026).
+            var cashDetail = await t212.GetAccountCashAsync();
+            logger.LogInformation(
+                "T212 cash detail for account {AccountId}: free={Free:F2} total={Total:F2} blocked={Blocked:F2} invested={Invested:F2} pieCash={PieCash:F2}",
+                accountId, cashDetail.Free, cashDetail.Total, cashDetail.Blocked, cashDetail.Invested, cashDetail.PieCash);
+            if (cashDetail.Free > 0 && cashDetail.Free < availableCash)
+            {
+                logger.LogWarning(
+                    "T212 'free' ({Free:F2}) is below the summary's availableToTrade ({Available:F2}) for account {AccountId} — sizing from the lower figure",
+                    cashDetail.Free, availableCash, accountId);
+                availableCash = cashDetail.Free;
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not fetch T212 cash detail for account {AccountId} — using the summary figure", accountId);
+        }
         var openTrades = (await tradeRepo.GetOpenTradesAsync(accountId, account.TradingMode)).ToList();
 
         // Cash/portfolio figures are in the account's BASE currency - which is
@@ -410,8 +431,40 @@ public class ExecutionService(
 
             try
             {
-                var order = await t212.PlaceMarketOrderAsync(
-                    new MarketOrderRequest(ticker, sizing.Quantity));
+                // T212 sometimes refuses orders that its own cash figures say
+                // should fit (440, 30 Jul 2026: £2,136 refused with £2,499
+                // free, nothing blocked/reserved/in pies, GBP account). Until
+                // the broker-side rule is understood, self-discover the
+                // acceptable size: retry the same order at 75% then 50%
+                // quantity before giving up. A smaller position beats no
+                // position during the diagnose phase.
+                OrderResponse order = null!;
+                var placedQuantity = sizing.Quantity;
+                var attemptScales = new[] { 1.0m, 0.75m, 0.5m };
+                for (var i = 0; i < attemptScales.Length; i++)
+                {
+                    placedQuantity = Math.Floor(sizing.Quantity * attemptScales[i] * 1000m) / 1000m;
+                    try
+                    {
+                        order = await t212.PlaceMarketOrderAsync(new MarketOrderRequest(ticker, placedQuantity));
+                        if (i > 0)
+                        {
+                            trade.Quantity = placedQuantity;
+                            await activityLog.LogAsync(accountId, "TradeEvent", "Order Downsized", "Warning",
+                                $"{signal.Symbol} ({ticker}): T212 refused the full size — placed at {attemptScales[i]:P0} ({placedQuantity:0.###} shares, ~£{sizing.EstimatedCost * attemptScales[i]:F2}).", ct);
+                            logger.LogWarning("Placed {Symbol} at {Scale:P0} after insufficient-funds refusals (account {AccountId})",
+                                signal.Symbol, attemptScales[i], accountId);
+                        }
+                        break;
+                    }
+                    catch (Refit.ApiException api) when (i < attemptScales.Length - 1
+                        && (int)api.StatusCode is >= 400 and < 500
+                        && api.Content?.Contains("insufficient-free-for-stocks-buy") == true)
+                    {
+                        logger.LogWarning("T212 refused {Symbol} at {Scale:P0} size (account {AccountId}) — retrying smaller",
+                            signal.Symbol, attemptScales[i], accountId);
+                    }
+                }
 
                 trade.EntryOrderId = order.Id.ToString();
                 trade.Status = TradeStatus.Open;
