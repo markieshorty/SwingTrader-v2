@@ -114,6 +114,25 @@ function initializeMsal(): () => Promise<void> {
 
     const boot = msalInstance.initialize()
       .then(() => msalInstance.handleRedirectPromise())
+      .then(async (result) => {
+        // Boot-time session validation (31 Jul 2026): a cached account whose
+        // SERVER session has died (cookies cleared/expired -> AADSTS160021)
+        // let the app boot "logged in", then every API call's silent token
+        // renewal failed and ten concurrent MsalInterceptor recovery
+        // interactions fought over one interaction lock - nothing navigated
+        // and the user sat on the spinner. Prove the cached account can
+        // still mint a token BEFORE trusting it; if it can't, wipe the MSAL
+        // cache so the app boots to the splash for one clean login.
+        const account = result?.account ?? msalInstance.getAllAccounts()[0];
+        if (!account) return;
+        msalInstance.setActiveAccount(account);
+        try {
+          await msalInstance.acquireTokenSilent({ account, scopes: [environment.b2cScope] });
+        } catch (err) {
+          console.warn('[MSAL] cached account cannot renew silently — clearing MSAL cache for a clean login', err);
+          nukeMsalStorage();
+        }
+      })
       .then(() => undefined)
       // A rejected handleRedirectPromise (transient token-exchange failure,
       // expired auth code, state_not_found when the redirect lands in a tab
