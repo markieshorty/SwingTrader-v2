@@ -335,6 +335,7 @@
             }
           }
 
+          <hr class="dial-divider" />
           <h4>Position Sizing</h4>
           <mat-form-field appearance="outline" subscriptSizing="dynamic" class="sizing-mode-select">
             <mat-label>Sizing model</mat-label>
@@ -353,6 +354,7 @@
           </mat-form-field>
 
           @if (draft.sizingStyle === 'AtrRiskParity') {
+          <div class="dial-subgroup">
             <p class="muted small">
               Every trade risks the same slice of the account: size = risk budget ÷ stop distance, with the stop and
               target placed at ATR multiples of entry (ATR = the stock's average daily range, so "2 ATRs" means two
@@ -395,6 +397,7 @@
                 <input matSliderThumb [ngModel]="draft.atrTargetMultiple" (ngModelChange)="updateRiskDraftField('atrTargetMultiple', $event)" />
               </mat-slider>
             </div>
+          </div>
           }
 
           <div class="slider-row">
@@ -489,6 +492,8 @@
             </mat-slider>
           </div>
 
+          <hr class="dial-divider" />
+          <h4>Safety Limits</h4>
           <div class="slider-row">
             <label>Daily Loss Circuit Breaker: {{ draft.dailyLossCircuitBreakerPct | percent: '1.0-0' }}</label>
             <mat-slider
@@ -501,6 +506,7 @@
             </mat-slider>
           </div>
 
+          <hr class="dial-divider" />
           @if (profile.buyThreshold !== null) {
             <h4>Signal Thresholds</h4>
             <p class="muted small">
@@ -509,6 +515,7 @@
             </p>
           }
 
+          <hr class="dial-divider" />
           <h4>Trading Behaviour</h4>
           <p class="muted small">
             Hold, probation and trailing-stop rules are <strong>locked in at buy time</strong> — like the stop-loss
@@ -584,12 +591,21 @@
           </p>
 
 
+          <hr class="dial-divider" />
+          <h4>Stops &amp; Targets</h4>
+          @if (atrStyleOn()) {
+            <p class="muted small">
+              ⚠️ ATR risk parity is on for this book — stops and targets are placed at ATR multiples (see Position
+              Sizing above), so the percentage stop/target dials below are <strong>not in force</strong>.
+            </p>
+          }
           <div class="slider-row">
             <label>Stop-Loss: {{ draft.stopLossPct | percent: '1.0-1' }} below entry</label>
             <mat-slider
               [min]="profile.allowedRanges.stopLossPct.min"
               [max]="profile.allowedRanges.stopLossPct.max"
               step="0.005"
+              [disabled]="atrStyleOn()"
               discrete
             >
               <input matSliderThumb [ngModel]="draft.stopLossPct" (ngModelChange)="updateRiskDraftField('stopLossPct', $event)" />
@@ -602,6 +618,7 @@
               [min]="profile.allowedRanges.targetPct.min"
               [max]="profile.allowedRanges.targetPct.max"
               step="0.005"
+              [disabled]="atrStyleOn()"
               discrete
             >
               <input matSliderThumb [ngModel]="draft.targetPct" (ngModelChange)="updateRiskDraftField('targetPct', $event)" />
@@ -612,6 +629,8 @@
             stop (a risk/reward below 1 is rejected at save).
           </p>
 
+          <hr class="dial-divider" />
+          <h4>Trailing Stop</h4>
           <div class="slider-row">
             <label>Trailing Stop Activation: {{ draft.trailingActivationPct | percent: '1.0-1' }} gain</label>
             <mat-slider
@@ -637,6 +656,8 @@
           </div>
           <p class="muted small">Once activated, trail this far below the highest price seen.</p>
 
+          <hr class="dial-divider" />
+          <h4>Earnings Gate</h4>
           <div class="slider-row">
             <label>Earnings Gate: {{ draft.earningsGateDays }} days</label>
             <mat-slider
@@ -693,12 +714,14 @@
               <mat-slide-toggle [checked]="row.enabled" [disabled]="!isOwner()"
                 (change)="toggleSetupEnabled(row.setupType, $event.checked)"
                 matTooltip="On = can trade live. Off = signals show as Watch, never Buy."></mat-slide-toggle>
-              <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                <input matInput type="number" step="0.005" min="0" max="1"
+              <mat-form-field appearance="outline" subscriptSizing="dynamic"
+                [matTooltip]="atrStyleOn() ? 'Not in force — ATR risk parity places stops at ATR multiples.' : ''">
+                <input matInput type="number" step="0.005" min="0" max="1" [disabled]="atrStyleOn()"
                   [ngModel]="row.stopLossPct" (ngModelChange)="updateSetupField(row.setupType, 'stopLossPct', $event)" />
               </mat-form-field>
-              <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                <input matInput type="number" step="0.005" min="0" max="1"
+              <mat-form-field appearance="outline" subscriptSizing="dynamic"
+                [matTooltip]="atrStyleOn() ? 'Not in force — ATR risk parity places targets at ATR multiples.' : ''">
+                <input matInput type="number" step="0.005" min="0" max="1" [disabled]="atrStyleOn()"
                   [ngModel]="row.targetPct" (ngModelChange)="updateSetupField(row.setupType, 'targetPct', $event)" />
               </mat-form-field>
               <mat-form-field appearance="outline" subscriptSizing="dynamic">

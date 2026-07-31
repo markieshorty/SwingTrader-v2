@@ -223,12 +223,14 @@
                   matTooltip="Prefilled from your live Stop-Loss setting (Risk Management tab). Change it to test a different stop for this run only.">
                   <mat-label>Stop-loss %</mat-label>
                   <input matInput type="number" min="1" max="15" step="0.5" [ngModel]="rulesStopLossPct()"
+                    [disabled]="rulesUseAtrSizing()"
                     (ngModelChange)="rulesStopLossPct.set(+$event)" />
                 </mat-form-field>
                 <mat-form-field appearance="outline" subscriptSizing="dynamic"
                   matTooltip="Prefilled from your live Take-Profit Target setting (Risk Management tab). Change it to test a different target for this run only. Below ~4% the simulation gets optimistic about fills — treat tight-target results with caution.">
                   <mat-label>Target %</mat-label>
                   <input matInput type="number" min="2" max="25" step="0.5" [ngModel]="rulesTargetPct()"
+                    [disabled]="rulesUseAtrSizing()"
                     (ngModelChange)="rulesTargetPct.set(+$event)" />
                 </mat-form-field>
                 <mat-form-field appearance="outline" subscriptSizing="dynamic"
@@ -325,12 +327,12 @@
                         @if (isSetupExcluded(row.setupType)) { <span class="muted small">(excluded)</span> }
                       </span>
                       <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                        <input matInput type="number" step="0.5" [disabled]="isSetupExcluded(row.setupType)"
+                        <input matInput type="number" step="0.5" [disabled]="isSetupExcluded(row.setupType) || rulesUseAtrSizing()"
                           [ngModel]="tacticPct(row.stopLossPct)"
                           (ngModelChange)="updateTacticField(row.setupType, 'stopLossPct', $event / 100)" />
                       </mat-form-field>
                       <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                        <input matInput type="number" step="0.5" [disabled]="isSetupExcluded(row.setupType)"
+                        <input matInput type="number" step="0.5" [disabled]="isSetupExcluded(row.setupType) || rulesUseAtrSizing()"
                           [ngModel]="tacticPct(row.targetPct)"
                           (ngModelChange)="updateTacticField(row.setupType, 'targetPct', $event / 100)" />
                       </mat-form-field>

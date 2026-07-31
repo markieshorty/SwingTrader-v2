@@ -12,6 +12,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSliderModule } from '@angular/material/slider';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDialog } from '@angular/material/dialog';
@@ -118,6 +119,7 @@ function toUpdateRiskProfileDto(profile: RiskProfileDto): UpdateRiskProfileDto {
     MatSlideToggleModule,
     MatSelectModule,
     MatSliderModule,
+    MatTooltipModule,
     MatProgressSpinnerModule,
   ],
   templateUrl: './settings.component.html',
@@ -336,6 +338,11 @@ export class SettingsComponent {
   selectedRegime = signal<MarketRegimeName>('Neutral');
   readonly regimeOptions: MarketRegimeName[] = ['Default', 'Bull', 'Neutral', 'Bear', 'Crisis'];
   currentRegime = computed(() => this.riskProfile()?.currentRegime ?? null);
+
+  // ATR risk parity anchors stop/target at ATR multiples, overriding every
+  // percentage stop/target (per-setup tactics included) - grey those controls
+  // while the style is on so the page doesn't offer dials that do nothing.
+  atrStyleOn = computed(() => this.riskProfileDraft()?.sizingStyle === 'AtrRiskParity');
   // The Default master book is on - it governs live regardless of regime. Drives
   // the [LIVE] capsule shown against the Default option.
   defaultRegimeEnabled = computed(() => this.riskProfile()?.defaultRegimeEnabled ?? false);

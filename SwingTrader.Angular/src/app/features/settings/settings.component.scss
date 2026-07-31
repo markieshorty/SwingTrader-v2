@@ -386,3 +386,26 @@
     display: block; // stack again on narrow screens
   }
 }
+
+// Risk Management dial grouping (31 Jul 2026): thin dividers split the
+// logical areas, and style-specific sub-dials (the ATR sliders) indent under
+// their parent control so it reads as "these belong to that toggle".
+.dial-divider {
+  border: none;
+  border-top: 1px solid var(--st-border, rgba(128, 128, 128, 0.25));
+  margin: 20px 0 4px;
+}
+
+.dial-subgroup {
+  margin: 4px 0 12px 16px;
+  padding-left: 14px;
+  border-left: 2px solid var(--st-border, rgba(128, 128, 128, 0.3));
+}
+
+// The Sizing model / Sizing style selects stack directly on top of each other
+// without this - block layout with breathing room between them.
+.sizing-mode-select {
+  display: block;
+  max-width: 420px;
+  margin: 4px 0 16px;
+}
