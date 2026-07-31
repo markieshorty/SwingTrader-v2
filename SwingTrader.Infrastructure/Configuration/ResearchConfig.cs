@@ -27,6 +27,16 @@ public class ResearchConfig
     // minutes, and it re-baselines intraday signal timestamps.
     public bool MiddayRescoreEnabled { get; set; } = false;
 
+    // Slot-aware stage-2 skip (docs/on-demand-research P1): when the account
+    // has no free position slot (or entries are paused), skip the expensive
+    // stage-2 scoring (sentiment/fundamentals/second-hop) for EVERY symbol
+    // that day - conviction-grade scores are unactionable with nowhere to
+    // put a Buy. Stage one (the gate) always runs, keeping the shadow
+    // evidence gap-free. Default ON (31 Jul 2026, owner's call — diagnose
+    // phase); set Research:SlotAwareStageTwo=false to restore always-on
+    // stage-2 scoring.
+    public bool SlotAwareStageTwo { get; set; } = true;
+
     // Sentiment momentum: blends the DIRECTION of a symbol's sentiment (today
     // vs its own recent archive average) into the level Claude scored today.
     // Improving sentiment is a leading signal the ~3-day snapshot alone

@@ -108,6 +108,16 @@ public class ResearchConsumerFunction(
             // up front is both correct and cheaper.
             var riskProfile = await riskProfileRepo.GetAsync(message.AccountId, ct);
 
+            // Slot-aware stage-2 skip (docs/on-demand-research P1): one
+            // account-level answer for the whole run, so the pipeline doesn't
+            // re-query trades per symbol. Read even when the flag is off -
+            // the pipeline gates on the flag; two cheap indexed queries.
+            var researchAccount = await accountRepo.GetAsync(message.AccountId, ct);
+            var openForSlots = (await tradeRepo.GetOpenTradesAsync(message.AccountId, researchAccount!.TradingMode)).Count();
+            var pendingForSlots = (await tradeRepo.GetPendingTradesAsync(message.AccountId, researchAccount.TradingMode)).Count();
+            var portfolioFull = SlotGate.IsPortfolioFull(openForSlots, pendingForSlots,
+                riskProfile.MaxOpenPositions, researchAccount.IsExecutionPaused(researchAccount.TradingMode));
+
             // Same reasoning, for the "already scored today" candle-freshness check:
             // batch-fetch which symbols already have today's candle, and their full
             // stored history, in one query each - not per-symbol inside the
@@ -127,7 +137,7 @@ public class ResearchConsumerFunction(
                 await semaphore.WaitAsync(ct);
                 try
                 {
-                    var signal = await pipeline.RunAsync(message.AccountId, finnhub, tiingo, claude, s.Symbol, riskProfile, freshCandlesBySymbol, s.CompanyName, s.SelectionPercentile, ct);
+                    var signal = await pipeline.RunAsync(message.AccountId, finnhub, tiingo, claude, s.Symbol, riskProfile, freshCandlesBySymbol, s.CompanyName, s.SelectionPercentile, portfolioFull, ct);
 
                     // RunAsync returns null on a silent candle-fetch failure (rate limit,
                     // no data, etc.) without persisting anything - the symbol's existing

@@ -58,12 +58,33 @@ public class ResearchPipeline(
         IReadOnlyDictionary<string, IReadOnlyList<StockCandle>>? freshCandlesBySymbol = null,
         string? companyName = null,
         decimal? selectionPercentile = null,
+        bool? portfolioFull = null,
         CancellationToken ct = default)
     {
         symbol = symbol.ToUpperInvariant();
 
         var account = await accountRepo.GetAsync(accountId, ct)
             ?? throw new InvalidOperationException($"Account {accountId} not found.");
+
+        // Slot-aware stage-2 skip (docs/on-demand-research P1). The consumer
+        // computes portfolioFull once per run and passes it in; a caller that
+        // doesn't gets the same answer computed here. Only consulted when the
+        // feature flag is on - off means today's behaviour exactly.
+        var slotSkip = false;
+        if (researchConfig.Value.SlotAwareStageTwo)
+        {
+            if (portfolioFull is { } pf)
+            {
+                slotSkip = pf;
+            }
+            else
+            {
+                var openCount = (await tradeRepo.GetOpenTradesAsync(accountId, account.TradingMode)).Count();
+                var pendingCount = (await tradeRepo.GetPendingTradesAsync(accountId, account.TradingMode)).Count();
+                slotSkip = SlotGate.IsPortfolioFull(openCount, pendingCount,
+                    riskProfile.MaxOpenPositions, account.IsExecutionPaused(account.TradingMode));
+            }
+        }
 
         // All accounts pace Tiingo on the shared platform Power bucket
         // (~1s/call) - the free-tier path is gone (21 Jul 2026).
@@ -144,10 +165,12 @@ public class ResearchPipeline(
         // Watch threshold from the WEIGHTS row (the same source
         // DetermineRecommendationAsync classifies with), so a symbol that
         // could still classify Watch always gets its forward score.
-        var skipStageTwo = gateScore < weights.WatchThreshold;
+        var skipStageTwo = slotSkip || gateScore < weights.WatchThreshold;
 
         decimal? sentimentScore = null;
-        var newsSummary = "Skipped — gate score below Watch threshold (funnel stage-2 skip).";
+        var newsSummary = slotSkip
+            ? SlotGate.SlotSkipSummary
+            : "Skipped — gate score below Watch threshold (funnel stage-2 skip).";
         ClaudeCatalystResult? catalyst = null;
         FundamentalSnapshot? fundamentalSnapshot = null;
         FundamentalScore? fundamental = null;
@@ -225,6 +248,15 @@ public class ResearchPipeline(
 
         var recommendation = await DetermineRecommendationAsync(accountId, account.TradingMode, symbol, ind, conviction, weights, setupType);
 
+        string? slotSkipReasoning = null;
+        if (slotSkip && recommendation == Recommendation.Buy)
+        {
+            recommendation = Recommendation.Watch;
+            slotSkipReasoning = " Portfolio full: conviction scoring deferred, Buy demoted to Watch (slot-aware skip).";
+            logger.LogInformation("Slot-aware skip for {Symbol}: portfolio full, Buy demoted to Watch (account {AccountId})",
+                symbol, accountId);
+        }
+
         // Funnel Phase F3: the asymmetric veto. A gate-passing Buy whose
         // Forward score sits below the account's floor demotes to Watch -
         // forward information can block a Buy, never create one. Degraded or
@@ -267,7 +299,8 @@ public class ResearchPipeline(
         }
 
         // All adjustment notes ride the same reasoning-append slot.
-        var adjustmentReasoning = (earningsReasoning ?? string.Empty) + (catalystReasoning ?? string.Empty) + (vetoReasoning ?? string.Empty);
+        var adjustmentReasoning = (earningsReasoning ?? string.Empty) + (catalystReasoning ?? string.Empty)
+            + (vetoReasoning ?? string.Empty) + (slotSkipReasoning ?? string.Empty);
 
         // Second-hop shadow (docs/second-hop-plan SH1): linked-company events
         // propagated to this symbol. Skipped with stage 2 under the funnel

@@ -25,5 +25,6 @@ public interface IResearchPipeline
         // Watchlist-pick cross-sectional percentile, stamped onto the signal
         // as shadow metadata (see CrossSectionalRanker).
         decimal? selectionPercentile = null,
+        bool? portfolioFull = null,
         CancellationToken ct = default);
 }

@@ -516,10 +516,16 @@ public class ReportGenerationService(
 
         if (buys.Count == 0)
         {
+            // Slot-skipped Buys were demoted to Watch, so the marker lives on
+            // the Watch rows.
+            var slotSkipped = watches.Any(s => s.NewsSummary == Research.SlotGate.SlotSkipSummary);
             var topWatch = watches.FirstOrDefault();
-            sb.AppendLine(topWatch is not null
-                ? $"> No BUY signals today. Highest watch: {topWatch.Symbol} at {topWatch.ConvictionScore:F1}/10."
-                : "> No BUY signals today.");
+            if (slotSkipped)
+                sb.AppendLine("> Portfolio full — conviction scoring deferred until a position closes (slot-aware research).");
+            else
+                sb.AppendLine(topWatch is not null
+                    ? $"> No BUY signals today. Highest watch: {topWatch.Symbol} at {topWatch.ConvictionScore:F1}/10."
+                    : "> No BUY signals today.");
         }
         else
         {
