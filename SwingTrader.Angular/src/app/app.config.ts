@@ -4,7 +4,7 @@ import { HTTP_INTERCEPTORS, provideHttpClient, withInterceptors, withInterceptor
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { provideCharts, withDefaultRegisterables } from 'ng2-charts';
 import { MsalModule, MsalService, MsalGuard, MsalInterceptor, MsalBroadcastService } from '@azure/msal-angular';
-import { PublicClientApplication, InteractionType, BrowserCacheLocation } from '@azure/msal-browser';
+import { PublicClientApplication, InteractionType, BrowserCacheLocation, LogLevel } from '@azure/msal-browser';
 
 import { routes } from './app.routes';
 import { errorInterceptor } from './core/interceptors/error.interceptor';
@@ -39,6 +39,16 @@ const msalConfig = {
     // tokens across tabs and survives restarts; MSAL renews silently.
     cacheLocation: BrowserCacheLocation.LocalStorage,
   },
+  system: {
+    // Surface MSAL's internal warnings/errors in the console - login
+    // failures were hanging the boot spinner with a completely silent
+    // console, leaving nothing to diagnose from (30 Jul 2026).
+    loggerOptions: {
+      loggerCallback: (_level: LogLevel, message: string) => console.warn('[MSAL]', message),
+      logLevel: LogLevel.Warning,
+      piiLoggingEnabled: false,
+    },
+  },
 };
 
 const msalInstance = new PublicClientApplication(msalConfig);
@@ -72,10 +82,37 @@ function sweepStaleInteractionMarkers(): void {
   }
 }
 
+// Last-resort unbrick: everything msal.* goes, tokens included - the next
+// load is a genuinely clean slate (what incognito was giving users manually).
+function nukeMsalStorage(): void {
+  for (const store of [sessionStorage, localStorage]) {
+    Object.keys(store)
+      .filter((k) => k.startsWith('msal.'))
+      .forEach((k) => store.removeItem(k));
+  }
+}
+
 function initializeMsal(): () => Promise<void> {
   return () => {
     sweepStaleInteractionMarkers();
-    return msalInstance.initialize()
+
+    // Boot watchdog (30 Jul 2026): a hung initialize()/handleRedirectPromise()
+    // - not rejected, HUNG - left users on the spinner forever with nothing
+    // in the console. If MSAL hasn't finished in 15s, wipe its storage and
+    // reload the bare origin: worst case the user re-authenticates once.
+    let settled = false;
+    const watchdog = new Promise<void>((resolve) => {
+      setTimeout(() => {
+        if (!settled) {
+          console.error('[MSAL] initialization did not complete within 15s — clearing MSAL storage and reloading');
+          nukeMsalStorage();
+          window.location.replace(window.location.origin);
+        }
+        resolve();
+      }, 15000);
+    });
+
+    const boot = msalInstance.initialize()
       .then(() => msalInstance.handleRedirectPromise())
       .then(() => undefined)
       // A rejected handleRedirectPromise (transient token-exchange failure,
@@ -94,7 +131,10 @@ function initializeMsal(): () => Promise<void> {
             .filter((k) => k.startsWith('msal.') && k.includes('interaction'))
             .forEach((k) => store.removeItem(k));
         }
-      });
+      })
+      .finally(() => { settled = true; });
+
+    return Promise.race([boot, watchdog]);
   };
 }
 
