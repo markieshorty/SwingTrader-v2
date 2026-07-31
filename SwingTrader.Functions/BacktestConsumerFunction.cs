@@ -404,7 +404,11 @@ public class BacktestConsumerFunction(
             MinHoldDays: profile.MinHoldDays,
             MomentumHealthThreshold: profile.MomentumHealthThreshold,
             PositionFraction: profile.FlatPositionPct,
-            LockedCapitalPct: profile.LockedCapitalPct);
+            LockedCapitalPct: profile.LockedCapitalPct,
+            UseAtrSizing: profile.SizingStyle == SizingStyle.AtrRiskParity,
+            RiskPerTradePct: profile.RiskPerTradePct,
+            AtrStopMultiple: profile.AtrStopMultiple,
+            AtrTargetMultiple: profile.AtrTargetMultiple);
         var lockedIndices = ParseLockedComponents(request.LockedComponents);
         var candidates = SweepOptimizer.GenerateCandidates(baseline, request.SearchRules, productionRules, accountTactics, lockedIndices);
 

@@ -308,13 +308,44 @@ public static class SweepOptimizer
             if (v != productionRules?.MaxHoldDays)
                 AddRule($"Max hold {v}d", new HistoricTradingRules(MaxHoldDays: v));
 
-        foreach (var v in new[] { 0.03m, 0.05m, 0.07m, 0.10m })
-            if (v != productionRules?.StopLossPct)
-                AddRule($"Stop {v:P0}", new HistoricTradingRules(StopLossPct: v));
+        // Sizing style determines which stop/target family is worth testing:
+        // ATR levels override percentage levels in the engine, so with ATR
+        // live the % candidates would simulate identically to the baseline
+        // (and vice versa the ATR dials are inert while flat is live).
+        var atrLive = productionRules?.UseAtrSizing == true;
+        if (atrLive)
+        {
+            var liveAtrStop = productionRules?.AtrStopMultiple ?? 2.0m;
+            var liveAtrTarget = productionRules?.AtrTargetMultiple ?? 3.5m;
+            foreach (var k in new[] { 1.5m, 2.0m, 2.5m, 3.0m })
+                if (k != liveAtrStop && k < liveAtrTarget)
+                    AddRule($"ATR stop {k:0.0}x", new HistoricTradingRules(AtrStopMultiple: k));
 
-        foreach (var v in new[] { 0.10m, 0.15m, 0.20m, 0.30m })
-            if (v != productionRules?.TargetPct)
-                AddRule($"Target {v:P0}", new HistoricTradingRules(TargetPct: v));
+            foreach (var m in new[] { 2.5m, 3.5m, 5.0m, 6.5m })
+                if (m != liveAtrTarget && m > liveAtrStop)
+                    AddRule($"ATR target {m:0.0}x", new HistoricTradingRules(AtrTargetMultiple: m));
+
+            foreach (var r in new[] { 0.005m, 0.01m, 0.015m, 0.02m })
+                if (r != productionRules?.RiskPerTradePct)
+                    AddRule($"Risk/trade {r:P1}", new HistoricTradingRules(RiskPerTradePct: r));
+
+            // The counterfactual toggle: what would legacy flat sizing have done?
+            AddRule("Legacy flat sizing", new HistoricTradingRules(UseAtrSizing: false));
+        }
+        else
+        {
+            foreach (var v in new[] { 0.03m, 0.05m, 0.07m, 0.10m })
+                if (v != productionRules?.StopLossPct)
+                    AddRule($"Stop {v:P0}", new HistoricTradingRules(StopLossPct: v));
+
+            foreach (var v in new[] { 0.10m, 0.15m, 0.20m, 0.30m })
+                if (v != productionRules?.TargetPct)
+                    AddRule($"Target {v:P0}", new HistoricTradingRules(TargetPct: v));
+
+            // The counterfactual toggle: what would ATR risk parity have done
+            // (at its default dials)?
+            AddRule("ATR risk-parity sizing (defaults)", new HistoricTradingRules(UseAtrSizing: true));
+        }
 
         foreach (var (act, dist) in new[] { (0.03m, 0.02m), (0.05m, 0.03m), (0.08m, 0.04m), (0.10m, 0.05m) })
             if (act != productionRules?.TrailingActivationPct || dist != productionRules?.TrailingDistancePct)
@@ -352,15 +383,21 @@ public static class SweepOptimizer
                     AddRule($"Position size {pos:P0}", new HistoricTradingRules(PositionFraction: pos));
         }
 
+        if (!atrLive)
         AddRule("Tight risk (stop 3%, target 10%, trail +3%/2%, hold 10d)",
             new HistoricTradingRules(MaxHoldDays: 10, StopLossPct: 0.03m, TargetPct: 0.10m,
                 TrailingActivationPct: 0.03m, TrailingDistancePct: 0.02m));
+        if (!atrLive)
         AddRule("Loose risk (stop 10%, target 30%, trail +10%/5%, hold 30d)",
             new HistoricTradingRules(MaxHoldDays: 30, StopLossPct: 0.10m, TargetPct: 0.30m,
                 TrailingActivationPct: 0.10m, TrailingDistancePct: 0.05m));
+        if (!atrLive)
         AddRule("Let winners run (target 30%, trail +5%/3%, hold 30d)",
             new HistoricTradingRules(MaxHoldDays: 30, TargetPct: 0.30m,
                 TrailingActivationPct: 0.05m, TrailingDistancePct: 0.03m));
+        else
+        AddRule("ATR let winners run (target 6.5x ATR, hold 30d)",
+            new HistoricTradingRules(MaxHoldDays: 30, AtrTargetMultiple: 6.5m));
 
         // Per-setup TACTICS search (docs/setup-tactics-plan Phase 4): nudges ONE
         // setup's guide-hold / stop / target off its live value at a time, holding
@@ -382,6 +419,11 @@ public static class SweepOptimizer
                     .Select(m => Math.Clamp((int)Math.Round(tac.GuideHoldDays * m), 5, CapitalRules.MaxMaxHoldDays))
                     .Where(gh => gh != tac.GuideHoldDays).Distinct())
                     AddRule($"{s} guide-hold {gh}d", new HistoricTradingRules(SetupTactics: [Ov(gh, tac.StopLossPct, tac.TargetPct)]));
+
+                // Stop/target nudges only matter while percentage levels are
+                // in force - under ATR sizing the engine anchors levels at ATR
+                // multiples and these would duplicate the baseline.
+                if (atrLive) continue;
 
                 // Stop: tighter/wider. Kept strictly below the setup's target so the
                 // stop/target structure stays valid. A wider stop is the direct lever
