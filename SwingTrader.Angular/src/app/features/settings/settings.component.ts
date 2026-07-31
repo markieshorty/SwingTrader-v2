@@ -94,6 +94,10 @@ function toUpdateRiskProfileDto(profile: RiskProfileDto): UpdateRiskProfileDto {
     targetPct: profile.targetPct,
     sizingMode: profile.sizingMode,
     flatPositionPct: profile.flatPositionPct,
+    sizingStyle: profile.sizingStyle,
+    riskPerTradePct: profile.riskPerTradePct,
+    atrStopMultiple: profile.atrStopMultiple,
+    atrTargetMultiple: profile.atrTargetMultiple,
     sizingAggressiveness: profile.sizingAggressiveness,
     forwardVetoFloor: profile.forwardVetoFloor,
   };
@@ -346,6 +350,10 @@ export class SettingsComponent {
       original.dailyLossCircuitBreakerPct !== draft.dailyLossCircuitBreakerPct ||
       original.sizingMode !== draft.sizingMode ||
       original.flatPositionPct !== draft.flatPositionPct ||
+      original.sizingStyle !== draft.sizingStyle ||
+      original.riskPerTradePct !== draft.riskPerTradePct ||
+      original.atrStopMultiple !== draft.atrStopMultiple ||
+      original.atrTargetMultiple !== draft.atrTargetMultiple ||
       original.sizingAggressiveness !== draft.sizingAggressiveness ||
       original.forwardVetoFloor !== draft.forwardVetoFloor ||
       original.maxHoldDays !== draft.maxHoldDays ||

@@ -46,6 +46,12 @@ public static class BacktestConfigFactory
         // Locked-capital reserve caps total deployment to the un-locked share,
         // mirroring live. Lab override wins; else the book's live value.
         LockedCapitalPct: rules?.LockedCapitalPct ?? profile.LockedCapitalPct,
+        // ATR risk-parity: Lab override wins, else the book's live style/dials
+        // - an untouched run simulates exactly what production will do.
+        UseAtrSizing: rules?.UseAtrSizing ?? (profile.SizingStyle == SizingStyle.AtrRiskParity),
+        RiskPerTradePct: rules?.RiskPerTradePct ?? profile.RiskPerTradePct,
+        AtrStopMultiple: rules?.AtrStopMultiple ?? profile.AtrStopMultiple,
+        AtrTargetMultiple: rules?.AtrTargetMultiple ?? profile.AtrTargetMultiple,
         // Lab-only pool-sizing sim (no live equivalent since the tier ladder
         // was removed): null keeps flat sizing; the two dials below only apply
         // when a Lab run explicitly sets ActiveCapitalPct.

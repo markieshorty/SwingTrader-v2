@@ -324,10 +324,16 @@ public class ResearchPipeline(
             }
         }
 
+        // ATR(14) in the instrument's own currency - execution's ATR
+        // risk-parity sizing and ATR stops read it from the signal instead of
+        // re-fetching candles. Null when history is too short.
+        var atr14 = Core.Trading.AtrCalculator.Compute(
+            candles, c => c.High, c => c.Low, c => c.Close, candles.Count - 1);
+
         return await PersistSignalAsync(accountId, symbol, companyName, candles[^1], ind, sentimentScore,
             newsSummary, setupType, conviction, recommendation, selectionPercentile, componentScores, regime, earningsCtx, rs, priceLevel,
             adjustmentReasoning.Length > 0 ? adjustmentReasoning : null, fundamentalSnapshot, fundamental, shadow,
-            filingDeltaScore, filingDeltaSummary, secondHopScore, secondHopSummary);
+            filingDeltaScore, filingDeltaSummary, secondHopScore, secondHopSummary, atr14);
     }
 
     private async Task<(StrategyWeights Weights, MarketRegime? Regime)> GetWeightsAndRegimeAsync(
@@ -825,7 +831,8 @@ public class ResearchPipeline(
         FundamentalSnapshot? fundamentalSnapshot = null, FundamentalScore? fundamental = null,
         FunnelScores.FunnelShadow? funnelShadow = null,
         decimal? filingDeltaScore = null, string? filingDeltaSummary = null,
-        decimal? secondHopScore = null, string? secondHopSummary = null)
+        decimal? secondHopScore = null, string? secondHopSummary = null,
+        decimal? atr14 = null)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var existing = (await signalRepo.GetByDateAsync(accountId, today))
@@ -954,6 +961,8 @@ public class ResearchPipeline(
         // Second-hop shadow (SH1) - same overwrite-on-rescore convention.
         signal.SecondHopScore = secondHopScore;
         signal.SecondHopSummary = secondHopSummary;
+
+        signal.Atr14 = atr14;
 
         if (existing is null)
             return await signalRepo.AddAsync(signal);

@@ -50,6 +50,10 @@ public static class RiskProfileEndpoints
                 profile.LockedCapitalPct,
                 profile.MaxOpenPositions,
                 profile.DailyLossCircuitBreakerPct,
+                SizingStyle = profile.SizingStyle.ToString(),
+                profile.RiskPerTradePct,
+                profile.AtrStopMultiple,
+                profile.AtrTargetMultiple,
                 profile.MaxHoldDays,
                 profile.TrailingActivationPct,
                 profile.TrailingDistancePct,
@@ -80,6 +84,9 @@ public static class RiskProfileEndpoints
                     LockedCapitalPct = new { Min = CapitalRules.MinLockedCapitalPct, Max = CapitalRules.MaxLockedCapitalPct },
                     MaxOpenPositions = new { Min = CapitalRules.MinMaxOpenPositions, Max = CapitalRules.MaxMaxOpenPositions },
                     DailyLossCircuitBreakerPct = new { Min = CapitalRules.MinDailyLossCircuitBreakerPct, Max = CapitalRules.MaxDailyLossCircuitBreakerPct },
+                    RiskPerTradePct = new { Min = CapitalRules.MinRiskPerTradePct, Max = CapitalRules.MaxRiskPerTradePct },
+                    AtrStopMultiple = new { Min = CapitalRules.MinAtrStopMultiple, Max = CapitalRules.MaxAtrStopMultiple },
+                    AtrTargetMultiple = new { Min = CapitalRules.MinAtrTargetMultiple, Max = CapitalRules.MaxAtrTargetMultiple },
                     MaxHoldDays = new { Min = CapitalRules.MinMaxHoldDays, Max = CapitalRules.MaxMaxHoldDays },
                     TrailingActivationPct = new { Min = CapitalRules.MinTrailingActivationPct, Max = CapitalRules.MaxTrailingActivationPct },
                     TrailingDistancePct = new { Min = CapitalRules.MinTrailingDistancePct, Max = CapitalRules.MaxTrailingDistancePct },
@@ -125,6 +132,12 @@ public static class RiskProfileEndpoints
                     SizingMode = Enum.TryParse<PositionSizingMode>(req.SizingMode, ignoreCase: true, out var mode)
                         ? mode
                         : PositionSizingMode.Flat,
+                    SizingStyle = Enum.TryParse<SizingStyle>(req.SizingStyle, ignoreCase: true, out var style)
+                        ? style
+                        : SizingStyle.FlatPercent,
+                    RiskPerTradePct = req.RiskPerTradePct ?? CapitalRules.DefaultRiskPerTradePct,
+                    AtrStopMultiple = req.AtrStopMultiple ?? CapitalRules.DefaultAtrStopMultiple,
+                    AtrTargetMultiple = req.AtrTargetMultiple ?? CapitalRules.DefaultAtrTargetMultiple,
                     FlatPositionPct = req.FlatPositionPct,
                     SizingAggressiveness = req.SizingAggressiveness,
                     ForwardVetoFloor = req.ForwardVetoFloor,

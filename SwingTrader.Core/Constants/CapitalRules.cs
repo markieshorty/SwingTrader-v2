@@ -119,4 +119,18 @@ public static class CapitalRules
     public const decimal DefaultForwardVetoFloor = 2.5m;
     public const decimal MinDailyLossCircuitBreakerPct = 0.02m;
     public const decimal MaxDailyLossCircuitBreakerPct = 0.15m;
+
+    // ATR risk-parity sizing (sizing-style toggle, 31 Jul 2026): fixed risk
+    // budget per trade as a fraction of portfolio, stops/targets anchored at
+    // multiples of ATR(14) so every position risks the same amount whatever
+    // the stock's volatility. FlatPercent remains the default/legacy style.
+    public const decimal DefaultRiskPerTradePct = 0.01m;
+    public const decimal MinRiskPerTradePct = 0.0025m;
+    public const decimal MaxRiskPerTradePct = 0.03m;
+    public const decimal DefaultAtrStopMultiple = 2.0m;
+    public const decimal MinAtrStopMultiple = 1.0m;
+    public const decimal MaxAtrStopMultiple = 4.0m;
+    public const decimal DefaultAtrTargetMultiple = 3.5m;
+    public const decimal MinAtrTargetMultiple = 1.5m;
+    public const decimal MaxAtrTargetMultiple = 8.0m;
 }

@@ -34,5 +34,8 @@ public interface IPositionSizingService
         decimal totalPortfolioValue,
         AccountRiskProfile riskProfile,
         decimal? priceOverride = null,
-        decimal openPositionsValue = 0m);
+        decimal openPositionsValue = 0m,
+        // USD -> account-base-currency factor, used by ATR risk-parity to
+        // convert the (USD) ATR stop distance into the budget's currency.
+        decimal? usdToBaseRate = null);
 }

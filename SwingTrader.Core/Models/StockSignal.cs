@@ -11,6 +11,12 @@ public class StockSignal : BaseEntity
     // signal as unproceedable for the rest of the day and moves on to the
     // next eligible Buy. Signals are per-day rows, so tomorrow starts clean.
     public DateTime? BrokerRejectedAt { get; set; }
+
+    // ATR(14) from the candles research scored with (instrument currency).
+    // Execution's ATR risk-parity sizing and ATR-anchored stops read this at
+    // placement time rather than re-fetching candles. Null = insufficient
+    // history; sizing falls back to the legacy flat style for that signal.
+    public decimal? Atr14 { get; set; }
     // Copied from the WatchlistItem this signal was scored from (itself
     // sourced from Finnhub's company profile when the symbol was added) -
     // avoids a second Finnhub call just to display a hover tooltip.

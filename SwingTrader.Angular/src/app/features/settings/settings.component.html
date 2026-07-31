@@ -344,6 +344,59 @@
             </mat-select>
           </mat-form-field>
 
+          <mat-form-field appearance="outline" subscriptSizing="dynamic" class="sizing-mode-select">
+            <mat-label>Sizing style</mat-label>
+            <mat-select [value]="draft.sizingStyle" [disabled]="draft.autopauseTrading" (selectionChange)="updateRiskDraftField('sizingStyle', $event.value)">
+              <mat-option value="FlatPercent">Flat percent (legacy)</mat-option>
+              <mat-option value="AtrRiskParity">ATR risk parity</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          @if (draft.sizingStyle === 'AtrRiskParity') {
+            <p class="muted small">
+              Every trade risks the same slice of the account: size = risk budget ÷ stop distance, with the stop and
+              target placed at ATR multiples of entry (ATR = the stock's average daily range, so "2 ATRs" means two
+              normal days of adverse movement for <em>any</em> stock). Per-setup stop/target tactics are overridden
+              while this style is on; the position-size slider below still acts as a hard ceiling.
+            </p>
+            <div class="slider-row">
+              <label>Risk per trade: {{ draft.riskPerTradePct | percent: '1.1-2' }} of the whole account</label>
+              <mat-slider
+                [min]="profile.allowedRanges.riskPerTradePct.min"
+                [max]="profile.allowedRanges.riskPerTradePct.max"
+                step="0.0025"
+                [disabled]="draft.autopauseTrading"
+                discrete
+              >
+                <input matSliderThumb [ngModel]="draft.riskPerTradePct" (ngModelChange)="updateRiskDraftField('riskPerTradePct', $event)" />
+              </mat-slider>
+            </div>
+            <div class="slider-row">
+              <label>Stop distance: {{ draft.atrStopMultiple | number: '1.1-1' }} × ATR below entry</label>
+              <mat-slider
+                [min]="profile.allowedRanges.atrStopMultiple.min"
+                [max]="profile.allowedRanges.atrStopMultiple.max"
+                step="0.25"
+                [disabled]="draft.autopauseTrading"
+                discrete
+              >
+                <input matSliderThumb [ngModel]="draft.atrStopMultiple" (ngModelChange)="updateRiskDraftField('atrStopMultiple', $event)" />
+              </mat-slider>
+            </div>
+            <div class="slider-row">
+              <label>Target distance: {{ draft.atrTargetMultiple | number: '1.1-1' }} × ATR above entry</label>
+              <mat-slider
+                [min]="profile.allowedRanges.atrTargetMultiple.min"
+                [max]="profile.allowedRanges.atrTargetMultiple.max"
+                step="0.25"
+                [disabled]="draft.autopauseTrading"
+                discrete
+              >
+                <input matSliderThumb [ngModel]="draft.atrTargetMultiple" (ngModelChange)="updateRiskDraftField('atrTargetMultiple', $event)" />
+              </mat-slider>
+            </div>
+          }
+
           <div class="slider-row">
             <label>Position Size: {{ draft.flatPositionPct | percent: '1.0-0' }} of the whole account</label>
             <mat-slider

@@ -553,6 +553,11 @@ export interface LabTradingRulesDto {
   lockedCapitalPct: number | null;   // reserve as fraction of account; total deployment <= 1 - this
   activeCapitalPct: number | null;   // sim-only "capital pool" mode: pool as fraction of the whole account
   maxPositionPctOfActive: number | null; // sim-only: per-position share of the pool
+  // ATR risk-parity sizing style (null = the live book's SizingStyle).
+  useAtrSizing: boolean | null;
+  riskPerTradePct: number | null;    // fraction of equity risked per trade (0.01 = 1%)
+  atrStopMultiple: number | null;    // stop at entry − k × ATR(14)
+  atrTargetMultiple: number | null;  // target at entry + m × ATR(14)
   // Per-setup entry/exit tactics (Phase 4). null = use the account's live
   // SetupTactics unchanged (untouched run mirrors live). When the tactics
   // editor is touched it sends the FULL edited set.
@@ -950,6 +955,12 @@ export interface RiskProfileDto {
   targetPct: number;     // flat take-profit, fraction — replaced the per-conviction table
   sizingMode: 'Flat' | 'Funnel';
   flatPositionPct: number; // fraction of the whole portfolio per position
+  // Sizing style: FlatPercent (legacy flat slice + % stops) or AtrRiskParity
+  // (fixed risk budget per trade, ATR-multiple stops/targets).
+  sizingStyle: 'FlatPercent' | 'AtrRiskParity';
+  riskPerTradePct: number;   // ATR style: fraction of portfolio risked per trade
+  atrStopMultiple: number;   // ATR style: stop distance in ATRs
+  atrTargetMultiple: number; // ATR style: target distance in ATRs
   // Funnel F2: Forward-score size tilt strength (0 = off, sizes untouched).
   sizingAggressiveness: number;
   // Funnel F3: Forward-score floor under gate-passing Buys (0 = veto off).
@@ -977,6 +988,9 @@ export interface RiskProfileDto {
     stopLossPct: RiskProfileRangeDto;
     targetPct: RiskProfileRangeDto;
     flatPositionPct: RiskProfileRangeDto;
+    riskPerTradePct: RiskProfileRangeDto;
+    atrStopMultiple: RiskProfileRangeDto;
+    atrTargetMultiple: RiskProfileRangeDto;
     sizingAggressiveness: RiskProfileRangeDto;
     forwardVetoFloor: RiskProfileRangeDto;
   };
@@ -1017,6 +1031,10 @@ export interface UpdateRiskProfileDto {
   targetPct: number;
   sizingMode: 'Flat' | 'Funnel';
   flatPositionPct: number;
+  sizingStyle: 'FlatPercent' | 'AtrRiskParity';
+  riskPerTradePct: number;
+  atrStopMultiple: number;
+  atrTargetMultiple: number;
   sizingAggressiveness: number;
   forwardVetoFloor: number;
 }

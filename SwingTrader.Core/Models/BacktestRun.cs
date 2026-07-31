@@ -74,6 +74,10 @@ public record HistoricTradingRules(
     decimal? LockedCapitalPct = null,         // reserve fraction; total deployment <= 1 - this (null = the book's)
     decimal? ActiveCapitalPct = null,         // sim-only capital-pool sizing (no live equivalent)
     decimal? MaxPositionPctOfActive = null,   // per-position share of the pool; null = risk profile's
+    bool? UseAtrSizing = null,                // sizing-style toggle: null = the book's live SizingStyle
+    decimal? RiskPerTradePct = null,          // ATR style: risk budget per trade (fraction of equity)
+    decimal? AtrStopMultiple = null,          // ATR style: stop at entry - k x ATR(14)
+    decimal? AtrTargetMultiple = null,        // ATR style: target at entry + m x ATR(14)
     // Per-setup entry/exit tactics (docs/setup-tactics-plan Phase 4). Null =
     // use the account's live SetupTactics unchanged (an untouched run mirrors
     // live). When the Lab's tactics editor is touched it sends the FULL edited

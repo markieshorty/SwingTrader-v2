@@ -269,6 +269,36 @@
                       (ngModelChange)="rulesLockedCapitalPct.set($event)" />
                   </mat-form-field>
                 </div>
+
+                <mat-slide-toggle [checked]="rulesUseAtrSizing()" (change)="rulesUseAtrSizing.set($event.checked)"
+                  matTooltip="ATR risk parity: size each position from a fixed risk budget against an ATR-multiple stop, with stop/target anchored at ATR distances from entry. The flat position-size cap above stays the ceiling.">
+                  ATR risk-parity sizing
+                </mat-slide-toggle>
+                @if (rulesUseAtrSizing()) {
+                  <div class="rules-grid">
+                    <mat-form-field appearance="outline" subscriptSizing="dynamic"
+                      matTooltip="How much of equity a single stopped-out trade loses. Size = this ÷ stop distance.">
+                      <mat-label>Risk per trade (% of equity)</mat-label>
+                      <input matInput type="number" min="0.25" max="3" step="0.25" [ngModel]="rulesRiskPerTradePct()"
+                        (ngModelChange)="rulesRiskPerTradePct.set($event)" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline" subscriptSizing="dynamic"
+                      matTooltip="Stop at entry − this × ATR(14): 'normal days of adverse movement' rather than a flat %.">
+                      <mat-label>Stop (× ATR)</mat-label>
+                      <input matInput type="number" min="1" max="4" step="0.25" [ngModel]="rulesAtrStopMultiple()"
+                        (ngModelChange)="rulesAtrStopMultiple.set($event)" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline" subscriptSizing="dynamic"
+                      matTooltip="Target at entry + this × ATR(14). Must exceed the stop multiple.">
+                      <mat-label>Target (× ATR)</mat-label>
+                      <input matInput type="number" min="1.5" max="8" step="0.25" [ngModel]="rulesAtrTargetMultiple()"
+                        (ngModelChange)="rulesAtrTargetMultiple.set($event)" />
+                    </mat-form-field>
+                  </div>
+                  <p class="muted small">
+                    Overrides percentage stops/targets (per-setup tactics included) for every entry in the run.
+                  </p>
+                }
               } @else {
                 <p class="muted small">
                   Position size, locked capital and max positions are set <strong>per regime</strong> in the exposure

@@ -44,7 +44,8 @@ public class PositionSizingService : IPositionSizingService
         decimal totalPortfolioValue,
         AccountRiskProfile riskProfile,
         decimal? priceOverride = null,
-        decimal openPositionsValue = 0m)
+        decimal openPositionsValue = 0m,
+        decimal? usdToBaseRate = null)
     {
         // Step 1 — hard cap on concurrent positions
         if (currentOpenPositions >= riskProfile.MaxOpenPositions)
@@ -93,6 +94,28 @@ public class PositionSizingService : IPositionSizingService
                 "Insufficient cash after applying 2% buffer"));
 
         var positionBudget = Math.Min(Math.Min(baseBudget, spendableCash), remainingDeployable);
+
+        // ATR risk-parity (sizing-style toggle, 31 Jul 2026): size from a
+        // fixed risk budget against the ATR-multiple stop distance, so every
+        // position risks the same fraction of the portfolio whatever the
+        // stock's volatility. The flat-slice/cash/deployable clamps above
+        // remain the CEILING - risk parity can only shrink a position, never
+        // exceed the envelope. Missing ATR (short history) falls back to the
+        // legacy flat budget for that signal.
+        if (riskProfile.SizingStyle == SizingStyle.AtrRiskParity
+            && signal.Atr14 is { } atr && atr > 0
+            && priceOverride is { } basePrice && basePrice > 0 && signal.CurrentPrice > 0)
+        {
+            var rate = usdToBaseRate ?? basePrice / signal.CurrentPrice;
+            var stopDistanceBase = atr * riskProfile.AtrStopMultiple * rate;
+            if (stopDistanceBase > 0)
+            {
+                var riskBudget = totalPortfolioValue * riskProfile.RiskPerTradePct;
+                var desiredBudget = riskBudget / stopDistanceBase * basePrice;
+                positionBudget = Math.Min(positionBudget, desiredBudget);
+            }
+        }
+
         return Task.FromResult(SizeFromBudget(signal, positionBudget, priceOverride, multiplier));
     }
 

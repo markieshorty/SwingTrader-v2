@@ -33,6 +33,17 @@ public enum TradeDirection
     Long
 }
 
+// How position size and stop/target distances are derived. FlatPercent is
+// the legacy style: FlatPositionPct of portfolio per position, stops at a
+// fixed percentage of entry. AtrRiskParity sizes from a fixed risk budget
+// (RiskPerTradePct of portfolio) against an ATR-multiple stop distance, so
+// every trade risks the same amount regardless of the stock's volatility.
+public enum SizingStyle
+{
+    FlatPercent,
+    AtrRiskParity,
+}
+
 public enum TradeStatus
 {
     Open,

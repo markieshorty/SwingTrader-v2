@@ -137,6 +137,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.CompanyName).HasMaxLength(200);
             e.Property(x => x.CurrentPrice).HasPrecision(18, 8);
             e.Property(x => x.Rsi14).HasPrecision(18, 8);
+            e.Property(x => x.Atr14).HasPrecision(18, 8);
             e.Property(x => x.Macd).HasPrecision(18, 8);
             e.Property(x => x.MacdSignal).HasPrecision(18, 8);
             e.Property(x => x.MacdHistogram).HasPrecision(18, 8);
@@ -357,6 +358,13 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             // behaviour it effectively had under the old hardcoded tables.
             e.Property(x => x.StopLossPct).HasPrecision(5, 4).HasDefaultValue(0.05m);
             e.Property(x => x.TargetPct).HasPrecision(5, 4).HasDefaultValue(0.08m);
+            // ATR risk-parity dials (sizing-style toggle, 31 Jul 2026). Same
+            // pattern: 4dp so the 0.25% floor survives, and the DB defaults
+            // backfill every pre-existing book with the code defaults (style
+            // stays FlatPercent = 0, so behaviour is unchanged until toggled).
+            e.Property(x => x.RiskPerTradePct).HasPrecision(5, 4).HasDefaultValue(0.01m);
+            e.Property(x => x.AtrStopMultiple).HasPrecision(5, 2).HasDefaultValue(2.0m);
+            e.Property(x => x.AtrTargetMultiple).HasPrecision(5, 2).HasDefaultValue(3.5m);
             e.Property(x => x.FlatPositionPct).HasPrecision(5, 4).HasDefaultValue(0.10m);
             // Default-book master switch; existing books backfill to disabled so
             // nothing changes until the owner turns the Default book on.

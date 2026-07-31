@@ -289,7 +289,8 @@ public class ExecutionService(
             var sizing = await sizingService.CalculateAsync(
                 signal, openTrades.Count, availableCash, totalPortfolioValue, riskProfile,
                 priceOverride: (livePrice ?? signal.CurrentPrice) * gbpUsd,
-                openPositionsValue: openPositionsValue + deployedThisRun);
+                openPositionsValue: openPositionsValue + deployedThisRun,
+                usdToBaseRate: gbpUsd);
 
             if (!sizing.CanTrade)
             {
@@ -350,6 +351,23 @@ public class ExecutionService(
                 var (freshStop, freshTarget) = EntryLevelCalculator.Calculate(lp, stopPct, targetPct);
                 stopLossPrice = freshStop;
                 targetPrice = freshTarget;
+            }
+
+            // ATR-anchored levels (sizing-style toggle): a stop k ATRs below
+            // entry means "k normal days of adverse movement" for EVERY stock,
+            // where a flat percentage is noise on a volatile name and glacial
+            // on a calm one. Overrides the percentage levels (per-setup
+            // tactics included) while the style is on; missing/degenerate ATR
+            // keeps the percentage levels just derived above.
+            if (riskProfile.SizingStyle == SizingStyle.AtrRiskParity && signal.Atr14 is { } atrEntry && atrEntry > 0)
+            {
+                var anchor = livePrice ?? signal.CurrentPrice;
+                var atrStop = anchor - riskProfile.AtrStopMultiple * atrEntry;
+                if (atrStop > 0)
+                {
+                    stopLossPrice = atrStop;
+                    targetPrice = anchor + riskProfile.AtrTargetMultiple * atrEntry;
+                }
             }
 
             // ── Intraday entry confirmation (flagged, default off) ───────────

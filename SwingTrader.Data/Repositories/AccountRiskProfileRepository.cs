@@ -126,6 +126,10 @@ public class AccountRiskProfileRepository(SwingTraderDbContext db) : IAccountRis
         dest.LockedCapitalPct = src.LockedCapitalPct;
         dest.MaxOpenPositions = src.MaxOpenPositions;
         dest.DailyLossCircuitBreakerPct = src.DailyLossCircuitBreakerPct;
+        dest.SizingStyle = src.SizingStyle;
+        dest.RiskPerTradePct = src.RiskPerTradePct;
+        dest.AtrStopMultiple = src.AtrStopMultiple;
+        dest.AtrTargetMultiple = src.AtrTargetMultiple;
         dest.MaxHoldDays = src.MaxHoldDays;
         dest.TrailingActivationPct = src.TrailingActivationPct;
         dest.TrailingDistancePct = src.TrailingDistancePct;

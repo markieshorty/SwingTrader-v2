@@ -48,6 +48,10 @@ public static class ConfigFingerprint
         Num("regimeFilter", cfg.RegimeFilter);
         Num("maxOpen", cfg.MaxOpenPositions);
         Num("maxHold", cfg.MaxHoldDays);
+        Num("atrSz", cfg.UseAtrSizing ? 1 : 0);
+        Num("riskPT", cfg.RiskPerTradePct);
+        Num("atrStopK", cfg.AtrStopMultiple);
+        Num("atrTgtK", cfg.AtrTargetMultiple);
         Num("trailAct", cfg.TrailingActivationPct);
         Num("trailDist", cfg.TrailingDistancePct);
         Num("stop", cfg.StopLossPct);

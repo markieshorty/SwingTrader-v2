@@ -46,6 +46,16 @@ public class AccountRiskProfile : BaseEntity
     // +10% above). These REPLACED EntryLevelCalculator's per-setup and
     // per-conviction tables (2026-07-12); the Lab's rules panel reads them as
     // its defaults, keeping backtest and live in lockstep.
+    // Sizing style toggle (31 Jul 2026): FlatPercent = legacy flat slice +
+    // percentage stops; AtrRiskParity = fixed risk budget per trade with
+    // ATR-multiple stops/targets. The three ATR dials below only apply in
+    // AtrRiskParity; the flat/stop-pct dials only in FlatPercent (per-setup
+    // tactics stops also yield to ATR levels while the style is on).
+    public SizingStyle SizingStyle { get; set; } = SizingStyle.FlatPercent;
+    public decimal RiskPerTradePct { get; set; } = CapitalRules.DefaultRiskPerTradePct;
+    public decimal AtrStopMultiple { get; set; } = CapitalRules.DefaultAtrStopMultiple;
+    public decimal AtrTargetMultiple { get; set; } = CapitalRules.DefaultAtrTargetMultiple;
+
     public decimal StopLossPct { get; set; } = CapitalRules.DefaultStopLossPct;
     public decimal TargetPct { get; set; } = CapitalRules.DefaultTargetPct;
 
@@ -116,6 +126,18 @@ public class AccountRiskProfile : BaseEntity
 
         if (TargetPct <= StopLossPct)
             throw new ValidationException("Target must exceed the stop-loss (risk/reward below 1 is a losing structure)");
+
+        if (RiskPerTradePct < CapitalRules.MinRiskPerTradePct || RiskPerTradePct > CapitalRules.MaxRiskPerTradePct)
+            throw new ValidationException(
+                $"Risk per trade must be {CapitalRules.MinRiskPerTradePct:P2}-{CapitalRules.MaxRiskPerTradePct:P2}");
+        if (AtrStopMultiple < CapitalRules.MinAtrStopMultiple || AtrStopMultiple > CapitalRules.MaxAtrStopMultiple)
+            throw new ValidationException(
+                $"ATR stop multiple must be {CapitalRules.MinAtrStopMultiple}-{CapitalRules.MaxAtrStopMultiple}");
+        if (AtrTargetMultiple < CapitalRules.MinAtrTargetMultiple || AtrTargetMultiple > CapitalRules.MaxAtrTargetMultiple)
+            throw new ValidationException(
+                $"ATR target multiple must be {CapitalRules.MinAtrTargetMultiple}-{CapitalRules.MaxAtrTargetMultiple}");
+        if (AtrTargetMultiple <= AtrStopMultiple)
+            throw new ValidationException("ATR target multiple must exceed the stop multiple (risk/reward below 1 is a losing structure)");
 
         if (FlatPositionPct < CapitalRules.MinFlatPositionPct || FlatPositionPct > CapitalRules.MaxFlatPositionPct)
             throw new ValidationException(

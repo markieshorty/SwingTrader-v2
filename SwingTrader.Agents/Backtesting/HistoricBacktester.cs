@@ -108,7 +108,17 @@ public sealed record HistoricConfig(
     // Protected reserve never traded: total deployment can't exceed the un-locked
     // share of equity (mirrors live's Locked Capital). Per-regime in Mixed via
     // the envelope below. 0 = the whole account is tradeable (legacy behaviour).
-    decimal LockedCapitalPct = 0m);
+    decimal LockedCapitalPct = 0m,
+    // ATR risk-parity sizing (sizing-style toggle, 31 Jul 2026). Off = the
+    // legacy flat PositionFraction sizing + percentage stops above. On =
+    // position sized from a fixed risk budget (RiskPerTradePct of equity)
+    // against an AtrStopMultiple x ATR(14) stop distance, stops/targets
+    // anchored at ATR multiples of the entry (percentage/per-setup stop
+    // tactics yield). The flat-fraction/cash/reserve clamps stay the ceiling.
+    bool UseAtrSizing = false,
+    decimal RiskPerTradePct = 0.01m,
+    decimal AtrStopMultiple = 2.0m,
+    decimal AtrTargetMultiple = 3.5m);
 
 // The slice of a regime risk book the backtest switches on per simulated day.
 // Exit tactics are per-setup and frozen at entry, so only the entry-time
@@ -351,6 +361,27 @@ public static class HistoricBacktester
                         var t = (Math.Clamp(c.Conviction, 6.0m, 9.0m) - 6.0m) / 3.0m;
                         budget *= 0.5m + t * 0.5m;
                     }
+                    // ATR risk-parity: cap the budget so the position risks
+                    // RiskPerTradePct of equity at the ATR-multiple stop.
+                    // ATR is computed over bars up to the SIGNAL day (entry is
+                    // the next open, exactly as live scores on yesterday's
+                    // completed candles). Insufficient history = legacy flat
+                    // sizing for that entry, mirroring live's fallback.
+                    decimal? entryAtr = null;
+                    if (cfg.UseAtrSizing
+                        && bars.TryGetValue(c.Symbol, out var atrSeries)
+                        && index.TryGetValue(c.Symbol, out var atrDates)
+                        && atrDates.TryGetValue(today, out var atrIdx))
+                    {
+                        entryAtr = Core.Trading.AtrCalculator.Compute(
+                            atrSeries, b => b.High, b => b.Low, b => b.Close, atrIdx);
+                        if (entryAtr is { } ea && ea > 0)
+                        {
+                            var stopDistance = ea * cfg.AtrStopMultiple;
+                            if (stopDistance > 0)
+                                budget = Math.Min(budget, equity * cfg.RiskPerTradePct / stopDistance * entryBar.Open);
+                        }
+                    }
                     if (budget < 50m) continue;
 
                     var qty = Math.Floor(budget / entryBar.Open * 1000m) / 1000m;
@@ -368,6 +399,17 @@ public static class HistoricBacktester
                     var trailDist = tac?.TrailingDistancePct ?? cfg.TrailingDistancePct;
 
                     var (stop, target) = Core.Trading.EntryLevelCalculator.Calculate(entryBar.Open, stopPct, targetPct);
+                    if (cfg.UseAtrSizing && entryAtr is { } atrLvl && atrLvl > 0)
+                    {
+                        // ATR-anchored levels override the percentage/per-setup
+                        // ones while the style is on, exactly as live does.
+                        var atrStop = entryBar.Open - cfg.AtrStopMultiple * atrLvl;
+                        if (atrStop > 0)
+                        {
+                            stop = atrStop;
+                            target = entryBar.Open + cfg.AtrTargetMultiple * atrLvl;
+                        }
+                    }
                     cash -= entryBar.Open * qty * (1 + CostPerSide);
                     open.Add(new Position
                     {

@@ -28,5 +28,9 @@ public static class BacktestRiskRuleMapper
         // shaped its return and drawdown.
         if (rules.PositionFraction is { } posFrac) profile.FlatPositionPct = posFrac;
         if (rules.LockedCapitalPct is { } locked) profile.LockedCapitalPct = locked;
+        if (rules.UseAtrSizing is { } atrOn) profile.SizingStyle = atrOn ? Core.Enums.SizingStyle.AtrRiskParity : Core.Enums.SizingStyle.FlatPercent;
+        if (rules.RiskPerTradePct is { } riskPt) profile.RiskPerTradePct = riskPt;
+        if (rules.AtrStopMultiple is { } atrStopK) profile.AtrStopMultiple = atrStopK;
+        if (rules.AtrTargetMultiple is { } atrTgtK) profile.AtrTargetMultiple = atrTgtK;
     }
 }

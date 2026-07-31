@@ -306,6 +306,11 @@ export class StrategyLabComponent implements OnDestroy {
   // active-capital pool limits total deployment.
   rulesPositionFraction = signal(10);      // percent of equity per trade (flat, mirrors live)
   rulesLockedCapitalPct = signal(20);      // percent of account held in reserve (mirrors live)
+  // ATR risk-parity sizing style (mirrors the live book's SizingStyle toggle).
+  rulesUseAtrSizing = signal(false);
+  rulesRiskPerTradePct = signal(1);        // percent of equity risked per trade
+  rulesAtrStopMultiple = signal(2);
+  rulesAtrTargetMultiple = signal(3.5);
 
   // Position size ceiling implied by the other two rule dials:
   // (100 - locked%) / max positions. Mirrors the live Validate() constraint
@@ -347,6 +352,7 @@ export class StrategyLabComponent implements OnDestroy {
     maxHoldDays: 10, maxOpenPositions: 3, trailingActivation: 5, trailingDistance: 3,
     minHoldDays: 3, healthThreshold: 0.5,
     stopLossPct: 5, targetPct: 8, positionFraction: 10, lockedCapitalPct: 20,
+    useAtrSizing: false, riskPerTradePct: 1, atrStopMultiple: 2, atrTargetMultiple: 3.5,
   };
   // Which regime book the Trading-rules panel is prefilled from. Defaults to
   // Neutral (what the backtest baseline replays under); the panel's dropdown
@@ -366,6 +372,10 @@ export class StrategyLabComponent implements OnDestroy {
     || this.rulesHealthThreshold() !== this.profileRules.healthThreshold
     || this.rulesPositionFraction() !== this.profileRules.positionFraction
     || this.rulesLockedCapitalPct() !== this.profileRules.lockedCapitalPct
+    || this.rulesUseAtrSizing() !== this.profileRules.useAtrSizing
+    || this.rulesRiskPerTradePct() !== this.profileRules.riskPerTradePct
+    || this.rulesAtrStopMultiple() !== this.profileRules.atrStopMultiple
+    || this.rulesAtrTargetMultiple() !== this.profileRules.atrTargetMultiple
     || this.tacticsTouched());
 
   // The trading-rules override payload, or null when the panel is untouched
@@ -397,6 +407,10 @@ export class StrategyLabComponent implements OnDestroy {
       lockedCapitalPct: pct(this.rulesLockedCapitalPct(), pr.lockedCapitalPct),
       activeCapitalPct: null,
       maxPositionPctOfActive: null,
+      useAtrSizing: this.rulesUseAtrSizing() === pr.useAtrSizing ? null : this.rulesUseAtrSizing(),
+      riskPerTradePct: pct(this.rulesRiskPerTradePct(), pr.riskPerTradePct),
+      atrStopMultiple: num(this.rulesAtrStopMultiple(), pr.atrStopMultiple),
+      atrTargetMultiple: num(this.rulesAtrTargetMultiple(), pr.atrTargetMultiple),
       // Per-setup tactics only ride when the grid is edited; otherwise null so
       // the engine uses the account's live SetupTactics unchanged.
       setupTactics: this.tacticsTouched()
@@ -427,6 +441,10 @@ export class StrategyLabComponent implements OnDestroy {
     this.rulesHealthThreshold.set(this.profileRules.healthThreshold);
     this.rulesPositionFraction.set(this.profileRules.positionFraction);
     this.rulesLockedCapitalPct.set(this.profileRules.lockedCapitalPct);
+    this.rulesUseAtrSizing.set(this.profileRules.useAtrSizing);
+    this.rulesRiskPerTradePct.set(this.profileRules.riskPerTradePct);
+    this.rulesAtrStopMultiple.set(this.profileRules.atrStopMultiple);
+    this.rulesAtrTargetMultiple.set(this.profileRules.atrTargetMultiple);
   }
 
   resetRules(): void {
@@ -462,6 +480,10 @@ export class StrategyLabComponent implements OnDestroy {
           targetPct: pct(p.targetPct),
           positionFraction: pct(p.flatPositionPct),
           lockedCapitalPct: pct(p.lockedCapitalPct),
+          useAtrSizing: p.sizingStyle === 'AtrRiskParity',
+          riskPerTradePct: pct(p.riskPerTradePct),
+          atrStopMultiple: p.atrStopMultiple,
+          atrTargetMultiple: p.atrTargetMultiple,
         };
         this.applyRuleDefaults();
       },
@@ -1313,6 +1335,10 @@ export class StrategyLabComponent implements OnDestroy {
       if (r.trailingDistancePct != null) this.rulesTrailingDistance.set(r.trailingDistancePct * 100);
       if (r.minHoldDays != null) this.rulesMinHoldDays.set(r.minHoldDays);
       if (r.momentumHealthThreshold != null) this.rulesHealthThreshold.set(r.momentumHealthThreshold);
+      if (r.useAtrSizing != null) this.rulesUseAtrSizing.set(r.useAtrSizing);
+      if (r.riskPerTradePct != null) this.rulesRiskPerTradePct.set(r.riskPerTradePct * 100);
+      if (r.atrStopMultiple != null) this.rulesAtrStopMultiple.set(r.atrStopMultiple);
+      if (r.atrTargetMultiple != null) this.rulesAtrTargetMultiple.set(r.atrTargetMultiple);
       // Per-setup tactics: overlay each override onto the matching editor row.
       if (r.setupTactics?.length) {
         this.labTacticsDraft.update((rows) =>
@@ -1545,6 +1571,10 @@ export class StrategyLabComponent implements OnDestroy {
           targetPct: p.targetPct,
           sizingMode: p.sizingMode,
           flatPositionPct: p.flatPositionPct,
+          sizingStyle: p.sizingStyle,
+          riskPerTradePct: p.riskPerTradePct,
+          atrStopMultiple: p.atrStopMultiple,
+          atrTargetMultiple: p.atrTargetMultiple,
           sizingAggressiveness: p.sizingAggressiveness,
           forwardVetoFloor: p.forwardVetoFloor,
         }).subscribe({
