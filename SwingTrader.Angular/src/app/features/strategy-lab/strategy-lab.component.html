@@ -278,8 +278,16 @@
                   </mat-form-field>
                 </div>
 
+              } @else {
+                <p class="muted small">
+                  Position size, locked capital and max positions are set <strong>per regime</strong> in the exposure
+                  forms above (Mixed switches them by the regime detected each day).
+                </p>
+              }
+
+              <h4 class="rules-subhead">Sizing style</h4>
                 <mat-slide-toggle [checked]="rulesUseAtrSizing()" (change)="rulesUseAtrSizing.set($event.checked)"
-                  matTooltip="ATR risk parity: size each position from a fixed risk budget against an ATR-multiple stop, with stop/target anchored at ATR distances from entry. The flat position-size cap above stays the ceiling.">
+                  matTooltip="ATR risk parity: size each position from a fixed risk budget against an ATR-multiple stop, with stop/target anchored at ATR distances from entry. The flat position-size cap (per regime in Mixed) stays the ceiling.">
                   ATR risk-parity sizing
                 </mat-slide-toggle>
                 @if (rulesUseAtrSizing()) {
@@ -307,12 +315,10 @@
                     Overrides percentage stops/targets (per-setup tactics included) for every entry in the run.
                   </p>
                 }
-              } @else {
-                <p class="muted small">
-                  Position size, locked capital and max positions are set <strong>per regime</strong> in the exposure
-                  forms above (Mixed switches them by the regime detected each day).
-                </p>
-              }
+
+
+              <h4 class="rules-subhead">Sizing style</h4>
+
               <h4 class="rules-subhead">Per-setup tactics (advanced)</h4>
               <p class="muted small">
                 Each setup's own stop / target / guide-hold / trailing, prefilled from your live
