@@ -243,6 +243,11 @@ public class ExecutionService(
         // Intraday-confirmation skips with reasons, surfaced in the execution
         // email so a silent gate can never quietly eat the day's entries.
         var entrySkips = new List<string>();
+        // Per-order detail for the execution email - the counts alone said
+        // nothing about WHAT was bought or why anything failed/skipped.
+        var boughtRows = new List<string>();   // markdown table rows
+        var failedLines = new List<string>();
+        var skippedLines = new List<string>();
         // GBP deployed by THIS run's placements - added to the broker's
         // openPositionsValue for the cumulative active-capital check, since the
         // broker total won't reflect just-placed orders yet.
@@ -259,6 +264,7 @@ public class ExecutionService(
             if (openTrades.Any(t => t.Symbol == signal.Symbol))
             {
                 logger.LogInformation("Skipping {Symbol}: already have an open position (account {AccountId})", signal.Symbol, accountId);
+                skippedLines.Add($"**{signal.Symbol}** — already holding a position");
                 skipped++;
                 continue;
             }
@@ -288,6 +294,7 @@ public class ExecutionService(
             if (!sizing.CanTrade)
             {
                 logger.LogInformation("Skipping {Symbol}: {Reason} (account {AccountId})", signal.Symbol, sizing.RejectionReason, accountId);
+                skippedLines.Add($"**{signal.Symbol}** — {sizing.RejectionReason}");
                 skipped++;
                 continue;
             }
@@ -300,6 +307,7 @@ public class ExecutionService(
             catch (Exception ex)
             {
                 logger.LogError(ex, "Could not resolve T212 ticker for {Symbol} (account {AccountId}) — skipping", signal.Symbol, accountId);
+                failedLines.Add($"**{signal.Symbol}** — could not resolve the T212 instrument ({ex.Message})");
                 failed++;
                 continue;
             }
@@ -307,6 +315,7 @@ public class ExecutionService(
             if (ticker is null)
             {
                 logger.LogWarning("No T212 instrument found for {Symbol} (account {AccountId}) — skipping", signal.Symbol, accountId);
+                skippedLines.Add($"**{signal.Symbol}** — no matching T212 instrument");
                 skipped++;
                 continue;
             }
@@ -425,6 +434,7 @@ public class ExecutionService(
                 // No broker call has been made yet, so skipping is safe - nothing
                 // to reconcile. Retry naturally happens if the message redelivers.
                 logger.LogError(ex, "Failed to record execution intent for {Symbol} (account {AccountId}) — skipping before any order placed", signal.Symbol, accountId);
+                failedLines.Add($"**{signal.Symbol}** — could not record the trade intent; no order was placed");
                 failed++;
                 continue;
             }
@@ -479,6 +489,12 @@ public class ExecutionService(
                 availableCash -= sizing.EstimatedCost;
                 deployedThisRun += sizing.EstimatedCost;
                 placedSymbols.Add(signal.Symbol);
+                var placedCostGbp = sizing.Quantity > 0
+                    ? sizing.EstimatedCost * (placedQuantity / sizing.Quantity)
+                    : sizing.EstimatedCost;
+                var downsizedNote = placedQuantity < sizing.Quantity ? " ⚠️ downsized" : string.Empty;
+                boughtRows.Add(
+                    $"| **{signal.Symbol}**{downsizedNote} | {signal.SetupType} | {placedQuantity:0.###} | ${(livePrice ?? signal.CurrentPrice):F2} | £{placedCostGbp:F2} | ${stopLossPrice:F2} | ${targetPrice:F2} | {signal.ConvictionScore:F1} |");
                 placed++;
 
                 if (placed < signals.Count)
@@ -498,6 +514,7 @@ public class ExecutionService(
                 await signalRepo.UpdateAsync(signal);
                 await activityLog.LogAsync(accountId, "TradeEvent", "Order Rejected", "Warning",
                     $"{signal.Symbol} ({ticker}): T212 reported insufficient funds for ~£{sizing.EstimatedCost:F2} — signal stays eligible for a later run; trying the next signal.", ct);
+                failedLines.Add($"**{signal.Symbol}** — T212 reported insufficient funds for ~£{sizing.EstimatedCost:F2}; the signal stays eligible for a later run");
                 logger.LogWarning("Insufficient funds for {Symbol} (account {AccountId}, est £{Cost:F2}) — signal left eligible, moving on",
                     signal.Symbol, accountId, sizing.EstimatedCost);
                 failed++;
@@ -517,6 +534,7 @@ public class ExecutionService(
                 await signalRepo.UpdateAsync(signal);
                 await activityLog.LogAsync(accountId, "TradeEvent", "Order Rejected", "Warning",
                     $"{signal.Symbol} ({ticker}): T212 refused the order ({(int)api.StatusCode} {api.StatusCode}: {Truncate(api.Content, 160)}) — flagged unproceedable for today, moving to the next signal.", ct);
+                failedLines.Add($"**{signal.Symbol}** — T212 refused the order ({(int)api.StatusCode} {api.StatusCode}); flagged unproceedable for today");
                 logger.LogWarning("Broker rejected {Symbol} ({Ticker}) with {Status} for account {AccountId} — signal flagged unproceedable today",
                     signal.Symbol, ticker, api.StatusCode, accountId);
                 failed++;
@@ -550,6 +568,7 @@ public class ExecutionService(
                 };
                 await activityLog.LogAsync(accountId, "TradeEvent", "Order Failed", "Warning",
                     $"{signal.Symbol} ({ticker}) qty={sizing.Quantity} est=£{sizing.EstimatedCost:F2} — {detail}", ct);
+                failedLines.Add($"**{signal.Symbol}** — order outcome unknown ({detail}); reconciliation will confirm or cancel it within minutes");
                 failed++;
             }
         }
@@ -599,20 +618,50 @@ public class ExecutionService(
                 {
                     $"# Cadentic Execution Report — {date:dd MMM yyyy}",
                     string.Empty,
-                    $"| | Count |",
-                    $"|---|---|",
-                    $"| Orders placed | **{placed}** |",
-                    $"| Orders failed | **{failed}** |",
-                    $"| Signals skipped | **{skipped}** |",
-                    string.Empty,
-                    $"Cash remaining: **£{availableCash:F2}**"
                 };
+
+                if (boughtRows.Count > 0)
+                {
+                    mdLines.Add($"## 🟢 Bought — {boughtRows.Count} order(s)");
+                    mdLines.Add(string.Empty);
+                    mdLines.Add("| Symbol | Setup | Qty | Share Price | Est. Cost | Stop | Target | Conviction |");
+                    mdLines.Add("|---|---|---|---|---|---|---|---|");
+                    mdLines.AddRange(boughtRows);
+                    mdLines.Add(string.Empty);
+                    mdLines.Add($"Deployed this run: **£{deployedThisRun:F2}**");
+                }
+                else
+                {
+                    mdLines.Add("## No orders placed");
+                }
+                mdLines.Add(string.Empty);
+
+                if (failedLines.Count > 0)
+                {
+                    mdLines.Add($"## 🔴 Failed — {failedLines.Count}");
+                    mdLines.AddRange(failedLines.Select(l => $"- {l}"));
+                    mdLines.Add(string.Empty);
+                }
+                if (skippedLines.Count > 0)
+                {
+                    mdLines.Add($"## ⏭️ Skipped — {skippedLines.Count}");
+                    mdLines.AddRange(skippedLines.Select(l => $"- {l}"));
+                    mdLines.Add(string.Empty);
+                }
                 if (entrySkips.Count > 0)
                 {
-                    mdLines.Add(string.Empty);
                     mdLines.Add("**Entries skipped by the intraday check:**");
                     mdLines.AddRange(entrySkips.Select(s => $"- {s}"));
+                    mdLines.Add(string.Empty);
                 }
+
+                mdLines.Add("---");
+                mdLines.Add(string.Empty);
+                mdLines.Add("| Account | |");
+                mdLines.Add("|---|---|");
+                mdLines.Add($"| Cash remaining | **£{availableCash:F2}** |");
+                mdLines.Add($"| Open positions value | £{openPositionsValue + deployedThisRun:F2} |");
+                mdLines.Add($"| Portfolio total | £{totalPortfolioValue:F2} |");
 
                 var toAddresses = (await recipients.ListAsync(accountId))
                     .Where(r => r.Categories.HasFlag(NotificationCategory.Execution))
