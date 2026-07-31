@@ -36,7 +36,17 @@ public class AccountViewService(
         // card until the next scheduled sync. Mirrors MonitorService's
         // UpdateSnapshotAsync mapping. Best-effort - no T212 key yet (mid-
         // onboarding) just leaves the card empty as before.
-        if (snapshot is null)
+        //
+        // STALE snapshot (31 Jul 2026): Monitor only appends a snapshot every
+        // 5 minutes, so right after a sell the dashboard showed the pre-sale
+        // cash figure. If the latest snapshot is older than the staleness
+        // window, refresh it live through the same path - appended (never
+        // updated in place) because the circuit breaker baselines on the
+        // FIRST snapshot of the day. The window self-throttles the T212
+        // calls no matter how often the dashboard polls.
+        var isStale = snapshot is not null
+            && DateTime.UtcNow - snapshot.CreatedAt > TimeSpan.FromMinutes(2.5);
+        if (snapshot is null || isStale)
         {
             try
             {
