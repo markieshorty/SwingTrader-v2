@@ -15,6 +15,9 @@ public class SchedulerFunction(
     ServiceBusClient? serviceBus,
     IAccountRepository accounts,
     IJobLogRepository jobLog,
+    ISignalRepository signalRepo,
+    ITradeRepository tradeRepo,
+    IAccountRiskProfileRepository riskProfileRepo,
     Microsoft.Extensions.Configuration.IConfiguration config,
     ILogger<SchedulerFunction> logger)
 {
@@ -78,6 +81,27 @@ public class SchedulerFunction(
                 if (isWeekday && MiddayRescoreEnabled && InWindow(nowEt, 12, 30, 15, 55))
                     await TryEnqueueAsync(account.Id, "ResearchMidday", today, "research-jobs",
                         new ResearchJobMessage(account.Id, Guid.NewGuid().ToString("N"), today, nowEt, "ResearchMidday"), ct);
+
+                // Slot-aware top-up (docs/on-demand-research P2): if this
+                // morning's research was slot-skipped (portfolio full, no
+                // stage-2 scores) and a slot has since opened (position
+                // closed / entries resumed) while the trading window is
+                // still live, enqueue a ResearchMidday rescore of the day's
+                // gate-passers so re-entry buys from fresh conviction scores
+                // rather than waiting for tomorrow. Job-log dedup caps this
+                // at one top-up per account per day; the consumer re-arms
+                // Execution (or Report for approval accounts) on completion.
+                if (isWeekday && SlotAwareStageTwo && InWindow(nowEt, 9, 31, 15, 55)
+                    && (await jobLog.FindAsync(account.Id, "Research", today, ct))?.Status == JobStatus.Completed
+                    && await jobLog.FindAsync(account.Id, "ResearchMidday", today, ct) is null
+                    && await SlotOpenedAfterSlotSkippedMorningAsync(account, today, ct))
+                {
+                    logger.LogInformation(
+                        "Slot-aware top-up for account {AccountId}: slot free after a slot-skipped morning — enqueueing ResearchMidday",
+                        account.Id);
+                    await TryEnqueueAsync(account.Id, "ResearchMidday", today, "research-jobs",
+                        new ResearchJobMessage(account.Id, Guid.NewGuid().ToString("N"), today, nowEt, "ResearchMidday"), ct);
+                }
 
                 if (nowEt.DayOfWeek == DayOfWeek.Sunday && InWindow(nowEt, 20, 0, 23, 55))
                     await TryEnqueueAsync(account.Id, "Watchlist", today, "watchlist-jobs",
@@ -195,6 +219,28 @@ public class SchedulerFunction(
 
     private bool MiddayRescoreEnabled =>
         bool.TryParse(config["Research:MiddayRescoreEnabled"], out var b) && b;
+
+    // Mirrors ResearchConfig.SlotAwareStageTwo, whose code default is TRUE -
+    // an absent app setting must read as enabled here too.
+    private bool SlotAwareStageTwo =>
+        !bool.TryParse(config["Research:SlotAwareStageTwo"], out var b) || b;
+
+    // True only when BOTH hold: the account now has a free usable slot, AND
+    // today's signals carry the slot-skip marker (so the morning run never
+    // scored conviction). Slot check first - it's the cheaper pair of
+    // queries and false on every tick while the account stays full.
+    private async Task<bool> SlotOpenedAfterSlotSkippedMorningAsync(Account account, DateOnly today, CancellationToken ct)
+    {
+        var openCount = (await tradeRepo.GetOpenTradesAsync(account.Id, account.TradingMode)).Count();
+        var pendingCount = (await tradeRepo.GetPendingTradesAsync(account.Id, account.TradingMode)).Count();
+        var profile = await riskProfileRepo.GetAsync(account.Id, ct);
+        if (SwingTrader.Agents.Research.SlotGate.IsPortfolioFull(
+                openCount, pendingCount, profile.MaxOpenPositions, account.IsExecutionPaused(account.TradingMode)))
+            return false;
+
+        var signals = await signalRepo.GetByDateAsync(account.Id, today);
+        return signals.Any(s => s.NewsSummary == SwingTrader.Agents.Research.SlotGate.SlotSkipSummary);
+    }
 
     private static bool InWindow(DateTime nowEt, int startHour, int startMin, int endHour, int endMin)
     {

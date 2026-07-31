@@ -834,6 +834,13 @@ public class ResearchPipeline(
         var signal = existing ?? new StockSignal { AccountId = accountId, Symbol = symbol };
         if (companyName is not null) signal.CompanyName = companyName;
 
+        // Rebuilt from scratch every run: the annotation appends below
+        // (relative strength, price level, earnings/veto notes) previously
+        // stacked onto the EXISTING row's text on a rescore, duplicating
+        // fragments and carrying stale notes (e.g. the morning's slot-skip
+        // demotion) into the fresh signal.
+        signal.Reasoning = null;
+
         signal.SignalDate = today;
         signal.CurrentPrice = latest.Close;
         signal.Rsi14 = ind.Rsi14;

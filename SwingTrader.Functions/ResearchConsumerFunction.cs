@@ -75,6 +75,30 @@ public class ResearchConsumerFunction(
             // skips symbols already scored for this TradeDate, finishing the
             // remainder instead of re-scoring all of them. Manual runs
             // (ForceRescore) and the midday rescore re-score by design.
+            // Slot-aware top-up (docs/on-demand-research P2): a midday run on
+            // a slot-skipped day rescoreS only the signals that could become
+            // Buys - the ones the morning demoted/kept at Watch (or better)
+            // without stage-2 scores. Everything sub-Watch keeps its morning
+            // gate-only signal; rescoring it would buy nothing. Legacy midday
+            // rescores (no slot-skip marker) keep their full-watchlist sweep.
+            if (jobType == "ResearchMidday")
+            {
+                var todaySignals = (await signalRepo.GetByDateAsync(message.AccountId, message.TradeDate)).ToList();
+                var slotSkippedCandidates = todaySignals
+                    .Where(s => s.NewsSummary == SlotGate.SlotSkipSummary
+                        && s.Recommendation is Recommendation.Buy or Recommendation.Watch)
+                    .Select(s => s.Symbol)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                if (slotSkippedCandidates.Count > 0)
+                {
+                    var beforeTopUp = symbols.Count;
+                    symbols = symbols.Where(s => slotSkippedCandidates.Contains(s.Symbol)).ToList();
+                    logger.LogInformation(
+                        "Slot-aware top-up for account {AccountId}: rescoring {Count} gate-passer(s) of {Total} watchlist symbol(s)",
+                        message.AccountId, symbols.Count, beforeTopUp);
+                }
+            }
+
             if (!message.ForceRescore && jobType == "Research")
             {
                 var alreadyScored = (await signalRepo.GetByDateAsync(message.AccountId, message.TradeDate))
@@ -179,6 +203,18 @@ public class ResearchConsumerFunction(
                 : $"{symbols.Count} symbol(s) scored";
             await heartbeats.UpsertAsync(message.AccountId, "Research", "Success", summary);
             await jobLog.MarkCompletedAsync(message.AccountId, jobType, message.TradeDate, ct);
+
+            // Slot-aware top-up chain (docs/on-demand-research P2): fresh
+            // conviction scores are only useful if something acts on them
+            // today. If the top-up produced an eligible Buy, re-arm the rest
+            // of the day's pipeline: approval accounts get Report re-run
+            // (which regenerates the approval request + email; approving
+            // already re-arms Execution), everyone else goes straight to
+            // Execution via the scheduler's self-heal. Rows are only deleted
+            // when Completed/Failed - an Enqueued/Processing run is left to
+            // finish (same guard as the freed-capital hook).
+            if (jobType == "ResearchMidday")
+                await RearmAfterTopUpAsync(message.AccountId, researchAccount, message.TradeDate, ct);
         }
         catch (Exception ex)
         {
@@ -192,6 +228,38 @@ public class ResearchConsumerFunction(
     // MinHoldDays, with one grace day if the verdict is Borderline. Confirmed
     // positions are never rechecked — the thesis has been validated and runs
     // to MaxHoldDays under the normal stop/target/trailing exit rules.
+    private async Task RearmAfterTopUpAsync(int accountId, Account account, DateOnly tradeDate, CancellationToken ct)
+    {
+        try
+        {
+            var hasEligibleBuy = (await signalRepo.GetByDateAsync(accountId, tradeDate))
+                .Any(s => s.Recommendation == Recommendation.Buy && !s.WasExecuted && s.BrokerRejectedAt == null);
+            if (!hasEligibleBuy)
+            {
+                logger.LogInformation("Slot-aware top-up for account {AccountId} produced no eligible Buy — nothing to re-arm", accountId);
+                return;
+            }
+
+            var jobToRearm = account.ApprovalRequired ? "Report" : "Execution";
+            var existing = await jobLog.FindAsync(accountId, jobToRearm, tradeDate, ct);
+            if (existing is { Status: JobStatus.Completed or JobStatus.Failed })
+            {
+                await jobLog.DeleteAsync(accountId, jobToRearm, tradeDate, ct);
+                await activityLog.LogAsync(accountId, "SystemEvent", "Top-Up Rescore Complete", "Info",
+                    account.ApprovalRequired
+                        ? "Fresh conviction scores ready after a position freed a slot — a new approval request will be sent shortly."
+                        : "Fresh conviction scores ready after a position freed a slot — Execution will re-run on the next scheduler tick.", ct);
+                logger.LogInformation("Slot-aware top-up re-armed {Job} for account {AccountId}", jobToRearm, accountId);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Never fail the completed research run over the chain - the
+            // morning-after run covers the account regardless.
+            logger.LogWarning(ex, "Top-up re-arm failed for account {AccountId} — next scheduled run covers it", accountId);
+        }
+    }
+
     private async Task CheckOpenPositionHealthAsync(int accountId, CancellationToken ct)
     {
         var account = await accountRepo.GetAsync(accountId, ct);

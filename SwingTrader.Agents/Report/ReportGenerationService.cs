@@ -516,9 +516,10 @@ public class ReportGenerationService(
 
         if (buys.Count == 0)
         {
-            // Slot-skipped Buys were demoted to Watch, so the marker lives on
-            // the Watch rows.
-            var slotSkipped = watches.Any(s => s.NewsSummary == Research.SlotGate.SlotSkipSummary);
+            // The skip stamps every signal, but this builder only receives the
+            // buy/watch/avoid lists - check both lists we have (a slot-skipped
+            // day with zero Watch symbols still deserves the explanation).
+            var slotSkipped = watches.Concat(avoids).Any(s => s.NewsSummary == Research.SlotGate.SlotSkipSummary);
             var topWatch = watches.FirstOrDefault();
             if (slotSkipped)
                 sb.AppendLine("> Portfolio full — conviction scoring deferred until a position closes (slot-aware research).");
@@ -846,12 +847,64 @@ public class ReportGenerationService(
                 await approvalRepo.AddAsync(approval);
                 logger.LogInformation("Approval row created for {Date} (account {AccountId})", reportDate, accountId);
             }
+            else
+            {
+                // Same-day re-run with an EXISTING row (manual "Run Report",
+                // or the slot-aware top-up chain re-arming Report so fresh
+                // Buy candidates reach the owner - docs/on-demand-research
+                // P2). A pending row just gets its candidates refreshed. An
+                // APPROVED row is only reopened when the new list contains
+                // symbols the owner never saw: approving an earlier
+                // (possibly empty) list is not consent for new names.
+                var newSymbols = ExtractCandidateSymbols(candidatesJson);
+                var oldSymbols = ExtractCandidateSymbols(existingApproval.CandidatesJson);
+                if (!existingApproval.IsApproved)
+                {
+                    if (!newSymbols.SetEquals(oldSymbols))
+                    {
+                        existingApproval.CandidatesJson = candidatesJson;
+                        await approvalRepo.UpdateAsync(existingApproval);
+                        logger.LogInformation("Approval candidates refreshed for {Date} (account {AccountId}): {Symbols}",
+                            reportDate, accountId, string.Join(", ", newSymbols));
+                    }
+                }
+                else if (newSymbols.Except(oldSymbols).Any())
+                {
+                    existingApproval.CandidatesJson = candidatesJson;
+                    existingApproval.IsApproved = false;
+                    existingApproval.ApprovedAt = null;
+                    existingApproval.ApprovedSymbols = null;
+                    existingApproval.ApprovedVia = null;
+                    await approvalRepo.UpdateAsync(existingApproval);
+                    logger.LogInformation(
+                        "Approval reopened for {Date} (account {AccountId}) — new candidate(s) since it was approved: {Symbols}",
+                        reportDate, accountId, string.Join(", ", newSymbols.Except(oldSymbols)));
+                }
+            }
         }
 
         return report;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    // CandidatesJson is a camelCase array of { symbol, ... } objects (see the
+    // serializer above). Tolerant of null/malformed JSON - an unreadable list
+    // reads as empty, which errs toward re-surfacing candidates to the owner.
+    private static HashSet<string> ExtractCandidateSymbols(string? candidatesJson)
+    {
+        var symbols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(candidatesJson)) return symbols;
+        try
+        {
+            using var doc = JsonDocument.Parse(candidatesJson);
+            foreach (var el in doc.RootElement.EnumerateArray())
+                if (el.TryGetProperty("symbol", out var sym) && sym.GetString() is { Length: > 0 } s)
+                    symbols.Add(s);
+        }
+        catch (JsonException) { }
+        return symbols;
+    }
 
     private static string StripCodeFences(string text)
     {
