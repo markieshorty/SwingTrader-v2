@@ -57,7 +57,13 @@ const msalInstance = new PublicClientApplication(msalConfig);
 // never legitimately have an interaction in flight, so sweep the stale
 // interaction/temp markers before MSAL initialises.
 function sweepStaleInteractionMarkers(): void {
-  const processingRedirect = window.location.hash.includes('code=') || window.location.hash.includes('state=');
+  // The auth response can arrive in the FRAGMENT or the QUERY string
+  // depending on the app registration's platform/response mode - and an
+  // error response carries no code at all. Wiping the in-flight request
+  // state (PKCE verifier, nonce) in any of those cases kills the token
+  // exchange and strands the user on the boot spinner.
+  const responseCarrier = window.location.hash + window.location.search;
+  const processingRedirect = ['code=', 'state=', 'error='].some((m) => responseCarrier.includes(m));
   if (processingRedirect) return;
   for (const store of [sessionStorage, localStorage]) {
     Object.keys(store)
