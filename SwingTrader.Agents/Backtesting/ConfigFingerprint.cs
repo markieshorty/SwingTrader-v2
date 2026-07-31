@@ -52,6 +52,7 @@ public static class ConfigFingerprint
         Num("riskPT", cfg.RiskPerTradePct);
         Num("atrStopK", cfg.AtrStopMultiple);
         Num("atrTgtK", cfg.AtrTargetMultiple);
+        Num("convCeil", cfg.MaxConvictionForBuy);
         Num("trailAct", cfg.TrailingActivationPct);
         Num("trailDist", cfg.TrailingDistancePct);
         Num("stop", cfg.StopLossPct);

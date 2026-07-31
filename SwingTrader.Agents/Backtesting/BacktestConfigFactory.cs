@@ -52,6 +52,7 @@ public static class BacktestConfigFactory
         RiskPerTradePct: rules?.RiskPerTradePct ?? profile.RiskPerTradePct,
         AtrStopMultiple: rules?.AtrStopMultiple ?? profile.AtrStopMultiple,
         AtrTargetMultiple: rules?.AtrTargetMultiple ?? profile.AtrTargetMultiple,
+        MaxConvictionForBuy: rules?.MaxConvictionForBuy ?? profile.MaxConvictionForBuy,
         // Lab-only pool-sizing sim (no live equivalent since the tier ladder
         // was removed): null keeps flat sizing; the two dials below only apply
         // when a Lab run explicitly sets ActiveCapitalPct.

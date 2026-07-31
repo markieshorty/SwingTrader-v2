@@ -364,6 +364,15 @@ public static class SweepOptimizer
             if (v != productionRules?.MaxOpenPositions)
                 AddRule($"Max positions {v}", new HistoricTradingRules(MaxOpenPositions: v));
 
+        // Conviction ceiling: does excluding the very top scores help? The
+        // conviction-8 bucket evidence says the strongest oversold scores can
+        // be falling knives; holdout validation decides if that's real.
+        foreach (var v in new[] { 7.5m, 8.0m, 8.5m })
+            if (v != productionRules?.MaxConvictionForBuy)
+                AddRule($"Conviction ceiling {v:0.0}", new HistoricTradingRules(MaxConvictionForBuy: v));
+        if (productionRules?.MaxConvictionForBuy is > 0)
+            AddRule("Conviction ceiling off", new HistoricTradingRules(MaxConvictionForBuy: 0m));
+
         // Capital deployment: locked-capital reserve and flat position size.
         // Both feed the un-locked-share deployment cap the engine now enforces,
         // so they only matter in single-book (Default/Neutral) runs - under Mixed

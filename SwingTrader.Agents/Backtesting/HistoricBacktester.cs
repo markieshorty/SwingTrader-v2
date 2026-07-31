@@ -118,7 +118,10 @@ public sealed record HistoricConfig(
     bool UseAtrSizing = false,
     decimal RiskPerTradePct = 0.01m,
     decimal AtrStopMultiple = 2.0m,
-    decimal AtrTargetMultiple = 3.5m);
+    decimal AtrTargetMultiple = 3.5m,
+    // Conviction ceiling: signals scoring ABOVE it never enter (0 = off).
+    // Mirrors the live rule - the extreme oversold scores can be knives.
+    decimal MaxConvictionForBuy = 0m);
 
 // The slice of a regime risk book the backtest switches on per simulated day.
 // Exit tactics are per-setup and frozen at entry, so only the entry-time
@@ -319,6 +322,7 @@ public static class HistoricBacktester
                     if (open.Any(p => p.Symbol.Equals(symbol, StringComparison.OrdinalIgnoreCase))) continue;
                     var scored = await ScoreAsync(indicators, cfg, bars, index, symbol, today, sectorEtfBySymbol);
                     if (scored is { } s && s.Conviction >= cfg.BuyThreshold && s.Rsi <= 75m
+                        && (cfg.MaxConvictionForBuy <= 0 || s.Conviction <= cfg.MaxConvictionForBuy)
                         && !excludedSetups.Contains(s.Setup))
                         candidates.Add((symbol, s.Conviction, s.Setup, s.Rsi));
                 }

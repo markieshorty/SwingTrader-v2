@@ -408,7 +408,8 @@ public class BacktestConsumerFunction(
             UseAtrSizing: profile.SizingStyle == SizingStyle.AtrRiskParity,
             RiskPerTradePct: profile.RiskPerTradePct,
             AtrStopMultiple: profile.AtrStopMultiple,
-            AtrTargetMultiple: profile.AtrTargetMultiple);
+            AtrTargetMultiple: profile.AtrTargetMultiple,
+            MaxConvictionForBuy: profile.MaxConvictionForBuy);
         var lockedIndices = ParseLockedComponents(request.LockedComponents);
         var candidates = SweepOptimizer.GenerateCandidates(baseline, request.SearchRules, productionRules, accountTactics, lockedIndices);
 

@@ -248,6 +248,19 @@ public class ResearchPipeline(
 
         var recommendation = await DetermineRecommendationAsync(accountId, account.TradingMode, symbol, ind, conviction, weights, setupType);
 
+        // Conviction ceiling: the strongest-looking oversold scores can be
+        // the falling knives (see the conviction-8 bucket evidence). Above
+        // the book's ceiling a Buy demotes to Watch; 0 = off.
+        string? ceilingReasoning = null;
+        if (riskProfile.MaxConvictionForBuy > 0 && recommendation == Recommendation.Buy
+            && conviction > riskProfile.MaxConvictionForBuy)
+        {
+            recommendation = Recommendation.Watch;
+            ceilingReasoning = $" Conviction ceiling: score {conviction:0.0} above ceiling {riskProfile.MaxConvictionForBuy:0.0} — Buy demoted to Watch.";
+            logger.LogInformation("Conviction ceiling for {Symbol}: {Conviction:0.0} > {Ceiling:0.0}, Buy demoted to Watch",
+                symbol, conviction, riskProfile.MaxConvictionForBuy);
+        }
+
         string? slotSkipReasoning = null;
         if (slotSkip && recommendation == Recommendation.Buy)
         {
@@ -300,7 +313,7 @@ public class ResearchPipeline(
 
         // All adjustment notes ride the same reasoning-append slot.
         var adjustmentReasoning = (earningsReasoning ?? string.Empty) + (catalystReasoning ?? string.Empty)
-            + (vetoReasoning ?? string.Empty) + (slotSkipReasoning ?? string.Empty);
+            + (vetoReasoning ?? string.Empty) + (ceilingReasoning ?? string.Empty) + (slotSkipReasoning ?? string.Empty);
 
         // Second-hop shadow (docs/second-hop-plan SH1): linked-company events
         // propagated to this symbol. Skipped with stage 2 under the funnel

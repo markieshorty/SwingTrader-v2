@@ -90,6 +90,12 @@ public class AccountRiskProfile : BaseEntity
     // dependency). 0 disables the veto entirely.
     public decimal ForwardVetoFloor { get; set; } = CapitalRules.DefaultForwardVetoFloor;
 
+    // Conviction ceiling: a Buy whose conviction score EXCEEDS this demotes
+    // to Watch (0 = off). The mirror image of BuyThreshold - the strongest-
+    // looking oversold scores can be the falling knives. Lab-testable via
+    // HistoricTradingRules.MaxConvictionForBuy before going live.
+    public decimal MaxConvictionForBuy { get; set; } = CapitalRules.DefaultMaxConvictionForBuy;
+
     public string RiskLabel => LockedCapitalPct switch
     {
         >= 0.80m => "Very Conservative",
@@ -177,6 +183,9 @@ public class AccountRiskProfile : BaseEntity
             throw new ValidationException(
                 $"Sizing aggressiveness must be {CapitalRules.MinSizingAggressiveness:0.0}-{CapitalRules.MaxSizingAggressiveness:0.0}");
 
+        if (MaxConvictionForBuy < CapitalRules.MinMaxConvictionForBuy || MaxConvictionForBuy > CapitalRules.MaxMaxConvictionForBuy)
+            throw new ValidationException(
+                $"Conviction ceiling must be {CapitalRules.MinMaxConvictionForBuy:0.0}-{CapitalRules.MaxMaxConvictionForBuy:0.0} (0 = off)");
         if (ForwardVetoFloor < CapitalRules.MinForwardVetoFloor || ForwardVetoFloor > CapitalRules.MaxForwardVetoFloor)
             throw new ValidationException(
                 $"Forward veto floor must be {CapitalRules.MinForwardVetoFloor:0.0}-{CapitalRules.MaxForwardVetoFloor:0.0}");

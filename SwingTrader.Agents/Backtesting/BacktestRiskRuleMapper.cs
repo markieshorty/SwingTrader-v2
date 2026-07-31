@@ -32,5 +32,6 @@ public static class BacktestRiskRuleMapper
         if (rules.RiskPerTradePct is { } riskPt) profile.RiskPerTradePct = riskPt;
         if (rules.AtrStopMultiple is { } atrStopK) profile.AtrStopMultiple = atrStopK;
         if (rules.AtrTargetMultiple is { } atrTgtK) profile.AtrTargetMultiple = atrTgtK;
+        if (rules.MaxConvictionForBuy is { } convCeil) profile.MaxConvictionForBuy = convCeil;
     }
 }

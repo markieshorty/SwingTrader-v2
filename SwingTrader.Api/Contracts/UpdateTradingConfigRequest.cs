@@ -43,6 +43,7 @@ public record UpdateRiskProfileRequest(
     decimal? RiskPerTradePct,
     decimal? AtrStopMultiple,
     decimal? AtrTargetMultiple,
+    decimal? MaxConvictionForBuy,
     int MaxHoldDays,
     double TrailingActivationPct,
     double TrailingDistancePct,

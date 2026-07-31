@@ -480,6 +480,24 @@
           </p>
 
           <div class="slider-row">
+            <label>Conviction Ceiling: {{ draft.maxConvictionForBuy === 0 ? 'off' : (draft.maxConvictionForBuy | number: '1.1-1') }}</label>
+            <mat-slider
+              [min]="profile.allowedRanges.maxConvictionForBuy.min"
+              [max]="profile.allowedRanges.maxConvictionForBuy.max"
+              step="0.5"
+              [disabled]="draft.autopauseTrading"
+              discrete
+            >
+              <input matSliderThumb [ngModel]="draft.maxConvictionForBuy" (ngModelChange)="updateRiskDraftField('maxConvictionForBuy', $event)" />
+            </mat-slider>
+          </div>
+          <p class="muted small">
+            The mirror of the Buy threshold: a Buy whose conviction score is <strong>above</strong> the ceiling is
+            demoted to Watch — for oversold-recovery setups the most extreme scores can be falling knives. 0 = off.
+            Prove it in the Lab (out-of-sample) before turning it on.
+          </p>
+
+          <div class="slider-row">
             <label>Max Open Positions: {{ draft.maxOpenPositions }}</label>
             <mat-slider
               [min]="profile.allowedRanges.maxOpenPositions.min"

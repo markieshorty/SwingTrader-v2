@@ -117,6 +117,15 @@ public static class CapitalRules
     public const decimal MinForwardVetoFloor = 0.0m;
     public const decimal MaxForwardVetoFloor = 5.0m;
     public const decimal DefaultForwardVetoFloor = 2.5m;
+
+    // Conviction ceiling (31 Jul 2026): Buys scoring ABOVE it demote to
+    // Watch. Motivated by the backtest's conviction-8 bucket losing money on
+    // oversold-recovery setups (the most extreme scores select the falling
+    // knives) - but ships OFF (0) and is meant to be proven in the Lab's
+    // out-of-sample validation before any book turns it on.
+    public const decimal MinMaxConvictionForBuy = 0.0m;   // 0 = ceiling off
+    public const decimal MaxMaxConvictionForBuy = 10.0m;
+    public const decimal DefaultMaxConvictionForBuy = 0.0m;
     public const decimal MinDailyLossCircuitBreakerPct = 0.02m;
     public const decimal MaxDailyLossCircuitBreakerPct = 0.15m;
 

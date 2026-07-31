@@ -311,6 +311,8 @@ export class StrategyLabComponent implements OnDestroy {
   rulesRiskPerTradePct = signal(1);        // percent of equity risked per trade
   rulesAtrStopMultiple = signal(2);
   rulesAtrTargetMultiple = signal(3.5);
+  // Conviction ceiling (0 = off): Buys scoring above it never enter.
+  rulesConvictionCeiling = signal(0);
 
   // Position size ceiling implied by the other two rule dials:
   // (100 - locked%) / max positions. Mirrors the live Validate() constraint
@@ -353,6 +355,7 @@ export class StrategyLabComponent implements OnDestroy {
     minHoldDays: 3, healthThreshold: 0.5,
     stopLossPct: 5, targetPct: 8, positionFraction: 10, lockedCapitalPct: 20,
     useAtrSizing: false, riskPerTradePct: 1, atrStopMultiple: 2, atrTargetMultiple: 3.5,
+    convictionCeiling: 0,
   };
   // Which regime book the Trading-rules panel is prefilled from. Defaults to
   // Neutral (what the backtest baseline replays under); the panel's dropdown
@@ -376,6 +379,7 @@ export class StrategyLabComponent implements OnDestroy {
     || this.rulesRiskPerTradePct() !== this.profileRules.riskPerTradePct
     || this.rulesAtrStopMultiple() !== this.profileRules.atrStopMultiple
     || this.rulesAtrTargetMultiple() !== this.profileRules.atrTargetMultiple
+    || this.rulesConvictionCeiling() !== this.profileRules.convictionCeiling
     || this.tacticsTouched());
 
   // The trading-rules override payload, or null when the panel is untouched
@@ -411,6 +415,7 @@ export class StrategyLabComponent implements OnDestroy {
       riskPerTradePct: pct(this.rulesRiskPerTradePct(), pr.riskPerTradePct),
       atrStopMultiple: num(this.rulesAtrStopMultiple(), pr.atrStopMultiple),
       atrTargetMultiple: num(this.rulesAtrTargetMultiple(), pr.atrTargetMultiple),
+      maxConvictionForBuy: num(this.rulesConvictionCeiling(), pr.convictionCeiling),
       // Per-setup tactics only ride when the grid is edited; otherwise null so
       // the engine uses the account's live SetupTactics unchanged.
       setupTactics: this.tacticsTouched()
@@ -445,6 +450,7 @@ export class StrategyLabComponent implements OnDestroy {
     this.rulesRiskPerTradePct.set(this.profileRules.riskPerTradePct);
     this.rulesAtrStopMultiple.set(this.profileRules.atrStopMultiple);
     this.rulesAtrTargetMultiple.set(this.profileRules.atrTargetMultiple);
+    this.rulesConvictionCeiling.set(this.profileRules.convictionCeiling);
   }
 
   resetRules(): void {
@@ -484,6 +490,7 @@ export class StrategyLabComponent implements OnDestroy {
           riskPerTradePct: pct(p.riskPerTradePct),
           atrStopMultiple: p.atrStopMultiple,
           atrTargetMultiple: p.atrTargetMultiple,
+          convictionCeiling: p.maxConvictionForBuy,
         };
         this.applyRuleDefaults();
       },
@@ -1339,6 +1346,7 @@ export class StrategyLabComponent implements OnDestroy {
       if (r.riskPerTradePct != null) this.rulesRiskPerTradePct.set(r.riskPerTradePct * 100);
       if (r.atrStopMultiple != null) this.rulesAtrStopMultiple.set(r.atrStopMultiple);
       if (r.atrTargetMultiple != null) this.rulesAtrTargetMultiple.set(r.atrTargetMultiple);
+      if (r.maxConvictionForBuy != null) this.rulesConvictionCeiling.set(r.maxConvictionForBuy);
       // Per-setup tactics: overlay each override onto the matching editor row.
       if (r.setupTactics?.length) {
         this.labTacticsDraft.update((rows) =>
@@ -1575,6 +1583,7 @@ export class StrategyLabComponent implements OnDestroy {
           riskPerTradePct: p.riskPerTradePct,
           atrStopMultiple: p.atrStopMultiple,
           atrTargetMultiple: p.atrTargetMultiple,
+          maxConvictionForBuy: p.maxConvictionForBuy,
           sizingAggressiveness: p.sizingAggressiveness,
           forwardVetoFloor: p.forwardVetoFloor,
         }).subscribe({
