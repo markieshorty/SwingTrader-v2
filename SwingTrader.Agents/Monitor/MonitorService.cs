@@ -639,6 +639,29 @@ public class MonitorService(
         logger.LogWarning(
             "Closed manually-sold position for {Symbol} (account {AccountId}): broker no longer holds it{Detail}",
             trade.Symbol, accountId, sellFill is null ? " (no sell fill found in history)" : $" — exit {sellFill.Price} P&L {trade.RealizedPnl}");
+
+        // A manual sale frees capital just like a rule exit does - mirror
+        // PositionExitService.ReenqueueExecutionIfDoneForTodayAsync so the
+        // freed slot can fund another Buy today. On a slot-skipped morning the
+        // scheduler's P2 top-up covers re-entry instead (and re-arms Execution
+        // itself on completion); this handles the normally-scored days.
+        // Completed/Failed only - an in-flight run is left to finish.
+        try
+        {
+            var todayEt = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow,
+                TimeZoneInfo.FindSystemTimeZoneById(OperatingSystem.IsWindows() ? "Eastern Standard Time" : "America/New_York")));
+            var executionRow = await jobLog.FindAsync(accountId, "Execution", todayEt, ct);
+            if (executionRow is { Status: JobStatus.Completed or JobStatus.Failed })
+            {
+                await jobLog.DeleteAsync(accountId, "Execution", todayEt, ct);
+                logger.LogInformation(
+                    "Freed capital for account {AccountId} after a manual sale — Execution will re-run on the next scheduler tick", accountId);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not re-arm Execution after manual sale for account {AccountId} — next scheduled run covers it", accountId);
+        }
         await activityLog.LogAsync(accountId, "SystemEvent", "Position Synced", "Info",
             $"{trade.Symbol}: sold manually at T212 — local position closed" +
             (sellFill is not null
