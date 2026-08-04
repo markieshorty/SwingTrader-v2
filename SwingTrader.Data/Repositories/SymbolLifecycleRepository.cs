@@ -18,6 +18,7 @@ public class SymbolLifecycleRepository(SwingTraderDbContext db) : ISymbolLifecyc
             existing.ListedAt = lifecycle.ListedAt;
             existing.DelistedAt = lifecycle.DelistedAt;
             existing.EndReason = lifecycle.EndReason;
+            existing.BarsStored = lifecycle.BarsStored;
         }
         await db.SaveChangesAsync(ct);
     }
@@ -28,4 +29,7 @@ public class SymbolLifecycleRepository(SwingTraderDbContext db) : ISymbolLifecyc
 
     public Task<int> CountAsync(CancellationToken ct = default) =>
         db.SymbolLifecycles.CountAsync(ct);
+
+    public Task<int> CountStoredAsync(CancellationToken ct = default) =>
+        db.SymbolLifecycles.CountAsync(x => x.BarsStored, ct);
 }

@@ -15,6 +15,11 @@ public class SymbolLifecycle
     // CSV carries no reason, so this ships null (= unknown) and the P2
     // engine haircut applies; a later enrichment pass can tag acquisitions.
     public string? EndReason { get; set; }
+
+    // True = bars were stored; false = the candidate was processed but never
+    // passed the liquidity screen (recorded so a resumed backfill skips it
+    // instead of re-fetching its bars on every retry).
+    public bool BarsStored { get; set; } = true;
 }
 
 // Single-row dataset metadata. DatasetVersion feeds ConfigFingerprint so

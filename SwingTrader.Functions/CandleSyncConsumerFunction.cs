@@ -14,6 +14,7 @@ namespace SwingTrader.Functions;
 public class CandleSyncConsumerFunction(
     ICandleSyncService candleSync,
     SwingTrader.Agents.Backtesting.IDelistedBackfillService delistedBackfill,
+    Azure.Messaging.ServiceBus.ServiceBusClient? serviceBus,
     IWorkerHeartbeatRepository heartbeats,
     IActivityLogRepository activityLog,
     ISentimentArchiveRepository sentimentArchive,
@@ -40,6 +41,19 @@ public class CandleSyncConsumerFunction(
                 await activityLog.LogAsync(message.AccountId, "SystemEvent", "Delisted Backfill",
                     backfill.SizeGateBlocked ? "Warning" : "Info", backfill.Summary, ct);
                 logger.LogInformation("Delisted backfill job {JobId} — {Summary}", message.JobId, backfill.Summary);
+
+                // Chunked run: enqueue the continuation as a FRESH message so
+                // delivery counts reset per chunk and a mid-run host restart
+                // only ever costs the current chunk.
+                if (backfill.RemainingCandidates > 0 && serviceBus is not null)
+                {
+                    await using var sender = serviceBus.CreateSender("candlesync-jobs");
+                    await sender.SendMessageAsync(new Azure.Messaging.ServiceBus.ServiceBusMessage(
+                        JsonSerializer.Serialize(new CandleSyncJobMessage(
+                            message.AccountId, Guid.NewGuid().ToString("N"), "delisted"))), ct);
+                    logger.LogInformation("Delisted backfill continuation enqueued — {Remaining} candidate(s) to go",
+                        backfill.RemainingCandidates);
+                }
             }
             catch (Exception ex)
             {

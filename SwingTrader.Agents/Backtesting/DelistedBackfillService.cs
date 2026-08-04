@@ -19,7 +19,11 @@ public record DelistedBackfillResult(
     decimal DbSizeMbBefore,
     decimal ProjectedGrowthMb,
     bool SizeGateBlocked,
-    string Summary);
+    string Summary,
+    // Candidates left after this chunk. > 0 = the consumer should enqueue a
+    // continuation message; the whole run is a chain of bounded chunks so a
+    // host restart or lock expiry only ever costs one chunk of progress.
+    int RemainingCandidates = 0);
 
 public interface IDelistedBackfillService
 {
@@ -54,6 +58,10 @@ public class DelistedBackfillService(
     private const decimal MinScreenPrice = 15m;
     private const decimal MaxScreenPrice = 500m;
     private const decimal MinDollarVolume = 10_000_000m;
+    // Candidates per invocation. ~1s each (Tiingo pacing + inserts) keeps a
+    // chunk to ~7-10 minutes - far inside any host recycle window, and each
+    // chunk COMPLETES its message so retries never re-walk finished work.
+    private const int ChunkSize = 400;
 
     public async Task<DelistedBackfillResult> RunAsync(bool dryRun, CancellationToken ct = default)
     {
@@ -74,9 +82,14 @@ public class DelistedBackfillService(
         }
 
         // Symbols we already hold bars for (alive universe, or a previous
-        // partial backfill) are skipped - resume-safe by construction.
+        // partial backfill) are skipped - and so are candidates already
+        // PROCESSED (stored or screened out): every processed candidate gets
+        // a lifecycle row, so a resumed run never re-fetches finished work.
         var existing = await candleRepo.GetLatestDatesAsync(ct);
-        candidates = candidates.Where(c => !existing.ContainsKey(c.Symbol)).ToList();
+        var processed = await lifecycleRepo.GetAllAsync(ct);
+        candidates = candidates
+            .Where(c => !existing.ContainsKey(c.Symbol) && !processed.ContainsKey(c.Symbol))
+            .ToList();
 
         var projectedMb = candidates.Count * EstimatedMbPerSymbol;
         var gateBlocked = dbSizeMb + projectedMb > MaxProjectedDbMb;
@@ -107,8 +120,11 @@ public class DelistedBackfillService(
         var tiingo = RestService.For<ITiingoClient>(tiingoHttp);
         var syncDelayMs = int.TryParse(config["Tiingo:SyncDelayMs"], out var d) && d > 0 ? d : DefaultSyncDelayMs;
 
+        var chunk = candidates.Take(ChunkSize).ToList();
+        var remaining = candidates.Count - chunk.Count;
+
         int stored = 0, screenedOut = 0, failed = 0, rows = 0;
-        foreach (var c in candidates)
+        foreach (var c in chunk)
         {
             ct.ThrowIfCancellationRequested();
             try
@@ -130,6 +146,16 @@ public class DelistedBackfillService(
 
                 if (!EverPassesScreen(candles))
                 {
+                    // Record the verdict so retries and continuation chunks
+                    // never re-fetch this symbol's bars again.
+                    await lifecycleRepo.AddAsync(new SymbolLifecycle
+                    {
+                        Symbol = c.Symbol.ToUpperInvariant(),
+                        ListedAt = c.StartDate,
+                        DelistedAt = c.EndDate,
+                        EndReason = null,
+                        BarsStored = false,
+                    }, ct);
                     screenedOut++;
                 }
                 else
@@ -154,16 +180,19 @@ public class DelistedBackfillService(
             await Task.Delay(syncDelayMs, ct);
         }
 
-        if (stored > 0)
+        var isFinalChunk = remaining == 0;
+        if (isFinalChunk && await lifecycleRepo.CountStoredAsync(ct) > 0)
             await candleRepo.BumpDatasetVersionAsync(ct);
 
         var dbAfter = await candleRepo.GetDatabaseSizeMbAsync(ct);
-        var summary =
-            $"Delisted backfill: {stored} symbol(s) stored ({rows:N0} bars), {screenedOut} screened out (never liquid enough), " +
-            $"{failed} failed. DB {dbSizeMb:N0} → {dbAfter:N0} MB." +
-            (stored > 0 ? " Dataset version bumped — prior backtest results are no longer comparable with new runs." : "");
+        var totalStored = await lifecycleRepo.CountStoredAsync(ct);
+        var summary = isFinalChunk
+            ? $"Delisted backfill COMPLETE: {totalStored} symbol(s) stored across all chunks, DB now {dbAfter:N0} MB. " +
+              "Dataset version bumped — prior backtest results are no longer comparable with new runs."
+            : $"Delisted backfill chunk: {stored} stored ({rows:N0} bars), {screenedOut} screened out, {failed} failed " +
+              $"— {remaining} candidate(s) remaining, continuing. DB {dbAfter:N0} MB.";
         logger.LogInformation("{Summary}", summary);
-        return new DelistedBackfillResult(true, false, candidates.Count, stored, screenedOut, failed, rows, dbSizeMb, dbAfter - dbSizeMb, false, summary);
+        return new DelistedBackfillResult(true, false, candidates.Count, stored, screenedOut, failed, rows, dbSizeMb, dbAfter - dbSizeMb, false, summary, remaining);
     }
 
     internal sealed record TickerListing(string Symbol, DateOnly? StartDate, DateOnly EndDate);
