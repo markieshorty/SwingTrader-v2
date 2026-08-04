@@ -71,7 +71,7 @@ public class BacktestConsumerFunction(
             logger.LogWarning("Backtest run {RunId} not found for account {AccountId} — dropping", message.BacktestRunId, message.AccountId);
             return;
         }
-        if (run.Status is "Completed" or "Failed") return; // redelivery of a finished run
+        if (run.Status is "Completed" or "Failed" or "Cancelled") return; // redelivery of a finished/discarded run
 
         run.Status = "Running";
         run.StartedAt = DateTime.UtcNow;
@@ -158,6 +158,14 @@ public class BacktestConsumerFunction(
             await runs.UpdateAsync(run);
             logger.LogInformation("Backtest run {RunId} ({Mode}) completed", run.Id, request.Mode ?? "single");
         }
+        catch (RunCancelledException)
+        {
+            // The user hit Discard: CancelAsync already stamped the row
+            // Cancelled - deliberately no UpdateAsync here (a full entity
+            // save would resurrect the in-memory 'Running'). The message
+            // completes so nothing redelivers.
+            logger.LogInformation("Backtest run {RunId} discarded by user mid-run", run.Id);
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Backtest run {RunId} failed", run.Id);
@@ -166,6 +174,21 @@ public class BacktestConsumerFunction(
             run.CompletedAt = DateTime.UtcNow;
             await runs.UpdateAsync(run);
         }
+    }
+
+    // Thrown by TickProgressAsync when the user discarded the run - unwinds
+    // the whole mode handler (including the ML pool's parallel tasks, via
+    // Task.WhenAll) without being mistaken for a failure.
+    private sealed class RunCancelledException : Exception;
+
+    // Every periodic progress save doubles as the cancellation poll: writes
+    // ONLY the counters (never Status) and aborts if the DB row says the
+    // user discarded the run. Cancellation latency is therefore one
+    // candidate simulation (~seconds), not the whole sweep.
+    private async Task TickProgressAsync(BacktestRun run, CancellationToken ct)
+    {
+        var status = await runs.SaveProgressAsync(run, ct);
+        if (status == "Cancelled") throw new RunCancelledException();
     }
 
     // True when an A/B run replays the account's LIVE trading behaviour: the
@@ -436,7 +459,7 @@ public class BacktestConsumerFunction(
         // "expect N minutes" spinner.
         run.TotalCandidates = candidates.Count + MlSweepOptimizer.ActualCandidateCount;
         run.CompletedCandidates = 0;
-        await runs.UpdateAsync(run);
+        await TickProgressAsync(run, ct);
 
         var (train, holdout) = SweepOptimizer.SplitBars(bars, HistoricBacktester.WarmupBars);
         var trainSpy = train["SPY"];
@@ -447,7 +470,7 @@ public class BacktestConsumerFunction(
             train, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear, profile, accountTactics, baseline.Rules), sectorEtfs, _delistingReasons, ct);
         var baselineSummary = SweepOptimizer.Summarise(candidates[0], baselineTrain, trainSpy, baselineTrain.MaxDrawdownPct);
         run.CompletedCandidates = 1;
-        await runs.UpdateAsync(run);
+        await TickProgressAsync(run, ct);
 
         var summaries = new List<SweepCandidateResult> { baselineSummary };
         var trainResults = new Dictionary<string, HistoricResult> { [baselineSummary.Label] = baselineTrain };
@@ -462,7 +485,7 @@ public class BacktestConsumerFunction(
             logger.LogInformation("Sweep candidate '{Label}': {Trades} trades, {Adj}% adjusted expectancy", c.Label, r.Trades, summaries[^1].AdjustedExpectancyPct);
 
             run.CompletedCandidates++;
-            await runs.UpdateAsync(run);
+            await TickProgressAsync(run, ct);
         }
 
         // Everyone is ranked on RobustScorePct (worse train-window half,
@@ -498,7 +521,7 @@ public class BacktestConsumerFunction(
                 try
                 {
                     run.CompletedCandidates++;
-                    await runs.UpdateAsync(run);
+                    await TickProgressAsync(run, ct);
                 }
                 finally
                 {
@@ -566,7 +589,7 @@ public class BacktestConsumerFunction(
                     logger.LogInformation("Greedy refine '{Label}': {Trades} trades, {Adj}% adjusted expectancy", c.Label, r.Trades, summary.AdjustedExpectancyPct);
 
                     run.CompletedCandidates++;
-                    await runs.UpdateAsync(run);
+                    await TickProgressAsync(run, ct);
                 }
             }
         }
@@ -698,7 +721,7 @@ public class BacktestConsumerFunction(
         var setups = accountTactics.Keys.OrderBy(s => s.ToString()).ToList();
         run.TotalCandidates = 2 + setups.Count * 2; // baseline (2 windows) + each setup (2 windows)
         run.CompletedCandidates = 0;
-        await runs.UpdateAsync(run);
+        await TickProgressAsync(run, ct);
 
         // A run with the given setups excluded (null = all setups = the baseline).
         async Task<(HistoricResult Result, decimal Adjusted)> RunAsync(
@@ -711,7 +734,7 @@ public class BacktestConsumerFunction(
                 baseline.AutopauseDuringBear, profile, accountTactics, rules);
             var r = await HistoricBacktester.RunAsync(window, cfg, sectorEtfs, _delistingReasons, ct);
             run.CompletedCandidates++;
-            await runs.UpdateAsync(run);
+            await TickProgressAsync(run, ct);
             return (r, SweepOptimizer.AdjustedExpectancy(r, spy));
         }
 
@@ -774,7 +797,7 @@ public class BacktestConsumerFunction(
 
         run.TotalCandidates = regimes.Length + 2; // four forced + Force Default + Mixed
         run.CompletedCandidates = 0;
-        await runs.UpdateAsync(run);
+        await TickProgressAsync(run, ct);
 
         static object Row(string mode, HistoricResult r) => new
         {
@@ -804,7 +827,7 @@ public class BacktestConsumerFunction(
             var r = await HistoricBacktester.RunAsync(bars, cfg, sectorEtfs, _delistingReasons, ct);
             rows.Add(Row($"Force {regime}", r));
             run.CompletedCandidates++;
-            await runs.UpdateAsync(run);
+            await TickProgressAsync(run, ct);
             logger.LogInformation("Regime compare Force {Regime}: {Trades} trades, {Exp}%/trade, {Ret}% total",
                 regime, r.Trades, Math.Round(r.ExpectancyPct, 2), Math.Round(r.TotalReturnPct, 1));
         }
@@ -819,7 +842,7 @@ public class BacktestConsumerFunction(
             with { ForceAutopause = defaultBook.AutopauseTrading };
         rows.Add(Row("Force Default", await HistoricBacktester.RunAsync(bars, defCfg, sectorEtfs, _delistingReasons, ct)));
         run.CompletedCandidates++;
-        await runs.UpdateAsync(run);
+        await TickProgressAsync(run, ct);
 
         // Mixed: envelope switches per simulated day by the detected regime. Base
         // config from Neutral for the regime-invariant strategy fields; every
@@ -836,7 +859,7 @@ public class BacktestConsumerFunction(
         var mixed = await HistoricBacktester.RunAsync(bars, mixedCfg, sectorEtfs, _delistingReasons, ct);
         rows.Add(Row("Mixed (regime-switch)", mixed));
         run.CompletedCandidates++;
-        await runs.UpdateAsync(run);
+        await TickProgressAsync(run, ct);
 
         var result = new
         {
@@ -881,7 +904,7 @@ public class BacktestConsumerFunction(
 
         run.TotalCandidates = (1 << n) - 1; // every non-empty subset
         run.CompletedCandidates = 0;
-        await runs.UpdateAsync(run);
+        await TickProgressAsync(run, ct);
 
         var scored = new List<(decimal Adjusted, object Row)>();
         for (var mask = 1; mask < (1 << n); mask++)
@@ -919,7 +942,7 @@ public class BacktestConsumerFunction(
             }));
 
             run.CompletedCandidates++;
-            await runs.UpdateAsync(run);
+            await TickProgressAsync(run, ct);
         }
 
         // Best-first by market-adjusted expectancy - the same metric the

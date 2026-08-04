@@ -1194,6 +1194,18 @@ export class StrategyLabComponent implements OnDestroy {
 
   // Shared by a freshly-queued sweep and the tab-load reattach to one that
   // was already running server-side when the page was opened/refreshed.
+  // Discard the in-flight sweep: the server aborts it within ~one candidate
+  // and the poll winds down on the Cancelled status like any other terminal
+  // state. The half-finished search is lost - a sweep only persists at the
+  // end - so this is for "I need the consumer for something else now".
+  discardSweep(): void {
+    if (this.lastSweepRunId == null) return;
+    this.api.cancelBacktestRun(this.lastSweepRunId).subscribe({
+      next: () => this.sweepStatus.set('Discarding — the optimizer stops after the candidate it is on…'),
+      error: (err) => this.snackbar.open(errorMessage(err, 'Discard failed.'), 'Dismiss', { duration: 5000 }),
+    });
+  }
+
   private startSweepPoll(runId: number): void {
     this.lastSweepRunId = runId;
     this.pollRun(
@@ -1242,13 +1254,14 @@ export class StrategyLabComponent implements OnDestroy {
           if (kind === 'setupsearch' && r.totalCandidates != null && r.completedCandidates != null) {
             this.setupSearchProgress.set({ completed: r.completedCandidates, total: r.totalCandidates });
           }
-          if (r.status === 'Completed' || r.status === 'Failed') {
+          if (r.status === 'Completed' || r.status === 'Failed' || r.status === 'Cancelled') {
             clearInterval(timer);
             this.pollHandles.delete(kind);
             status.set(null);
             if (r.status === 'Completed') onDone(r.result);
             else {
-              this.snackbar.open(`Job failed: ${r.error}`, 'Dismiss', { duration: 8000 });
+              if (r.status === 'Cancelled') this.snackbar.open('Run discarded.', 'Dismiss', { duration: 4000 });
+              else this.snackbar.open(`Job failed: ${r.error}`, 'Dismiss', { duration: 8000 });
               onDone(null);
               if (kind === 'ab') this.running.set(false);
               else if (kind === 'validate') this.validating.set(false);

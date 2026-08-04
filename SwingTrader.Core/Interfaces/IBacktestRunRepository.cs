@@ -8,6 +8,18 @@ public interface IBacktestRunRepository
     Task<BacktestRun?> GetByIdAsync(int accountId, int id);
     Task UpdateAsync(BacktestRun run);
 
+    // Persist ONLY the progress counters and return the run's CURRENT DB
+    // status. The consumer's periodic progress saves used to save the whole
+    // tracked entity, which clobbered a user-set 'Cancelled' back to
+    // 'Running' - this is both the clobber fix and the cancellation poll
+    // (the consumer aborts when the returned status says Cancelled).
+    Task<string?> SaveProgressAsync(BacktestRun run, CancellationToken ct = default);
+
+    // Discard an in-flight (Queued/Running) run: the consumer's periodic
+    // progress poll aborts a Running sweep mid-run, and the redelivery check
+    // drops a Queued message. False = not found or already finished.
+    Task<bool> CancelAsync(int accountId, int id, CancellationToken ct = default);
+
     // Latest run of a given request mode ("sweep", "ab", ...) - an in-flight
     // (Queued/Running) run preferred over the newest completed one. Results
     // are persisted forever in ResultJson but the run id only ever lived in

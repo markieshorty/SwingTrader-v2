@@ -842,7 +842,7 @@ export type BacktestResultDto = HistoricResultDto | AbResultDto | SweepResultDto
 
 export interface BacktestRunStatusDto {
   id: number;
-  status: 'Queued' | 'Running' | 'Completed' | 'Failed';
+  status: 'Queued' | 'Running' | 'Completed' | 'Failed' | 'Cancelled';
   error: string | null;
   startedAt: string | null;
   completedAt: string | null;
@@ -1423,7 +1423,7 @@ export interface MarketStatusDto {
 export interface ActiveJobDto {
   kind: 'backtest' | 'worker';
   label: string;
-  status: 'Queued' | 'Running' | 'Completed' | 'Failed';
+  status: 'Queued' | 'Running' | 'Completed' | 'Failed' | 'Cancelled';
   startedAt: string | null;
   completedAt: string | null;
   progressCompleted: number | null;

@@ -388,6 +388,15 @@ public static class StrategyLabEndpoints
                 });
         });
 
+        // Discard an in-flight run (the optimizer's Discard button). A
+        // Running sweep aborts within ~one candidate via the consumer's
+        // progress-save poll; a Queued one is dropped at redelivery.
+        api.MapPost("/strategy-lab/backtest/{id:int}/cancel", async (
+            int id, IBacktestRunRepository runs, IAccountContext ctx, CancellationToken ct) =>
+            await runs.CancelAsync(ctx.AccountId, id, ct)
+                ? Results.Ok()
+                : Results.NotFound());
+
         // Apply dials to production from the Lab - one click, but with the
         // same audit trail as the refinement page's Approve: records a
         // RefinementSuggestion (Origin = StrategyLab, with the run's evidence)

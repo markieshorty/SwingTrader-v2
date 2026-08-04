@@ -23,6 +23,33 @@ public class BacktestRunRepository(SwingTraderDbContext db) : IBacktestRunReposi
         await db.SaveChangesAsync();
     }
 
+    public async Task<string?> SaveProgressAsync(BacktestRun run, CancellationToken ct = default)
+    {
+        await db.BacktestRuns
+            .Where(r => r.Id == run.Id)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(r => r.TotalCandidates, run.TotalCandidates)
+                .SetProperty(r => r.CompletedCandidates, run.CompletedCandidates)
+                .SetProperty(r => r.UpdatedAt, DateTime.UtcNow), ct);
+        return await db.BacktestRuns
+            .Where(r => r.Id == run.Id)
+            .Select(r => r.Status)
+            .FirstOrDefaultAsync(ct);
+    }
+
+    public async Task<bool> CancelAsync(int accountId, int id, CancellationToken ct = default)
+    {
+        var n = await db.BacktestRuns
+            .Where(r => r.AccountId == accountId && r.Id == id
+                && (r.Status == "Queued" || r.Status == "Running"))
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(r => r.Status, "Cancelled")
+                .SetProperty(r => r.Error, "Discarded by user.")
+                .SetProperty(r => r.CompletedAt, DateTime.UtcNow)
+                .SetProperty(r => r.UpdatedAt, DateTime.UtcNow), ct);
+        return n > 0;
+    }
+
     // Mode lives inside RequestJson (serialized HistoricBacktestRequest with
     // PascalCase properties), not as a column - a LIKE on the exact
     // "Mode":"..." fragment avoids a schema change for what is a rare,

@@ -1024,6 +1024,12 @@
           } @else {
             <mat-progress-bar mode="indeterminate"></mat-progress-bar>
           }
+          <div class="meta-row">
+            <button mat-stroked-button color="warn" (click)="discardSweep()"
+              matTooltip="Stops the optimizer within one candidate. The half-finished search is lost.">
+              <mat-icon>cancel</mat-icon> Discard
+            </button>
+          </div>
         </mat-card>
       }
 
