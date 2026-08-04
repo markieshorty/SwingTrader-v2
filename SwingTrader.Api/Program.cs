@@ -279,6 +279,9 @@ if (!string.IsNullOrWhiteSpace(builder.Configuration["ApplicationInsights:Resour
     builder.Services.AddSingleton(new LogsQueryClient(new DefaultAzureCredential()));
 }
 
+builder.Services.AddScoped<SwingTrader.Agents.Backtesting.IDelistedBackfillService, SwingTrader.Agents.Backtesting.DelistedBackfillService>();
+builder.Services.AddScoped<SwingTrader.Core.Interfaces.ISymbolLifecycleRepository, SwingTrader.Data.Repositories.SymbolLifecycleRepository>();
+
 var app = builder.Build();
 
 // Apply migrations on startup. Wrapped in try/catch: a transient DB outage

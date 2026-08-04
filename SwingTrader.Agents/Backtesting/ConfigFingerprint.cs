@@ -21,7 +21,7 @@ namespace SwingTrader.Agents.Backtesting;
 // resolved values stay excluded.
 public static class ConfigFingerprint
 {
-    public static string Compute(HistoricConfig cfg)
+    public static string Compute(HistoricConfig cfg, int datasetVersion = 1)
     {
         var sb = new StringBuilder(512);
 
@@ -56,6 +56,9 @@ public static class ConfigFingerprint
         Num("tgtMode", (int)cfg.TargetMode);
         Num("tgtFloor", cfg.TargetBandFloorPct);
         Num("tgtCeil", cfg.TargetBandCeilingPct);
+        // Dataset generation: results on the survivorship-biased v1 bars must
+        // never fingerprint-match runs on v2+ (delisted symbols included).
+        Num("dsv", datasetVersion);
         Num("trailAct", cfg.TrailingActivationPct);
         Num("trailDist", cfg.TrailingDistancePct);
         Num("stop", cfg.StopLossPct);

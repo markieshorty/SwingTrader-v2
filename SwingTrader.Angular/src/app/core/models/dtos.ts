@@ -863,6 +863,24 @@ export interface LabDataStatusDto {
   bars: number;
   latestDate: string | null;
   platformKeyConfigured: boolean;
+  // Dataset generation: v1 = survivorship-biased original; v2+ include
+  // delisted symbols. Results across versions are not comparable.
+  datasetVersion: number;
+}
+
+// Survivorship backfill (docs/survivorship-plan P1) dry-run/run report.
+export interface DelistedBackfillResultDto {
+  configured: boolean;
+  dryRun: boolean;
+  candidateSymbols: number;
+  symbolsStored: number;
+  symbolsScreenedOut: number;
+  symbolsFailed: number;
+  rowsAdded: number;
+  dbSizeMbBefore: number;
+  projectedGrowthMb: number;
+  sizeGateBlocked: boolean;
+  summary: string;
 }
 
 export type WatchlistType = 'AiManaged' | 'Manual' | 'Mixed' | 'AiQualitative';

@@ -13,6 +13,7 @@ namespace SwingTrader.Agents.Sharing;
 // weights + risk books + setup tactics from a frozen snapshot. Watchlists are
 // deliberately out of scope.
 public class StrategyShareService(
+    IHistoricalCandleRepository candleRepo,
     IStrategyWeightsRepository weightsRepo,
     IAccountRiskProfileRepository riskRepo,
     ISetupTacticsRepository tacticsRepo,
@@ -94,7 +95,7 @@ public class StrategyShareService(
             cfg = BacktestConfigFactory.WithLiveRegimeBooks(cfg, books);
         }
 
-        return ConfigFingerprint.Compute(cfg);
+        return ConfigFingerprint.Compute(cfg, await candleRepo.GetDatasetVersionAsync(ct));
     }
 
     public async Task ApplySnapshotAsync(int accountId, StrategySnapshot snapshot, string sourceDescription, CancellationToken ct = default)

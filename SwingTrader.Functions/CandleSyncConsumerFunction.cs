@@ -13,6 +13,7 @@ namespace SwingTrader.Functions;
 // per-user keys.
 public class CandleSyncConsumerFunction(
     ICandleSyncService candleSync,
+    SwingTrader.Agents.Backtesting.IDelistedBackfillService delistedBackfill,
     IWorkerHeartbeatRepository heartbeats,
     IActivityLogRepository activityLog,
     ISentimentArchiveRepository sentimentArchive,
@@ -25,6 +26,30 @@ public class CandleSyncConsumerFunction(
         CancellationToken ct)
     {
         var message = JsonSerializer.Deserialize<CandleSyncJobMessage>(messageBody)!;
+
+        // Survivorship backfill mode (docs/survivorship-plan P1): one-shot
+        // delisted-universe load, size-gated inside the service. The weekly
+        // incremental sync is the default (Mode null).
+        if (string.Equals(message.Mode, "delisted", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var backfill = await delistedBackfill.RunAsync(dryRun: false, ct);
+                await heartbeats.UpsertAsync(message.AccountId, "CandleSync",
+                    backfill.SizeGateBlocked ? "Failed" : "Success", backfill.Summary);
+                await activityLog.LogAsync(message.AccountId, "SystemEvent", "Delisted Backfill",
+                    backfill.SizeGateBlocked ? "Warning" : "Info", backfill.Summary, ct);
+                logger.LogInformation("Delisted backfill job {JobId} — {Summary}", message.JobId, backfill.Summary);
+            }
+            catch (Exception ex)
+            {
+                await heartbeats.UpsertAsync(message.AccountId, "CandleSync", "Failed", ex.Message);
+                logger.LogError(ex, "Delisted backfill job {JobId} failed", message.JobId);
+                throw;
+            }
+            return;
+        }
+
 
         try
         {

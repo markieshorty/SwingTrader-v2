@@ -38,6 +38,8 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     public DbSet<FilingDelta> FilingDeltas => Set<FilingDelta>();
     public DbSet<DistressFlag> DistressFlags => Set<DistressFlag>();
     public DbSet<EconomicLink> EconomicLinks => Set<EconomicLink>();
+    public DbSet<SymbolLifecycle> SymbolLifecycles => Set<SymbolLifecycle>();
+    public DbSet<HistoricalDatasetInfo> HistoricalDatasetInfo => Set<HistoricalDatasetInfo>();
 
     // The 'system' Account created by the AddMultiTenancy migration - all
     // pre-existing (pre-Phase-10c) data defaults to this AccountId.
@@ -59,6 +61,21 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<SymbolLifecycle>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Symbol).IsRequired().HasMaxLength(20);
+            e.Property(x => x.EndReason).HasMaxLength(50);
+            e.HasIndex(x => x.Symbol).IsUnique();
+        });
+
+        modelBuilder.Entity<HistoricalDatasetInfo>(e =>
+        {
+            e.HasKey(x => x.Id);
+            // Single row: v1 = the original survivorship-biased dataset.
+            e.HasData(new HistoricalDatasetInfo { Id = 1, DatasetVersion = 1 });
+        });
 
         modelBuilder.Entity<Account>(e =>
         {

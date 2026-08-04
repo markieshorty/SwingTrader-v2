@@ -46,12 +46,26 @@
           }
           @if (dataStatus(); as ds) {
             <p class="muted small data-status">
-              Historic dataset: {{ ds.bars | number }} bars{{ ds.latestDate ? ' · up to ' + (ds.latestDate | date: 'dd/MM/yyyy') : '' }}
+              Historic dataset: {{ ds.bars | number }} bars · v{{ ds.datasetVersion }}{{ ds.datasetVersion > 1 ? ' (survivorship-free)' : '' }}{{ ds.latestDate ? ' · up to ' + (ds.latestDate | date: 'dd/MM/yyyy') : '' }}
               @if (!ds.platformKeyConfigured) { · platform Tiingo key not configured }
               @if (isOwner()) {
                 <button mat-button [disabled]="syncing()" (click)="syncData()"><mat-icon>sync</mat-icon> Sync now</button>
+                @if (!delistedReport()) {
+                  <button mat-button [disabled]="delistedBusy()" (click)="delistedDryRun()"
+                    matTooltip="Survivorship check: how many delisted symbols could be added, and whether the database has room. Writes nothing.">
+                    <mat-icon>fact_check</mat-icon> Delisted backfill (dry run)
+                  </button>
+                } @else {
+                  <button mat-button color="warn" [disabled]="delistedBusy() || delistedReport()!.sizeGateBlocked" (click)="delistedRun()"
+                    matTooltip="Runs the real backfill (hours). Every backtest result before it becomes incomparable with results after — the dataset version bumps.">
+                    <mat-icon>cloud_download</mat-icon> Run delisted backfill
+                  </button>
+                }
               }
             </p>
+            @if (delistedReport(); as rep) {
+              <p class="muted small">{{ rep.summary }}</p>
+            }
           }
         </div>
 

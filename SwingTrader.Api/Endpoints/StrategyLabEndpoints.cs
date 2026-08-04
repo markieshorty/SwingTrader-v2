@@ -706,7 +706,37 @@ public static class StrategyLabEndpoints
                 bars = await candles.CountAsync(ct),
                 latestDate = await candles.GetMaxDateAsync(ct),
                 platformKeyConfigured = !string.IsNullOrWhiteSpace(config["Tiingo:PlatformApiKey"]),
+                datasetVersion = await candles.GetDatasetVersionAsync(ct),
             }));
+
+        // Survivorship backfill (docs/survivorship-plan P1). Dry run executes
+        // inline (CSV download + DB size check, a few seconds, writes
+        // nothing) and returns the report; the real run is enqueued to the
+        // Functions consumer since it takes hours on the Tiingo pacing.
+        api.MapPost("/strategy-lab/delisted-backfill/dry-run", async (
+            SwingTrader.Agents.Backtesting.IDelistedBackfillService backfill,
+            IAccountContext ctx,
+            CancellationToken ct) =>
+        {
+            if (ctx.Role != AccountRole.Owner) return Results.Forbid();
+            var result = await backfill.RunAsync(dryRun: true, ct);
+            return Results.Ok(result);
+        });
+
+        api.MapPost("/strategy-lab/delisted-backfill", async (
+            [FromServices] ServiceBusClient? serviceBus,
+            IAccountContext ctx,
+            CancellationToken ct) =>
+        {
+            if (ctx.Role != AccountRole.Owner) return Results.Forbid();
+            if (serviceBus is null)
+                return Results.Problem("Service Bus is not configured on this environment.", statusCode: StatusCodes.Status503ServiceUnavailable);
+
+            await using var sender = serviceBus.CreateSender("candlesync-jobs");
+            await sender.SendMessageAsync(new ServiceBusMessage(JsonSerializer.Serialize(
+                new CandleSyncJobMessage(ctx.AccountId, Guid.NewGuid().ToString("N"), "delisted"))), ct);
+            return Results.Ok(new { queued = true });
+        });
 
         // Owner-only manual candle sync trigger (also runs weekly via the
         // scheduler). Enqueues the platform-level job.

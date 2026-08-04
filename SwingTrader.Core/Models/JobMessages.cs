@@ -37,7 +37,9 @@ public record MonitorJobMessage(int AccountId, string JobId, DateTime CycleTime,
 
 public record RefinementJobMessage(int AccountId, string JobId, DateOnly EvaluationDate);
 
-public record CandleSyncJobMessage(int AccountId, string JobId);
+// Mode: null = the weekly incremental sync; "delisted" = the one-time
+// survivorship backfill (docs/survivorship-plan P1).
+public record CandleSyncJobMessage(int AccountId, string JobId, string? Mode = null);
 
 // Platform-level like CandleSync: one run refreshes the shared Filings /
 // FilingDeltas tables for every account (docs/filing-delta-plan).

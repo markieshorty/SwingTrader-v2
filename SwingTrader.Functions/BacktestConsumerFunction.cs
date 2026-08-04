@@ -188,7 +188,7 @@ public class BacktestConsumerFunction(
             candidate.AutopauseDuringBear, profile, accountTactics, candidate.Rules);
         if (!defaultOn)
             cfg = BacktestConfigFactory.WithLiveRegimeBooks(cfg, await LoadRegimeBooksAsync(accountId, ct));
-        return ConfigFingerprint.Compute(cfg);
+        return ConfigFingerprint.Compute(cfg, await candles.GetDatasetVersionAsync(ct));
     }
 
     private async Task<bool> MirrorsLiveAsync(

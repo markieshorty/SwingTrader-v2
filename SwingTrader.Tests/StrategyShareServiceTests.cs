@@ -26,8 +26,10 @@ public class StrategyShareServiceTests
 
     public StrategyShareServiceTests()
     {
+        var candleRepo = Substitute.For<SwingTrader.Core.Interfaces.IHistoricalCandleRepository>();
+        candleRepo.GetDatasetVersionAsync(Arg.Any<CancellationToken>()).Returns(1);
         _sut = new StrategyShareService(
-            _weightsRepo, _riskRepo, _tacticsRepo, _suggestionRepo, _applyService, _accountRepo,
+            candleRepo, _weightsRepo, _riskRepo, _tacticsRepo, _suggestionRepo, _applyService, _accountRepo,
             NullLogger<StrategyShareService>.Instance);
     }
 

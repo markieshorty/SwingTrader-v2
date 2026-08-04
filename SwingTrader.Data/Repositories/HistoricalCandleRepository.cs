@@ -25,6 +25,34 @@ public class HistoricalCandleRepository(SwingTraderDbContext db) : IHistoricalCa
             db.Database.SetCommandTimeout(HeavyReadTimeoutSeconds);
     }
 
+    public async Task<decimal> GetDatabaseSizeMbAsync(CancellationToken ct = default)
+    {
+        // dm_db_partition_stats works on Azure SQL where sp_spaceused's
+        // multi-result-set shape is awkward through EF. In-memory provider
+        // (unit tests) has no relational database - report 0.
+        if (!db.Database.IsRelational()) return 0m;
+        var pages = await db.Database
+            .SqlQueryRaw<long>("SELECT SUM(reserved_page_count) AS [Value] FROM sys.dm_db_partition_stats")
+            .FirstAsync(ct);
+        return pages * 8m / 1024m;
+    }
+
+    public async Task<int> GetDatasetVersionAsync(CancellationToken ct = default) =>
+        (await db.HistoricalDatasetInfo.AsNoTracking().FirstOrDefaultAsync(ct))?.DatasetVersion ?? 1;
+
+    public async Task BumpDatasetVersionAsync(CancellationToken ct = default)
+    {
+        var info = await db.HistoricalDatasetInfo.FirstOrDefaultAsync(ct);
+        if (info is null)
+        {
+            info = new HistoricalDatasetInfo { Id = 1, DatasetVersion = 1 };
+            db.HistoricalDatasetInfo.Add(info);
+        }
+        info.DatasetVersion++;
+        info.LastDelistedBackfillAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
+    }
+
     public async Task<Dictionary<string, DateOnly>> GetLatestDatesAsync(CancellationToken ct = default)
     {
         SetHeavyTimeout();

@@ -23,6 +23,7 @@ import { ApiService } from '../../core/services/api.service';
 import {
   AbResultDto,
   BacktestHistoryItemDto,
+  DelistedBackfillResultDto,
   BacktestResultDto,
   HistoricResultDto,
   LabDataStatusDto,
@@ -590,6 +591,8 @@ export class StrategyLabComponent implements OnDestroy {
   dataStatus = signal<LabDataStatusDto | null>(null);
   dataStatusLoading = signal(true); // true until the first data-status fetch resolves
   syncing = signal(false);
+  delistedBusy = signal(false);
+  delistedReport = signal<DelistedBackfillResultDto | null>(null);
   productionWeights = signal<StrategyWeightsDto | null>(null);
   isOwner = signal(false);
   // One poll handle per job kind: an A/B run and an optimizer sweep can be in
@@ -781,6 +784,35 @@ export class StrategyLabComponent implements OnDestroy {
 
   historicAvailable(): boolean {
     return (this.dataStatus()?.bars ?? 0) > 0;
+  }
+
+  delistedDryRun(): void {
+    this.delistedBusy.set(true);
+    this.api.delistedBackfillDryRun().subscribe({
+      next: (rep) => {
+        this.delistedReport.set(rep);
+        this.delistedBusy.set(false);
+      },
+      error: (err) => {
+        this.snackbar.open(errorMessage(err, 'Dry run failed.'), 'Dismiss', { duration: 5000 });
+        this.delistedBusy.set(false);
+      },
+    });
+  }
+
+  delistedRun(): void {
+    this.delistedBusy.set(true);
+    this.api.delistedBackfillRun().subscribe({
+      next: () => {
+        this.snackbar.open('Delisted backfill queued — it runs for a few hours; watch the activity feed for the completion summary.', 'Dismiss', { duration: 8000 });
+        this.delistedReport.set(null);
+        this.delistedBusy.set(false);
+      },
+      error: (err) => {
+        this.snackbar.open(errorMessage(err, 'Backfill enqueue failed.'), 'Dismiss', { duration: 5000 });
+        this.delistedBusy.set(false);
+      },
+    });
   }
 
   syncData(): void {

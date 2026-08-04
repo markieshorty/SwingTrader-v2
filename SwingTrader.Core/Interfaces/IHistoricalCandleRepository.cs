@@ -20,6 +20,11 @@ public interface IHistoricalCandleRepository
     Task<int> CountAsync(CancellationToken ct = default);
     Task<DateOnly?> GetMaxDateAsync(CancellationToken ct = default);
 
+    // Survivorship-free dataset support (docs/survivorship-plan P1).
+    Task<decimal> GetDatabaseSizeMbAsync(CancellationToken ct = default);
+    Task<int> GetDatasetVersionAsync(CancellationToken ct = default);
+    Task BumpDatasetVersionAsync(CancellationToken ct = default);
+
     // Bars for a specific symbol set from a date, grouped per symbol ordered by
     // date. The scorecard's counterfactual replays need a few dozen symbols
     // over a few months - a targeted read, NOT the whole-table load above

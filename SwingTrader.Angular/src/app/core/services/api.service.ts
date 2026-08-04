@@ -45,6 +45,7 @@ import {
   StatusDto,
   BacktestRunStatusDto,
   LabApplyRequestDto,
+  DelistedBackfillResultDto,
   LabDataStatusDto,
   StrategyLabRequestDto,
   StrategyLabResponseDto,
@@ -222,6 +223,16 @@ export class ApiService {
 
   getLabDataStatus(): Observable<LabDataStatusDto> {
     return this.http.get<LabDataStatusDto>(`${this.baseUrl}/api/strategy-lab/data-status`);
+  }
+
+  // Survivorship backfill: dry run returns the size/candidate report inline;
+  // the real run is queued to the Functions consumer (hours of Tiingo pacing).
+  delistedBackfillDryRun(): Observable<DelistedBackfillResultDto> {
+    return this.http.post<DelistedBackfillResultDto>(`${this.baseUrl}/api/strategy-lab/delisted-backfill/dry-run`, {});
+  }
+
+  delistedBackfillRun(): Observable<{ queued: boolean }> {
+    return this.http.post<{ queued: boolean }>(`${this.baseUrl}/api/strategy-lab/delisted-backfill`, {});
   }
 
   syncLabData(): Observable<unknown> {
