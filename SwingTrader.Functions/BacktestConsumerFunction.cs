@@ -23,6 +23,7 @@ namespace SwingTrader.Functions;
 public class BacktestConsumerFunction(
     IBacktestRunRepository runs,
     IHistoricalCandleRepository candles,
+    ISymbolLifecycleRepository lifecycleRepo,
     IAccountRiskProfileRepository riskProfileRepo,
     ISetupTacticsRepository setupTacticsRepo,
     SwingTrader.Infrastructure.Market.IMarketUniverseService universe,
@@ -31,6 +32,10 @@ public class BacktestConsumerFunction(
     // Must match the API's camelCase JSON output - this string gets embedded
     // verbatim into the poll response, so it can't be re-cased downstream.
     private static readonly JsonSerializerOptions CamelCase = new(JsonSerializerDefaults.Web);
+
+    // Per-invocation delisting reasons map (loaded once per job); the
+    // isolated worker creates a fresh consumer instance per message.
+    private IReadOnlyDictionary<string, string?>? _delistingReasons;
 
     // One backtest at a time per host instance. Each job loads the ENTIRE
     // historic candle store into memory plus the engine's working set, so the
@@ -86,6 +91,12 @@ public class BacktestConsumerFunction(
                 kv => kv.Value.Select(c => new DailyBar(
                     c.Date.ToDateTime(TimeOnly.MinValue), c.Open, c.High, c.Low, c.Close, c.Volume)).ToArray(),
                 StringComparer.OrdinalIgnoreCase);
+
+            // Delisting end-reasons for the engine's forced exits
+            // (docs/survivorship-plan P2). Empty until the delisted backfill
+            // has run - the engine treats a missing entry as unknown reason.
+            _delistingReasons = (await lifecycleRepo.GetAllAsync(ct))
+                .ToDictionary(kv => kv.Key, kv => kv.Value.EndReason, StringComparer.OrdinalIgnoreCase);
 
             // The engine mirrors the account's baseline (Neutral) risk book so
             // the Lab tests a reproducible strategy rather than one that shifts
@@ -259,7 +270,7 @@ public class BacktestConsumerFunction(
         {
             cfg = ToConfig(request.Weights, request.BuyThreshold, request.ExcludeBreakout, request.AutopauseDuringBear, profile, accountTactics, request.Rules);
         }
-        var result = await HistoricBacktester.RunAsync(bars, cfg, sectorEtfs, ct);
+        var result = await HistoricBacktester.RunAsync(bars, cfg, sectorEtfs, _delistingReasons, ct);
         // Trade log stays out of the stored JSON - it can be thousands of
         // rows; the headline stats + buckets are what the UI shows.
         return JsonSerializer.Serialize(result with { TradeLog = [] }, CamelCase);
@@ -295,7 +306,7 @@ public class BacktestConsumerFunction(
             {
                 cfg = ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile, accountTactics, c.Rules);
             }
-            var r = await HistoricBacktester.RunAsync(bars, cfg, sectorEtfs, ct);
+            var r = await HistoricBacktester.RunAsync(bars, cfg, sectorEtfs, _delistingReasons, ct);
             results.Add(new
             {
                 label = c.Label,
@@ -430,7 +441,7 @@ public class BacktestConsumerFunction(
 
         // Baseline first - its drawdown sets the ceiling for everyone else.
         var baselineTrain = await HistoricBacktester.RunAsync(
-            train, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear, profile, accountTactics, baseline.Rules), sectorEtfs, ct);
+            train, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear, profile, accountTactics, baseline.Rules), sectorEtfs, _delistingReasons, ct);
         var baselineSummary = SweepOptimizer.Summarise(candidates[0], baselineTrain, trainSpy, baselineTrain.MaxDrawdownPct);
         run.CompletedCandidates = 1;
         await runs.UpdateAsync(run);
@@ -442,7 +453,7 @@ public class BacktestConsumerFunction(
             ct.ThrowIfCancellationRequested();
             // c.Rules rides into the engine config - null for weight variants
             // (production rules), set for the rule-search candidates.
-            var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile, accountTactics, c.Rules), sectorEtfs, ct);
+            var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile, accountTactics, c.Rules), sectorEtfs, _delistingReasons, ct);
             summaries.Add(SweepOptimizer.Summarise(c, r, trainSpy, baselineTrain.MaxDrawdownPct, baselineTrain.Trades));
             trainResults[c.Label] = r;
             logger.LogInformation("Sweep candidate '{Label}': {Trades} trades, {Adj}% adjusted expectancy", c.Label, r.Trades, summaries[^1].AdjustedExpectancyPct);
@@ -479,7 +490,7 @@ public class BacktestConsumerFunction(
                 // the ML pool trade live-disabled setups while the traditional
                 // pool honoured the exclusions, and an ML winner was then
                 // validated under a different config than it trained on.
-                var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile, accountTactics, c.Rules), sectorEtfs, token);
+                var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile, accountTactics, c.Rules), sectorEtfs, _delistingReasons, token);
                 await progressGate.WaitAsync(token);
                 try
                 {
@@ -544,7 +555,7 @@ public class BacktestConsumerFunction(
                 foreach (var c in refineCandidates)
                 {
                     ct.ThrowIfCancellationRequested();
-                    var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile, accountTactics, c.Rules), sectorEtfs, ct);
+                    var r = await HistoricBacktester.RunAsync(train, ToConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear, profile, accountTactics, c.Rules), sectorEtfs, _delistingReasons, ct);
                     var summary = SweepOptimizer.Summarise(c, r, trainSpy, baselineTrain.MaxDrawdownPct, baselineTrain.Trades);
                     summaries.Add(summary);
                     refinePrefixed.Add(summary);
@@ -573,11 +584,11 @@ public class BacktestConsumerFunction(
 
         // Out-of-sample validation: winner and baseline on the held-out window.
         var winnerHoldout = await HistoricBacktester.RunAsync(
-            holdout, ToConfig(winnerSummary.Weights, winnerSummary.BuyThreshold, winnerSummary.ExcludeBreakout, winnerSummary.AutopauseDuringBear, profile, accountTactics, winnerSummary.Rules), sectorEtfs, ct);
+            holdout, ToConfig(winnerSummary.Weights, winnerSummary.BuyThreshold, winnerSummary.ExcludeBreakout, winnerSummary.AutopauseDuringBear, profile, accountTactics, winnerSummary.Rules), sectorEtfs, _delistingReasons, ct);
         var baselineHoldout = winnerSummary.Label == baselineSummary.Label
             ? winnerHoldout
             : await HistoricBacktester.RunAsync(
-                holdout, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear, profile, accountTactics, baseline.Rules), sectorEtfs, ct);
+                holdout, ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear, profile, accountTactics, baseline.Rules), sectorEtfs, _delistingReasons, ct);
 
         var validation = SweepOptimizer.BuildValidation(
             trainResults[winnerSummary.Label], winnerHoldout, baselineHoldout, trainSpy, holdoutSpy);
@@ -622,9 +633,9 @@ public class BacktestConsumerFunction(
         var trainSpy = train["SPY"];
         var holdoutSpy = holdout["SPY"];
 
-        var userTrain = await HistoricBacktester.RunAsync(train, Cfg(user, true), sectorEtfs, ct);
-        var userHoldout = await HistoricBacktester.RunAsync(holdout, Cfg(user, true), sectorEtfs, ct);
-        var baselineHoldout = await HistoricBacktester.RunAsync(holdout, Cfg(baseline, false), sectorEtfs, ct);
+        var userTrain = await HistoricBacktester.RunAsync(train, Cfg(user, true), sectorEtfs, _delistingReasons, ct);
+        var userHoldout = await HistoricBacktester.RunAsync(holdout, Cfg(user, true), sectorEtfs, _delistingReasons, ct);
+        var baselineHoldout = await HistoricBacktester.RunAsync(holdout, Cfg(baseline, false), sectorEtfs, _delistingReasons, ct);
 
         var validation = SweepOptimizer.BuildValidation(userTrain, userHoldout, baselineHoldout, trainSpy, holdoutSpy);
         return JsonSerializer.Serialize(new ValidateResult("validate", validation), CamelCase);
@@ -648,7 +659,7 @@ public class BacktestConsumerFunction(
                 request.AutopauseDuringBear, profile, accountTactics, request.Rules)
             : BuildRegimeConfig(request.Weights, request.BuyThreshold, request.ExcludeBreakout, request.Rules,
                 request.RegimeMode!, await LoadRegimeBooksAsync(accountId, ct), request.RegimeOverrides, accountTactics);
-        var result = await HistoricBacktester.RunAsync(bars, cfg, sectorEtfs, ct);
+        var result = await HistoricBacktester.RunAsync(bars, cfg, sectorEtfs, _delistingReasons, ct);
 
         // The equity slice each resampled trade compounds against: flat-mode
         // fraction directly, or the pool mode's effective per-position share.
@@ -695,7 +706,7 @@ public class BacktestConsumerFunction(
                 : baseline.Rules;
             var cfg = ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout,
                 baseline.AutopauseDuringBear, profile, accountTactics, rules);
-            var r = await HistoricBacktester.RunAsync(window, cfg, sectorEtfs, ct);
+            var r = await HistoricBacktester.RunAsync(window, cfg, sectorEtfs, _delistingReasons, ct);
             run.CompletedCandidates++;
             await runs.UpdateAsync(run);
             return (r, SweepOptimizer.AdjustedExpectancy(r, spy));
@@ -787,7 +798,7 @@ public class BacktestConsumerFunction(
             var cfg = ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout,
                 autopauseDuringBear: false, book, accountTactics, baseline.Rules)
                 with { ForceAutopause = book.AutopauseTrading };
-            var r = await HistoricBacktester.RunAsync(bars, cfg, sectorEtfs, ct);
+            var r = await HistoricBacktester.RunAsync(bars, cfg, sectorEtfs, _delistingReasons, ct);
             rows.Add(Row($"Force {regime}", r));
             run.CompletedCandidates++;
             await runs.UpdateAsync(run);
@@ -803,7 +814,7 @@ public class BacktestConsumerFunction(
         var defCfg = ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout,
             autopauseDuringBear: false, defaultBook, accountTactics, baseline.Rules)
             with { ForceAutopause = defaultBook.AutopauseTrading };
-        rows.Add(Row("Force Default", await HistoricBacktester.RunAsync(bars, defCfg, sectorEtfs, ct)));
+        rows.Add(Row("Force Default", await HistoricBacktester.RunAsync(bars, defCfg, sectorEtfs, _delistingReasons, ct)));
         run.CompletedCandidates++;
         await runs.UpdateAsync(run);
 
@@ -819,7 +830,7 @@ public class BacktestConsumerFunction(
                 kv => kv.Key,
                 kv => new RegimeEnvelope(kv.Value.AutopauseTrading, kv.Value.MaxOpenPositions, kv.Value.FlatPositionPct, kv.Value.LockedCapitalPct)),
         };
-        var mixed = await HistoricBacktester.RunAsync(bars, mixedCfg, sectorEtfs, ct);
+        var mixed = await HistoricBacktester.RunAsync(bars, mixedCfg, sectorEtfs, _delistingReasons, ct);
         rows.Add(Row("Mixed (regime-switch)", mixed));
         run.CompletedCandidates++;
         await runs.UpdateAsync(run);
@@ -887,7 +898,7 @@ public class BacktestConsumerFunction(
             };
             var cfg = ToConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout,
                 baseline.AutopauseDuringBear, profile, accountTactics, rules);
-            var r = await HistoricBacktester.RunAsync(bars, cfg, sectorEtfs, ct);
+            var r = await HistoricBacktester.RunAsync(bars, cfg, sectorEtfs, _delistingReasons, ct);
             var adjusted = SweepOptimizer.AdjustedExpectancy(r, spy);
 
             scored.Add((adjusted, new

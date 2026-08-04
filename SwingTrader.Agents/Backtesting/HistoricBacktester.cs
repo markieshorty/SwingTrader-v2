@@ -127,7 +127,14 @@ public sealed record HistoricConfig(
     // to the band. ATR sizing STYLE (UseAtrSizing) still wins when on.
     TargetMode TargetMode = TargetMode.Flat,
     decimal TargetBandFloorPct = 0.05m,
-    decimal TargetBandCeilingPct = 0.25m);
+    decimal TargetBandCeilingPct = 0.25m,
+    // Delisting semantics (docs/survivorship-plan P2): a position whose
+    // symbol's bars end mid-simulation force-exits at the last close after
+    // this many calendar days of silence. Unknown/bankruptcy-like end
+    // reasons take a haircut (the last print before a halt usually precedes
+    // further loss); acquisition-tagged ends exit at the last close as-is.
+    int DelistingGraceCalendarDays = 7,
+    decimal DelistingHaircutPct = 0.25m);
 
 // The slice of a regime risk book the backtest switches on per simulated day.
 // Exit tactics are per-setup and frozen at entry, so only the entry-time
@@ -219,6 +226,10 @@ public static class HistoricBacktester
         // SAME mapping). Null / missing symbols use the legacy override-or-SPY
         // fallback, matching live's degraded path.
         IReadOnlyDictionary<string, string>? sectorEtfBySymbol = null,
+        // Symbol -> end reason from SymbolLifecycle ("acquisition" exits at
+        // the last close untouched; null/anything else takes the haircut).
+        // Null map = no lifecycle data; ends still exit, all with haircut.
+        IReadOnlyDictionary<string, string?>? delistingReasons = null,
         CancellationToken ct = default)
     {
         if (!bars.TryGetValue("SPY", out var spy) || spy.Length <= WarmupBars)
@@ -259,7 +270,35 @@ public static class HistoricBacktester
             foreach (var pos in open.ToList())
             {
                 var bar = GetBar(bars, index, pos.Symbol, today);
-                if (bar is null) continue;
+                if (bar is null)
+                {
+                    // Delisting exit (docs/survivorship-plan P2): if the
+                    // symbol's series has ENDED (not just a missing day),
+                    // force-exit at the last close once the grace window
+                    // passes - otherwise the position would freeze forever
+                    // and its loss would silently vanish from the results.
+                    var series = bars.TryGetValue(pos.Symbol, out var sArr) ? sArr : null;
+                    var lastBar = series is { Length: > 0 } ? series[^1] : null;
+                    if (lastBar is not null && today > lastBar.Date.AddDays(cfg.DelistingGraceCalendarDays))
+                    {
+                        var isAcquisition = delistingReasons is not null
+                            && delistingReasons.TryGetValue(pos.Symbol, out var endReason)
+                            && string.Equals(endReason, "acquisition", StringComparison.OrdinalIgnoreCase);
+                        var delistPrice = isAcquisition
+                            ? lastBar.Close
+                            : lastBar.Close * (1 - cfg.DelistingHaircutPct);
+                        var delistProceeds = delistPrice * pos.Quantity * (1 - CostPerSide);
+                        var delistCost = pos.EntryPrice * pos.Quantity * (1 + CostPerSide);
+                        cash += delistProceeds;
+                        closed.Add(new HistoricTrade(
+                            pos.Symbol, pos.EntryDate, today, pos.EntryPrice, delistPrice,
+                            pos.Setup, pos.Conviction, "Delisted",
+                            Math.Round((delistProceeds - delistCost) / delistCost * 100m, 2),
+                            TradingDaysHeld: d - pos.EntryBarIndex));
+                        open.Remove(pos);
+                    }
+                    continue;
+                }
 
                 var (exitPrice, reason) = CheckExit(pos, bar, d);
 
