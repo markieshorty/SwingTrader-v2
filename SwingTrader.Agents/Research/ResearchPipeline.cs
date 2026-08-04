@@ -678,16 +678,15 @@ public class ResearchPipeline(
     {
         var price = candles[^1].Close;
 
-        // Oversold splits on the 4-bar recovery confirmation (17 Jul 2026):
-        // confirmed (price higher than 4 bars ago - the bounce has begun) is
-        // OversoldRecovery; unconfirmed (may still be falling) is
-        // OversoldRecoveryLoose - the ORIGINAL behaviour, split out as its own
-        // setup when enforcing confirmation collapsed the backtested edge.
-        // Each carries its own tactics and live on/off switch.
-        if (ind.Rsi14 < 35 && ind.BollingerLower.HasValue && price > ind.BollingerLower.Value)
-            return candles.Count >= 4 && price > candles[^4].Close
-                ? SetupType.OversoldRecovery
-                : SetupType.OversoldRecoveryLoose;
+        // Oversold requires the 4-bar recovery confirmation (price higher
+        // than 4 bars ago - the bounce has begun). The unconfirmed "loose"
+        // variant was RETIRED 4 Aug 2026: the survivorship-free dataset
+        // showed its edge was an artefact (the unconfirmed dips are where
+        // the dead companies lived), so an unconfirmed dip is no setup at
+        // all - it classifies Unknown and effectively never Buys.
+        if (ind.Rsi14 < 35 && ind.BollingerLower.HasValue && price > ind.BollingerLower.Value
+            && candles.Count >= 4 && price > candles[^4].Close)
+            return SetupType.OversoldRecovery;
 
         if (ind.BollingerUpper.HasValue && price > ind.BollingerUpper.Value
             && ind.VolumeRatio > 1.5m && ind.MacdHistogram > 0)

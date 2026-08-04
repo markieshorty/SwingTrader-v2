@@ -11,11 +11,13 @@ public enum SetupType
     // Oversold WITHOUT the 4-bar recovery confirmation - deliberately buys
     // while price may still be falling (appended so stored int values are
     // unchanged). Split out 17 Jul 2026 when enforcing the confirmation
-    // collapsed OversoldRecovery's backtested edge (235% -> 12%): the early,
-    // unconfirmed entry near the low WAS the edge; the knives it catches are
-    // capped by the stop and the distress quarantine. Kept as its own setup so
-    // the confirmed and loose variants carry separate tactics, live switches
-    // and Lab evidence.
+    // RETIRED 4 Aug 2026: the v2 survivorship-free dataset showed the loose
+    // (unconfirmed) variant's edge was survivorship bias (+1.64% on the
+    // survivors, -0.19% over 409 trades on the full universe - the
+    // unconfirmed dips were where the corpses lived). No detector emits this
+    // any more (unconfirmed oversold classifies Unknown); the member remains
+    // ONLY so historical signals/trades stored with value 6 keep
+    // deserializing and displaying.
     OversoldRecoveryLoose
 }
 

@@ -670,14 +670,12 @@ public static class HistoricBacktester
     {
         var price = candles[^1].Close;
 
-        // Oversold splits on the 4-bar recovery confirmation (17 Jul 2026, in
-        // lockstep with the live pipeline): confirmed = OversoldRecovery;
-        // unconfirmed = OversoldRecoveryLoose, the original (edge-carrying)
-        // behaviour as its own setup with its own tactics and live switch.
-        if (ind.Rsi14 < 35 && ind.BollingerLower.HasValue && price > ind.BollingerLower.Value)
-            return candles.Count >= 4 && price > candles[^4].Close
-                ? SetupType.OversoldRecovery
-                : SetupType.OversoldRecoveryLoose;
+        // Oversold requires the 4-bar recovery confirmation, in lockstep
+        // with the live pipeline. Loose RETIRED 4 Aug 2026 (survivorship
+        // artefact - see Enums.cs); an unconfirmed dip is Unknown.
+        if (ind.Rsi14 < 35 && ind.BollingerLower.HasValue && price > ind.BollingerLower.Value
+            && candles.Count >= 4 && price > candles[^4].Close)
+            return SetupType.OversoldRecovery;
 
         if (ind.BollingerUpper.HasValue && price > ind.BollingerUpper.Value
             && ind.VolumeRatio > 1.5m && ind.MacdHistogram > 0)

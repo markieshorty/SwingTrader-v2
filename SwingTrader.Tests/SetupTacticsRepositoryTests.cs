@@ -32,10 +32,12 @@ public class SetupTacticsRepositoryTests
 
         var all = await repo.GetAllAsync(1);
 
-        all.Should().HaveCount(6);
+        // OversoldRecoveryLoose retired 4 Aug 2026 (survivorship artefact) -
+        // new accounts seed the five real setups only.
+        all.Should().HaveCount(5);
         all.Select(t => t.SetupType).Should().BeEquivalentTo(new[]
         {
-            SetupType.OversoldRecovery, SetupType.OversoldRecoveryLoose, SetupType.Breakout,
+            SetupType.OversoldRecovery, SetupType.Breakout,
             SetupType.MomentumContinuation, SetupType.VolumeSpike, SetupType.TrendFollowing,
         });
         // Continuity: every setup starts identical to the Neutral book's defaults.
@@ -43,11 +45,8 @@ public class SetupTacticsRepositoryTests
     }
 
     [Fact]
-    public async Task SeedDefaultAsync_SeedsEverySetupEnabled_IncludingTheLooseVariant()
+    public async Task SeedDefaultAsync_SeedsEverySetupEnabled()
     {
-        // Changed 18 Jul 2026: Loose initially seeded disabled as a caution,
-        // but it's part of the strategy being traded and shared - new
-        // accounts start with every setup on.
         await using var db = CreateDb();
         var repo = await SeededRepoAsync(db);
 
@@ -55,28 +54,14 @@ public class SetupTacticsRepositoryTests
     }
 
     [Fact]
-    public async Task SeedDefaultAsync_LooseVariantInheritsConfirmedSetupTactics_WhenAlreadyDifferentiated()
+    public async Task SeedDefaultAsync_DoesNotResurrectTheRetiredLooseVariant()
     {
-        // An account that tuned OversoldRecovery BEFORE the split gets a Loose
-        // row copying those tuned values (they were one setup until 17 Jul
-        // 2026), not the Neutral-book defaults.
+        // OversoldRecoveryLoose retired 4 Aug 2026: no detector emits it and
+        // seeding must never create a tactics row for it again.
         await using var db = CreateDb();
         var repo = await SeededRepoAsync(db);
-        var confirmed = await repo.GetAsync(1, SetupType.OversoldRecovery);
-        confirmed!.StopLossPct = 0.03m;
-        confirmed.TargetPct = 0.15m;
-        confirmed.GuideHoldDays = 7;
-        await repo.UpdateAsync(confirmed);
-        db.SetupTactics.RemoveRange(db.SetupTactics.Where(t => t.SetupType == SetupType.OversoldRecoveryLoose));
-        await db.SaveChangesAsync();
 
-        await repo.SeedDefaultAsync(1); // reseeds the missing Loose row
-
-        var loose = await repo.GetAsync(1, SetupType.OversoldRecoveryLoose);
-        loose!.StopLossPct.Should().Be(0.03m);
-        loose.TargetPct.Should().Be(0.15m);
-        loose.GuideHoldDays.Should().Be(7);
-        loose.Enabled.Should().BeTrue();
+        (await repo.GetAsync(1, SetupType.OversoldRecoveryLoose)).Should().BeNull();
     }
 
     [Fact]
@@ -87,7 +72,7 @@ public class SetupTacticsRepositoryTests
 
         await repo.SeedDefaultAsync(1);
 
-        (await db.SetupTactics.CountAsync(t => t.AccountId == 1)).Should().Be(6);
+        (await db.SetupTactics.CountAsync(t => t.AccountId == 1)).Should().Be(5);
     }
 
     [Fact]

@@ -187,7 +187,9 @@ export class StrategyLabComponent implements OnDestroy {
   // which setups a run skips, honoured by both own-data replay and historic.
   // Empty = exclude nothing (matches live, which excludes no setups). Replaced
   // the old breakout-only dropdown + the separate trading-rules multiselect.
-  readonly allSetups = ['OversoldRecovery', 'OversoldRecoveryLoose', 'Breakout', 'MomentumContinuation', 'VolumeSpike', 'TrendFollowing'];
+  // OversoldRecoveryLoose retired 4 Aug 2026 (survivorship artefact) - no
+  // detector emits it, so it is no longer offerable as an exclusion.
+  readonly allSetups = ['OversoldRecovery', 'Breakout', 'MomentumContinuation', 'VolumeSpike', 'TrendFollowing'];
   excludedSetups = signal<string[]>([]);
 
   // Historic A/B regime frame: which risk-book envelope BOTH columns replay
