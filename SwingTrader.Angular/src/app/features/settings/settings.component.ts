@@ -347,6 +347,11 @@ export class SettingsComponent {
   // percentage stop/target (per-setup tactics included) - grey those controls
   // while the style is on so the page doesn't offer dials that do nothing.
   atrStyleOn = computed(() => this.riskProfileDraft()?.sizingStyle === 'AtrRiskParity');
+
+  // ATR-scaled TARGET mode derives the take-profit from the stock's ATR, so
+  // per-setup target tactics are not in force while it's on (stops still
+  // are). Resistance-capped mode respects per-setup targets - only caps them.
+  atrTargetModeOn = computed(() => this.riskProfileDraft()?.targetMode === 'AtrScaled');
   // The Default master book is on - it governs live regardless of regime. Drives
   // the [LIVE] capsule shown against the Default option.
   defaultRegimeEnabled = computed(() => this.riskProfile()?.defaultRegimeEnabled ?? false);
