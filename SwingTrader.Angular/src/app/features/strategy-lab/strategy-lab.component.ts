@@ -365,6 +365,37 @@ export class StrategyLabComponent implements OnDestroy {
   isSetupExcluded(setup: string): boolean {
     return this.excludedSetups().includes(setup);
   }
+
+  // The tactics table's per-row toggle edits the SAME exclusion set as the
+  // "Exclude setups" dropdown - one source of truth, two places to flip it.
+  toggleSetupExcluded(setup: string): void {
+    this.excludedSetups.update((xs) =>
+      xs.includes(setup) ? xs.filter((s) => s !== setup) : [...xs, setup]);
+  }
+
+  // Setups actually in play for this run - the only sensible options for the
+  // per-regime "Setups OFF" selects (regime-excluding a globally excluded
+  // setup is a no-op that only confuses the config).
+  enabledSetups = computed(() =>
+    this.allSetups.filter((s) => !this.excludedSetups().includes(s)));
+
+  // Plain-English "what trades where" - the single place to sanity-check a
+  // regime-conditional config before running it. Crisis has no form: it uses
+  // its live book, so every in-play setup trades there.
+  setupRegimeSummary = computed(() => {
+    const exp = this.regimeExposure();
+    return this.enabledSetups().map((setup) => {
+      const regimes = [
+        ...this.mixedRegimes.filter((r) => !exp[r]?.excludedSetups?.includes(setup)),
+        'Crisis',
+      ];
+      return {
+        setup,
+        label: regimes.length === this.mixedRegimes.length + 1
+          ? 'all regimes' : regimes.join(', ') + ' only',
+      };
+    });
+  });
   private profileRules = {
     maxHoldDays: 10, maxOpenPositions: 3, trailingActivation: 5, trailingDistance: 3,
     minHoldDays: 3, healthThreshold: 0.5,

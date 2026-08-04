@@ -102,9 +102,9 @@
           </div>
 
           <mat-form-field appearance="outline" subscriptSizing="dynamic" class="setup-filter-select">
-            <mat-label>Exclude setups</mat-label>
+            <mat-label>Exclude setups (this run)</mat-label>
             <mat-select multiple [value]="excludedSetups()" (selectionChange)="excludedSetups.set($event.value)"
-              matTooltip="Setups the run skips (leave empty to include all, matching live). Applies to your side of an A/B in both own-data and historic mode.">
+              matTooltip="Setups your side of the run skips everywhere. Simulation only - live settings are untouched. Prefilled from your live Setups tab; the per-setup tactics table below mirrors this (its row toggles edit the same list).">
               @for (s of allSetups; track s) {
                 <mat-option [value]="s">{{ s }}</mat-option>
               }
@@ -189,13 +189,19 @@
                           <mat-label>Setups OFF in {{ regime }}</mat-label>
                           <mat-select multiple [value]="ex.excludedSetups"
                             (selectionChange)="setRegimeExcludedSetups(regime, $event.value)">
-                            @for (s of allSetups; track s) {
+                            @for (s of enabledSetups(); track s) {
                               <mat-option [value]="s">{{ s }}</mat-option>
                             }
                           </mat-select>
                         </mat-form-field>
                       </mat-card>
                     }
+                  }
+                </div>
+                <div class="regime-setup-summary muted small">
+                  <strong>This run trades:</strong>
+                  @for (row of setupRegimeSummary(); track row.setup) {
+                    <span class="rs-chip">{{ row.setup }} — {{ row.label }}</span>
                   }
                 </div>
               </div>
@@ -382,6 +388,9 @@
                   @for (row of labTacticsDraft(); track row.setupType) {
                     <div class="st-row" [class.st-row-off]="isSetupExcluded(row.setupType)">
                       <span class="st-name">
+                        <mat-slide-toggle [checked]="!isSetupExcluded(row.setupType)"
+                          (change)="toggleSetupExcluded(row.setupType)"
+                          matTooltip="In play for this run - same list as the 'Exclude setups' dropdown above. Simulation only; live settings are untouched." />
                         {{ row.setupType }}
                         @if (isSetupExcluded(row.setupType)) { <span class="muted small">(excluded)</span> }
                       </span>

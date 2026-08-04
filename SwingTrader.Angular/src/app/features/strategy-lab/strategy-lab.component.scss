@@ -659,3 +659,25 @@ h3 .bad {
   flex-wrap: wrap;
   gap: 0 18px;
 }
+
+// "What trades where" summary under the Mixed per-regime forms
+.regime-setup-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+
+  .rs-chip {
+    background: rgba(127, 127, 127, 0.12);
+    border-radius: 12px;
+    padding: 2px 10px;
+    white-space: nowrap;
+  }
+}
+
+// The tactics-table row toggle sits inline with the setup name
+.st-name mat-slide-toggle {
+  margin-right: 6px;
+  transform: scale(0.8);
+}
