@@ -105,6 +105,7 @@ function toUpdateRiskProfileDto(profile: RiskProfileDto): UpdateRiskProfileDto {
     targetBandCeilingPct: profile.targetBandCeilingPct,
     sizingAggressiveness: profile.sizingAggressiveness,
     forwardVetoFloor: profile.forwardVetoFloor,
+    disabledSetupsCsv: profile.disabledSetupsCsv ?? null,
   };
 }
 
@@ -376,6 +377,7 @@ export class SettingsComponent {
       original.targetBandCeilingPct !== draft.targetBandCeilingPct ||
       original.sizingAggressiveness !== draft.sizingAggressiveness ||
       original.forwardVetoFloor !== draft.forwardVetoFloor ||
+      (original.disabledSetupsCsv ?? null) !== (draft.disabledSetupsCsv ?? null) ||
       original.maxHoldDays !== draft.maxHoldDays ||
       original.trailingActivationPct !== draft.trailingActivationPct ||
       original.trailingDistancePct !== draft.trailingDistancePct ||
@@ -505,7 +507,19 @@ export class SettingsComponent {
       Math.min(profile.allowedRanges.flatPositionPct.max, Math.floor(budget * 100) / 100));
   }
 
-  updateRiskDraftField(key: keyof UpdateRiskProfileDto, value: number | boolean | string): void {
+  readonly allSetupTypes = ['OversoldRecovery', 'Breakout', 'MomentumContinuation', 'VolumeSpike', 'TrendFollowing'];
+
+  // Regime-conditional setup selection (docs/regime-setups-plan P2): the CSV
+  // column surfaced as a multi-select. Empty selection round-trips as null.
+  regimeDisabledSetups(): string[] {
+    return this.riskProfileDraft()?.disabledSetupsCsv?.split(',').map((s) => s.trim()).filter(Boolean) ?? [];
+  }
+
+  setRegimeDisabledSetups(setups: string[]): void {
+    this.updateRiskDraftField('disabledSetupsCsv', setups.length ? setups.join(',') : null);
+  }
+
+  updateRiskDraftField(key: keyof UpdateRiskProfileDto, value: number | boolean | string | null): void {
     const draft = this.riskProfileDraft();
     if (!draft) return;
 

@@ -54,8 +54,13 @@ not a VS effect. Interesting, not actionable.
 
 ## Disposition
 
-- **P2 (live wiring) is NOT built.** The feature stays Lab-only; all live
-  `DisabledSetupsCsv` remain null.
+- **P2 (live wiring) WAS built** later the same evening at Mark's request
+  ("better than nothing") despite the failed hypotheses: pipeline demotes
+  Buys for regime-excluded setups, Risk Management gains a per-book
+  "Setups off while this book governs" multi-select, and a regime flip that
+  changes the tradeable book writes an activity-feed note. It ships INERT —
+  every live book's `DisabledSetupsCsv` is null, and the settings help text
+  points here before anyone fills one in.
 - The flat OR-only book stands as production.
 - The hypothesis that can settle H2 — does VS earn its keep in a real vol
   regime — now belongs to FORWARD evidence: shadow signals through the next

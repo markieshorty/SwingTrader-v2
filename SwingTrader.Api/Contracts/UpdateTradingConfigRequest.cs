@@ -67,7 +67,10 @@ public record UpdateRiskProfileRequest(
     // Funnel F3: Forward-score floor under gate-passing Buys; 0 = veto off.
     decimal ForwardVetoFloor = 2.5m,
     // Default book only: when true this book overrides regime switching entirely.
-    bool Enabled = false);
+    bool Enabled = false,
+    // Regime-conditional setup selection (docs/regime-setups-plan P2): setups
+    // additionally untradeable while this book governs. Null/empty = off.
+    string? DisabledSetupsCsv = null);
 
 public record UpdateSetupTacticsRequest(
     string SetupType,

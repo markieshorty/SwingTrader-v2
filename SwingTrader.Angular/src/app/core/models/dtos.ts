@@ -997,6 +997,8 @@ export interface RiskProfileDto {
   sizingAggressiveness: number;
   // Funnel F3: Forward-score floor under gate-passing Buys (0 = veto off).
   forwardVetoFloor: number;
+  // Setups off while this regime book governs (docs/regime-setups-plan P2)
+  disabledSetupsCsv?: string | null;
   riskLabel: string;
   buyThreshold: number | null;
   watchThreshold: number | null;
@@ -1076,6 +1078,8 @@ export interface UpdateRiskProfileDto {
   targetBandCeilingPct: number;
   sizingAggressiveness: number;
   forwardVetoFloor: number;
+  // Setups off while this regime book governs (docs/regime-setups-plan P2)
+  disabledSetupsCsv?: string | null;
 }
 
 // Second-hop economic link (docs/second-hop-plan) - Claude-built, platform-
@@ -1347,6 +1351,8 @@ export interface ShareSnapshotRiskBookDto {
   flatPositionPct: number;
   sizingAggressiveness: number;
   forwardVetoFloor: number;
+  // Setups off while this regime book governs (docs/regime-setups-plan P2)
+  disabledSetupsCsv?: string | null;
 }
 
 export interface ShareSnapshotSetupTacticDto {

@@ -336,6 +336,30 @@ public class MonitorService(
     // impossible while still freeing reserved capital the same session.
     private const int PendingReconcileGraceMinutes = 30;
 
+    // Regime-conditional setup selection (docs/regime-setups-plan P2): when a
+    // regime flip changes which setups are tradeable, say so in the activity
+    // feed - a day where the system's behaviour changes must be explainable
+    // from the feed. Silent when the Default master book governs (flips never
+    // change the active book) or when neither book carries exclusions.
+    private async Task NoteRegimeSetupBookChangeAsync(
+        Account account, MarketRegime previousRegime, MarketRegime currentRegime, CancellationToken ct)
+    {
+        try
+        {
+            if (await riskProfileRepo.IsDefaultRegimeEnabledAsync(account.Id, ct)) return;
+            var oldCsv = (await riskProfileRepo.GetAsync(account.Id, previousRegime, ct)).DisabledSetupsCsv ?? "";
+            var newCsv = (await riskProfileRepo.GetAsync(account.Id, currentRegime, ct)).DisabledSetupsCsv ?? "";
+            if (string.Equals(oldCsv.Trim(), newCsv.Trim(), StringComparison.OrdinalIgnoreCase)) return;
+            await activityLog.LogAsync(account.Id, "SystemEvent", "Tradeable Setups Changed", "Info",
+                $"Regime {previousRegime} \u2192 {currentRegime}: setups off in this regime: " +
+                $"{(newCsv.Trim().Length > 0 ? newCsv : "none")} (was {(oldCsv.Trim().Length > 0 ? oldCsv : "none")}).");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Regime setup-book change note failed for account {AccountId}", account.Id);
+        }
+    }
+
     private async Task CheckRegimeAutopauseAsync(Account account, ITiingoClient? tiingo, IFinnhubClient finnhub, CancellationToken ct)
     {
         if (tiingo is null) return;
@@ -350,9 +374,11 @@ public class MonitorService(
             // doesn't reach.
             if (account.CurrentMarketRegime != regime.Regime || account.RegimeUpdatedAt is null)
             {
+                var previousRegime = account.CurrentMarketRegime;
                 account.CurrentMarketRegime = regime.Regime;
                 account.RegimeUpdatedAt = DateTime.UtcNow;
                 await accountRepo.UpdateAsync(account, ct);
+                await NoteRegimeSetupBookChangeAsync(account, previousRegime, regime.Regime, ct);
             }
 
             var mode = account.TradingMode;

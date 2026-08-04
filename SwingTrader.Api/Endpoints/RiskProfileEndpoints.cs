@@ -70,6 +70,7 @@ public static class RiskProfileEndpoints
                 profile.FlatPositionPct,
                 profile.SizingAggressiveness,
                 profile.ForwardVetoFloor,
+                profile.DisabledSetupsCsv,
                 profile.RiskLabel,
                 BuyThreshold = weights?.BuyThreshold,
                 WatchThreshold = weights?.WatchThreshold,
@@ -154,6 +155,7 @@ public static class RiskProfileEndpoints
                     FlatPositionPct = req.FlatPositionPct,
                     SizingAggressiveness = req.SizingAggressiveness,
                     ForwardVetoFloor = req.ForwardVetoFloor,
+                    DisabledSetupsCsv = string.IsNullOrWhiteSpace(req.DisabledSetupsCsv) ? null : req.DisabledSetupsCsv,
                 });
                 return Results.Ok();
             }

@@ -246,7 +246,7 @@ public class ResearchPipeline(
         if (forwardScore is not null)
             _ = ApplyCatalystAdjustment(0m, catalyst, out catalystReasoning);
 
-        var recommendation = await DetermineRecommendationAsync(accountId, account.TradingMode, symbol, ind, conviction, weights, setupType);
+        var recommendation = await DetermineRecommendationAsync(accountId, account.TradingMode, symbol, ind, conviction, weights, setupType, riskProfile);
 
         // Conviction ceiling: the strongest-looking oversold scores can be
         // the falling knives (see the conviction-8 bucket evidence). Above
@@ -794,7 +794,7 @@ public class ResearchPipeline(
 
     private async Task<Recommendation> DetermineRecommendationAsync(
         int accountId, TradingMode tradingMode, string symbol, IndicatorResult ind, decimal conviction, StrategyWeights weights,
-        SetupType setupType)
+        SetupType setupType, AccountRiskProfile riskProfile)
     {
         var openTrades = await tradeRepo.GetOpenTradesAsync(accountId, tradingMode);
         if (openTrades.Any(t => t.Symbol == symbol))
@@ -822,6 +822,20 @@ public class ResearchPipeline(
                 logger.LogInformation(
                     "Setup {Setup} disabled for {Symbol}: conviction {Conviction:0.0} would Buy, demoted to Watch",
                     setupType, symbol, conviction);
+                return Recommendation.Watch;
+            }
+            // Regime-conditional setup selection (docs/regime-setups-plan P2):
+            // the ACTIVE regime book (Default override or detected regime) can
+            // additionally take setups off while it governs. All live books
+            // ship null - inert until configured. Same demote-to-Watch
+            // semantics as the account-level toggle, so shadow evidence keeps
+            // accumulating for the regimes where a setup is off.
+            var regimeDisabled = Backtesting.BacktestConfigFactory.ParseSetupCsv(riskProfile.DisabledSetupsCsv);
+            if (regimeDisabled is not null && regimeDisabled.Contains(setupType))
+            {
+                logger.LogInformation(
+                    "Setup {Setup} off in the {Regime} regime book for {Symbol}: conviction {Conviction:0.0} would Buy, demoted to Watch",
+                    setupType, riskProfile.Regime, symbol, conviction);
                 return Recommendation.Watch;
             }
             return Recommendation.Buy;

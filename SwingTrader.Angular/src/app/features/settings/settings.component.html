@@ -312,6 +312,23 @@
             only the fields that manage open positions stay editable. Saved with this book via the Save button below.
           </p>
 
+          <mat-form-field appearance="outline" subscriptSizing="dynamic" class="regime-setups-off">
+            <mat-label>Setups off while this book governs</mat-label>
+            <mat-select multiple [value]="regimeDisabledSetups()" [disabled]="!isOwner()"
+              (selectionChange)="setRegimeDisabledSetups($event.value)">
+              @for (s of allSetupTypes; track s) {
+                <mat-option [value]="s">{{ s }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <p class="muted small">
+            Regime-conditional setup selection: picked setups can't open new positions while this book is active —
+            their Buys demote to Watch (still detected and scored, so shadow evidence keeps accumulating for them).
+            Empty = the Setups tab's toggles govern alone. Tested Lab-side 4 Aug 2026 — neither hypothesis passed
+            out-of-sample validation (docs/regime-setups-plan/results.md), so leave these empty unless forward
+            evidence says otherwise.
+          </p>
+
           <h4>Capital Allocation</h4>
           <div class="slider-row">
             <label>Locked Capital: {{ draft.lockedCapitalPct | percent: '1.0-0' }}</label>
