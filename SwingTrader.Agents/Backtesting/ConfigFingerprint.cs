@@ -102,6 +102,9 @@ public static class ConfigFingerprint
                 sb.Append("rb:").Append(kv.Key).Append('=');
                 Num("ap", e.Autopause); Num("mo", e.MaxOpenPositions);
                 Num("pf", e.PositionFraction); Num("lc", e.LockedCapitalPct);
+                if (e.ExcludedSetups is { Count: > 0 } xs)
+                    sb.Append("xs=").Append(string.Join('|',
+                        xs.Select(x => x.ToString()).OrderBy(x => x, StringComparer.Ordinal))).Append(';');
             }
         }
 

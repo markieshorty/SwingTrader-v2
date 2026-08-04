@@ -39,7 +39,19 @@ public record SnapshotRiskBook(
     int MaxHoldDays, double TrailingActivationPct, double TrailingDistancePct,
     int EarningsGateDays, int MinHoldDays, decimal MomentumHealthThreshold,
     decimal StopLossPct, decimal TargetPct,
-    string SizingMode, decimal FlatPositionPct, decimal SizingAggressiveness, decimal ForwardVetoFloor);
+    string SizingMode, decimal FlatPositionPct, decimal SizingAggressiveness, decimal ForwardVetoFloor,
+    // Dials added 31 Jul - 4 Aug 2026. Defaults match the code defaults so
+    // snapshots stored BEFORE these existed keep deserializing and apply as
+    // "feature off" - a shared strategy is never silently partial.
+    string SizingStyle = "FlatPercent",
+    decimal RiskPerTradePct = 0.01m,
+    decimal AtrStopMultiple = 2.0m,
+    decimal AtrTargetMultiple = 3.5m,
+    decimal MaxConvictionForBuy = 0m,
+    string TargetMode = "Flat",
+    decimal TargetBandFloorPct = 0.05m,
+    decimal TargetBandCeilingPct = 0.25m,
+    string? DisabledSetupsCsv = null);
 
 public record SnapshotSetupTactic(
     string SetupType, bool Enabled,

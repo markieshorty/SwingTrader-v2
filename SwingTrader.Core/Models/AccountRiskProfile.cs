@@ -103,6 +103,14 @@ public class AccountRiskProfile : BaseEntity
     public decimal TargetBandFloorPct { get; set; } = CapitalRules.DefaultTargetBandFloorPct;
     public decimal TargetBandCeilingPct { get; set; } = CapitalRules.DefaultTargetBandCeilingPct;
 
+    // Regime-conditional setup selection (docs/regime-setups-plan P1):
+    // comma-separated SetupType names additionally untradeable while THIS
+    // regime's book is active. Null/empty = no per-regime opinion (the
+    // account-level SetupTactics.Enabled toggles govern alone). P1 ships
+    // this Lab-testable only - the live pipeline ignores it until a
+    // pre-declared hypothesis survives out-of-sample validation (P2).
+    public string? DisabledSetupsCsv { get; set; }
+
     public string RiskLabel => LockedCapitalPct switch
     {
         >= 0.80m => "Very Conservative",

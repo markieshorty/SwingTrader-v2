@@ -83,8 +83,23 @@ public static class BacktestConfigFactory
                     kv => kv.Key,
                     kv => new RegimeEnvelope(
                         kv.Value.AutopauseTrading, kv.Value.MaxOpenPositions,
-                        kv.Value.FlatPositionPct, kv.Value.LockedCapitalPct)),
+                        kv.Value.FlatPositionPct, kv.Value.LockedCapitalPct,
+                        ParseSetupCsv(kv.Value.DisabledSetupsCsv))),
         };
+
+    // Tolerant CSV -> setup set ("VolumeSpike, Breakout"); unknown names are
+    // ignored rather than failing a whole backtest over a typo'd book.
+    public static IReadOnlyCollection<SetupType>? ParseSetupCsv(string? csv)
+    {
+        if (string.IsNullOrWhiteSpace(csv)) return null;
+        var parsed = csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(s => Enum.TryParse<SetupType>(s, true, out var st) ? st : (SetupType?)null)
+            .Where(s => s is not null)
+            .Select(s => s!.Value)
+            .Distinct()
+            .ToArray();
+        return parsed.Length > 0 ? parsed : null;
+    }
 
     // Builds the per-setup tactics map applied to a candidate, layering two
     // kinds of override onto the account's live baseline:

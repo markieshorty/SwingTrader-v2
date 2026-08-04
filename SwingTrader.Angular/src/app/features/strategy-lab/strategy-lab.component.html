@@ -184,6 +184,16 @@
                           <input matInput type="number" min="1" max="20" [ngModel]="ex.maxOpenPositions"
                             (ngModelChange)="setRegimeExposure(regime, 'maxOpenPositions', $event)" />
                         </mat-form-field>
+                        <mat-form-field appearance="outline" subscriptSizing="dynamic"
+                          matTooltip="Regime-conditional setup selection: setups picked here are UNTRADEABLE while this regime is active (your column only). Empty = every enabled setup trades. Test the pre-declared hypotheses (docs/regime-setups-plan) rather than mining combinations.">
+                          <mat-label>Setups OFF in {{ regime }}</mat-label>
+                          <mat-select multiple [value]="ex.excludedSetups"
+                            (selectionChange)="setRegimeExcludedSetups(regime, $event.value)">
+                            @for (s of allSetups; track s) {
+                              <mat-option [value]="s">{{ s }}</mat-option>
+                            }
+                          </mat-select>
+                        </mat-form-field>
                       </mat-card>
                     }
                   }

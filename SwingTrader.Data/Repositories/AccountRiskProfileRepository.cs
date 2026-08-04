@@ -134,6 +134,7 @@ public class AccountRiskProfileRepository(SwingTraderDbContext db) : IAccountRis
         dest.TargetMode = src.TargetMode;
         dest.TargetBandFloorPct = src.TargetBandFloorPct;
         dest.TargetBandCeilingPct = src.TargetBandCeilingPct;
+        dest.DisabledSetupsCsv = src.DisabledSetupsCsv;
         dest.MaxHoldDays = src.MaxHoldDays;
         dest.TrailingActivationPct = src.TrailingActivationPct;
         dest.TrailingDistancePct = src.TrailingDistancePct;

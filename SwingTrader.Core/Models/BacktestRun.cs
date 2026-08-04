@@ -140,4 +140,7 @@ public record RegimeExposureOverride(
     bool? Autopause = null,
     decimal? LockedCapitalPct = null,
     decimal? PositionFraction = null,
-    int? MaxOpenPositions = null);
+    int? MaxOpenPositions = null,
+    // Setup names untradeable in this regime for the user column
+    // (docs/regime-setups-plan). Null = inherit the book's DisabledSetupsCsv.
+    List<string>? ExcludedSetups = null);

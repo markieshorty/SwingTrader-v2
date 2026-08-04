@@ -369,7 +369,10 @@ public class BacktestConsumerFunction(
                 o?.Autopause ?? b.AutopauseTrading,
                 o?.MaxOpenPositions ?? b.MaxOpenPositions,
                 o?.PositionFraction ?? b.FlatPositionPct,
-                o?.LockedCapitalPct ?? b.LockedCapitalPct);
+                o?.LockedCapitalPct ?? b.LockedCapitalPct,
+                o?.ExcludedSetups is { Count: > 0 } names
+                    ? BacktestConfigFactory.ParseSetupCsv(string.Join(",", names))
+                    : BacktestConfigFactory.ParseSetupCsv(b.DisabledSetupsCsv));
         }
 
         if (string.Equals(regimeMode, "mixed", StringComparison.OrdinalIgnoreCase))

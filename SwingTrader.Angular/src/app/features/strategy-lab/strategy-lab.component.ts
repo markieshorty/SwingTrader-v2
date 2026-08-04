@@ -235,9 +235,15 @@ export class StrategyLabComponent implements OnDestroy {
   // only (the baseline uses live books). Percentages are whole numbers.
   readonly mixedRegimes: MarketRegimeName[] = ['Bull', 'Neutral', 'Bear'];
   isMixed = computed(() => this.regimeMode() === 'mixed');
-  regimeExposure = signal<Record<string, { autopause: boolean; lockedCapitalPct: number; positionFraction: number; maxOpenPositions: number }>>({});
+  regimeExposure = signal<Record<string, { autopause: boolean; lockedCapitalPct: number; positionFraction: number; maxOpenPositions: number; excludedSetups: string[] }>>({});
   setRegimeExposure(regime: string, key: 'autopause' | 'lockedCapitalPct' | 'positionFraction' | 'maxOpenPositions', value: number | boolean): void {
     this.regimeExposure.update((m) => ({ ...m, [regime]: { ...m[regime], [key]: value } }));
+  }
+
+  // Regime-conditional setup selection (docs/regime-setups-plan): which
+  // setups are untradeable in this regime for the user column.
+  setRegimeExcludedSetups(regime: string, setups: string[]): void {
+    this.regimeExposure.update((m) => ({ ...m, [regime]: { ...m[regime], excludedSetups: setups } }));
   }
 
   // The one Regime selector both frames the run AND prefills the Trading-rules
@@ -254,6 +260,7 @@ export class StrategyLabComponent implements OnDestroy {
             lockedCapitalPct: Math.round(books[r].lockedCapitalPct * 1000) / 10,
             positionFraction: Math.round(books[r].flatPositionPct * 1000) / 10,
             maxOpenPositions: books[r].maxOpenPositions,
+            excludedSetups: [] as string[],
           }]))),
           error: () => {},
         });
@@ -276,6 +283,7 @@ export class StrategyLabComponent implements OnDestroy {
           lockedCapitalPct: exp[r].lockedCapitalPct / 100,
           positionFraction: exp[r].positionFraction / 100,
           maxOpenPositions: exp[r].maxOpenPositions,
+          excludedSetups: exp[r].excludedSetups?.length ? exp[r].excludedSetups : null,
         }] as const);
       return entries.length ? Object.fromEntries(entries) : null;
     }

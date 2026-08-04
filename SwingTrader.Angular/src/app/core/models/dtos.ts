@@ -596,6 +596,9 @@ export interface RegimeExposureOverrideDto {
   lockedCapitalPct?: number | null;   // fraction
   positionFraction?: number | null;   // fraction
   maxOpenPositions?: number | null;
+  // Setup names untradeable in this regime (docs/regime-setups-plan);
+  // null = inherit the book. User column only.
+  excludedSetups?: string[] | null;
 }
 
 export interface LabResultDto {

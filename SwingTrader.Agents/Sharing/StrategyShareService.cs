@@ -44,7 +44,10 @@ public class StrategyShareService(
                 b.MaxHoldDays, b.TrailingActivationPct, b.TrailingDistancePct,
                 b.EarningsGateDays, b.MinHoldDays, b.MomentumHealthThreshold,
                 b.StopLossPct, b.TargetPct,
-                b.SizingMode.ToString(), b.FlatPositionPct, b.SizingAggressiveness, b.ForwardVetoFloor)).ToList(),
+                b.SizingMode.ToString(), b.FlatPositionPct, b.SizingAggressiveness, b.ForwardVetoFloor,
+                b.SizingStyle.ToString(), b.RiskPerTradePct, b.AtrStopMultiple, b.AtrTargetMultiple,
+                b.MaxConvictionForBuy, b.TargetMode.ToString(), b.TargetBandFloorPct, b.TargetBandCeilingPct,
+                b.DisabledSetupsCsv)).ToList(),
             tactics.Select(t => new SnapshotSetupTactic(
                 t.SetupType.ToString(), t.Enabled,
                 t.StopLossPct, t.TargetPct, t.GuideHoldDays,
@@ -168,6 +171,17 @@ public class StrategyShareService(
             target.FlatPositionPct = book.FlatPositionPct;
             target.SizingAggressiveness = book.SizingAggressiveness;
             target.ForwardVetoFloor = book.ForwardVetoFloor;
+            if (Enum.TryParse<SizingStyle>(book.SizingStyle, ignoreCase: true, out var style))
+                target.SizingStyle = style;
+            target.RiskPerTradePct = book.RiskPerTradePct;
+            target.AtrStopMultiple = book.AtrStopMultiple;
+            target.AtrTargetMultiple = book.AtrTargetMultiple;
+            target.MaxConvictionForBuy = book.MaxConvictionForBuy;
+            if (Enum.TryParse<TargetMode>(book.TargetMode, ignoreCase: true, out var tgtMode))
+                target.TargetMode = tgtMode;
+            target.TargetBandFloorPct = book.TargetBandFloorPct;
+            target.TargetBandCeilingPct = book.TargetBandCeilingPct;
+            target.DisabledSetupsCsv = book.DisabledSetupsCsv;
             await riskRepo.UpdateAsync(target, ct); // validates
         }
 

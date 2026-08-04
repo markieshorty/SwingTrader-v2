@@ -141,7 +141,10 @@ public sealed record HistoricConfig(
 // exposure envelope varies by regime here: autopause + position cap + flat size
 // + locked-capital reserve (probation and pool-sizing stay from the base config).
 public readonly record struct RegimeEnvelope(
-    bool Autopause, int MaxOpenPositions, decimal PositionFraction, decimal LockedCapitalPct);
+    bool Autopause, int MaxOpenPositions, decimal PositionFraction, decimal LockedCapitalPct,
+    // Setups additionally untradeable while this envelope is in force
+    // (docs/regime-setups-plan). Null = no per-regime opinion.
+    IReadOnlyCollection<SetupType>? ExcludedSetups = null);
 
 public sealed record HistoricTrade(
     string Symbol, DateTime EntryDate, DateTime ExitDate, decimal EntryPrice, decimal ExitPrice,
@@ -361,6 +364,11 @@ public static class HistoricBacktester
                 // single-toggle behaviour (ExcludeBreakout) applies.
                 var excludedSetups = cfg.ExcludedSetups
                     ?? (cfg.ExcludeBreakout ? [SetupType.Breakout] : Array.Empty<SetupType>());
+                // Regime-conditional selection: the active envelope can veto
+                // additional setups for the day (Mixed switches this with the
+                // detected regime; single-book envelopes carry none).
+                if (env.ExcludedSetups is { Count: > 0 } envExcluded)
+                    excludedSetups = excludedSetups.Concat(envExcluded).Distinct().ToArray();
                 var candidates = new List<(string Symbol, decimal Conviction, SetupType Setup, decimal Rsi, decimal? Resistance)>();
                 foreach (var symbol in watchlist)
                 {
