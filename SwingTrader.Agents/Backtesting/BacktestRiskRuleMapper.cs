@@ -33,5 +33,8 @@ public static class BacktestRiskRuleMapper
         if (rules.AtrStopMultiple is { } atrStopK) profile.AtrStopMultiple = atrStopK;
         if (rules.AtrTargetMultiple is { } atrTgtK) profile.AtrTargetMultiple = atrTgtK;
         if (rules.MaxConvictionForBuy is { } convCeil) profile.MaxConvictionForBuy = convCeil;
+        if (rules.TargetMode is { } tm && Enum.TryParse<Core.Enums.TargetMode>(tm, true, out var mode)) profile.TargetMode = mode;
+        if (rules.TargetBandFloorPct is { } tbf) profile.TargetBandFloorPct = tbf;
+        if (rules.TargetBandCeilingPct is { } tbc) profile.TargetBandCeilingPct = tbc;
     }
 }

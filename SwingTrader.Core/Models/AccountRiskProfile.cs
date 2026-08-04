@@ -96,6 +96,13 @@ public class AccountRiskProfile : BaseEntity
     // HistoricTradingRules.MaxConvictionForBuy before going live.
     public decimal MaxConvictionForBuy { get; set; } = CapitalRules.DefaultMaxConvictionForBuy;
 
+    // Dynamic take-profit targets (1 Aug 2026): Flat keeps TargetPct as-is;
+    // AtrScaled/ResistanceCapped derive per-signal targets from the stock's
+    // own behaviour, clamped to the band below. See Core.Trading.DynamicTarget.
+    public TargetMode TargetMode { get; set; } = TargetMode.Flat;
+    public decimal TargetBandFloorPct { get; set; } = CapitalRules.DefaultTargetBandFloorPct;
+    public decimal TargetBandCeilingPct { get; set; } = CapitalRules.DefaultTargetBandCeilingPct;
+
     public string RiskLabel => LockedCapitalPct switch
     {
         >= 0.80m => "Very Conservative",
@@ -186,6 +193,13 @@ public class AccountRiskProfile : BaseEntity
         if (MaxConvictionForBuy < CapitalRules.MinMaxConvictionForBuy || MaxConvictionForBuy > CapitalRules.MaxMaxConvictionForBuy)
             throw new ValidationException(
                 $"Conviction ceiling must be {CapitalRules.MinMaxConvictionForBuy:0.0}-{CapitalRules.MaxMaxConvictionForBuy:0.0} (0 = off)");
+        if (TargetBandFloorPct < CapitalRules.MinTargetPct || TargetBandFloorPct > CapitalRules.MaxTargetPct
+            || TargetBandCeilingPct < CapitalRules.MinTargetPct || TargetBandCeilingPct > CapitalRules.MaxTargetPct)
+            throw new ValidationException(
+                $"Target band must sit within {CapitalRules.MinTargetPct:P0}-{CapitalRules.MaxTargetPct:P0}");
+        if (TargetBandCeilingPct <= TargetBandFloorPct)
+            throw new ValidationException("Target band ceiling must exceed the floor");
+
         if (ForwardVetoFloor < CapitalRules.MinForwardVetoFloor || ForwardVetoFloor > CapitalRules.MaxForwardVetoFloor)
             throw new ValidationException(
                 $"Forward veto floor must be {CapitalRules.MinForwardVetoFloor:0.0}-{CapitalRules.MaxForwardVetoFloor:0.0}");

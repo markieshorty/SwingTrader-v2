@@ -79,6 +79,9 @@ public record HistoricTradingRules(
     decimal? AtrStopMultiple = null,          // ATR style: stop at entry - k x ATR(14)
     decimal? AtrTargetMultiple = null,        // ATR style: target at entry + m x ATR(14)
     decimal? MaxConvictionForBuy = null,      // conviction ceiling: Buys above it demote (0 = off; null = the book's)
+    string? TargetMode = null,                // "Flat" | "AtrScaled" | "ResistanceCapped"; null = the book's
+    decimal? TargetBandFloorPct = null,       // derived-target clamp floor (fraction)
+    decimal? TargetBandCeilingPct = null,     // derived-target clamp ceiling (fraction)
     // Per-setup entry/exit tactics (docs/setup-tactics-plan Phase 4). Null =
     // use the account's live SetupTactics unchanged (an untouched run mirrors
     // live). When the Lab's tactics editor is touched it sends the FULL edited

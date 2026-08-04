@@ -53,6 +53,10 @@ public static class BacktestConfigFactory
         AtrStopMultiple: rules?.AtrStopMultiple ?? profile.AtrStopMultiple,
         AtrTargetMultiple: rules?.AtrTargetMultiple ?? profile.AtrTargetMultiple,
         MaxConvictionForBuy: rules?.MaxConvictionForBuy ?? profile.MaxConvictionForBuy,
+        TargetMode: rules?.TargetMode is { } tmStr && Enum.TryParse<TargetMode>(tmStr, true, out var tmParsed)
+            ? tmParsed : profile.TargetMode,
+        TargetBandFloorPct: rules?.TargetBandFloorPct ?? profile.TargetBandFloorPct,
+        TargetBandCeilingPct: rules?.TargetBandCeilingPct ?? profile.TargetBandCeilingPct,
         // Lab-only pool-sizing sim (no live equivalent since the tier ladder
         // was removed): null keeps flat sizing; the two dials below only apply
         // when a Lab run explicitly sets ActiveCapitalPct.

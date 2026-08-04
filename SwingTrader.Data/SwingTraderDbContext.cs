@@ -363,6 +363,8 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             // backfill every pre-existing book with the code defaults (style
             // stays FlatPercent = 0, so behaviour is unchanged until toggled).
             e.Property(x => x.RiskPerTradePct).HasPrecision(5, 4).HasDefaultValue(0.01m);
+            e.Property(x => x.TargetBandFloorPct).HasPrecision(5, 4).HasDefaultValue(0.05m);
+            e.Property(x => x.TargetBandCeilingPct).HasPrecision(5, 4).HasDefaultValue(0.25m);
             e.Property(x => x.AtrStopMultiple).HasPrecision(5, 2).HasDefaultValue(2.0m);
             e.Property(x => x.AtrTargetMultiple).HasPrecision(5, 2).HasDefaultValue(3.5m);
             e.Property(x => x.FlatPositionPct).HasPrecision(5, 4).HasDefaultValue(0.10m);

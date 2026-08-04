@@ -38,6 +38,17 @@ public enum TradeDirection
 // fixed percentage of entry. AtrRiskParity sizes from a fixed risk budget
 // (RiskPerTradePct of portfolio) against an ATR-multiple stop distance, so
 // every trade risks the same amount regardless of the stock's volatility.
+// How the take-profit target is derived. Flat = the configured TargetPct
+// (legacy). AtrScaled = AtrTargetMultiple x ATR(14) as a fraction of entry.
+// ResistanceCapped = the flat target capped just under the chart's nearest
+// resistance. Derived modes clamp to the book's [floor, ceiling] band.
+public enum TargetMode
+{
+    Flat,
+    AtrScaled,
+    ResistanceCapped,
+}
+
 public enum SizingStyle
 {
     FlatPercent,

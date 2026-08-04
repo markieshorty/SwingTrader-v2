@@ -373,6 +373,18 @@ public static class SweepOptimizer
         if (productionRules?.MaxConvictionForBuy is > 0)
             AddRule("Conviction ceiling off", new HistoricTradingRules(MaxConvictionForBuy: 0m));
 
+        // Dynamic targets: a flat 25% target is unreachable for calm stocks
+        // (<10% of trades ever exit at Target) - try scaling it to the
+        // stock's own behaviour, and the flat counterfactual when a mode is
+        // already live.
+        var liveTargetMode = productionRules?.TargetMode;
+        if (!string.Equals(liveTargetMode, "AtrScaled", StringComparison.OrdinalIgnoreCase))
+            AddRule("ATR-scaled targets", new HistoricTradingRules(TargetMode: "AtrScaled"));
+        if (!string.Equals(liveTargetMode, "ResistanceCapped", StringComparison.OrdinalIgnoreCase))
+            AddRule("Resistance-capped targets", new HistoricTradingRules(TargetMode: "ResistanceCapped"));
+        if (liveTargetMode is not null && !string.Equals(liveTargetMode, "Flat", StringComparison.OrdinalIgnoreCase))
+            AddRule("Flat targets", new HistoricTradingRules(TargetMode: "Flat"));
+
         // Capital deployment: locked-capital reserve and flat position size.
         // Both feed the un-locked-share deployment cap the engine now enforces,
         // so they only matter in single-book (Default/Neutral) runs - under Mixed

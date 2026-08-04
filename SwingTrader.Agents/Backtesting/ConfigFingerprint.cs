@@ -53,6 +53,9 @@ public static class ConfigFingerprint
         Num("atrStopK", cfg.AtrStopMultiple);
         Num("atrTgtK", cfg.AtrTargetMultiple);
         Num("convCeil", cfg.MaxConvictionForBuy);
+        Num("tgtMode", (int)cfg.TargetMode);
+        Num("tgtFloor", cfg.TargetBandFloorPct);
+        Num("tgtCeil", cfg.TargetBandCeilingPct);
         Num("trailAct", cfg.TrailingActivationPct);
         Num("trailDist", cfg.TrailingDistancePct);
         Num("stop", cfg.StopLossPct);

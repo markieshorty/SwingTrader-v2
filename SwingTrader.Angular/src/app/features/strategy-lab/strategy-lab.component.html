@@ -214,6 +214,29 @@
                     (ngModelChange)="rulesConvictionCeiling.set($event)" />
                 </mat-form-field>
                 <mat-form-field appearance="outline" subscriptSizing="dynamic"
+                  matTooltip="How the take-profit is derived per entry: Flat = the Target % field; ATR-scaled = target ×ATR of the stock; Resistance-capped = flat target but never above the chart's nearest resistance. Derived values clamp to the band fields.">
+                  <mat-label>Target mode</mat-label>
+                  <mat-select [value]="rulesTargetMode()" (selectionChange)="rulesTargetMode.set($event.value)">
+                    <mat-option value="Flat">Flat</mat-option>
+                    <mat-option value="AtrScaled">ATR-scaled</mat-option>
+                    <mat-option value="ResistanceCapped">Resistance-capped</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                @if (rulesTargetMode() !== 'Flat') {
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic"
+                    matTooltip="Derived targets never go below this.">
+                    <mat-label>Target band floor %</mat-label>
+                    <input matInput type="number" min="3" max="30" step="0.5" [ngModel]="rulesTargetBandFloor()"
+                      (ngModelChange)="rulesTargetBandFloor.set($event)" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic"
+                    matTooltip="Derived targets never go above this.">
+                    <mat-label>Target band ceiling %</mat-label>
+                    <input matInput type="number" min="3" max="30" step="0.5" [ngModel]="rulesTargetBandCeiling()"
+                      (ngModelChange)="rulesTargetBandCeiling.set($event)" />
+                  </mat-form-field>
+                }
+                <mat-form-field appearance="outline" subscriptSizing="dynamic"
                   matTooltip="NOT a take-profit: once the position is up this much, a trailing stop switches on and follows the price from below. The trade keeps running — this only starts protecting the gain.">
                   <mat-label>Trailing stop switches on after gain of (%)</mat-label>
                   <input matInput type="number" min="1" max="20" step="0.5" [ngModel]="rulesTrailingActivation()"

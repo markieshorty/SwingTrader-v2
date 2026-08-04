@@ -131,6 +131,9 @@ public class AccountRiskProfileRepository(SwingTraderDbContext db) : IAccountRis
         dest.AtrStopMultiple = src.AtrStopMultiple;
         dest.AtrTargetMultiple = src.AtrTargetMultiple;
         dest.MaxConvictionForBuy = src.MaxConvictionForBuy;
+        dest.TargetMode = src.TargetMode;
+        dest.TargetBandFloorPct = src.TargetBandFloorPct;
+        dest.TargetBandCeilingPct = src.TargetBandCeilingPct;
         dest.MaxHoldDays = src.MaxHoldDays;
         dest.TrailingActivationPct = src.TrailingActivationPct;
         dest.TrailingDistancePct = src.TrailingDistancePct;

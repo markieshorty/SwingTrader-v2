@@ -559,6 +559,9 @@ export interface LabTradingRulesDto {
   atrStopMultiple: number | null;    // stop at entry − k × ATR(14)
   atrTargetMultiple: number | null;  // target at entry + m × ATR(14)
   maxConvictionForBuy: number | null; // conviction ceiling; Buys above it demote (0 = off)
+  targetMode: string | null;          // 'Flat' | 'AtrScaled' | 'ResistanceCapped'; null = the book's
+  targetBandFloorPct: number | null;  // derived-target clamp floor (fraction)
+  targetBandCeilingPct: number | null; // derived-target clamp ceiling (fraction)
   // Per-setup entry/exit tactics (Phase 4). null = use the account's live
   // SetupTactics unchanged (untouched run mirrors live). When the tactics
   // editor is touched it sends the FULL edited set.
@@ -964,6 +967,11 @@ export interface RiskProfileDto {
   atrTargetMultiple: number; // ATR style: target distance in ATRs
   // Conviction ceiling: a Buy scoring above this demotes to Watch (0 = off).
   maxConvictionForBuy: number;
+  // Dynamic take-profit targets: how the target is derived, and the clamp
+  // band applied to derived values.
+  targetMode: 'Flat' | 'AtrScaled' | 'ResistanceCapped';
+  targetBandFloorPct: number;
+  targetBandCeilingPct: number;
   // Funnel F2: Forward-score size tilt strength (0 = off, sizes untouched).
   sizingAggressiveness: number;
   // Funnel F3: Forward-score floor under gate-passing Buys (0 = veto off).
@@ -995,6 +1003,8 @@ export interface RiskProfileDto {
     atrStopMultiple: RiskProfileRangeDto;
     atrTargetMultiple: RiskProfileRangeDto;
     maxConvictionForBuy: RiskProfileRangeDto;
+    targetBandFloorPct: RiskProfileRangeDto;
+    targetBandCeilingPct: RiskProfileRangeDto;
     sizingAggressiveness: RiskProfileRangeDto;
     forwardVetoFloor: RiskProfileRangeDto;
   };
@@ -1040,6 +1050,9 @@ export interface UpdateRiskProfileDto {
   atrStopMultiple: number;
   atrTargetMultiple: number;
   maxConvictionForBuy: number;
+  targetMode: 'Flat' | 'AtrScaled' | 'ResistanceCapped';
+  targetBandFloorPct: number;
+  targetBandCeilingPct: number;
   sizingAggressiveness: number;
   forwardVetoFloor: number;
 }

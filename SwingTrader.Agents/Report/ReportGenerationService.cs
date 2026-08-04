@@ -475,7 +475,10 @@ public class ReportGenerationService(
             }
             catch { /* use signal.CurrentPrice */ }
 
-            var (stopLoss, target) = EntryLevelCalculator.Calculate(price, profile.StopLossPct, profile.TargetPct);
+            var effectiveTargetPct = Core.Trading.DynamicTarget.ResolvePct(
+                profile.TargetMode, profile.TargetPct, signal.Atr14, price, signal.NearestResistance,
+                profile.AtrTargetMultiple, profile.TargetBandFloorPct, profile.TargetBandCeilingPct);
+            var (stopLoss, target) = EntryLevelCalculator.Calculate(price, profile.StopLossPct, effectiveTargetPct);
 
             var gain = target - price;
             var risk = price - stopLoss;

@@ -647,6 +647,49 @@
             stop (a risk/reward below 1 is rejected at save).
           </p>
 
+          <mat-form-field appearance="outline" subscriptSizing="dynamic" class="sizing-mode-select">
+            <mat-label>Target mode</mat-label>
+            <mat-select [value]="draft.targetMode" [disabled]="draft.autopauseTrading || atrStyleOn()" (selectionChange)="updateRiskDraftField('targetMode', $event.value)">
+              <mat-option value="Flat">Flat (fixed % target)</mat-option>
+              <mat-option value="AtrScaled">ATR-scaled (target × ATR of the stock)</mat-option>
+              <mat-option value="ResistanceCapped">Resistance-capped (never above the chart's wall)</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          @if (draft.targetMode !== 'Flat') {
+          <div class="dial-subgroup">
+            <p class="muted small">
+              The take-profit adapts to each stock: <strong>ATR-scaled</strong> sets it at
+              {{ draft.atrTargetMultiple | number: '1.1-1' }}× the stock's average daily range (the Stop/Target ×ATR
+              dials under Position Sizing); <strong>Resistance-capped</strong> keeps your flat target but never asks
+              for a level above the chart's nearest resistance. Derived targets are clamped to the band below;
+              missing data falls back to the flat target.
+            </p>
+            <div class="slider-row">
+              <label>Band floor: {{ draft.targetBandFloorPct | percent: '1.0-1' }}</label>
+              <mat-slider
+                [min]="profile.allowedRanges.targetBandFloorPct.min"
+                [max]="profile.allowedRanges.targetBandFloorPct.max"
+                step="0.005"
+                discrete
+              >
+                <input matSliderThumb [ngModel]="draft.targetBandFloorPct" (ngModelChange)="updateRiskDraftField('targetBandFloorPct', $event)" />
+              </mat-slider>
+            </div>
+            <div class="slider-row">
+              <label>Band ceiling: {{ draft.targetBandCeilingPct | percent: '1.0-1' }}</label>
+              <mat-slider
+                [min]="profile.allowedRanges.targetBandCeilingPct.min"
+                [max]="profile.allowedRanges.targetBandCeilingPct.max"
+                step="0.005"
+                discrete
+              >
+                <input matSliderThumb [ngModel]="draft.targetBandCeilingPct" (ngModelChange)="updateRiskDraftField('targetBandCeilingPct', $event)" />
+              </mat-slider>
+            </div>
+          </div>
+          }
+
           <hr class="dial-divider" />
           <h4>Trailing Stop</h4>
           <div class="slider-row">

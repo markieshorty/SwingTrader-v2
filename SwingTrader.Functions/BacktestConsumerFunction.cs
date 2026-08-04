@@ -409,7 +409,10 @@ public class BacktestConsumerFunction(
             RiskPerTradePct: profile.RiskPerTradePct,
             AtrStopMultiple: profile.AtrStopMultiple,
             AtrTargetMultiple: profile.AtrTargetMultiple,
-            MaxConvictionForBuy: profile.MaxConvictionForBuy);
+            MaxConvictionForBuy: profile.MaxConvictionForBuy,
+            TargetMode: profile.TargetMode.ToString(),
+            TargetBandFloorPct: profile.TargetBandFloorPct,
+            TargetBandCeilingPct: profile.TargetBandCeilingPct);
         var lockedIndices = ParseLockedComponents(request.LockedComponents);
         var candidates = SweepOptimizer.GenerateCandidates(baseline, request.SearchRules, productionRules, accountTactics, lockedIndices);
 

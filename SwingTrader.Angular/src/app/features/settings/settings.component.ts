@@ -100,6 +100,9 @@ function toUpdateRiskProfileDto(profile: RiskProfileDto): UpdateRiskProfileDto {
     atrStopMultiple: profile.atrStopMultiple,
     atrTargetMultiple: profile.atrTargetMultiple,
     maxConvictionForBuy: profile.maxConvictionForBuy,
+    targetMode: profile.targetMode,
+    targetBandFloorPct: profile.targetBandFloorPct,
+    targetBandCeilingPct: profile.targetBandCeilingPct,
     sizingAggressiveness: profile.sizingAggressiveness,
     forwardVetoFloor: profile.forwardVetoFloor,
   };
@@ -363,6 +366,9 @@ export class SettingsComponent {
       original.atrStopMultiple !== draft.atrStopMultiple ||
       original.atrTargetMultiple !== draft.atrTargetMultiple ||
       original.maxConvictionForBuy !== draft.maxConvictionForBuy ||
+      original.targetMode !== draft.targetMode ||
+      original.targetBandFloorPct !== draft.targetBandFloorPct ||
+      original.targetBandCeilingPct !== draft.targetBandCeilingPct ||
       original.sizingAggressiveness !== draft.sizingAggressiveness ||
       original.forwardVetoFloor !== draft.forwardVetoFloor ||
       original.maxHoldDays !== draft.maxHoldDays ||

@@ -344,6 +344,17 @@ public class ExecutionService(
             var trailingActivation = tactics?.TrailingActivationPct ?? riskProfile.TrailingActivationPct;
             var trailingDistance = tactics?.TrailingDistancePct ?? riskProfile.TrailingDistancePct;
 
+            // Dynamic target (1 Aug 2026): derive the effective target from
+            // the stock's own behaviour when the book asks for it; Flat mode
+            // returns targetPct untouched. Runs BEFORE level derivation so
+            // both the precomputed fallback path and the fresh-quote path use
+            // the same effective percentage. (ATR sizing STYLE still wins
+            // below - its ATR-anchored levels override these.)
+            targetPct = Core.Trading.DynamicTarget.ResolvePct(
+                riskProfile.TargetMode, targetPct, signal.Atr14,
+                livePrice ?? signal.CurrentPrice, signal.NearestResistance,
+                riskProfile.AtrTargetMultiple, riskProfile.TargetBandFloorPct, riskProfile.TargetBandCeilingPct);
+
             var stopLossPrice = signal.CalculatedStopLoss ?? signal.CurrentPrice * (1 - stopPct);
             var targetPrice = signal.CalculatedTarget ?? signal.CurrentPrice * (1 + targetPct);
             if (livePrice is { } lp)

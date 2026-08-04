@@ -121,7 +121,13 @@ public sealed record HistoricConfig(
     decimal AtrTargetMultiple = 3.5m,
     // Conviction ceiling: signals scoring ABOVE it never enter (0 = off).
     // Mirrors the live rule - the extreme oversold scores can be knives.
-    decimal MaxConvictionForBuy = 0m);
+    decimal MaxConvictionForBuy = 0m,
+    // Dynamic take-profit target (see Core.Trading.DynamicTarget): Flat keeps
+    // TargetPct; AtrScaled/ResistanceCapped derive per-entry targets clamped
+    // to the band. ATR sizing STYLE (UseAtrSizing) still wins when on.
+    TargetMode TargetMode = TargetMode.Flat,
+    decimal TargetBandFloorPct = 0.05m,
+    decimal TargetBandCeilingPct = 0.25m);
 
 // The slice of a regime risk book the backtest switches on per simulated day.
 // Exit tactics are per-setup and frozen at entry, so only the entry-time
@@ -316,7 +322,7 @@ public static class HistoricBacktester
                 // single-toggle behaviour (ExcludeBreakout) applies.
                 var excludedSetups = cfg.ExcludedSetups
                     ?? (cfg.ExcludeBreakout ? [SetupType.Breakout] : Array.Empty<SetupType>());
-                var candidates = new List<(string Symbol, decimal Conviction, SetupType Setup, decimal Rsi)>();
+                var candidates = new List<(string Symbol, decimal Conviction, SetupType Setup, decimal Rsi, decimal? Resistance)>();
                 foreach (var symbol in watchlist)
                 {
                     if (open.Any(p => p.Symbol.Equals(symbol, StringComparison.OrdinalIgnoreCase))) continue;
@@ -324,7 +330,7 @@ public static class HistoricBacktester
                     if (scored is { } s && s.Conviction >= cfg.BuyThreshold && s.Rsi <= 75m
                         && (cfg.MaxConvictionForBuy <= 0 || s.Conviction <= cfg.MaxConvictionForBuy)
                         && !excludedSetups.Contains(s.Setup))
-                        candidates.Add((symbol, s.Conviction, s.Setup, s.Rsi));
+                        candidates.Add((symbol, s.Conviction, s.Setup, s.Rsi, s.Resistance));
                 }
 
                 foreach (var c in candidates.OrderByDescending(c => c.Conviction).Take(MaxOrdersPerDay))
@@ -372,14 +378,14 @@ public static class HistoricBacktester
                     // completed candles). Insufficient history = legacy flat
                     // sizing for that entry, mirroring live's fallback.
                     decimal? entryAtr = null;
-                    if (cfg.UseAtrSizing
+                    if ((cfg.UseAtrSizing || cfg.TargetMode == TargetMode.AtrScaled)
                         && bars.TryGetValue(c.Symbol, out var atrSeries)
                         && index.TryGetValue(c.Symbol, out var atrDates)
                         && atrDates.TryGetValue(today, out var atrIdx))
                     {
                         entryAtr = Core.Trading.AtrCalculator.Compute(
                             atrSeries, b => b.High, b => b.Low, b => b.Close, atrIdx);
-                        if (entryAtr is { } ea && ea > 0)
+                        if (cfg.UseAtrSizing && entryAtr is { } ea && ea > 0)
                         {
                             var stopDistance = ea * cfg.AtrStopMultiple;
                             if (stopDistance > 0)
@@ -401,6 +407,13 @@ public static class HistoricBacktester
                     var guideHold = tac?.GuideHoldDays ?? cfg.MaxHoldDays;
                     var trailAct = tac?.TrailingActivationPct ?? cfg.TrailingActivationPct;
                     var trailDist = tac?.TrailingDistancePct ?? cfg.TrailingDistancePct;
+
+                    // Dynamic target: derive the effective percentage the way
+                    // live does (same shared helper), from the SIGNAL day's
+                    // resistance and ATR - the entry open is the anchor.
+                    targetPct = Core.Trading.DynamicTarget.ResolvePct(
+                        cfg.TargetMode, targetPct, entryAtr, entryBar.Open, c.Resistance,
+                        cfg.AtrTargetMultiple, cfg.TargetBandFloorPct, cfg.TargetBandCeilingPct);
 
                     var (stop, target) = Core.Trading.EntryLevelCalculator.Calculate(entryBar.Open, stopPct, targetPct);
                     if (cfg.UseAtrSizing && entryAtr is { } atrLvl && atrLvl > 0)
@@ -498,7 +511,7 @@ public static class HistoricBacktester
         return (null, null);
     }
 
-    internal static async Task<(decimal Conviction, SetupType Setup, decimal Rsi)?> ScoreAsync(
+    internal static async Task<(decimal Conviction, SetupType Setup, decimal Rsi, decimal? Resistance)?> ScoreAsync(
         IndicatorService indicators, HistoricConfig cfg,
         IReadOnlyDictionary<string, DailyBar[]> bars, Dictionary<string, Dictionary<DateTime, int>> index,
         string symbol, DateTime today,
@@ -543,7 +556,7 @@ public static class HistoricBacktester
             relativeStrengthScore: rsScore ?? NeutralScore,
             priceLevelScore: priceLevel.Score);
 
-        return (conviction, setup, ind.Rsi14.Value);
+        return (conviction, setup, ind.Rsi14.Value, priceLevel.NearestResistance);
     }
 
     // Production defaults (PriceLevelConfig class defaults) - the backtest

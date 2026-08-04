@@ -126,6 +126,11 @@ public static class CapitalRules
     public const decimal MinMaxConvictionForBuy = 0.0m;   // 0 = ceiling off
     public const decimal MaxMaxConvictionForBuy = 10.0m;
     public const decimal DefaultMaxConvictionForBuy = 0.0m;
+
+    // Dynamic target band (1 Aug 2026): derived targets (ATR-scaled or
+    // resistance-capped) clamp into [floor, ceiling]; Flat mode ignores it.
+    public const decimal DefaultTargetBandFloorPct = 0.05m;
+    public const decimal DefaultTargetBandCeilingPct = 0.25m;
     public const decimal MinDailyLossCircuitBreakerPct = 0.02m;
     public const decimal MaxDailyLossCircuitBreakerPct = 0.15m;
 

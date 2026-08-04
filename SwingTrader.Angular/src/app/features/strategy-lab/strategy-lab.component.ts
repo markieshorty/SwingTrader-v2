@@ -313,6 +313,10 @@ export class StrategyLabComponent implements OnDestroy {
   rulesAtrTargetMultiple = signal(3.5);
   // Conviction ceiling (0 = off): Buys scoring above it never enter.
   rulesConvictionCeiling = signal(0);
+  // Dynamic take-profit target mode + clamp band (percent fields).
+  rulesTargetMode = signal<'Flat' | 'AtrScaled' | 'ResistanceCapped'>('Flat');
+  rulesTargetBandFloor = signal(5);
+  rulesTargetBandCeiling = signal(25);
 
   // Position size ceiling implied by the other two rule dials:
   // (100 - locked%) / max positions. Mirrors the live Validate() constraint
@@ -356,6 +360,7 @@ export class StrategyLabComponent implements OnDestroy {
     stopLossPct: 5, targetPct: 8, positionFraction: 10, lockedCapitalPct: 20,
     useAtrSizing: false, riskPerTradePct: 1, atrStopMultiple: 2, atrTargetMultiple: 3.5,
     convictionCeiling: 0,
+    targetMode: 'Flat' as string, targetBandFloor: 5, targetBandCeiling: 25,
   };
   // Which regime book the Trading-rules panel is prefilled from. Defaults to
   // Neutral (what the backtest baseline replays under); the panel's dropdown
@@ -380,6 +385,9 @@ export class StrategyLabComponent implements OnDestroy {
     || this.rulesAtrStopMultiple() !== this.profileRules.atrStopMultiple
     || this.rulesAtrTargetMultiple() !== this.profileRules.atrTargetMultiple
     || this.rulesConvictionCeiling() !== this.profileRules.convictionCeiling
+    || this.rulesTargetMode() !== this.profileRules.targetMode
+    || this.rulesTargetBandFloor() !== this.profileRules.targetBandFloor
+    || this.rulesTargetBandCeiling() !== this.profileRules.targetBandCeiling
     || this.tacticsTouched());
 
   // The trading-rules override payload, or null when the panel is untouched
@@ -416,6 +424,9 @@ export class StrategyLabComponent implements OnDestroy {
       atrStopMultiple: num(this.rulesAtrStopMultiple(), pr.atrStopMultiple),
       atrTargetMultiple: num(this.rulesAtrTargetMultiple(), pr.atrTargetMultiple),
       maxConvictionForBuy: num(this.rulesConvictionCeiling(), pr.convictionCeiling),
+      targetMode: this.rulesTargetMode() === pr.targetMode ? null : this.rulesTargetMode(),
+      targetBandFloorPct: pct(this.rulesTargetBandFloor(), pr.targetBandFloor),
+      targetBandCeilingPct: pct(this.rulesTargetBandCeiling(), pr.targetBandCeiling),
       // Per-setup tactics only ride when the grid is edited; otherwise null so
       // the engine uses the account's live SetupTactics unchanged.
       setupTactics: this.tacticsTouched()
@@ -451,6 +462,9 @@ export class StrategyLabComponent implements OnDestroy {
     this.rulesAtrStopMultiple.set(this.profileRules.atrStopMultiple);
     this.rulesAtrTargetMultiple.set(this.profileRules.atrTargetMultiple);
     this.rulesConvictionCeiling.set(this.profileRules.convictionCeiling);
+    this.rulesTargetMode.set(this.profileRules.targetMode as 'Flat' | 'AtrScaled' | 'ResistanceCapped');
+    this.rulesTargetBandFloor.set(this.profileRules.targetBandFloor);
+    this.rulesTargetBandCeiling.set(this.profileRules.targetBandCeiling);
   }
 
   resetRules(): void {
@@ -491,6 +505,9 @@ export class StrategyLabComponent implements OnDestroy {
           atrStopMultiple: p.atrStopMultiple,
           atrTargetMultiple: p.atrTargetMultiple,
           convictionCeiling: p.maxConvictionForBuy,
+          targetMode: p.targetMode,
+          targetBandFloor: pct(p.targetBandFloorPct),
+          targetBandCeiling: pct(p.targetBandCeilingPct),
         };
         this.applyRuleDefaults();
       },
@@ -1347,6 +1364,9 @@ export class StrategyLabComponent implements OnDestroy {
       if (r.atrStopMultiple != null) this.rulesAtrStopMultiple.set(r.atrStopMultiple);
       if (r.atrTargetMultiple != null) this.rulesAtrTargetMultiple.set(r.atrTargetMultiple);
       if (r.maxConvictionForBuy != null) this.rulesConvictionCeiling.set(r.maxConvictionForBuy);
+      if (r.targetMode != null) this.rulesTargetMode.set(r.targetMode as 'Flat' | 'AtrScaled' | 'ResistanceCapped');
+      if (r.targetBandFloorPct != null) this.rulesTargetBandFloor.set(r.targetBandFloorPct * 100);
+      if (r.targetBandCeilingPct != null) this.rulesTargetBandCeiling.set(r.targetBandCeilingPct * 100);
       // Per-setup tactics: overlay each override onto the matching editor row.
       if (r.setupTactics?.length) {
         this.labTacticsDraft.update((rows) =>
@@ -1584,6 +1604,9 @@ export class StrategyLabComponent implements OnDestroy {
           atrStopMultiple: p.atrStopMultiple,
           atrTargetMultiple: p.atrTargetMultiple,
           maxConvictionForBuy: p.maxConvictionForBuy,
+          targetMode: p.targetMode,
+          targetBandFloorPct: p.targetBandFloorPct,
+          targetBandCeilingPct: p.targetBandCeilingPct,
           sizingAggressiveness: p.sizingAggressiveness,
           forwardVetoFloor: p.forwardVetoFloor,
         }).subscribe({
