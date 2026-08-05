@@ -1438,6 +1438,14 @@
             Uses the "Data from" year selected on the Backtest tab — run it on 2000 for the honest verdict.
           </p>
           <div class="meta-row">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Data from</mat-label>
+              <mat-select [value]="dataFromYear()" (selectionChange)="dataFromYear.set($event.value)">
+                @for (opt of dataFromYearOptions; track opt.label) {
+                  <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
             <button mat-raised-button color="primary" [disabled]="factorRunning() || !historicAvailable()" (click)="runFactorBacktest()">
               @if (factorRunning()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>trending_up</mat-icon> }
               Run factor backtest
