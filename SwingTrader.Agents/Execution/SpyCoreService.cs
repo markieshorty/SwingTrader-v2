@@ -30,6 +30,11 @@ public class SpyCoreService(
     private const decimal DriftBandFraction = 0.05m;
     private const decimal MinOrderGbp = 25m;
 
+    // The seeding nudge fires on every monitor cycle otherwise (~12/hour of
+    // feed spam). Once per account per UTC day; per-instance memory, so a
+    // host recycle may repeat it - fine for a nudge.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, DateOnly> SeedNudgeLogged = new();
+
     // Pure band maths, unit-tested: the GBP delta to trade, or null inside
     // the band / below the order floor.
     internal static decimal? RebalanceDelta(decimal targetValue, decimal currentValue)
@@ -74,11 +79,16 @@ public class SpyCoreService(
         if (position is null)
         {
             // No price available for a first buy - one-off manual seed.
-            if (coreTrade is null)
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var alreadyNudgedToday = SeedNudgeLogged.TryGetValue(account.Id, out var logged) && logged == today;
+            if (coreTrade is null && !alreadyNudgedToday)
+            {
+                SeedNudgeLogged[account.Id] = today;
                 await activityLog.LogAsync(account.Id, "SystemEvent", "SPY Core Needs Seeding", "Warning",
                     $"The core sleeve targets £{target:N0} of {alloc.CoreTicker} but no position exists and no price " +
                     $"is available to size a first order. Buy any amount of {alloc.CoreTicker} manually in Trading 212 " +
                     "once — the sleeve manager maintains the band from then on.");
+            }
             return;
         }
 
