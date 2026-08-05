@@ -130,6 +130,41 @@
 
       <button mat-raised-button color="primary" [disabled]="!isOwner()" (click)="saveTradingConfig()">Save</button>
     </mat-card>
+
+    <mat-card class="panel">
+      <h3>Capital Sleeves</h3>
+      <p class="muted small">
+        How this account's capital splits between the passive market core and the swing strategy
+        (docs/sleeves-plan). Each sleeve manages only its own slice — a swing drawdown never touches the core.
+        The core holds {{ allocCoreTicker() }} and rebalances only when it drifts more than 5% from target
+        (a few orders a year). Default is 100% swing — today's behaviour exactly. The factor sleeve arrives
+        with phase 2.
+      </p>
+      <div class="alloc-row">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>SPY core (%)</mat-label>
+          <input matInput type="number" min="0" max="100" step="5" [disabled]="!isOwner()"
+            [ngModel]="allocSpyPct()" (ngModelChange)="allocSpyPct.set($event ?? 0)" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Swing strategy (%)</mat-label>
+          <input matInput type="number" min="0" max="100" step="5" [disabled]="!isOwner()"
+            [ngModel]="allocSwingPct()" (ngModelChange)="allocSwingPct.set($event ?? 0)" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Core instrument</mat-label>
+          <input matInput [disabled]="!isOwner()" [ngModel]="allocCoreTicker()"
+            (ngModelChange)="allocCoreTicker.set($event)"
+            matTooltip="UCITS S&P 500 ETF ticker as listed on Trading 212 (UK retail can't hold US-domiciled ETFs). Default VUSA." />
+        </mat-form-field>
+      </div>
+      @if (!allocSumOk()) {
+        <p class="warning small">Percentages must sum to exactly 100 (currently {{ allocSpyPct() + allocSwingPct() }}).</p>
+      }
+      <button mat-raised-button color="primary" [disabled]="!isOwner() || !allocSumOk()" (click)="saveAllocation()">
+        Save sleeves
+      </button>
+    </mat-card>
   </mat-tab>
 
   <mat-tab label="Strategy">

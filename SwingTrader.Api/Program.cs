@@ -243,6 +243,7 @@ builder.Services.AddScoped<SwingTrader.Agents.Refinement.ITradeReplayService, Sw
 // always registered - the migration writes through it while SQL still governs.
 builder.Services.AddScoped<SwingTrader.Infrastructure.Storage.BlobHistoricalCandleRepository>();
 builder.Services.AddScoped<HistoricalCandleRepository>();
+builder.Services.AddScoped<IAccountAllocationRepository, AccountAllocationRepository>();
 if (builder.Configuration.GetValue<bool>("HistoricStore:UseBlob"))
     builder.Services.AddScoped<IHistoricalCandleRepository>(sp =>
         sp.GetRequiredService<SwingTrader.Infrastructure.Storage.BlobHistoricalCandleRepository>());
@@ -363,6 +364,7 @@ api.MapPortfolioEndpoints();
 api.MapRefinementEndpoints();
 api.MapApprovalsEndpoints();
 api.MapAccountEndpoints();
+api.MapAllocationEndpoints();
 api.MapNotificationsEndpoints();
 api.MapKeysEndpoints();
 api.MapStrategyWeightsEndpoints();

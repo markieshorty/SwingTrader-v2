@@ -15,6 +15,7 @@ using SwingTrader.Core.Trading;
 namespace SwingTrader.Agents.Execution;
 
 public class ExecutionService(
+    IAccountAllocationRepository allocationRepo,
     ISignalRepository signalRepo,
     ITradeRepository tradeRepo,
     IPortfolioRepository portfolioRepo,
@@ -186,7 +187,11 @@ public class ExecutionService(
         {
             logger.LogWarning(ex, "Could not fetch T212 cash detail for account {AccountId} — using the summary figure", accountId);
         }
-        var openTrades = (await tradeRepo.GetOpenTradesAsync(accountId, account.TradingMode)).ToList();
+        var allOpenTrades = (await tradeRepo.GetOpenTradesAsync(accountId, account.TradingMode)).ToList();
+        // Swing-sleeve scope (docs/sleeves-plan P1): slots, sizing and the
+        // deployable check see only swing positions; other sleeves hold
+        // their own capital.
+        var openTrades = allOpenTrades.Where(t => t.Sleeve == SleeveType.Swing).ToList();
 
         // Cash/portfolio figures are in the account's BASE currency - which is
         // whatever the T212 account was opened in, not necessarily GBP. The
@@ -218,8 +223,16 @@ public class ExecutionService(
 
         // TotalValue/Investments.CurrentValue are already in the account's
         // base currency (GBP), computed by T212 itself.
-        var openPositionsValue = accountSummary.Investments.CurrentValue;
-        var totalPortfolioValue = accountSummary.TotalValue;
+        // Sleeve scoping (docs/sleeves-plan P1): the swing strategy sizes
+        // against its SLICE of equity, and other sleeve holdings do not
+        // count toward its deployable usage. Default allocation (Swing 100%)
+        // makes every number below identical to the pre-sleeves behaviour.
+        var allocation = await allocationRepo.GetAsync(accountId, ct);
+        var nonSwingValue = allOpenTrades
+            .Where(t => t.Sleeve != SleeveType.Swing)
+            .Sum(t => t.EntryValueGbp ?? t.Quantity * t.EntryPrice);
+        var openPositionsValue = Math.Max(0m, accountSummary.Investments.CurrentValue - nonSwingValue);
+        var totalPortfolioValue = accountSummary.TotalValue * allocation.SwingPct;
         logger.LogInformation(
             "Execution starting for account {AccountId}: {Date} | Cash={Cash:F2} | ReservedForOrders={Reserved:F2} | InPies={Pies:F2} | OpenPositionsValue={Positions:F2} | TotalPortfolio={Portfolio:F2} | Signals={Count}",
             accountId, date, availableCash, accountSummary.Cash.ReservedForOrders, accountSummary.Cash.InPies,

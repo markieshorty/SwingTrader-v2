@@ -63,8 +63,11 @@ public class MonitorServiceBearPauseTests
         _tradeRepo.GetUnreconciledOrdersAsync(1, TradingMode.Demo).Returns(new List<Trade>());
     }
 
+    private readonly SwingTrader.Agents.Execution.ISpyCoreService _spyCore =
+        Substitute.For<SwingTrader.Agents.Execution.ISpyCoreService>();
+
     private MonitorService CreateSut() => new(
-        _tradeRepo, _portfolioRepo, _circuitBreaker, _positionMonitor, _riskProfileRepo,
+        _spyCore, _tradeRepo, _portfolioRepo, _circuitBreaker, _positionMonitor, _riskProfileRepo,
         _positionExit, _recipients, _emailService, _accountRepo, _activityLog, _regime,
         Substitute.For<IFilingRepository>(),
         Options.Create(new ExecutionConfig { DelayBetweenOrdersSeconds = 0 }),

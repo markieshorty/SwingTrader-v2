@@ -450,6 +450,7 @@ export class SettingsComponent {
     this.loadMembers();
     this.loadWeights();
     this.loadRiskProfile();
+    this.loadAllocation();
     this.loadSetupTactics();
     this.api.getMe().subscribe({ next: (me) => this.me.set({ email: me.email, displayName: me.displayName }) });
     this.selectedTabIndex.set(readTabIndexFromRoute(this.route, TAB_NAMES));
@@ -552,6 +553,43 @@ export class SettingsComponent {
     }
 
     this.riskProfileDraft.set({ ...draft, [key]: value });
+  }
+
+  // Capital sleeves (docs/sleeves-plan P1). Percent fields in the UI,
+  // fractions on the wire.
+  allocSpyPct = signal(0);
+  allocSwingPct = signal(100);
+  allocCoreTicker = signal('VUSA');
+  allocLoaded = signal(false);
+
+  allocSumOk = computed(() => this.allocSpyPct() + this.allocSwingPct() === 100);
+
+  loadAllocation(): void {
+    this.api.getAllocation().subscribe({
+      next: (a) => {
+        this.allocSpyPct.set(Math.round(a.spyCorePct * 100));
+        this.allocSwingPct.set(Math.round(a.swingPct * 100));
+        this.allocCoreTicker.set(a.coreTicker);
+        this.allocLoaded.set(true);
+      },
+      error: () => this.allocLoaded.set(true),
+    });
+  }
+
+  saveAllocation(): void {
+    if (!this.allocSumOk()) {
+      this.snackbar.open('Sleeve percentages must sum to exactly 100.', 'Dismiss', { duration: 4000 });
+      return;
+    }
+    this.api.updateAllocation({
+      spyCorePct: this.allocSpyPct() / 100,
+      factorTiltPct: 0,
+      swingPct: this.allocSwingPct() / 100,
+      coreTicker: this.allocCoreTicker(),
+    }).subscribe({
+      next: () => this.snackbar.open('Sleeve allocation saved — swing sizing uses the new slice from the next execution; the core rebalances on the next monitor cycle.', 'Dismiss', { duration: 6000 }),
+      error: (err) => this.snackbar.open(errorMessage(err, 'Failed to save allocation.'), 'Dismiss', { duration: 5000 }),
+    });
   }
 
   saveRiskProfile(): void {

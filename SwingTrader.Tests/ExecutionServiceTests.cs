@@ -44,8 +44,17 @@ public class ExecutionServiceTests
     private readonly IEntryConfirmationService _entryConfirmation = Substitute.For<IEntryConfirmationService>();
     private readonly IActivityLogRepository _activityLog = Substitute.For<IActivityLogRepository>();
 
+    private readonly SwingTrader.Core.Interfaces.IAccountAllocationRepository _allocations = CreateAllocations();
+    private static SwingTrader.Core.Interfaces.IAccountAllocationRepository CreateAllocations()
+    {
+        var repo = Substitute.For<SwingTrader.Core.Interfaces.IAccountAllocationRepository>();
+        repo.GetAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(ci => new SwingTrader.Core.Models.AccountAllocation { AccountId = ci.Arg<int>() });
+        return repo;
+    }
+
     private ExecutionService CreateSut() => new(
-        _signalRepo, _tradeRepo, _portfolioRepo, _approvalRepo, _accountRepo, _sizing, _riskProfileRepo,
+        _allocations, _signalRepo, _tradeRepo, _portfolioRepo, _approvalRepo, _accountRepo, _sizing, _riskProfileRepo,
         _setupTactics, _recipients, _email, new MemoryCache(new MemoryCacheOptions()), _forex, _entryConfirmation, _activityLog,
         _regime, _rateLimiter, Options.Create(new ExecutionConfig()), NullLogger<ExecutionService>.Instance);
 

@@ -409,3 +409,11 @@
   max-width: 420px;
   margin: 4px 0 16px;
 }
+
+// Capital sleeves pie (docs/sleeves-plan P1)
+.alloc-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 8px 0 12px;
+}

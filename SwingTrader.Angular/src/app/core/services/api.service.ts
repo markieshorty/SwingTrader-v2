@@ -58,6 +58,7 @@ import {
   WatchlistDto,
   WatchlistItemDto,
   WatchlistType,
+  AllocationDto,
 } from '../models/dtos';
 
 @Injectable({ providedIn: 'root' })
@@ -248,6 +249,14 @@ export class ApiService {
   // Queues the optimizer sweep (candidates around production weights, train/
   // holdout validated). Poll the returned run id like any historic run.
   // searchRules also adds trading-rule candidates to the search space.
+  getAllocation(): Observable<AllocationDto> {
+    return this.http.get<AllocationDto>(`${this.baseUrl}/api/allocation`);
+  }
+
+  updateAllocation(allocation: AllocationDto): Observable<AllocationDto> {
+    return this.http.put<AllocationDto>(`${this.baseUrl}/api/allocation`, allocation);
+  }
+
   cancelBacktestRun(id: number): Observable<void> {
     return this.http.post<void>(`${this.baseUrl}/api/strategy-lab/backtest/${id}/cancel`, {});
   }

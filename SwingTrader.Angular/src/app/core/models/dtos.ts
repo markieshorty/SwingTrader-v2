@@ -167,6 +167,15 @@ export interface AdminUserOverviewDto {
   watchlists: AdminWatchlistDto[];
 }
 
+// Capital sleeves (docs/sleeves-plan P1): the per-account allocation pie.
+// Fractions (0-1); must sum to 1. Factor stays 0 until P2 ships.
+export interface AllocationDto {
+  spyCorePct: number;
+  factorTiltPct: number;
+  swingPct: number;
+  coreTicker: string;
+}
+
 export interface ActivityLogDto {
   category: string;
   title: string;

@@ -21,6 +21,16 @@ public enum SetupType
     OversoldRecoveryLoose
 }
 
+// Capital sleeve a trade belongs to (docs/sleeves-plan). Swing = the
+// existing strategy (default for all history); SpyCore/Factor positions are
+// invisible to swing slots, exit rules and per-setup stats.
+public enum SleeveType
+{
+    Swing = 0,
+    SpyCore = 1,
+    Factor = 2,
+}
+
 public enum Recommendation
 {
     Watch,

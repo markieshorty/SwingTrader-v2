@@ -10,6 +10,9 @@ public class Trade : BaseEntity
     // same-day re-buy guard would produce wrong results (see
     // PortfolioSnapshot.TradingMode for the original instance of this bug).
     public TradingMode TradingMode { get; set; }
+
+    // Capital sleeve (docs/sleeves-plan): Swing for every pre-sleeves trade.
+    public SleeveType Sleeve { get; set; } = SleeveType.Swing;
     public string Symbol { get; set; } = string.Empty;
     // Copied from the StockSignal this trade was placed from (see
     // StockSignal.CompanyName) - null for trades placed before this field

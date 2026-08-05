@@ -31,6 +31,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
     public DbSet<HistoricalCandle> HistoricalCandles => Set<HistoricalCandle>();
     public DbSet<BacktestRun> BacktestRuns => Set<BacktestRun>();
+    public DbSet<AccountAllocation> AccountAllocations => Set<AccountAllocation>();
     public DbSet<StrategyShare> StrategyShares => Set<StrategyShare>();
     public DbSet<SentimentArticle> SentimentArticles => Set<SentimentArticle>();
     public DbSet<SentimentDailyScore> SentimentDailyScores => Set<SentimentDailyScore>();

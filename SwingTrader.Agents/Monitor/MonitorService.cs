@@ -17,6 +17,7 @@ namespace SwingTrader.Agents.Monitor;
 // wide liquidation event stays flag-only (see Step 1 below) rather than
 // auto-selling every open position across the whole account at once.
 public class MonitorService(
+    SwingTrader.Agents.Execution.ISpyCoreService spyCore,
     ITradeRepository tradeRepo,
     IPortfolioRepository portfolioRepo,
     IPortfolioCircuitBreakerService circuitBreaker,
@@ -147,9 +148,24 @@ public class MonitorService(
         // or the check itself fails.
         await CheckRegimeAutopauseAsync(account, tiingo, finnhub, ct);
 
-        // Step 2 — check each position
+        // Step 2 — check each position. SWING sleeve only: core/factor
+        // sleeve positions (docs/sleeves-plan) have no stops, targets or
+        // probation - they are managed by their own sleeve logic.
         var riskProfile = await riskProfileRepo.GetAsync(accountId, ct);
-        var trades = (await tradeRepo.GetOpenTradesAsync(accountId, account.TradingMode)).ToList();
+        var trades = (await tradeRepo.GetOpenTradesAsync(accountId, account.TradingMode))
+            .Where(t => t.Sleeve == SleeveType.Swing)
+            .ToList();
+
+        // SPY-core sleeve band check (docs/sleeves-plan P1). Best-effort -
+        // a core rebalance failure must never stop position monitoring.
+        try
+        {
+            await spyCore.RunAsync(account, t212, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "SPY core sleeve check failed for account {AccountId} — continuing", accountId);
+        }
 
         int checked_ = 0, trailingUpdated = 0;
         var flaggedExits = new List<FlaggedExit>();
