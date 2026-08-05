@@ -176,6 +176,20 @@ export interface AllocationDto {
   coreTicker: string;
 }
 
+// Non-swing sleeve holdings (docs/sleeves-plan): SPY core / factor rows.
+export interface SleevePositionDto {
+  id: number;
+  symbol: string;
+  sleeve: 'SpyCore' | 'Factor';
+  quantity: number;
+  averagePrice: number;
+  currentPrice: number;
+  // T212's own P&L in account currency; null when the broker was unreachable.
+  unrealisedPnl: number | null;
+  openedAt: string;
+  notes: string | null;
+}
+
 export interface ActivityLogDto {
   category: string;
   title: string;

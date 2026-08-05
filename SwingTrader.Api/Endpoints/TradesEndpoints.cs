@@ -29,6 +29,12 @@ public static class TradesEndpoints
             Results.Ok(await view.GetPositionsAsync(ctx.AccountId, ct)))
             .RequireRateLimiting(RateLimitPolicies.ExternalRead);
 
+        // Non-swing sleeve holdings (docs/sleeves-plan) - the dashboard's
+        // SPY / Tilts tabs.
+        api.MapGet("/positions/sleeves", async (AccountViewService view, IAccountContext ctx, CancellationToken ct) =>
+            Results.Ok(await view.GetSleevePositionsAsync(ctx.AccountId, ct)))
+            .RequireRateLimiting(RateLimitPolicies.ExternalRead);
+
         // Manual/admin trigger — recompute momentum health for a single open
         // position outside the normal MinHoldDays schedule. Useful for support and
         // for verifying a probation configuration change without waiting a day.

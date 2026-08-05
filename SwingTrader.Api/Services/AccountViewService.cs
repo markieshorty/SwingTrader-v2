@@ -1,6 +1,7 @@
 using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Infrastructure.HttpClients;
+using SwingTrader.Infrastructure.HttpClients.Dtos;
 using SwingTrader.Infrastructure.Market;
 
 namespace SwingTrader.Api.Services;
@@ -212,6 +213,48 @@ public class AccountViewService(
     }
 
     // Open positions, enriched with a live quote and originating signal.
+    // Non-swing sleeve holdings (docs/sleeves-plan): the SPY-core (and later
+    // factor) positions, valued from the broker portfolio where possible.
+    // P&L comes from T212's own ppl (account currency) - UCITS listings can
+    // be GBX-priced, so locally-derived P&L would be wrong by 100x.
+    public async Task<IReadOnlyList<object>> GetSleevePositionsAsync(int accountId, CancellationToken ct)
+    {
+        var account = await accounts.GetAsync(accountId, ct);
+        if (account is null) return [];
+
+        var sleeveTrades = (await trades.GetOpenTradesAsync(accountId, account.TradingMode))
+            .Where(t => t.Sleeve != SwingTrader.Core.Enums.SleeveType.Swing)
+            .ToList();
+        if (sleeveTrades.Count == 0) return [];
+
+        List<PortfolioPositionResponse> broker = [];
+        try
+        {
+            var t212 = await clientFactory.CreateTrading212Async<ITrading212Client>(accountId, ct);
+            broker = await t212.GetPortfolioAsync();
+        }
+        catch { /* broker down: fall back to the ledger row alone */ }
+
+        return sleeveTrades.Select(t =>
+        {
+            var pos = broker.FirstOrDefault(p =>
+                string.Equals(p.Ticker, t.BrokerTicker, StringComparison.OrdinalIgnoreCase)
+                || p.Ticker.StartsWith(t.Symbol, StringComparison.OrdinalIgnoreCase));
+            return (object)new
+            {
+                t.Id,
+                t.Symbol,
+                Sleeve = t.Sleeve.ToString(),
+                Quantity = pos?.Quantity ?? t.Quantity,
+                AveragePrice = pos?.AveragePrice ?? t.EntryPrice,
+                CurrentPrice = pos?.CurrentPrice ?? t.EntryPrice,
+                UnrealisedPnl = pos?.Ppl,
+                t.OpenedAt,
+                t.Notes,
+            };
+        }).ToList();
+    }
+
     public async Task<IReadOnlyList<object>> GetPositionsAsync(int accountId, CancellationToken ct)
     {
         var account = await accounts.GetAsync(accountId, ct);

@@ -23,7 +23,8 @@ import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner
 import { closedAtComparator, defaultColDef, formatTradeDate } from '../../shared/ag-grid-defaults';
 import {
   RiskProfileDto,
-  MarketStatusDto, ActivityLogDto, NextRunDto, PositionDto, SignalDto, TradeDto, TradingConfigDto } from '../../core/models/dtos';
+  MarketStatusDto, ActivityLogDto, NextRunDto, PositionDto, SignalDto, TradeDto, TradingConfigDto,
+  AllocationDto, SleevePositionDto } from '../../core/models/dtos';
 import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { PulseOnChangeDirective } from '../../shared/directives/pulse-on-change.directive';
@@ -67,6 +68,23 @@ export class DashboardComponent {
   portfolio = toSignal(this.data.portfolio$, { initialValue: null });
   regime = toSignal(this.data.regime$, { initialValue: null });
   positions = toSignal(this.data.positions$, { initialValue: [] });
+
+  // Non-swing sleeve holdings (docs/sleeves-plan): the SPY / Tilts tabs.
+  sleevePositions = signal<SleevePositionDto[]>([]);
+  allocation = signal<AllocationDto | null>(null);
+  corePositions = computed(() => this.sleevePositions().filter((p) => p.sleeve === 'SpyCore'));
+  factorPositions = computed(() => this.sleevePositions().filter((p) => p.sleeve === 'Factor'));
+
+  loadSleeves(): void {
+    this.api.getSleevePositions().subscribe({
+      next: (rows) => this.sleevePositions.set(rows),
+      error: () => {},
+    });
+    this.api.getAllocation().subscribe({
+      next: (a) => this.allocation.set(a),
+      error: () => {},
+    });
+  }
   signals = toSignal(this.data.signals$, { initialValue: null });
   status = toSignal(this.data.status$, { initialValue: null });
 

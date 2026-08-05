@@ -94,6 +94,8 @@
   <div class="positions-row">
     <mat-card class="panel positions-panel">
       <h3>Open Positions</h3>
+      <mat-tab-group animationDuration="0" (selectedIndexChange)="$event > 0 ? loadSleeves() : null">
+      <mat-tab label="Swings">
       <div class="positions-scroll" [class.grid-2]="positions().length >= 3">
       @if (positions().length === 0) {
         <app-empty-state icon="work_outline" message="No open positions — the next Buy signal fills this panel." />
@@ -134,6 +136,40 @@
         </div>
       }
       </div>
+      </mat-tab>
+      <mat-tab label="SPY">
+        <div class="sleeve-tab">
+          @if (allocation(); as a) {
+            <p class="muted small">
+              Core sleeve target: {{ a.spyCorePct | percent: '1.0-0' }} of the account in {{ a.coreTicker }} —
+              band-rebalanced (only trades on >5% drift). Configure in Settings → Trading → Capital Sleeves.
+            </p>
+          }
+          @if (corePositions().length === 0) {
+            <app-empty-state icon="savings"
+              message="No core holding yet — set the SPY core slice in Settings and the sleeve manager (or a one-off manual seed buy, see the activity feed) starts it." />
+          }
+          @for (p of corePositions(); track p.id) {
+            <div class="sleeve-row">
+              <span class="symbol">{{ p.symbol }}</span>
+              <span>{{ p.quantity | number: '1.0-3' }} units</span>
+              <span>avg {{ p.averagePrice | number: '1.2-2' }} → now {{ p.currentPrice | number: '1.2-2' }}</span>
+              @if (p.unrealisedPnl !== null) {
+                <span class="pnl" [class.positive]="p.unrealisedPnl >= 0" [class.negative]="p.unrealisedPnl < 0">
+                  {{ p.unrealisedPnl | currencyGbp }}
+                </span>
+              }
+            </div>
+          }
+        </div>
+      </mat-tab>
+      <mat-tab label="Tilts">
+        <div class="sleeve-tab">
+          <app-empty-state icon="tune"
+            message="The factor-tilt sleeve arrives with phase 2 (docs/sleeves-plan) — monthly momentum+quality rotation, only after it passes the deep-history backtest." />
+        </div>
+      </mat-tab>
+      </mat-tab-group>
     </mat-card>
 
     <div class="activity-panel" [class.open]="activityOpen()">

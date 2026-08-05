@@ -471,3 +471,18 @@
     opacity: 1;
   }
 }
+
+// Sleeve tabs (docs/sleeves-plan): SPY / Tilts content
+.sleeve-tab {
+  padding: 12px 4px;
+
+  .sleeve-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    padding: 8px 4px;
+
+    .symbol { font-weight: 600; }
+  }
+}

@@ -59,6 +59,7 @@ import {
   WatchlistItemDto,
   WatchlistType,
   AllocationDto,
+  SleevePositionDto,
 } from '../models/dtos';
 
 @Injectable({ providedIn: 'root' })
@@ -249,6 +250,10 @@ export class ApiService {
   // Queues the optimizer sweep (candidates around production weights, train/
   // holdout validated). Poll the returned run id like any historic run.
   // searchRules also adds trading-rule candidates to the search space.
+  getSleevePositions(): Observable<SleevePositionDto[]> {
+    return this.http.get<SleevePositionDto[]>(`${this.baseUrl}/api/positions/sleeves`);
+  }
+
   getAllocation(): Observable<AllocationDto> {
     return this.http.get<AllocationDto>(`${this.baseUrl}/api/allocation`);
   }
