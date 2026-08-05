@@ -36,7 +36,12 @@ public static class FactorBacktester
 
     public sealed record FactorPeriod(
         string Label, string From, string To,
-        decimal ReturnPct, decimal SpyReturnPct, decimal MaxDrawdownPct, decimal SpyMaxDrawdownPct);
+        decimal ReturnPct, decimal SpyReturnPct, decimal MaxDrawdownPct, decimal SpyMaxDrawdownPct,
+        // Control benchmark: equal-weight daily index of the ENTIRE candidate
+        // universe (no momentum selection, no screens, no costs) - a
+        // universe-composition bias detector. The factor sleeve must beat
+        // THIS line, not just SPY, for its selection to claim any credit.
+        decimal UniverseReturnPct = 0m, decimal UniverseMaxDrawdownPct = 0m);
 
     public sealed record FactorResult(
         string Mode,                       // "factor"
@@ -103,6 +108,13 @@ public static class FactorBacktester
                 kv => kv.Value.Select((b, i) => (b.Date, i)).ToDictionary(x => x.Date, x => x.i),
                 StringComparer.OrdinalIgnoreCase);
 
+        // Control: equal-weight index over every non-ETF symbol with a bar
+        // today and yesterday. If THIS line crushes SPY, the pool is doing
+        // the outperforming (the current-most-liquid universe selection is
+        // itself a momentum-flavoured filter), not the ranking.
+        var universeEquity = 1m;
+        var universeCurve = new List<(DateTime Date, decimal Equity)>();
+
         // Explicit cash + per-holding VALUES: equity is always cash + sum of
         // holding values, so nothing can be double-counted or invented.
         var cash = 1m;
@@ -138,6 +150,20 @@ public static class FactorBacktester
                 }
             }
             var equity = cash + holdings.Values.Sum();
+
+            // Control index: average daily return across the whole pool.
+            decimal uSum = 0m; var uCount = 0;
+            foreach (var (uSymbol, dateIndex) in indexBySymbol)
+            {
+                if (!dateIndex.TryGetValue(date, out var ui) || ui == 0) continue;
+                var uSeries = bars[uSymbol];
+                var uPrev = uSeries[ui - 1].Close;
+                if (uPrev <= 0) continue;
+                uSum += uSeries[ui].Close / uPrev - 1m;
+                uCount++;
+            }
+            if (uCount > 0) universeEquity *= 1m + uSum / uCount;
+            universeCurve.Add((date, universeEquity));
 
             // First trading day of a new month: re-rank and rebalance.
             if (date.Month != lastMonth)
@@ -196,20 +222,26 @@ public static class FactorBacktester
         // train/holdout boundary so the verdict is directly comparable with
         // every other Lab check.
         var cutoff = spy[(int)(spy.Length * 0.70)].Date;
-        var full = Period("Full", equityCurve, spy);
-        var train = Period("Train", equityCurve.Where(p => p.Date < cutoff).ToList(), spy);
-        var holdout = Period("Holdout", equityCurve.Where(p => p.Date >= cutoff).ToList(), spy);
+        var full = Period("Full", equityCurve, spy, universeCurve);
+        var train = Period("Train", equityCurve.Where(p => p.Date < cutoff).ToList(), spy, universeCurve);
+        var holdout = Period("Holdout", equityCurve.Where(p => p.Date >= cutoff).ToList(), spy, universeCurve);
 
         var byYear = equityCurve.GroupBy(p => p.Date.Year)
             .Where(g => g.Count() > 30)
-            .Select(g => Period(g.Key.ToString(), g.ToList(), spy))
+            .Select(g => Period(g.Key.ToString(), g.ToList(), spy, universeCurve))
             .ToList();
 
+        // Bar tightened 5 Aug 2026 after the first run returned an
+        // implausible holdout: the sleeve must beat SPY AND the pool it
+        // picks from. Beating SPY while losing to the universe means the
+        // pool carried the result (universe-composition bias), not the
+        // selection.
         var heldUp = holdout.ReturnPct > holdout.SpyReturnPct
+                     && holdout.ReturnPct > holdout.UniverseReturnPct
                      && holdout.MaxDrawdownPct <= holdout.SpyMaxDrawdownPct * 1.5m;
         var verdict = heldUp
-            ? $"HELD UP: beat SPY on the holdout ({holdout.ReturnPct:0.#}% vs {holdout.SpyReturnPct:0.#}%) with market-like drawdown ({holdout.MaxDrawdownPct:0.#}% vs SPY {holdout.SpyMaxDrawdownPct:0.#}%)."
-            : $"Did NOT meet the bar: holdout {holdout.ReturnPct:0.#}% vs SPY {holdout.SpyReturnPct:0.#}%, max DD {holdout.MaxDrawdownPct:0.#}% vs SPY {holdout.SpyMaxDrawdownPct:0.#}% (needs: beat SPY with DD <= 1.5x SPY's).";
+            ? $"HELD UP: holdout {holdout.ReturnPct:0.#}% vs SPY {holdout.SpyReturnPct:0.#}% AND the universe control {holdout.UniverseReturnPct:0.#}%, drawdown {holdout.MaxDrawdownPct:0.#}% vs SPY {holdout.SpyMaxDrawdownPct:0.#}%."
+            : $"Did NOT meet the bar: holdout {holdout.ReturnPct:0.#}% vs SPY {holdout.SpyReturnPct:0.#}% / universe control {holdout.UniverseReturnPct:0.#}%, max DD {holdout.MaxDrawdownPct:0.#}% vs SPY {holdout.SpyMaxDrawdownPct:0.#}%. Needs: beat BOTH benchmarks with DD <= 1.5x SPY (beating SPY but not the universe = the pool did the work, not the picking).";
 
         return new FactorResult(
             "factor",
@@ -220,7 +252,9 @@ public static class FactorBacktester
             holdings.Keys.OrderBy(s => s).ToList());
     }
 
-    private static FactorPeriod Period(string label, List<(DateTime Date, decimal Equity)> curve, DailyBar[] spy)
+    private static FactorPeriod Period(
+        string label, List<(DateTime Date, decimal Equity)> curve, DailyBar[] spy,
+        List<(DateTime Date, decimal Equity)> universe)
     {
         if (curve.Count < 2)
             return new FactorPeriod(label, "", "", 0m, 0m, 0m, 0m);
@@ -244,8 +278,22 @@ public static class FactorBacktester
             else if (spyPeak > 0) spyDd = Math.Max(spyDd, (spyPeak - b.Close) / spyPeak * 100m);
         }
 
+        var uSlice = universe.Where(p => p.Date >= curve[0].Date && p.Date <= curve[^1].Date).ToList();
+        decimal uRet = 0m, uDd = 0m;
+        if (uSlice.Count > 1 && uSlice[0].Equity > 0)
+        {
+            uRet = (uSlice[^1].Equity / uSlice[0].Equity - 1m) * 100m;
+            decimal uPeak = 0m;
+            foreach (var (_, e) in uSlice)
+            {
+                if (e > uPeak) uPeak = e;
+                else if (uPeak > 0) uDd = Math.Max(uDd, (uPeak - e) / uPeak * 100m);
+            }
+        }
+
         return new FactorPeriod(label,
             curve[0].Date.ToString("yyyy-MM-dd"), curve[^1].Date.ToString("yyyy-MM-dd"),
-            Math.Round(ret, 1), Math.Round(spyRet, 1), Math.Round(maxDd, 1), Math.Round(spyDd, 1));
+            Math.Round(ret, 1), Math.Round(spyRet, 1), Math.Round(maxDd, 1), Math.Round(spyDd, 1),
+            Math.Round(uRet, 1), Math.Round(uDd, 1));
     }
 }

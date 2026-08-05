@@ -873,6 +873,9 @@ export interface FactorPeriodDto {
   spyReturnPct: number;
   maxDrawdownPct: number;
   spyMaxDrawdownPct: number;
+  // Equal-weight index of the whole candidate pool - the bias control.
+  universeReturnPct: number;
+  universeMaxDrawdownPct: number;
 }
 
 export interface FactorResultDto {

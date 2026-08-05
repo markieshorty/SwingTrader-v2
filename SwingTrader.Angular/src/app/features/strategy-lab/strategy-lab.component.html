@@ -1462,23 +1462,28 @@
             <p class="muted small">{{ fr.verdict }}</p>
             <table class="history-table">
               <thead>
-                <tr><th>Window</th><th>From</th><th>To</th><th>Factor</th><th>SPY</th><th>Max DD</th><th>SPY DD</th></tr>
+                <tr><th>Window</th><th>From</th><th>To</th><th>Factor</th><th>SPY</th>
+                  <th matTooltip="Equal-weight buy-and-hold of the ENTIRE candidate pool — no momentum selection. If this crushes SPY, the pool is biased (today's most-liquid universe = yesterday's winners) and the factor line must beat IT to claim any edge.">Universe</th>
+                  <th>Max DD</th><th>SPY DD</th></tr>
               </thead>
               <tbody>
                 <tr><td>Full</td><td class="muted">{{ fr.train.from }}</td><td class="muted">{{ fr.holdout.to }}</td>
                   <td class="num">{{ fr.totalReturnPct | number: '1.1-1' }}%</td>
                   <td class="num muted">{{ fr.spyReturnPct | number: '1.1-1' }}%</td>
+                  <td class="num muted">{{ fr.train.universeReturnPct !== undefined ? '' : '' }}—</td>
                   <td class="num muted">{{ fr.maxDrawdownPct | number: '1.1-1' }}%</td>
                   <td class="num muted">{{ fr.spyMaxDrawdownPct | number: '1.1-1' }}%</td></tr>
                 <tr><td>Train segment</td><td class="muted">{{ fr.train.from }}</td><td class="muted">{{ fr.train.to }}</td>
                   <td class="num">{{ fr.train.returnPct | number: '1.1-1' }}%</td>
                   <td class="num muted">{{ fr.train.spyReturnPct | number: '1.1-1' }}%</td>
+                  <td class="num muted">{{ fr.train.universeReturnPct | number: '1.1-1' }}%</td>
                   <td class="num muted">{{ fr.train.maxDrawdownPct | number: '1.1-1' }}%</td>
                   <td class="num muted">{{ fr.train.spyMaxDrawdownPct | number: '1.1-1' }}%</td></tr>
                 <tr [class.best-row]="fr.heldUp"><td><strong>Holdout segment</strong></td>
                   <td class="muted">{{ fr.holdout.from }}</td><td class="muted">{{ fr.holdout.to }}</td>
-                  <td class="num" [class.good]="fr.holdout.returnPct > fr.holdout.spyReturnPct">{{ fr.holdout.returnPct | number: '1.1-1' }}%</td>
+                  <td class="num" [class.good]="fr.holdout.returnPct > fr.holdout.spyReturnPct && fr.holdout.returnPct > fr.holdout.universeReturnPct">{{ fr.holdout.returnPct | number: '1.1-1' }}%</td>
                   <td class="num muted">{{ fr.holdout.spyReturnPct | number: '1.1-1' }}%</td>
+                  <td class="num muted" [class.bad]="fr.holdout.universeReturnPct > fr.holdout.returnPct">{{ fr.holdout.universeReturnPct | number: '1.1-1' }}%</td>
                   <td class="num muted">{{ fr.holdout.maxDrawdownPct | number: '1.1-1' }}%</td>
                   <td class="num muted">{{ fr.holdout.spyMaxDrawdownPct | number: '1.1-1' }}%</td></tr>
               </tbody>
