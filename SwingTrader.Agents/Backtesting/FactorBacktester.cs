@@ -14,6 +14,10 @@ namespace SwingTrader.Agents.Backtesting;
 // - Quality/liquidity screen: price >= $5, 20-day average dollar volume >=
 //   $10M at rank time, >= 7 of the last 12 monthly returns positive
 //   (consistency - avoids one-gap wonders).
+// - DUAL momentum, deliberately: only symbols with POSITIVE 12-1 momentum
+//   are candidates, so in a broad bear the sleeve holds fewer names or goes
+//   entirely to cash rather than buying the least-bad losers. Note this when
+//   reading bear-year rows - "0 holdings" months are the design working.
 // - Hold the top N equal-weight; an existing holding is only REPLACED when it
 //   falls out of the top 3xN ranks (turnover control - the evidence says
 //   churn, not selection, is where retail momentum dies).
@@ -80,6 +84,12 @@ public static class FactorBacktester
         return positive >= MinPositiveMonths;
     }
 
+    // Benchmark + sector ETFs live in the candle store for the RS component;
+    // a momentum rank must not "discover" XLK as a stock pick.
+    private static readonly HashSet<string> ExcludedInstruments = new(
+        SwingTrader.Infrastructure.Market.SectorEtfMap.AllEtfs().Concat(["SPY", "VIX"]),
+        StringComparer.OrdinalIgnoreCase);
+
     public static FactorResult Run(IReadOnlyDictionary<string, DailyBar[]> bars)
     {
         if (!bars.TryGetValue("SPY", out var spy) || spy.Length < LookbackDays + 42)
@@ -87,7 +97,7 @@ public static class FactorBacktester
 
         // Per-symbol date -> index lookup, built once.
         var indexBySymbol = bars
-            .Where(kv => !kv.Key.Equals("VIX", StringComparison.OrdinalIgnoreCase))
+            .Where(kv => !ExcludedInstruments.Contains(kv.Key))
             .ToDictionary(
                 kv => kv.Key,
                 kv => kv.Value.Select((b, i) => (b.Date, i)).ToDictionary(x => x.Date, x => x.i),
@@ -137,8 +147,7 @@ public static class FactorBacktester
                 var ranked = new List<(string Symbol, decimal Momentum)>();
                 foreach (var (symbol, series) in bars)
                 {
-                    if (symbol.Equals("SPY", StringComparison.OrdinalIgnoreCase)
-                        || symbol.Equals("VIX", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (ExcludedInstruments.Contains(symbol)) continue;
                     if (!indexBySymbol[symbol].TryGetValue(date, out var i)) continue;
                     var momentum = MomentumAt(series, i);
                     if (momentum is null || momentum <= 0) continue;

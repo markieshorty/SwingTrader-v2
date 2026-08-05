@@ -62,7 +62,19 @@ public class SpyCoreService(
         // needs a price we may not have (UCITS ETFs aren't on Finnhub free) -
         // in that case an activity note asks for a one-off manual seed buy;
         // once any core position exists the manager takes over.
-        var portfolio = await t212.GetPortfolioAsync();
+        // The portfolio endpoint is rate-limited per account and shared with
+        // the dashboard + the cycle's reconciliation - one 429 here just
+        // means "ask again after T212's window", not a failure.
+        List<PortfolioPositionResponse> portfolio;
+        try
+        {
+            portfolio = await t212.GetPortfolioAsync();
+        }
+        catch (Refit.ApiException ex) when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(6), ct);
+            portfolio = await t212.GetPortfolioAsync();
+        }
         var position = portfolio.FirstOrDefault(p =>
             p.Ticker.StartsWith(alloc.CoreTicker, StringComparison.OrdinalIgnoreCase));
 
