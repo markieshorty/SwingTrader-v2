@@ -115,7 +115,12 @@ public static class CapitalRules
     // Funnel Phase F3 (docs/funnel-plan): floor under the Forward score for
     // gate-passing Buys. Below it a Buy demotes to Watch. 0 disables the veto.
     public const decimal MinForwardVetoFloor = 0.0m;
-    public const decimal MaxForwardVetoFloor = 5.0m;
+    // Raised 5.0 -> 9.0 (5 Aug 2026): Mark wants the option of an extra-
+    // selective swing book where only very high Claude forward scores may
+    // Buy (docs/sleeves-plan P3). NOTE the evidence caveat recorded there:
+    // at 27 scored trades the 7+ band is n=2 - floors above ~5 are a bet,
+    // not a conclusion, until the scorecard grows.
+    public const decimal MaxForwardVetoFloor = 9.0m;
     public const decimal DefaultForwardVetoFloor = 2.5m;
 
     // Conviction ceiling (31 Jul 2026): Buys scoring ABOVE it demote to
