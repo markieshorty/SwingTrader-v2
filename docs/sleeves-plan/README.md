@@ -5,7 +5,13 @@ swing sizing, SPY-core band manager, Trades.Sleeve stamps, settings card).
 P1 notes: idle-cash parking DEFERRED (sell-then-buy sequencing wants its own
 careful pass); a first core buy may need a one-off manual seed purchase when
 no price source exists for the UCITS ticker (the activity feed says so);
-per-sleeve dashboard P&L split still to come. P2/P3 not built.
+sleeve visibility shipped later same day (dashboard positions card tabbed
+Swings / SPY / Tilts, /positions/sleeves endpoint). **P2a BUILT + PUSHED
+5 Aug 2026** - FactorBacktester (walk-forward monthly 12-1 momentum +
+quality screen, top-15, top-third retention, 0.15%/side costs) + Lab
+"Factor sleeve backtest" card in the Regimes/Setups tab, honouring the
+Data-from year; verdict = pre-declared bar below. P2b/P3 not built - P2b
+waits on a PASSING deep-window (2000) verdict.
 
 ## Motivation
 
