@@ -90,11 +90,23 @@ public class BacktestConsumerFunction(
             if (bySymbol.Count == 0)
                 throw new InvalidOperationException("No historic market data synced yet — run a candle sync first.");
 
-            var bars = bySymbol.ToDictionary(
-                kv => kv.Key,
-                kv => kv.Value.Select(c => new DailyBar(
-                    c.Date.ToDateTime(TimeOnly.MinValue), c.Open, c.High, c.Low, c.Close, c.Volume)).ToArray(),
-                StringComparer.OrdinalIgnoreCase);
+            // Streaming conversion: release each symbol's candle objects as
+            // its DailyBar array is built, so the store is never held in
+            // memory twice. With the deep dataset (~9M bars, docs/deep-
+            // history-plan) the duplicate-held version OOM'd the 2GB host.
+            var bars = new Dictionary<string, DailyBar[]>(bySymbol.Count, StringComparer.OrdinalIgnoreCase);
+            foreach (var key in bySymbol.Keys.ToList())
+            {
+                var list = bySymbol[key];
+                var arr = new DailyBar[list.Count];
+                for (var i = 0; i < list.Count; i++)
+                {
+                    var c = list[i];
+                    arr[i] = new DailyBar(c.Date.ToDateTime(TimeOnly.MinValue), c.Open, c.High, c.Low, c.Close, c.Volume);
+                }
+                bars[key] = arr;
+                bySymbol.Remove(key);
+            }
 
             // Delisting end-reasons for the engine's forced exits
             // (docs/survivorship-plan P2). Empty until the delisted backfill

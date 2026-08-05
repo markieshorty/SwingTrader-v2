@@ -99,6 +99,18 @@ jobs:
           package: ./functions-output
           scm-do-build-during-deployment: false
 
+      - name: Ensure 4GB instance memory
+        run: |
+          # Deep-history backtests (docs/deep-history-plan) load ~9M bars;
+          # the 2048MB Flex default OOM'd on the first 2000-window run.
+          # Flex bills GB-seconds only while executing, so this costs
+          # pennies. Idempotent - safe on every deploy.
+          az functionapp update \
+            --name ${{ secrets.FUNCTION_APP_NAME }} \
+            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --set properties.functionAppConfig.scaleAndConcurrency.instanceMemoryMB=4096 \
+            --output none
+
       - name: Verify
         run: |
           state=$(az functionapp show \
