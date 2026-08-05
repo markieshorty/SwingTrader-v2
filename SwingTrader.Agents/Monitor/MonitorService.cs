@@ -472,8 +472,13 @@ public class MonitorService(
         List<Trade> openTrades, pendingTrades;
         try
         {
-            openTrades = (await tradeRepo.GetOpenTradesAsync(accountId, tradingMode)).ToList();
-            pendingTrades = (await tradeRepo.GetPendingTradesAsync(accountId, tradingMode)).ToList();
+            // Swing sleeve only (docs/sleeves-plan P1): the SPY-core holding
+            // is a NON-US listing managed by SpyCoreService - reconciling it
+            // here would flag it every cycle and fight the core manager.
+            openTrades = (await tradeRepo.GetOpenTradesAsync(accountId, tradingMode))
+                .Where(t => t.Sleeve == SleeveType.Swing).ToList();
+            pendingTrades = (await tradeRepo.GetPendingTradesAsync(accountId, tradingMode))
+                .Where(t => t.Sleeve == SleeveType.Swing).ToList();
         }
         catch (Exception ex)
         {

@@ -217,7 +217,12 @@ public class AccountViewService(
         var account = await accounts.GetAsync(accountId, ct);
         if (account is null) return [];
 
-        var openTrades = (await trades.GetOpenTradesAsync(accountId, account.TradingMode)).ToList();
+        // Positions page = the SWING sleeve. The SPY-core holding is a GBP
+        // UCITS ETF with no stop/target/probation - rendering it through this
+        // USD-assuming view showed nonsense values (docs/sleeves-plan P1);
+        // it gets its own line with the per-sleeve dashboard split.
+        var openTrades = (await trades.GetOpenTradesAsync(accountId, account.TradingMode))
+            .Where(t => t.Sleeve == SwingTrader.Core.Enums.SleeveType.Swing).ToList();
         if (openTrades.Count == 0) return [];
 
         IFinnhubClient? finnhub = null;
