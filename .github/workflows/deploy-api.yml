@@ -118,10 +118,19 @@ jobs:
 
       - name: Deploy to Container App
         run: |
+          # Blob candle store (docs/blob-candles-plan): the connection string
+          # is fetched from the Functions app's settings at deploy time so it
+          # never lives in the repo or in GitHub secrets. --set-env-vars
+          # merges - it does not replace the env array.
+          STORAGE_CONN=$(az functionapp config appsettings list \
+            --name swingtrader-functions-prod \
+            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --query "[?name=='AzureWebJobsStorage'].value | [0]" -o tsv)
           az containerapp update \
             --name ${{ secrets.CONTAINER_APP_NAME }} \
             --resource-group ${{ secrets.RESOURCE_GROUP }} \
-            --image ${{ secrets.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            --image ${{ secrets.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --set-env-vars "HistoricStore__UseBlob=true" "HistoricStore__BlobConnection=$STORAGE_CONN"
 
       - name: Verify deployment
         run: |
