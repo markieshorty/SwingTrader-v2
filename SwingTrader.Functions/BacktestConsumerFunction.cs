@@ -167,6 +167,11 @@ public class BacktestConsumerFunction(
                 "ablation" => await RunSetupAblationAsync(run, request, bars, profile, accountTactics, sectorEtfs, ct),
                 "regime" => await RunRegimeComparisonAsync(run, request, bars, message.AccountId, accountTactics, sectorEtfs, ct),
                 "setupsearch" => await RunSetupSearchAsync(run, request, bars, profile, accountTactics, sectorEtfs, ct),
+                // Factor sleeve backtest (docs/sleeves-plan P2a): parameter-
+                // light and walk-forward by construction - weights/rules on
+                // the request are ignored; DataFromYear is honoured by the
+                // loader like every other mode.
+                "factor" => System.Text.Json.JsonSerializer.Serialize(FactorBacktester.Run(bars), CamelCase),
                 _ => await RunSingleAsync(request, bars, profile, message.AccountId, accountTactics, sectorEtfs, ct),
             };
             run.Status = "Completed";

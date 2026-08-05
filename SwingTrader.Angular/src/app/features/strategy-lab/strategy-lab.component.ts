@@ -41,6 +41,7 @@ import {
   MarketRegimeName,
   StrategyWeightsDto,
   SweepResultDto,
+  FactorResultDto,
   ValidateResultDto,
 } from '../../core/models/dtos';
 import { errorMessage } from '../../shared/utils/error-message.util';
@@ -650,7 +651,7 @@ export class StrategyLabComponent implements OnDestroy {
   isOwner = signal(false);
   // One poll handle per job kind: an A/B run and an optimizer sweep can be in
   // flight at the same time, and starting one must not kill the other's poll.
-  private pollHandles = new Map<'ab' | 'sweep' | 'validate' | 'montecarlo' | 'ablation' | 'regime' | 'setupsearch', ReturnType<typeof setInterval>>();
+  private pollHandles = new Map<'ab' | 'sweep' | 'validate' | 'montecarlo' | 'ablation' | 'regime' | 'setupsearch' | 'factor', ReturnType<typeof setInterval>>();
 
   weightSum = computed(() => {
     const w = this.weights();
@@ -758,6 +759,18 @@ export class StrategyLabComponent implements OnDestroy {
           return;
         }
         if (r.result && 'mode' in r.result && r.result.mode === 'regime') this.regimeResult.set(r.result);
+      },
+      error: () => {},
+    });
+    this.api.getLatestBacktestRun('factor').subscribe({
+      next: (r) => {
+        if (this.factorRunning()) return;
+        if (r.status === 'Queued' || r.status === 'Running') {
+          this.factorRunning.set(true);
+          this.startFactorPoll(r.id);
+          return;
+        }
+        if (r.result && 'mode' in r.result && r.result.mode === 'factor') this.factorResult.set(r.result);
       },
       error: () => {},
     });
@@ -1240,6 +1253,32 @@ export class StrategyLabComponent implements OnDestroy {
     });
   }
 
+  // Factor sleeve backtest (docs/sleeves-plan P2a)
+  factorRunning = signal(false);
+  factorStatus = signal<string | null>(null);
+  factorResult = signal<FactorResultDto | null>(null);
+
+  runFactorBacktest(): void {
+    this.factorRunning.set(true);
+    this.factorResult.set(null);
+    this.api.runFactorBacktest(this.dataFromYear()).subscribe({
+      next: (r) => this.startFactorPoll(r.backtestRunId),
+      error: (err) => {
+        this.snackbar.open(errorMessage(err, 'Failed to queue the factor backtest.'), 'Dismiss', { duration: 5000 });
+        this.factorRunning.set(false);
+      },
+    });
+  }
+
+  private startFactorPoll(runId: number): void {
+    this.pollRun('factor', runId,
+      'Running — monthly momentum+quality rotation simulated walk-forward over the selected window…',
+      this.factorStatus, (result) => {
+        if (result && 'mode' in result && result.mode === 'factor') this.factorResult.set(result);
+        this.factorRunning.set(false);
+      });
+  }
+
   private startSetupSearchPoll(runId: number): void {
     this.pollRun(
       'setupsearch',
@@ -1294,7 +1333,7 @@ export class StrategyLabComponent implements OnDestroy {
   // decides how to interpret the stored result. Restarting a job of the same
   // kind replaces its own poll; the other kind's poll is left running.
   private pollRun(
-    kind: 'ab' | 'sweep' | 'validate' | 'montecarlo' | 'ablation' | 'regime' | 'setupsearch',
+    kind: 'ab' | 'sweep' | 'validate' | 'montecarlo' | 'ablation' | 'regime' | 'setupsearch' | 'factor',
     runId: number,
     runningText: string,
     status: ReturnType<typeof signal<string | null>>,
@@ -1334,6 +1373,7 @@ export class StrategyLabComponent implements OnDestroy {
               else if (kind === 'ablation') { this.ablationRunning.set(false); this.ablationProgress.set(null); }
               else if (kind === 'regime') { this.regimeRunning.set(false); this.regimeProgress.set(null); }
               else if (kind === 'setupsearch') { this.setupSearchRunning.set(false); this.setupSearchProgress.set(null); }
+              else if (kind === 'factor') this.factorRunning.set(false);
               else this.optimizing.set(false);
               if (kind === 'sweep') this.sweepProgress.set(null);
             }

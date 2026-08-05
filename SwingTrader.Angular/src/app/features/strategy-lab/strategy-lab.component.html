@@ -1425,6 +1425,82 @@
             </p>
           </mat-card>
         }
+
+        <mat-card class="panel">
+          <h4><mat-icon>trending_up</mat-icon> Factor sleeve backtest</h4>
+          <p class="muted small">
+            The Tilts sleeve's audition (docs/sleeves-plan P2a): a monthly-rebalanced <strong>momentum + quality</strong>
+            rotation — rank the universe by 12-month return (skipping the most recent month), require price/liquidity
+            and 7-of-12 positive months, hold the top {{ 15 }} equal-weight, replace a holding only when it falls out
+            of the top third. Parameter-light, so the whole run is walk-forward: nothing is tuned on the data.
+            <strong>The bar (pre-declared):</strong> beat SPY buy-and-hold on the holdout segment with max drawdown
+            no worse than 1.5× SPY's — pass, and the Tilts slice unlocks (P2b); fail, and it stays locked.
+            Uses the "Data from" year selected on the Backtest tab — run it on 2000 for the honest verdict.
+          </p>
+          <div class="meta-row">
+            <button mat-raised-button color="primary" [disabled]="factorRunning() || !historicAvailable()" (click)="runFactorBacktest()">
+              @if (factorRunning()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>trending_up</mat-icon> }
+              Run factor backtest
+            </button>
+            <span class="muted small">One pass over monthly ranks — minutes, not hours. No Claude involved.</span>
+          </div>
+        </mat-card>
+
+        @if (factorStatus(); as fstat) {
+          <mat-card class="panel loading">
+            <div class="loading-row"><mat-spinner diameter="24"></mat-spinner><span>{{ fstat }}</span></div>
+            <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+          </mat-card>
+        }
+
+        @if (factorResult(); as fr) {
+          <mat-card class="panel results" [class.flagged]="!fr.heldUp">
+            <button mat-icon-button class="panel-close" (click)="factorResult.set(null)" matTooltip="Dismiss">
+              <mat-icon>close</mat-icon>
+            </button>
+            <h3><mat-icon>trending_up</mat-icon> Factor sleeve — {{ fr.heldUp ? 'HELD UP' : 'did not meet the bar' }}</h3>
+            <p class="muted small">{{ fr.verdict }}</p>
+            <table class="history-table">
+              <thead>
+                <tr><th>Window</th><th>From</th><th>To</th><th>Factor</th><th>SPY</th><th>Max DD</th><th>SPY DD</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Full</td><td class="muted">{{ fr.train.from }}</td><td class="muted">{{ fr.holdout.to }}</td>
+                  <td class="num">{{ fr.totalReturnPct | number: '1.1-1' }}%</td>
+                  <td class="num muted">{{ fr.spyReturnPct | number: '1.1-1' }}%</td>
+                  <td class="num muted">{{ fr.maxDrawdownPct | number: '1.1-1' }}%</td>
+                  <td class="num muted">{{ fr.spyMaxDrawdownPct | number: '1.1-1' }}%</td></tr>
+                <tr><td>Train segment</td><td class="muted">{{ fr.train.from }}</td><td class="muted">{{ fr.train.to }}</td>
+                  <td class="num">{{ fr.train.returnPct | number: '1.1-1' }}%</td>
+                  <td class="num muted">{{ fr.train.spyReturnPct | number: '1.1-1' }}%</td>
+                  <td class="num muted">{{ fr.train.maxDrawdownPct | number: '1.1-1' }}%</td>
+                  <td class="num muted">{{ fr.train.spyMaxDrawdownPct | number: '1.1-1' }}%</td></tr>
+                <tr [class.best-row]="fr.heldUp"><td><strong>Holdout segment</strong></td>
+                  <td class="muted">{{ fr.holdout.from }}</td><td class="muted">{{ fr.holdout.to }}</td>
+                  <td class="num" [class.good]="fr.holdout.returnPct > fr.holdout.spyReturnPct">{{ fr.holdout.returnPct | number: '1.1-1' }}%</td>
+                  <td class="num muted">{{ fr.holdout.spyReturnPct | number: '1.1-1' }}%</td>
+                  <td class="num muted">{{ fr.holdout.maxDrawdownPct | number: '1.1-1' }}%</td>
+                  <td class="num muted">{{ fr.holdout.spyMaxDrawdownPct | number: '1.1-1' }}%</td></tr>
+              </tbody>
+            </table>
+            <details>
+              <summary class="muted small">Per-year vs SPY ({{ fr.byYear.length }} years) · {{ fr.rebalances }} rebalances ·
+                avg turnover {{ fr.avgMonthlyTurnoverPct | number: '1.0-0' }}%/month · current top holdings</summary>
+              <table class="history-table">
+                <thead><tr><th>Year</th><th>Factor</th><th>SPY</th><th>Max DD</th></tr></thead>
+                <tbody>
+                  @for (y of fr.byYear; track y.label) {
+                    <tr><td>{{ y.label }}</td>
+                      <td class="num" [class.good]="y.returnPct > y.spyReturnPct" [class.bad]="y.returnPct < y.spyReturnPct - 10">{{ y.returnPct | number: '1.1-1' }}%</td>
+                      <td class="num muted">{{ y.spyReturnPct | number: '1.1-1' }}%</td>
+                      <td class="num muted">{{ y.maxDrawdownPct | number: '1.1-1' }}%</td></tr>
+                  }
+                </tbody>
+              </table>
+              <p class="muted small">Final holdings: {{ fr.finalHoldings.join(', ') }}</p>
+            </details>
+          </mat-card>
+        }
       </div>
     </mat-tab>
 

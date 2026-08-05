@@ -864,7 +864,34 @@ export interface SetupSearchDto {
   rows: SetupSearchRowDto[]; // best-first by adjustedPct
 }
 
-export type BacktestResultDto = HistoricResultDto | AbResultDto | SweepResultDto | ValidateResultDto | MonteCarloResultDto | SetupAblationDto | RegimeComparisonDto | SetupSearchDto;
+// Factor sleeve backtest (docs/sleeves-plan P2a).
+export interface FactorPeriodDto {
+  label: string;
+  from: string;
+  to: string;
+  returnPct: number;
+  spyReturnPct: number;
+  maxDrawdownPct: number;
+  spyMaxDrawdownPct: number;
+}
+
+export interface FactorResultDto {
+  mode: 'factor';
+  totalReturnPct: number;
+  spyReturnPct: number;
+  maxDrawdownPct: number;
+  spyMaxDrawdownPct: number;
+  rebalances: number;
+  avgMonthlyTurnoverPct: number;
+  train: FactorPeriodDto;
+  holdout: FactorPeriodDto;
+  heldUp: boolean;
+  verdict: string;
+  byYear: FactorPeriodDto[];
+  finalHoldings: string[];
+}
+
+export type BacktestResultDto = HistoricResultDto | AbResultDto | SweepResultDto | ValidateResultDto | MonteCarloResultDto | SetupAblationDto | RegimeComparisonDto | SetupSearchDto | FactorResultDto;
 
 export interface BacktestRunStatusDto {
   id: number;

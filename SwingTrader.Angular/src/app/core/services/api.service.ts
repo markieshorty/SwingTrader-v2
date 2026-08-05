@@ -219,7 +219,7 @@ export class ApiService {
   }
 
   // 404s when the account has never completed a run of this mode.
-  getLatestBacktestRun(mode: 'sweep' | 'ab' | 'validate' | 'montecarlo' | 'regime' | 'setupsearch'): Observable<BacktestRunStatusDto> {
+  getLatestBacktestRun(mode: 'sweep' | 'ab' | 'validate' | 'montecarlo' | 'regime' | 'setupsearch' | 'factor'): Observable<BacktestRunStatusDto> {
     return this.http.get<BacktestRunStatusDto>(`${this.baseUrl}/api/strategy-lab/backtest/latest?mode=${mode}`);
   }
 
@@ -280,6 +280,10 @@ export class ApiService {
 
   runSetupSearch(): Observable<{ backtestRunId: number }> {
     return this.http.post<{ backtestRunId: number }>(`${this.baseUrl}/api/strategy-lab/setup-search`, {});
+  }
+
+  runFactorBacktest(dataFromYear: number | null = null): Observable<{ backtestRunId: number }> {
+    return this.http.post<{ backtestRunId: number }>(`${this.baseUrl}/api/strategy-lab/factor-backtest`, { dataFromYear });
   }
 
   // Apply Lab dials to production with a full audit trail (refinement history).

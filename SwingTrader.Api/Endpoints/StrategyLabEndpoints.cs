@@ -771,6 +771,42 @@ public static class StrategyLabEndpoints
             return Results.Ok(new { queued = true });
         });
 
+        // Factor sleeve backtest (docs/sleeves-plan P2a): the monthly
+        // momentum+quality rotation, judged against SPY on the walk-forward
+        // holdout segment. Its verdict is the gate on the Tilts slice ever
+        // unlocking (P2b). Weights ride along only because the request shape
+        // requires them - the factor engine ignores them.
+        api.MapPost("/strategy-lab/factor-backtest", async (
+            OptimizeRequest? req,
+            IBacktestRunRepository runs,
+            IStrategyWeightsRepository weightsRepo,
+            IAccountRiskProfileRepository riskProfileRepo,
+            ISetupTacticsRepository setupTacticsRepo,
+            [FromServices] ServiceBusClient? serviceBus,
+            IAccountContext ctx,
+            CancellationToken ct) =>
+        {
+            if (serviceBus is null)
+                return Results.Problem("Service Bus is not configured on this environment.", statusCode: StatusCodes.Status503ServiceUnavailable);
+            var baseline = await SnapshotBaselineAsync(weightsRepo, riskProfileRepo, ctx.AccountId, ct, setupTacticsRepo);
+            if (baseline is null)
+                return Results.BadRequest(new { message = "No active production weights found." });
+
+            var run = await runs.AddAsync(new BacktestRun
+            {
+                AccountId = ctx.AccountId,
+                RequestJson = JsonSerializer.Serialize(new HistoricBacktestRequest(
+                    baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout,
+                    Mode: "factor",
+                    Candidates: [baseline],
+                    DataFromYear: req?.DataFromYear)),
+            });
+            await using var sender = serviceBus.CreateSender("backtest-jobs");
+            await sender.SendMessageAsync(new ServiceBusMessage(JsonSerializer.Serialize(
+                new BacktestJobMessage(ctx.AccountId, Guid.NewGuid().ToString("N"), run.Id))), ct);
+            return Results.Ok(new { backtestRunId = run.Id });
+        });
+
         // Owner-only manual candle sync trigger (also runs weekly via the
         // scheduler). Enqueues the platform-level job.
         api.MapPost("/strategy-lab/sync-data", async (
