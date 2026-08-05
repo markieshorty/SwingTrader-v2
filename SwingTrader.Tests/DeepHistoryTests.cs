@@ -36,6 +36,51 @@ public class DeepHistoryTests
         deep.Should().NotBe(plain);
     }
 
+    private static List<HistoricalCandle> Series(int days, Func<int, decimal> close, Func<int, bool>? skip = null)
+    {
+        var bars = new List<HistoricalCandle>();
+        var date = new DateOnly(2003, 1, 6); // a Monday
+        var added = 0;
+        for (var i = 0; added < days; i++)
+        {
+            if (date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday) { date = date.AddDays(1); continue; }
+            if (skip?.Invoke(i) != true)
+            {
+                bars.Add(new HistoricalCandle
+                {
+                    Symbol = "X", Date = date,
+                    Open = close(added), High = close(added), Low = close(added), Close = close(added), Volume = 1_000_000m,
+                });
+                added++;
+            }
+            date = date.AddDays(1);
+        }
+        return bars;
+    }
+
+    [Fact]
+    public void QualityGates_CleanDailySeries_Passes()
+    {
+        var clean = Series(300, i => 20m + i * 0.01m);
+        DelistedBackfillService.IsTooPatchy(clean).Should().BeFalse();
+        DelistedBackfillService.HasSplitArtifact(clean).Should().BeFalse();
+    }
+
+    [Fact]
+    public void IsTooPatchy_RejectsSeriesMissingOverTenPercentOfDays()
+    {
+        // Every 4th weekday missing -> ~25% of trading days absent.
+        var patchy = Series(300, i => 20m, skip: i => i % 4 == 0);
+        DelistedBackfillService.IsTooPatchy(patchy).Should().BeTrue();
+    }
+
+    [Fact]
+    public void HasSplitArtifact_CatchesUnadjustedSplitJump()
+    {
+        var split = Series(100, i => i == 50 ? 120m : 20m); // 6x up then back
+        DelistedBackfillService.HasSplitArtifact(split).Should().BeTrue();
+    }
+
     [Fact]
     public async Task SqlRepository_FromFilter_DropsOlderBars()
     {

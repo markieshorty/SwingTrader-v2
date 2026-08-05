@@ -34,7 +34,18 @@ public class CandleSyncService(
     // key's plan. 400ms default = 2.5 req/s = 9,000/hr, just inside Power's
     // 10k/hr ceiling (the previous hardcoded 350ms was ~10,300/hr - OVER it).
     private const int DefaultSyncDelayMs = 400;
-    // 10 years (was 5, was 3): the first optimizer run at 5y failed
+    // Deep history (docs/deep-history-plan P2): the store now reaches back to
+    // this year (config HistoricStore:HistoryFromYear overrides). Standard
+    // backtests still load 2016+ (HistoricDataWindow.DefaultFromYear) - only
+    // runs that opt in via DataFromYear see the deep bars, so growing the
+    // stored window changes no existing result. Storage is blob (uncapped).
+    private const int DefaultHistoryFromYear = 2000;
+
+    private DateOnly WindowStart() =>
+        new(int.TryParse(config["HistoricStore:HistoryFromYear"], out var y) && y is >= 1990 and <= 2020
+            ? y : DefaultHistoryFromYear, 1, 1);
+
+    // Legacy note - 10 years (was 5, was 3): the first optimizer run at 5y failed
     // out-of-sample with a classic small-sample curve-fit - a few hundred
     // train-window trades simply can't discriminate 1,200 candidates.
     // Doubling the window roughly doubles the trades, covers genuinely
@@ -45,8 +56,6 @@ public class CandleSyncService(
     // other, which is all the Lab claims to do, but the absolute numbers
     // inflate further. The existing backfill path below fetches the older
     // slice automatically on the next sync.
-    private const int HistoryYears = 10;
-
     public async Task<CandleSyncResult> SyncAsync(CancellationToken ct = default)
     {
         var apiKey = config["Tiingo:PlatformApiKey"];
@@ -76,7 +85,7 @@ public class CandleSyncService(
         var endDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
         int synced = 0, skipped = 0, failed = 0, rows = 0;
 
-        var windowStart = today.AddYears(-HistoryYears);
+        var windowStart = WindowStart();
 
         foreach (var symbol in symbols)
         {

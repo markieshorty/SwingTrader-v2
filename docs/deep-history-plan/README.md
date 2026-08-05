@@ -1,7 +1,14 @@
 # Deep History: Extending the Dataset to ~2000
 
-Status: **P1 BUILT 5 Aug 2026** (DataFromYear request→loader→fingerprint +
-Lab "Data from" selector). P2 (the backfill) and P3 (experiments) not built.
+Status: **P1 + P2 BUILT 5 Aug 2026.** P3 (the pre-declared experiments)
+runs once the backfill has completed. Implementation note on D3: instead of
+spot-checking 20 survivors, the split-artifact gate (adjacent-close ratio
+beyond 4x) runs on EVERY backfilled candidate — a superset of the spot-check
+intent; survivors ride the same Tiingo adjusted feed the v2 dataset already
+trusts. To trigger the deep pull after deploy: run the delisted backfill
+(dry-run first) for the widened graveyard, and Sync Now for the listed
+universe's pre-2016 slices (the existing grow-the-window backfill path).
+Window is code-defaulted to 2000; HistoricStore:HistoryFromYear overrides.
 Prerequisite: blob candle store live (docs/blob-candles-plan — DONE 5 Aug
 2026: migration verified, both hosts flipped, sync + backtest proven).
 

@@ -44,7 +44,17 @@ public class DelistedBackfillService(
     private const string TiingoBaseUrl = "https://api.tiingo.com";
     private const string SupportedTickersUrl = "https://apimedia.tiingo.com/docs/tiingo/daily/supported_tickers.zip";
     private const int DefaultSyncDelayMs = 400;
-    private const int HistoryYears = 10;              // mirrors CandleSyncService
+    // Deep history (docs/deep-history-plan P2): mirrors CandleSyncService's
+    // window (config HistoricStore:HistoryFromYear overrides) - the delisted
+    // universe now includes the dot-com graveyard.
+    private const int DefaultHistoryFromYear = 2000;
+    // Data-quality gates (spec D2/D3), pre-declared rather than tuned: old
+    // delisted coverage is patchier the further back it goes, and a patchy or
+    // split-corrupt series poisons the engine's exit logic more than it
+    // informs it. Rejections are recorded (BarsStored=false + reason) so the
+    // exclusion set stays auditable.
+    private const decimal MaxMissingTradingDayFraction = 0.10m;
+    private const decimal SplitArtifactRatio = 4m;
     private const int MinListingDays = 180;           // sub-6-month listings can't matter
     // Abort the REAL run if current + projected exceeds this (Basic tier caps
     // at 2,048 MB; leave headroom for normal growth and index overhead).
@@ -71,7 +81,9 @@ public class DelistedBackfillService(
                 "Platform Tiingo key not configured — delisted backfill cannot run.");
 
         var dbSizeMb = await candleRepo.GetDatabaseSizeMbAsync(ct);
-        var windowStart = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-HistoryYears);
+        var windowStart = new DateOnly(
+            int.TryParse(config["HistoricStore:HistoryFromYear"], out var fy) && fy is >= 1990 and <= 2020
+                ? fy : DefaultHistoryFromYear, 1, 1);
 
         // Candidate universe from Tiingo's free supported-tickers file.
         List<TickerListing> candidates;
@@ -144,7 +156,14 @@ public class DelistedBackfillService(
                     .OrderBy(x => x.Date)
                     .ToList();
 
-                if (!EverPassesScreen(candles))
+                // Quality gates first (spec D2/D3), then the liquidity
+                // screen. The reason is recorded so the exclusion set is
+                // auditable per symbol.
+                var rejection = !EverPassesScreen(candles) ? "screen"
+                    : IsTooPatchy(candles) ? "quality:patchy"
+                    : HasSplitArtifact(candles) ? "quality:split-artifact"
+                    : null;
+                if (rejection is not null)
                 {
                     // Record the verdict so retries and continuation chunks
                     // never re-fetch this symbol's bars again.
@@ -153,7 +172,7 @@ public class DelistedBackfillService(
                         Symbol = c.Symbol.ToUpperInvariant(),
                         ListedAt = c.StartDate,
                         DelistedAt = c.EndDate,
-                        EndReason = null,
+                        EndReason = rejection.StartsWith("quality") ? rejection : null,
                         BarsStored = false,
                     }, ct);
                     screenedOut++;
@@ -240,6 +259,36 @@ public class DelistedBackfillService(
             results.Add(new TickerListing(ticker, start, end));
         }
         return results;
+    }
+
+    // Deep-history quality gate D2: a series missing more than 10% of the
+    // weekday count across its own span is too patchy to trust - the engine's
+    // delisting-exit and stop logic would act on gaps as if they were halts.
+    internal static bool IsTooPatchy(IReadOnlyList<HistoricalCandle> candles)
+    {
+        if (candles.Count < 2) return true;
+        var spanDays = candles[^1].Date.DayNumber - candles[0].Date.DayNumber + 1;
+        // Weekday approximation of expected trading days; ~9 holidays/year
+        // are inside the 10% tolerance, not double-counted here.
+        var expected = spanDays * 5m / 7m;
+        return candles.Count < expected * (1m - MaxMissingTradingDayFraction);
+    }
+
+    // Deep-history quality gate D3: an adjacent-day close ratio beyond 4x in
+    // either direction is far outside real single-day moves for a screened
+    // symbol and almost always an unadjusted split/reverse-split artifact -
+    // one of those corrupts every return computed across it.
+    internal static bool HasSplitArtifact(IReadOnlyList<HistoricalCandle> candles)
+    {
+        for (var i = 1; i < candles.Count; i++)
+        {
+            var prev = candles[i - 1].Close;
+            var cur = candles[i].Close;
+            if (prev <= 0 || cur <= 0) return true;
+            var ratio = cur / prev;
+            if (ratio > SplitArtifactRatio || ratio < 1m / SplitArtifactRatio) return true;
+        }
+        return false;
     }
 
     // Mirrors HistoricBacktester.BuildWatchlist's liquidity/price screen: any
