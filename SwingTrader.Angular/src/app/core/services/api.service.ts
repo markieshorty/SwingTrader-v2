@@ -235,6 +235,12 @@ export class ApiService {
     return this.http.post<{ queued: boolean }>(`${this.baseUrl}/api/strategy-lab/delisted-backfill`, {});
   }
 
+  // One-off SQL -> blob candle-store migration (docs/blob-candles-plan);
+  // chunked server-side, progress in the activity feed.
+  blobMigrateRun(): Observable<{ queued: boolean }> {
+    return this.http.post<{ queued: boolean }>(`${this.baseUrl}/api/strategy-lab/blob-migrate`, {});
+  }
+
   syncLabData(): Observable<unknown> {
     return this.http.post(`${this.baseUrl}/api/strategy-lab/sync-data`, {});
   }

@@ -14,6 +14,7 @@ namespace SwingTrader.Functions;
 public class CandleSyncConsumerFunction(
     ICandleSyncService candleSync,
     SwingTrader.Agents.Backtesting.IDelistedBackfillService delistedBackfill,
+    SwingTrader.Infrastructure.Storage.ICandleBlobMigrationService blobMigration,
     Azure.Messaging.ServiceBus.ServiceBusClient? serviceBus,
     IWorkerHeartbeatRepository heartbeats,
     IActivityLogRepository activityLog,
@@ -27,6 +28,35 @@ public class CandleSyncConsumerFunction(
         CancellationToken ct)
     {
         var message = JsonSerializer.Deserialize<CandleSyncJobMessage>(messageBody)!;
+
+        // One-off SQL -> blob candle migration (docs/blob-candles-plan). Same
+        // chunked-continuation shape as the delisted backfill below; the
+        // completion summary carries the SQL-vs-blob count comparison that
+        // gates the HistoricStore:UseBlob flip.
+        if (string.Equals(message.Mode, "blobmigrate", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var mig = await blobMigration.RunChunkAsync(ct);
+                await activityLog.LogAsync(message.AccountId, "SystemEvent", "Candle Blob Migration",
+                    mig.Remaining > 0 ? "Info" : "Success", mig.Summary, ct);
+                logger.LogInformation("Blob migration job {JobId} — {Summary}", message.JobId, mig.Summary);
+                if (mig.Remaining > 0 && serviceBus is not null)
+                {
+                    await using var sender = serviceBus.CreateSender("candlesync-jobs");
+                    await sender.SendMessageAsync(new Azure.Messaging.ServiceBus.ServiceBusMessage(
+                        JsonSerializer.Serialize(new CandleSyncJobMessage(
+                            message.AccountId, Guid.NewGuid().ToString("N"), "blobmigrate"))), ct);
+                }
+            }
+            catch (Exception ex)
+            {
+                await activityLog.LogAsync(message.AccountId, "SystemEvent", "Candle Blob Migration", "Failed", ex.Message, ct);
+                logger.LogError(ex, "Blob migration job {JobId} failed", message.JobId);
+                throw;
+            }
+            return;
+        }
 
         // Survivorship backfill mode (docs/survivorship-plan P1): one-shot
         // delisted-universe load, size-gated inside the service. The weekly

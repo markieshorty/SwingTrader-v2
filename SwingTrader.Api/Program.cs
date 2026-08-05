@@ -238,7 +238,17 @@ builder.Services.AddRefitClient<IExchangeRateClient>()
     .ConfigureHttpClient(c => c.BaseAddress = new Uri("https://api.frankfurter.dev"));
 builder.Services.AddScoped<IForexService, ForexService>();
 builder.Services.AddScoped<SwingTrader.Agents.Refinement.ITradeReplayService, SwingTrader.Agents.Refinement.TradeReplayService>();
-builder.Services.AddScoped<IHistoricalCandleRepository, HistoricalCandleRepository>();
+// Historic candle store (docs/blob-candles-plan): blob-backed when
+// HistoricStore:UseBlob is on, Basic-tier SQL otherwise. The blob concrete is
+// always registered - the migration writes through it while SQL still governs.
+builder.Services.AddScoped<SwingTrader.Infrastructure.Storage.BlobHistoricalCandleRepository>();
+builder.Services.AddScoped<HistoricalCandleRepository>();
+if (builder.Configuration.GetValue<bool>("HistoricStore:UseBlob"))
+    builder.Services.AddScoped<IHistoricalCandleRepository>(sp =>
+        sp.GetRequiredService<SwingTrader.Infrastructure.Storage.BlobHistoricalCandleRepository>());
+else
+    builder.Services.AddScoped<IHistoricalCandleRepository>(sp =>
+        sp.GetRequiredService<HistoricalCandleRepository>());
 builder.Services.AddScoped<ISentimentArchiveRepository, SentimentArchiveRepository>();
 builder.Services.AddScoped<IBacktestRunRepository, BacktestRunRepository>();
 builder.Services.AddScoped<IStrategyShareRepository, StrategyShareRepository>();

@@ -747,6 +747,25 @@ public static class StrategyLabEndpoints
             return Results.Ok(new { queued = true });
         });
 
+        // One-off SQL -> blob candle-store migration (docs/blob-candles-plan).
+        // Chunked + resumable server-side; progress lands in the activity feed
+        // and the completion entry carries the count comparison that gates the
+        // HistoricStore:UseBlob flip.
+        api.MapPost("/strategy-lab/blob-migrate", async (
+            [FromServices] ServiceBusClient? serviceBus,
+            IAccountContext ctx,
+            CancellationToken ct) =>
+        {
+            if (ctx.Role != AccountRole.Owner) return Results.Forbid();
+            if (serviceBus is null)
+                return Results.Problem("Service Bus is not configured on this environment.", statusCode: StatusCodes.Status503ServiceUnavailable);
+
+            await using var sender = serviceBus.CreateSender("candlesync-jobs");
+            await sender.SendMessageAsync(new ServiceBusMessage(JsonSerializer.Serialize(
+                new CandleSyncJobMessage(ctx.AccountId, Guid.NewGuid().ToString("N"), "blobmigrate"))), ct);
+            return Results.Ok(new { queued = true });
+        });
+
         // Owner-only manual candle sync trigger (also runs weekly via the
         // scheduler). Enqueues the platform-level job.
         api.MapPost("/strategy-lab/sync-data", async (

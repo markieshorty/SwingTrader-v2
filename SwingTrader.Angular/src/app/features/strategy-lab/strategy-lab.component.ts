@@ -841,6 +841,25 @@ export class StrategyLabComponent implements OnDestroy {
     });
   }
 
+  blobMigrateBusy = signal(false);
+
+  // SQL -> blob candle-store migration (docs/blob-candles-plan): queue the
+  // chunked server-side copy; progress and the completion count-comparison
+  // land in the activity feed.
+  blobMigrate(): void {
+    this.blobMigrateBusy.set(true);
+    this.api.blobMigrateRun().subscribe({
+      next: () => {
+        this.snackbar.open('Blob migration queued — chunked and resumable; the activity feed shows progress and the final SQL-vs-blob count check.', 'Dismiss', { duration: 8000 });
+        this.blobMigrateBusy.set(false);
+      },
+      error: (err) => {
+        this.snackbar.open(errorMessage(err, 'Migration enqueue failed.'), 'Dismiss', { duration: 5000 });
+        this.blobMigrateBusy.set(false);
+      },
+    });
+  }
+
   delistedRun(): void {
     this.delistedBusy.set(true);
     this.api.delistedBackfillRun().subscribe({

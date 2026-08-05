@@ -154,11 +154,22 @@ builder.Services.AddScoped<IMonitorService, MonitorService>();
 builder.Services.AddScoped<IComponentCorrelationService, ComponentCorrelationService>();
 builder.Services.AddScoped<IRefinementService, RefinementService>();
 builder.Services.AddScoped<ITradeReplayService, TradeReplayService>();
-builder.Services.AddScoped<IHistoricalCandleRepository, HistoricalCandleRepository>();
+// Historic candle store (docs/blob-candles-plan): blob-backed when
+// HistoricStore:UseBlob is on, Basic-tier SQL otherwise. The blob concrete is
+// always registered - the migration writes through it while SQL still governs.
+builder.Services.AddScoped<SwingTrader.Infrastructure.Storage.BlobHistoricalCandleRepository>();
+builder.Services.AddScoped<HistoricalCandleRepository>();
+if (builder.Configuration.GetValue<bool>("HistoricStore:UseBlob"))
+    builder.Services.AddScoped<IHistoricalCandleRepository>(sp =>
+        sp.GetRequiredService<SwingTrader.Infrastructure.Storage.BlobHistoricalCandleRepository>());
+else
+    builder.Services.AddScoped<IHistoricalCandleRepository>(sp =>
+        sp.GetRequiredService<HistoricalCandleRepository>());
 builder.Services.AddScoped<ISentimentArchiveRepository, SentimentArchiveRepository>();
 builder.Services.AddScoped<IBacktestRunRepository, BacktestRunRepository>();
 builder.Services.AddScoped<SwingTrader.Agents.Backtesting.ICandleSyncService, SwingTrader.Agents.Backtesting.CandleSyncService>();
 builder.Services.AddScoped<SwingTrader.Agents.Backtesting.IDelistedBackfillService, SwingTrader.Agents.Backtesting.DelistedBackfillService>();
+builder.Services.AddScoped<SwingTrader.Infrastructure.Storage.ICandleBlobMigrationService, SwingTrader.Infrastructure.Storage.CandleBlobMigrationService>();
 builder.Services.AddScoped<SwingTrader.Core.Interfaces.ISymbolLifecycleRepository, SwingTrader.Data.Repositories.SymbolLifecycleRepository>();
 
 // Filing-delta store + sync (docs/filing-delta-plan). EDGAR requires a
