@@ -13,9 +13,11 @@ public interface IHistoricalCandleRepository
 
     Task AddRangeAsync(IEnumerable<HistoricalCandle> candles, CancellationToken ct = default);
 
-    // Everything, grouped per symbol ordered by date - the historic backtest
-    // loads the whole dataset (~1M skinny rows) into memory once per run.
-    Task<Dictionary<string, List<HistoricalCandle>>> GetAllBySymbolAsync(CancellationToken ct = default);
+    // Everything from `from` (null = everything stored), grouped per symbol
+    // ordered by date - the historic backtest loads its data window into
+    // memory once per run. The from-filter is the deep-history memory guard
+    // (docs/deep-history-plan): standard runs never load pre-2016 bars.
+    Task<Dictionary<string, List<HistoricalCandle>>> GetAllBySymbolAsync(DateOnly? from = null, CancellationToken ct = default);
 
     Task<int> CountAsync(CancellationToken ct = default);
     Task<DateOnly?> GetMaxDateAsync(CancellationToken ct = default);

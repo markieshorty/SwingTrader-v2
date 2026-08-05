@@ -581,6 +581,9 @@ export interface StrategyLabRequestDto {
   dataSource: 'own' | 'historic';
   weights: LabWeightsDto;
   buyThreshold: number;
+  // Deep history (docs/deep-history-plan P1): first year of bars the run
+  // loads. Null/absent = the standard window (2016+).
+  dataFromYear?: number | null;
   excludeBreakout: boolean;
   compareBaseline?: boolean; // A/B: also evaluate production dials over the same data
   autopauseDuringBear?: boolean; // historic: skip entries while SPY < 200dma (mirrors live autopause)

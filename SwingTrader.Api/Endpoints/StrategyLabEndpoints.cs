@@ -70,7 +70,8 @@ public static class StrategyLabEndpoints
                         // Regime frame for both columns; the per-regime autopause
                         // overrides land on the user column only (consumer side).
                         RegimeMode: req.RegimeMode,
-                        RegimeOverrides: req.RegimeOverrides);
+                        RegimeOverrides: req.RegimeOverrides,
+                        DataFromYear: req.DataFromYear);
                 }
                 else
                 {
@@ -79,7 +80,8 @@ public static class StrategyLabEndpoints
                         AutopauseDuringBear: req.AutopauseDuringBear,
                         Rules: req.Rules,
                         RegimeMode: req.RegimeMode,
-                        RegimeOverrides: req.RegimeOverrides);
+                        RegimeOverrides: req.RegimeOverrides,
+                        DataFromYear: req.DataFromYear);
                 }
 
                 var run = await runs.AddAsync(new BacktestRun
@@ -135,7 +137,8 @@ public static class StrategyLabEndpoints
                     Mode: "sweep",
                     Candidates: [baseline],
                     SearchRules: req?.SearchRules ?? false,
-                    LockedComponents: req?.LockedComponents)),
+                    LockedComponents: req?.LockedComponents,
+                    DataFromYear: req?.DataFromYear)),
             });
 
             await using var sender = serviceBus.CreateSender("backtest-jobs");
@@ -259,7 +262,8 @@ public static class StrategyLabEndpoints
                     // detected day) - single-book validate of a Mixed strategy
                     // measured a different reality than the one traded.
                     RegimeMode: req.RegimeMode,
-                    RegimeOverrides: req.RegimeOverrides)),
+                    RegimeOverrides: req.RegimeOverrides,
+                    DataFromYear: req.DataFromYear)),
             });
 
             await using var sender = serviceBus.CreateSender("backtest-jobs");
@@ -296,7 +300,8 @@ public static class StrategyLabEndpoints
                     AutopauseDuringBear: req.AutopauseDuringBear,
                     Rules: req.Rules,
                     RegimeMode: req.RegimeMode,
-                    RegimeOverrides: req.RegimeOverrides)),
+                    RegimeOverrides: req.RegimeOverrides,
+                    DataFromYear: req.DataFromYear)),
             });
 
             await using var sender = serviceBus.CreateSender("backtest-jobs");

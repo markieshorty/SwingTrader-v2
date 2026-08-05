@@ -1,6 +1,7 @@
 # Deep History: Extending the Dataset to ~2000
 
-Status: **SPEC — drafted 5 Aug 2026, not built.**
+Status: **P1 BUILT 5 Aug 2026** (DataFromYear request→loader→fingerprint +
+Lab "Data from" selector). P2 (the backfill) and P3 (experiments) not built.
 Prerequisite: blob candle store live (docs/blob-candles-plan — DONE 5 Aug
 2026: migration verified, both hosts flipped, sync + backtest proven).
 

@@ -47,7 +47,10 @@ public record StrategyLabRequest(
     // you can trial e.g. "Bear not autopaused" or "Bear with more locked capital"
     // without touching the live book. Key = regime name; null fields inherit that
     // book. Forced regime uses only Autopause; Mixed uses all four (3-forms).
-    Dictionary<string, Core.Models.RegimeExposureOverride>? RegimeOverrides = null);
+    Dictionary<string, Core.Models.RegimeExposureOverride>? RegimeOverrides = null,
+    // Deep history (docs/deep-history-plan P1): first year of bars the run
+    // loads. Null = the standard window (2016+).
+    int? DataFromYear = null);
 
 public record LabTradeOutcome(
     string Symbol, DateTime OpenedAt, decimal Conviction, string Setup, decimal ReturnPct, bool WouldTake);
@@ -116,7 +119,7 @@ public record BacktestApplyRequest(bool ApplyWeights, bool ApplyRiskSettings);
 
 // Body of POST /strategy-lab/optimize. SearchRules adds trading-rule
 // candidates (exit/probation/position grids) to the sweep's search space.
-public record OptimizeRequest(bool SearchRules = false,
+public record OptimizeRequest(int? DataFromYear = null, bool SearchRules = false,
     // Gate-weight dials to hold FIXED at the current production value while
     // the sweep redistributes the rest (camelCase keys, e.g. "setupQuality").
     List<string>? LockedComponents = null);

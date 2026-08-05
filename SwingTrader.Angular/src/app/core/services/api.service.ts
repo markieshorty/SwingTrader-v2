@@ -252,8 +252,8 @@ export class ApiService {
     return this.http.post<void>(`${this.baseUrl}/api/strategy-lab/backtest/${id}/cancel`, {});
   }
 
-  runStrategyLabOptimize(searchRules = false, lockedComponents: string[] = []): Observable<{ backtestRunId: number }> {
-    return this.http.post<{ backtestRunId: number }>(`${this.baseUrl}/api/strategy-lab/optimize`, { searchRules, lockedComponents });
+  runStrategyLabOptimize(searchRules = false, lockedComponents: string[] = [], dataFromYear: number | null = null): Observable<{ backtestRunId: number }> {
+    return this.http.post<{ backtestRunId: number }>(`${this.baseUrl}/api/strategy-lab/optimize`, { searchRules, lockedComponents, dataFromYear });
   }
 
   runSetupContribution(): Observable<{ backtestRunId: number }> {

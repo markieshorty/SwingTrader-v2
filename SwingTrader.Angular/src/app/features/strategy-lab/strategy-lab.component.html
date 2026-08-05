@@ -116,6 +116,15 @@
           </mat-form-field>
 
           @if (dataSource() === 'historic') {
+            <mat-form-field appearance="outline" subscriptSizing="dynamic"
+              matTooltip="Deep history: first year of market data the run loads. 2016 is the standard window every existing result used. Earlier years only contain data once the deep backfill has run - and results across different windows are never evidence-comparable (the window joins the fingerprint).">
+              <mat-label>Data from</mat-label>
+              <mat-select [value]="dataFromYear()" (selectionChange)="dataFromYear.set($event.value)">
+                @for (opt of dataFromYearOptions; track opt.label) {
+                  <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
             <mat-form-field appearance="outline" subscriptSizing="dynamic" class="regime-select">
               <mat-label>Regime</mat-label>
               <mat-select [value]="regimeMode()" (selectionChange)="onRegimeModeChange($event.value)"

@@ -1,0 +1,64 @@
+using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
+using SwingTrader.Agents.Backtesting;
+using SwingTrader.Core.Models;
+using SwingTrader.Data;
+using SwingTrader.Data.Repositories;
+using Xunit;
+
+namespace SwingTrader.Tests;
+
+// Deep history P1 (docs/deep-history-plan): the per-request data window.
+// Null = the standard 2016+ window with byte-identical behaviour and
+// fingerprints; an explicit earlier year filters the load and hashes.
+public class DeepHistoryTests
+{
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData(2016, null)] // explicit standard year normalizes to null
+    [InlineData(2000, 2000)]
+    [InlineData(2010, 2010)]
+    public void Normalize_TreatsStandardYearAsNull(int? requested, int? expected) =>
+        HistoricDataWindow.Normalize(requested).Should().Be(expected);
+
+    [Fact]
+    public void Fingerprint_UnchangedForStandardWindow_ChangedForDeepWindow()
+    {
+        var baseCfg = new HistoricConfig(new StrategyWeights());
+
+        var plain = ConfigFingerprint.Compute(baseCfg);
+        var explicitStandard = ConfigFingerprint.Compute(baseCfg with { DataFromYear = 2016 });
+        var deep = ConfigFingerprint.Compute(baseCfg with { DataFromYear = 2000 });
+
+        // Null and explicit-2016 are the SAME config - and both must match
+        // every fingerprint stamped before this field existed.
+        explicitStandard.Should().Be(plain);
+        deep.Should().NotBe(plain);
+    }
+
+    [Fact]
+    public async Task SqlRepository_FromFilter_DropsOlderBars()
+    {
+        await using var db = new SwingTraderDbContext(new DbContextOptionsBuilder<SwingTraderDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options);
+        var repo = new HistoricalCandleRepository(db);
+        HistoricalCandle Bar(string s, int year) => new()
+        {
+            Symbol = s,
+            Date = new DateOnly(year, 6, 1),
+            Open = 1m, High = 2m, Low = 1m, Close = 1.5m, Volume = 100m,
+        };
+        await repo.AddRangeAsync([Bar("OLD", 2005), Bar("BOTH", 2005), Bar("BOTH", 2020), Bar("NEW", 2020)]);
+
+        var windowed = await repo.GetAllBySymbolAsync(new DateOnly(2016, 1, 1));
+        var everything = await repo.GetAllBySymbolAsync();
+
+        windowed.Should().NotContainKey("OLD");
+        windowed["BOTH"].Should().HaveCount(1);
+        windowed["BOTH"][0].Date.Year.Should().Be(2020);
+        windowed["NEW"].Should().HaveCount(1);
+        everything["BOTH"].Should().HaveCount(2);
+        everything["OLD"].Should().HaveCount(1);
+    }
+}

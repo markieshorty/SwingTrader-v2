@@ -33,6 +33,19 @@ public sealed record HistoricSetupTactics(
     decimal StopLossPct, decimal TargetPct, int GuideHoldDays,
     decimal TrailingActivationPct, decimal TrailingDistancePct);
 
+// Deep history (docs/deep-history-plan): the standard data window start year.
+// A request with DataFromYear null (or explicitly this value) loads and
+// fingerprints identically to the pre-deep-history behaviour.
+public static class HistoricDataWindow
+{
+    public const int DefaultFromYear = 2016;
+
+    // Null when the request is the standard window (so fingerprints and
+    // behaviour are unchanged), the explicit year otherwise.
+    public static int? Normalize(int? requested) =>
+        requested is { } y && y != DefaultFromYear ? y : null;
+}
+
 public sealed record HistoricConfig(
     StrategyWeights Weights,
     decimal BuyThreshold = 6.0m,
@@ -134,7 +147,11 @@ public sealed record HistoricConfig(
     // reasons take a haircut (the last print before a halt usually precedes
     // further loss); acquisition-tagged ends exit at the last close as-is.
     int DelistingGraceCalendarDays = 7,
-    decimal DelistingHaircutPct = 0.25m);
+    decimal DelistingHaircutPct = 0.25m,
+    // Deep history (docs/deep-history-plan): the from-year this run's data
+    // was loaded from. Null = the standard 2016+ window. Carried for
+    // fingerprinting only - the loader has already filtered the bars.
+    int? DataFromYear = null);
 
 // The slice of a regime risk book the backtest switches on per simulated day.
 // Exit tactics are per-setup and frozen at entry, so only the entry-time

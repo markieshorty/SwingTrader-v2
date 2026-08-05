@@ -82,7 +82,11 @@ public class BacktestConsumerFunction(
             var request = JsonSerializer.Deserialize<HistoricBacktestRequest>(run.RequestJson)
                 ?? throw new InvalidOperationException("Unreadable backtest request.");
 
-            var bySymbol = await candles.GetAllBySymbolAsync(ct);
+            // Deep history (docs/deep-history-plan P1): only the requested
+            // window is loaded; null = the standard 2016+ window.
+            var fromDate = HistoricDataWindow.Normalize(request.DataFromYear) is { } dfy
+                ? new DateOnly(dfy, 1, 1) : (DateOnly?)null;
+            var bySymbol = await candles.GetAllBySymbolAsync(fromDate, ct);
             if (bySymbol.Count == 0)
                 throw new InvalidOperationException("No historic market data synced yet — run a candle sync first.");
 
@@ -222,7 +226,9 @@ public class BacktestConsumerFunction(
             candidate.AutopauseDuringBear, profile, accountTactics, candidate.Rules);
         if (!defaultOn)
             cfg = BacktestConfigFactory.WithLiveRegimeBooks(cfg, await LoadRegimeBooksAsync(accountId, ct));
-        return ConfigFingerprint.Compute(cfg, await candles.GetDatasetVersionAsync(ct));
+        return ConfigFingerprint.Compute(
+            cfg with { DataFromYear = request.DataFromYear },
+            await candles.GetDatasetVersionAsync(ct));
     }
 
     private async Task<bool> MirrorsLiveAsync(

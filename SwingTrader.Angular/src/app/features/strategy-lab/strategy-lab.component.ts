@@ -192,6 +192,18 @@ export class StrategyLabComponent implements OnDestroy {
   readonly allSetups = ['OversoldRecovery', 'Breakout', 'MomentumContinuation', 'VolumeSpike', 'TrendFollowing'];
   excludedSetups = signal<string[]>([]);
 
+  // Deep history (docs/deep-history-plan P1): first year of data the run
+  // loads. Null = the standard window - identical results and evidence
+  // fingerprints to before this dial existed. Deeper options only have data
+  // behind them once the P2 backfill has run.
+  dataFromYear = signal<number | null>(null);
+  readonly dataFromYearOptions: { value: number | null; label: string }[] = [
+    { value: null, label: '2016 (standard)' },
+    { value: 2010, label: '2010' },
+    { value: 2005, label: '2005' },
+    { value: 2000, label: '2000' },
+  ];
+
   // Historic A/B regime frame: which risk-book envelope BOTH columns replay
   // under. 'off' = a single run under Neutral (no baseline, halves the job);
   // any regime = compare your dials vs production under that book; 'mixed' =
@@ -967,6 +979,7 @@ export class StrategyLabComponent implements OnDestroy {
       // per-regime autopause overrides ride the user column only.
       regimeMode: historic ? (this.regimeMode() === 'off' ? 'neutral' : this.regimeMode()) : null,
       regimeOverrides: historic ? this.buildRegimeOverrides() : null,
+      dataFromYear: historic ? this.dataFromYear() : null,
     };
     this.ranWeights = request.weights;
     this.ranThreshold = request.buyThreshold;
@@ -1049,6 +1062,7 @@ export class StrategyLabComponent implements OnDestroy {
       // Same regime frame as the sim, so all three checks describe one world.
       regimeMode: this.regimeMode() === 'off' ? 'neutral' : this.regimeMode(),
       regimeOverrides: this.buildRegimeOverrides(),
+      dataFromYear: this.dataFromYear(),
     };
     this.api.validateStrategyLab(request).subscribe({
       next: (r) => this.pollRun('validate', r.backtestRunId,
@@ -1089,6 +1103,7 @@ export class StrategyLabComponent implements OnDestroy {
       rules: this.buildRules(),
       regimeMode: this.regimeMode() === 'off' ? 'neutral' : this.regimeMode(),
       regimeOverrides: this.buildRegimeOverrides(),
+      dataFromYear: this.dataFromYear(),
     };
     this.api.monteCarloStrategyLab(request).subscribe({
       next: (r) => this.pollRun('montecarlo', r.backtestRunId,
@@ -1143,7 +1158,7 @@ export class StrategyLabComponent implements OnDestroy {
     this.sweepResult.set(null);
     this.sweepProgress.set(null);
     this.sweepResultCompletedAt.set(null); // fresh run - the "from a past run" caption no longer applies
-    this.api.runStrategyLabOptimize(this.searchRules(), this.lockedComponents()).subscribe({
+    this.api.runStrategyLabOptimize(this.searchRules(), this.lockedComponents(), this.dataFromYear()).subscribe({
       next: (r) => this.startSweepPoll(r.backtestRunId),
       error: (err) => {
         this.snackbar.open(errorMessage(err, 'Failed to queue the optimizer.'), 'Dismiss', { duration: 5000 });

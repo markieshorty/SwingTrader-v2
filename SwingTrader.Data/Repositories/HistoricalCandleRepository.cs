@@ -90,7 +90,7 @@ public class HistoricalCandleRepository(SwingTraderDbContext db) : IHistoricalCa
     // identical to the old single-query version.
     private const int LoadPartitions = 4;
 
-    public async Task<Dictionary<string, List<HistoricalCandle>>> GetAllBySymbolAsync(CancellationToken ct = default)
+    public async Task<Dictionary<string, List<HistoricalCandle>>> GetAllBySymbolAsync(DateOnly? from = null, CancellationToken ct = default)
     {
         SetHeavyTimeout();
         var symbols = await db.HistoricalCandles.AsNoTracking()
@@ -109,7 +109,7 @@ public class HistoricalCandleRepository(SwingTraderDbContext db) : IHistoricalCa
 
             SetHeavyTimeout();
             var rows = await db.HistoricalCandles.AsNoTracking()
-                .Where(c => chunk.Contains(c.Symbol))
+                .Where(c => chunk.Contains(c.Symbol) && (from == null || c.Date >= from))
                 .OrderBy(c => c.Symbol).ThenBy(c => c.Date)
                 .ToListAsync(ct);
 

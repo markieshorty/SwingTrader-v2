@@ -76,10 +76,14 @@ public class BlobHistoricalCandleRepository(
         return meta.Symbols.Count == 0 ? null : meta.Symbols.Values.Max(s => s.Max);
     }
 
-    public async Task<Dictionary<string, List<HistoricalCandle>>> GetAllBySymbolAsync(CancellationToken ct = default)
+    public async Task<Dictionary<string, List<HistoricalCandle>>> GetAllBySymbolAsync(DateOnly? from = null, CancellationToken ct = default)
     {
         var meta = await GetMetaAsync(ct);
-        return await DownloadSymbolsAsync(meta.Symbols.Keys, ct);
+        // Symbols whose whole history predates the window never download.
+        var wanted = from is { } f
+            ? meta.Symbols.Where(kv => kv.Value.Max >= f).Select(kv => kv.Key)
+            : meta.Symbols.Keys;
+        return await DownloadSymbolsAsync(wanted, from, ct);
     }
 
     public async Task<Dictionary<string, List<HistoricalCandle>>> GetForSymbolsAsync(
@@ -87,7 +91,7 @@ public class BlobHistoricalCandleRepository(
     {
         var meta = await GetMetaAsync(ct);
         var wanted = symbols.Where(s => meta.Symbols.ContainsKey(s)).ToList();
-        var all = await DownloadSymbolsAsync(wanted, ct);
+        var all = await DownloadSymbolsAsync(wanted, null, ct);
         return all.ToDictionary(
             kv => kv.Key,
             kv => kv.Value.Where(b => b.Date >= from).ToList(),
@@ -95,7 +99,7 @@ public class BlobHistoricalCandleRepository(
     }
 
     private async Task<Dictionary<string, List<HistoricalCandle>>> DownloadSymbolsAsync(
-        IEnumerable<string> symbols, CancellationToken ct)
+        IEnumerable<string> symbols, DateOnly? from, CancellationToken ct)
     {
         var result = new Dictionary<string, List<HistoricalCandle>>(StringComparer.OrdinalIgnoreCase);
         var gate = new SemaphoreSlim(MaxParallelDownloads);
@@ -106,7 +110,10 @@ public class BlobHistoricalCandleRepository(
             {
                 var download = await Container().GetBlobClient(BarsBlobName(symbol)).DownloadContentAsync(ct);
                 var bars = CandleBlobCodec.Decode(symbol, download.Value.Content.ToStream());
-                lock (result) result[symbol] = bars;
+                // Decode-then-filter per symbol: peak memory stays one
+                // symbol's full history, not the whole deep store.
+                if (from is { } f) bars = bars.Where(b => b.Date >= f).ToList();
+                if (bars.Count > 0) lock (result) result[symbol] = bars;
             }
             catch (RequestFailedException ex) when (ex.Status == 404)
             {

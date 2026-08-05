@@ -56,6 +56,10 @@ public static class ConfigFingerprint
         Num("tgtMode", (int)cfg.TargetMode);
         Num("tgtFloor", cfg.TargetBandFloorPct);
         Num("tgtCeil", cfg.TargetBandCeilingPct);
+        // Deep history: a 2000-window result must never fingerprint-match a
+        // standard-window one. Absent for the standard window so every
+        // existing fingerprint is unchanged.
+        if (HistoricDataWindow.Normalize(cfg.DataFromYear) is { } dfy) Num("dfy", dfy);
         // Dataset generation: results on the survivorship-biased v1 bars must
         // never fingerprint-match runs on v2+ (delisted symbols included).
         Num("dsv", datasetVersion);

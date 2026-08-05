@@ -131,7 +131,12 @@ public record HistoricBacktestRequest(
     // Sweep-only: gate-weight components the optimizer holds FIXED at the
     // baseline value (camelCase names matching the UI dials, e.g.
     // "setupQuality"). Defaulted so older queued requests deserialize.
-    List<string>? LockedComponents = null);
+    List<string>? LockedComponents = null,
+    // Deep history (docs/deep-history-plan P1): first year of bars the run
+    // loads. Null = the standard window (2016+) - identical behaviour and
+    // fingerprint to before this field existed. Only deep-window runs pay
+    // the memory cost of pre-2016 data once it exists.
+    int? DataFromYear = null);
 
 // A per-regime override of the exposure envelope for the user column of a Lab
 // run. Each null field inherits that regime's live risk book, so an untouched
