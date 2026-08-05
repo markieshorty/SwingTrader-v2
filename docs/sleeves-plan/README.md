@@ -1,6 +1,11 @@
 # Capital Sleeves: SPY Core / Factor Tilt / Swing
 
-Status: **SPEC — drafted 5 Aug 2026, not built.**
+Status: **P1 BUILT + PUSHED 5 Aug 2026** (allocation pie, sleeve-scoped
+swing sizing, SPY-core band manager, Trades.Sleeve stamps, settings card).
+P1 notes: idle-cash parking DEFERRED (sell-then-buy sequencing wants its own
+careful pass); a first core buy may need a one-off manual seed purchase when
+no price source exists for the UCITS ticker (the activity feed says so);
+per-sleeve dashboard P&L split still to come. P2/P3 not built.
 
 ## Motivation
 
