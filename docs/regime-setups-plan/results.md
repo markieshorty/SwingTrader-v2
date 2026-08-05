@@ -52,6 +52,17 @@ Footnote: H2 was positive (+0.18%) where production was negative (-0.19%)
 on the same held-out window — OR-book behaviour plus noise on 123 trades,
 not a VS effect. Interesting, not actionable.
 
+## Live status (5 Aug 2026)
+
+H2 is deployed live-forward as an **explicitly interim** book — Mark: "I
+dont have a coherent strategy yet that validates out of sample so its just
+an interim." Config: account toggles OR+VS; VS excluded in Bull/Neutral
+(Default override disabled so regimes govern); Bear trades OR+VS at normal
+exposure; Crisis autopauses at 10%/1/90%-locked. No out-of-sample claim is
+made for it — the demo book's forward trades through the next real vol
+regime are the judge, and the deep-history dataset (docs/deep-history-plan)
+is the path to a properly validated successor.
+
 ## Disposition
 
 - **P2 (live wiring) WAS built** later the same evening at Mark's request
