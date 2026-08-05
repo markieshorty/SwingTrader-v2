@@ -100,7 +100,8 @@ public class FunnelScoresTests
     [Fact]
     public void ForwardVetoFloor_OutsideTheRail_FailsValidation()
     {
-        var profile = new AccountRiskProfile { ForwardVetoFloor = 5.1m };
+        // Ceiling raised 5.0 -> 9.0 on 5 Aug 2026 (extra-selective books).
+        var profile = new AccountRiskProfile { ForwardVetoFloor = 9.1m };
 
         var act = profile.Validate;
 
