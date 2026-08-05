@@ -260,7 +260,7 @@ export class StrategyLabComponent implements OnDestroy {
             lockedCapitalPct: Math.round(books[r].lockedCapitalPct * 1000) / 10,
             positionFraction: Math.round(books[r].flatPositionPct * 1000) / 10,
             maxOpenPositions: books[r].maxOpenPositions,
-            excludedSetups: [] as string[],
+            excludedSetups: books[r].disabledSetupsCsv?.split(',').map((s) => s.trim()).filter(Boolean) ?? [],
           }]))),
           error: () => {},
         });
@@ -283,7 +283,7 @@ export class StrategyLabComponent implements OnDestroy {
           lockedCapitalPct: exp[r].lockedCapitalPct / 100,
           positionFraction: exp[r].positionFraction / 100,
           maxOpenPositions: exp[r].maxOpenPositions,
-          excludedSetups: exp[r].excludedSetups?.length ? exp[r].excludedSetups : null,
+          excludedSetups: exp[r].excludedSetups ?? [],
         }] as const);
       return entries.length ? Object.fromEntries(entries) : null;
     }

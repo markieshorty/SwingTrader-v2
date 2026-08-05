@@ -393,7 +393,7 @@ public class BacktestConsumerFunction(
                 o?.MaxOpenPositions ?? b.MaxOpenPositions,
                 o?.PositionFraction ?? b.FlatPositionPct,
                 o?.LockedCapitalPct ?? b.LockedCapitalPct,
-                o?.ExcludedSetups is { Count: > 0 } names
+                o?.ExcludedSetups is { } names
                     ? BacktestConfigFactory.ParseSetupCsv(string.Join(",", names))
                     : BacktestConfigFactory.ParseSetupCsv(b.DisabledSetupsCsv));
         }
