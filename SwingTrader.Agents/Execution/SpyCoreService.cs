@@ -9,7 +9,11 @@ namespace SwingTrader.Agents.Execution;
 
 public interface ISpyCoreService
 {
-    Task RunAsync(Account account, ITrading212Client t212, CancellationToken ct = default);
+    // Takes the monitor cycle's already-fetched account summary: refetching
+    // it here tripped T212's per-endpoint rate limit (429 on
+    // /equity/account/summary, seen 5 Aug 2026) and killed the core check
+    // on every cycle.
+    Task RunAsync(Account account, ITrading212Client t212, T212AccountSummary summary, CancellationToken ct = default);
 }
 
 // SPY-core sleeve manager (docs/sleeves-plan P1): keeps the passive core at
@@ -36,7 +40,7 @@ public class SpyCoreService(
         return Math.Abs(delta) < band ? null : delta;
     }
 
-    public async Task RunAsync(Account account, ITrading212Client t212, CancellationToken ct = default)
+    public async Task RunAsync(Account account, ITrading212Client t212, T212AccountSummary summary, CancellationToken ct = default)
     {
         var alloc = await allocations.GetAsync(account.Id, ct);
         var coreTrade = (await trades.GetOpenTradesAsync(account.Id, account.TradingMode))
@@ -46,7 +50,6 @@ public class SpyCoreService(
         // Entry pause governs new buying, never selling-down.
         var paused = account.IsExecutionPaused(account.TradingMode);
 
-        var summary = await t212.GetAccountSummaryAsync();
         var target = summary.TotalValue * alloc.SpyCorePct;
 
         // Price + current value from the broker's own portfolio when held -

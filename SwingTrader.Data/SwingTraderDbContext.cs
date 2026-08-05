@@ -63,6 +63,17 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     {
         base.OnModelCreating(modelBuilder);
 
+        // Capital sleeves (docs/sleeves-plan): allocation fractions need more
+        // than SQL's default decimal(18,2) - 12.5% would silently truncate.
+        modelBuilder.Entity<AccountAllocation>(e =>
+        {
+            e.HasIndex(x => x.AccountId).IsUnique();
+            e.Property(x => x.SpyCorePct).HasPrecision(6, 4);
+            e.Property(x => x.FactorTiltPct).HasPrecision(6, 4);
+            e.Property(x => x.SwingPct).HasPrecision(6, 4);
+            e.Property(x => x.CoreTicker).IsRequired().HasMaxLength(12);
+        });
+
         modelBuilder.Entity<SymbolLifecycle>(e =>
         {
             e.HasKey(x => x.Id);

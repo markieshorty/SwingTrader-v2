@@ -160,7 +160,7 @@ public class MonitorService(
         // a core rebalance failure must never stop position monitoring.
         try
         {
-            await spyCore.RunAsync(account, t212, ct);
+            await spyCore.RunAsync(account, t212, summary, ct);
         }
         catch (Exception ex)
         {
