@@ -152,6 +152,7 @@
           @for (p of corePositions(); track p.id) {
             <div class="sleeve-row">
               <span class="symbol">{{ p.symbol }}</span>
+              <span class="value"><strong>{{ p.quantity * p.currentPrice | currencyGbp }}</strong></span>
               <span>{{ p.quantity | number: '1.0-3' }} units</span>
               <span>avg {{ p.averagePrice | number: '1.2-2' }} → now {{ p.currentPrice | number: '1.2-2' }}</span>
               @if (p.unrealisedPnl !== null) {
@@ -161,12 +162,6 @@
               }
             </div>
           }
-        </div>
-      </mat-tab>
-      <mat-tab label="Tilts">
-        <div class="sleeve-tab">
-          <app-empty-state icon="tune"
-            message="The factor-tilt sleeve arrives with phase 2 (docs/sleeves-plan) — monthly momentum+quality rotation, only after it passes the deep-history backtest." />
         </div>
       </mat-tab>
       </mat-tab-group>
