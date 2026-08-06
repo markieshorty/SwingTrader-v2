@@ -9,7 +9,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterModule } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { LoadingSpinnerComponent } from '../../shared/components/loading-spinner/loading-spinner.component';
-import {
+import { FilingEventDto,
   FilingDeltaRowDto,
   FilingsIntelligenceDto,
   ForwardScorecardDto,
@@ -65,6 +65,22 @@ export class IntelligenceComponent {
 
   onTabChange(index: number): void {
     if (index === 2 && !this.scorecardLoaded() && this.scorecard() === null) this.loadScorecard(90);
+    if (index === 3 && !this.filingEventsLoaded()) this.loadFilingEvents();
+  }
+
+  // Small-cap filing events (docs/filing-events-plan P1): the market-wide
+  // 8-K event feed. Observation only until the P2 scorecard earns more.
+  filingEvents = signal<FilingEventDto[]>([]);
+  filingEventsLoaded = signal(false);
+
+  loadFilingEvents(): void {
+    this.api.getFilingEvents(14).subscribe({
+      next: (rows) => {
+        this.filingEvents.set(rows);
+        this.filingEventsLoaded.set(true);
+      },
+      error: () => this.filingEventsLoaded.set(true),
+    });
   }
 
   loadScorecard(days: number): void {

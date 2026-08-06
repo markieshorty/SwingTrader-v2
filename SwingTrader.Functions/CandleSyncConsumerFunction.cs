@@ -15,6 +15,7 @@ public class CandleSyncConsumerFunction(
     ICandleSyncService candleSync,
     SwingTrader.Agents.Backtesting.IDelistedBackfillService delistedBackfill,
     SwingTrader.Infrastructure.Storage.ICandleBlobMigrationService blobMigration,
+    SwingTrader.Agents.FilingEvents.IFilingEventScanService filingEvents,
     Azure.Messaging.ServiceBus.ServiceBusClient? serviceBus,
     IWorkerHeartbeatRepository heartbeats,
     IActivityLogRepository activityLog,
@@ -28,6 +29,27 @@ public class CandleSyncConsumerFunction(
         CancellationToken ct)
     {
         var message = JsonSerializer.Deserialize<CandleSyncJobMessage>(messageBody)!;
+
+        // Small-cap filing-event scan (docs/filing-events-plan P1): once per
+        // trading evening; observation only.
+        if (string.Equals(message.Mode, "filingevents", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var scan = await filingEvents.ScanAsync(DateOnly.FromDateTime(DateTime.UtcNow), ct);
+                if (scan.Enabled)
+                    await activityLog.LogAsync(message.AccountId, "WorkerRun", "Filing Events",
+                        scan.Failed > 0 ? "Warning" : "Info", scan.Summary, ct);
+                logger.LogInformation("Filing events job {JobId} — {Summary}", message.JobId, scan.Summary);
+            }
+            catch (Exception ex)
+            {
+                await activityLog.LogAsync(message.AccountId, "WorkerRun", "Filing Events", "Failed", ex.Message, ct);
+                logger.LogError(ex, "Filing events job {JobId} failed", message.JobId);
+                throw;
+            }
+            return;
+        }
 
         // One-off SQL -> blob candle migration (docs/blob-candles-plan). Same
         // chunked-continuation shape as the delisted backfill below; the

@@ -128,6 +128,12 @@ public static class IntelligenceEndpoints
             return Results.Ok(new { WindowDays = days ?? 14, Transmissions = rows });
         });
 
+        // Small-cap filing events (docs/filing-events-plan P1): the
+        // market-wide 8-K event feed. Platform-level - one feed for all.
+        api.MapGet("/intelligence/filing-events", async (
+            int? days, IFilingEventRepository events, CancellationToken ct) =>
+            Results.Ok(await events.GetRecentAsync(Math.Clamp(days ?? 14, 1, 90), ct)));
+
         // Tab 3 - Scorecard: the forward-side feedback loop. Forward-score
         // buckets on closed trades, counterfactual replays of blocked Buys
         // (forward veto / distress veto / setup-disabled), and score-vs-return

@@ -244,6 +244,7 @@ builder.Services.AddScoped<SwingTrader.Agents.Refinement.ITradeReplayService, Sw
 builder.Services.AddScoped<SwingTrader.Infrastructure.Storage.BlobHistoricalCandleRepository>();
 builder.Services.AddScoped<HistoricalCandleRepository>();
 builder.Services.AddScoped<IAccountAllocationRepository, AccountAllocationRepository>();
+builder.Services.AddScoped<IFilingEventRepository, FilingEventRepository>();
 if (builder.Configuration.GetValue<bool>("HistoricStore:UseBlob"))
     builder.Services.AddScoped<IHistoricalCandleRepository>(sp =>
         sp.GetRequiredService<SwingTrader.Infrastructure.Storage.BlobHistoricalCandleRepository>());

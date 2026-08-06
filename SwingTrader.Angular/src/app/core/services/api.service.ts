@@ -60,6 +60,7 @@ import {
   WatchlistType,
   AllocationDto,
   SleevePositionDto,
+  FilingEventDto,
 } from '../models/dtos';
 
 @Injectable({ providedIn: 'root' })
@@ -250,6 +251,10 @@ export class ApiService {
   // Queues the optimizer sweep (candidates around production weights, train/
   // holdout validated). Poll the returned run id like any historic run.
   // searchRules also adds trading-rule candidates to the search space.
+  getFilingEvents(days = 14): Observable<FilingEventDto[]> {
+    return this.http.get<FilingEventDto[]>(`${this.baseUrl}/api/intelligence/filing-events`, { params: { days } });
+  }
+
   getSleevePositions(): Observable<SleevePositionDto[]> {
     return this.http.get<SleevePositionDto[]>(`${this.baseUrl}/api/positions/sleeves`);
   }

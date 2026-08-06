@@ -251,4 +251,46 @@
       }
     </div>
   </mat-tab>
+
+  <mat-tab label="Events">
+    <div class="tab-body">
+      <p class="muted small">
+        Small-cap 8-K events (docs/filing-events-plan): every 8-K filed market-wide, mechanically routed by item code
+        (departures, non-reliance, listing deficiencies, bankruptcies, material agreements), filtered to neglected
+        names outside the liquid universe, classified by Claude. <strong>Observation only</strong> — forward-return
+        stamps and hypothesis verdicts arrive with phase 2; nothing trades on these.
+        Runs nightly when <code>FilingEvents:Enabled</code> is on (currently ships off — flipping it costs
+        roughly £0.30–0.90/day of classification).
+      </p>
+      @if (!filingEventsLoaded()) {
+        <p class="muted">Loading…</p>
+      } @else if (filingEvents().length === 0) {
+        <p class="muted">No events captured yet — the nightly scan fills this feed once enabled.</p>
+      } @else {
+        @for (e of filingEvents(); track e.id) {
+          <mat-card class="panel event-card">
+            <div class="event-head">
+              <strong>{{ e.symbol }}</strong>
+              <span class="muted">{{ e.companyName }}</span>
+              <span class="muted small">{{ e.filedAt | date: 'dd/MM/yyyy' }}</span>
+              <span class="chip">{{ e.eventType ?? ('items ' + e.itemCodes) }}</span>
+              @if (e.direction) {
+                <span class="chip" [class.good]="e.direction === 'Bullish'" [class.bad]="e.direction === 'Bearish'">
+                  {{ e.direction }} · sev {{ e.severity }}
+                </span>
+              }
+              @if (e.documentUrl) { <a [href]="e.documentUrl" target="_blank" rel="noopener">EDGAR</a> }
+            </div>
+            @if (e.summary) { <p>{{ e.summary }}</p> }
+            @if (e.facts) { <p class="muted small">{{ e.facts }}</p> }
+            @if (e.fwdReturn20Pct !== null) {
+              <p class="muted small">
+                +20d: {{ e.fwdReturn20Pct | number: '1.1-1' }}% (SPY {{ e.spyReturn20Pct | number: '1.1-1' }}%)
+              </p>
+            }
+          </mat-card>
+        }
+      }
+    </div>
+  </mat-tab>
 </mat-tab-group>

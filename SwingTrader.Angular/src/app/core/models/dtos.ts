@@ -176,6 +176,25 @@ export interface AllocationDto {
   coreTicker: string;
 }
 
+// Small-cap filing events feed (docs/filing-events-plan P1).
+export interface FilingEventDto {
+  id: number;
+  symbol: string;
+  companyName: string | null;
+  filedAt: string;
+  itemCodes: string;
+  eventType: string | null;
+  direction: 'Bullish' | 'Bearish' | 'Unclear' | null;
+  severity: number;
+  summary: string | null;
+  facts: string | null;
+  marketCapUsd: number | null;
+  documentUrl: string | null;
+  fwdReturn5Pct: number | null;
+  fwdReturn20Pct: number | null;
+  spyReturn20Pct: number | null;
+}
+
 // Non-swing sleeve holdings (docs/sleeves-plan): SPY core / factor rows.
 export interface SleevePositionDto {
   id: number;

@@ -112,6 +112,8 @@ builder.Services.Configure<RefinementConfig>(builder.Configuration.GetSection(Re
 builder.Services.Configure<RiskManagementConfig>(builder.Configuration.GetSection(RiskManagementConfig.SectionName));
 builder.Services.Configure<ExecutionConfig>(builder.Configuration.GetSection(ExecutionConfig.SectionName));
 builder.Services.Configure<FilingDeltaConfig>(builder.Configuration.GetSection(FilingDeltaConfig.SectionName));
+builder.Services.Configure<SwingTrader.Agents.FilingEvents.FilingEventsConfig>(builder.Configuration.GetSection("FilingEvents"));
+builder.Services.AddScoped<SwingTrader.Agents.FilingEvents.IFilingEventScanService, SwingTrader.Agents.FilingEvents.FilingEventScanService>();
 builder.Services.Configure<SecondHopConfig>(builder.Configuration.GetSection(SecondHopConfig.SectionName));
 
 builder.Services.AddRefitClient<IExchangeRateClient>()
@@ -160,6 +162,7 @@ builder.Services.AddScoped<ITradeReplayService, TradeReplayService>();
 builder.Services.AddScoped<SwingTrader.Infrastructure.Storage.BlobHistoricalCandleRepository>();
 builder.Services.AddScoped<HistoricalCandleRepository>();
 builder.Services.AddScoped<IAccountAllocationRepository, AccountAllocationRepository>();
+builder.Services.AddScoped<IFilingEventRepository, FilingEventRepository>();
 if (builder.Configuration.GetValue<bool>("HistoricStore:UseBlob"))
     builder.Services.AddScoped<IHistoricalCandleRepository>(sp =>
         sp.GetRequiredService<SwingTrader.Infrastructure.Storage.BlobHistoricalCandleRepository>());

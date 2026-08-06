@@ -18,7 +18,17 @@ public interface IEdgarClient
 
     // The primary document (HTML) of one filing.
     Task<string> GetDocumentAsync(string cik, string accessionNumber, string primaryDocument, CancellationToken ct);
+
+    // Every 8-K filed on the given date, market-wide, via EDGAR full-text
+    // search (docs/filing-events-plan P1) - includes item codes and tickers,
+    // so routing needs no further requests.
+    Task<IReadOnlyList<EdgarEightK>> SearchEightKsAsync(DateOnly date, CancellationToken ct);
 }
+
+// One market-wide 8-K search hit. Ticker may be empty (funds, co-filers).
+public sealed record EdgarEightK(
+    string Cik, string Ticker, string CompanyName, string AccessionNumber,
+    string PrimaryDocument, DateOnly FiledAt, IReadOnlyList<string> Items);
 
 // Items: the 8-K item codes for this filing (comma-separated, e.g.
 // "3.01,9.01"), straight from the submissions JSON's parallel `items` array.
@@ -39,6 +49,7 @@ public class EdgarClient(
 {
     private const string DataHost = "https://data.sec.gov";
     private const string WwwHost = "https://www.sec.gov";
+    private const string SearchHost = "https://efts.sec.gov";
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
     public async Task<IReadOnlyDictionary<string, string>> GetCikMapAsync(CancellationToken ct)
@@ -51,6 +62,83 @@ public class EdgarClient(
             map.TryAdd(e.Ticker, e.CikStr.ToString("D10"));
         logger.LogInformation("EDGAR CIK map loaded: {Count} tickers", map.Count);
         return map;
+    }
+
+    public async Task<IReadOnlyList<EdgarEightK>> SearchEightKsAsync(DateOnly date, CancellationToken ct)
+    {
+        // EDGAR full-text search API. Paged 100/hit-page; a heavy filing day
+        // runs ~400-800 8-Ks so a 10-page cap covers it with headroom.
+        var results = new List<EdgarEightK>();
+        var d = date.ToString("yyyy-MM-dd");
+        for (var from = 0; from < 1000; from += 100)
+        {
+            var json = await GetStringAsync(
+                $"{SearchHost}/LATEST/search-index?q=%22%22&forms=8-K&dateRange=custom&startdt={d}&enddt={d}&from={from}", ct);
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("hits", out var outer)
+                || !outer.TryGetProperty("hits", out var hits)) break;
+
+            var page = 0;
+            foreach (var hit in hits.EnumerateArray())
+            {
+                page++;
+                try
+                {
+                    var src = hit.GetProperty("_source");
+                    // _id: "0001234567-26-000123:document.htm"
+                    var id = hit.GetProperty("_id").GetString() ?? "";
+                    var parts = id.Split(':');
+                    if (parts.Length < 2) continue;
+                    var accession = parts[0];
+                    var primaryDoc = parts[1];
+
+                    var cik = src.TryGetProperty("ciks", out var ciks) && ciks.GetArrayLength() > 0
+                        ? (ciks[0].GetString() ?? "") : "";
+                    // display_names: ["Acme Corp  (ACME)  (CIK 0001234567)"]
+                    var display = src.TryGetProperty("display_names", out var names) && names.GetArrayLength() > 0
+                        ? (names[0].GetString() ?? "") : "";
+                    var (company, ticker) = ParseDisplayName(display);
+
+                    var items = new List<string>();
+                    if (src.TryGetProperty("items", out var itemsEl))
+                        foreach (var it in itemsEl.EnumerateArray())
+                            if (it.GetString() is { Length: > 0 } code) items.Add(code.Trim());
+
+                    var filed = src.TryGetProperty("file_date", out var fd)
+                        && DateOnly.TryParse(fd.GetString(), out var f) ? f : date;
+
+                    if (cik.Length > 0 && accession.Length > 0)
+                        results.Add(new EdgarEightK(cik.PadLeft(10, '0'), ticker, company, accession, primaryDoc, filed, items));
+                }
+                catch (Exception ex)
+                {
+                    logger.LogDebug(ex, "Unparseable EDGAR search hit — skipped");
+                }
+            }
+            if (page < 100) break; // last page
+        }
+        logger.LogInformation("EDGAR 8-K search {Date}: {Count} filings", d, results.Count);
+        return results;
+    }
+
+    // "Acme Corp  (ACME)  (CIK 0001234567)" -> ("Acme Corp", "ACME").
+    // Internal static so the parse is testable.
+    internal static (string Company, string Ticker) ParseDisplayName(string display)
+    {
+        if (string.IsNullOrWhiteSpace(display)) return ("", "");
+        var cikIdx = display.IndexOf("(CIK", StringComparison.OrdinalIgnoreCase);
+        var head = (cikIdx >= 0 ? display[..cikIdx] : display).Trim();
+        var open = head.LastIndexOf('(');
+        var close = head.LastIndexOf(')');
+        if (open >= 0 && close > open)
+        {
+            var ticker = head[(open + 1)..close].Trim();
+            var company = head[..open].Trim();
+            // Multi-ticker entries ("ABC, ABC-WS") - take the plain first.
+            ticker = ticker.Split(',')[0].Trim();
+            return (company, ticker.All(c => char.IsAsciiLetterUpper(c) || c == '.' || c == '-') ? ticker : "");
+        }
+        return (head, "");
     }
 
     public async Task<IReadOnlyList<EdgarFilingRef>> GetRecentFilingsAsync(

@@ -32,6 +32,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     public DbSet<HistoricalCandle> HistoricalCandles => Set<HistoricalCandle>();
     public DbSet<BacktestRun> BacktestRuns => Set<BacktestRun>();
     public DbSet<AccountAllocation> AccountAllocations => Set<AccountAllocation>();
+    public DbSet<FilingEvent> FilingEvents => Set<FilingEvent>();
     public DbSet<StrategyShare> StrategyShares => Set<StrategyShare>();
     public DbSet<SentimentArticle> SentimentArticles => Set<SentimentArticle>();
     public DbSet<SentimentDailyScore> SentimentDailyScores => Set<SentimentDailyScore>();
@@ -72,6 +73,20 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.FactorTiltPct).HasPrecision(6, 4);
             e.Property(x => x.SwingPct).HasPrecision(6, 4);
             e.Property(x => x.CoreTicker).IsRequired().HasMaxLength(12);
+        });
+
+        modelBuilder.Entity<FilingEvent>(e =>
+        {
+            e.HasIndex(x => x.AccessionNumber).IsUnique();
+            e.HasIndex(x => x.FiledAt);
+            e.Property(x => x.Symbol).IsRequired().HasMaxLength(12);
+            e.Property(x => x.Cik).IsRequired().HasMaxLength(10);
+            e.Property(x => x.AccessionNumber).IsRequired().HasMaxLength(25);
+            e.Property(x => x.ItemCodes).IsRequired().HasMaxLength(200);
+            e.Property(x => x.MarketCapUsd).HasPrecision(18, 2);
+            e.Property(x => x.FwdReturn5Pct).HasPrecision(9, 4);
+            e.Property(x => x.FwdReturn20Pct).HasPrecision(9, 4);
+            e.Property(x => x.SpyReturn20Pct).HasPrecision(9, 4);
         });
 
         modelBuilder.Entity<SymbolLifecycle>(e =>

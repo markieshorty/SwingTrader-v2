@@ -103,6 +103,14 @@ public class SchedulerFunction(
                         new ResearchJobMessage(account.Id, Guid.NewGuid().ToString("N"), today, nowEt, "ResearchMidday"), ct);
                 }
 
+                // Small-cap filing events (docs/filing-events-plan P1): after
+                // the close, when the day's 8-K flow has landed. Platform-
+                // level (system account row keys the dedup); the service
+                // no-ops unless FilingEvents:Enabled.
+                if (isWeekday && InWindow(nowEt, 18, 0, 23, 55))
+                    await TryEnqueueAsync(account.Id, "FilingEvents", today, "candlesync-jobs",
+                        new CandleSyncJobMessage(account.Id, Guid.NewGuid().ToString("N"), "filingevents"), ct);
+
                 if (nowEt.DayOfWeek == DayOfWeek.Sunday && InWindow(nowEt, 20, 0, 23, 55))
                     await TryEnqueueAsync(account.Id, "Watchlist", today, "watchlist-jobs",
                         new WatchlistJobMessage(account.Id, Guid.NewGuid().ToString("N"), nowEt), ct);
