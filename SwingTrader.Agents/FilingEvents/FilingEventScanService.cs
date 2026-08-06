@@ -38,9 +38,13 @@ public class FilingEventScanService(
 {
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
-    // The pre-declared routable item codes (spec). Everything else - earnings
-    // releases, Reg FD, votes - is dropped without spending a token.
-    internal static readonly IReadOnlyDictionary<string, string> RoutedItems = new Dictionary<string, string>
+    // Every KNOWN routable item code -> event type. Which subset actually
+    // routes is config (FilingEvents:RoutedItemCodes) - the default is the
+    // LEAN four (rare, unambiguous, strongest priors) at ~£2-5/month; the
+    // agreement/deal codes (1.01/1.02/2.01) are the volume and only join if
+    // the P2 scorecard earns them. Everything else - earnings releases,
+    // Reg FD, votes - never spends a token.
+    internal static readonly IReadOnlyDictionary<string, string> KnownItems = new Dictionary<string, string>
     {
         ["4.02"] = "NonReliance",
         ["5.02"] = "OfficerChange",
@@ -51,15 +55,19 @@ public class FilingEventScanService(
         ["1.02"] = "AgreementTermination",
     };
 
-    // True when the filing's items include at least one routable code.
+    internal static readonly string[] LeanDefaultCodes = ["4.02", "5.02", "3.01", "1.03"];
+
+    // True when the filing's items include an enabled routable code.
     // Internal static for tests. Item strings arrive both bare ("4.02") and
     // prefixed ("Item 4.02") depending on the EDGAR surface.
-    internal static string? RouteEventType(IReadOnlyList<string> items)
+    internal static string? RouteEventType(IReadOnlyList<string> items, IReadOnlyCollection<string>? enabledCodes = null)
     {
+        var enabled = enabledCodes is { Count: > 0 } ? enabledCodes : LeanDefaultCodes;
         foreach (var raw in items)
         {
             var code = raw.Replace("Item", "", StringComparison.OrdinalIgnoreCase).Trim();
-            if (RoutedItems.TryGetValue(code, out var type)) return type;
+            if (enabled.Contains(code, StringComparer.Ordinal) && KnownItems.TryGetValue(code, out var type))
+                return type;
         }
         return null;
     }
@@ -87,7 +95,7 @@ public class FilingEventScanService(
 
             if (filing.Ticker.Length == 0) continue;               // funds/co-filers
             if (covered.Contains(filing.Ticker)) continue;         // well-covered name
-            var eventType = RouteEventType(filing.Items);
+            var eventType = RouteEventType(filing.Items, cfg.RoutedItemCodes);
             if (eventType is null) continue;
             if (await events.ExistsAsync(filing.AccessionNumber, ct)) continue;
             routed++;
@@ -192,6 +200,9 @@ public class FilingEventsConfig
     public bool Enabled { get; set; }
     public string? Model { get; set; }
     // Hard daily lid on Claude calls - a weird EDGAR day can't turn into a
-    // token burst (the FD1 lesson).
-    public int MaxClassificationsPerDay { get; set; } = 80;
+    // token burst (the FD1 lesson). Lean default: ~25p worst-case day.
+    public int MaxClassificationsPerDay { get; set; } = 25;
+    // Which 8-K item codes route to classification. Null/empty = the lean
+    // default (4.02, 5.02, 3.01, 1.03). Widen only on P2 scorecard evidence.
+    public string[]? RoutedItemCodes { get; set; }
 }
