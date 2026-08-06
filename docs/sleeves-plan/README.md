@@ -117,6 +117,26 @@ nullable-backfilled as Swing for history.
 - Escalate to a strict floor (6.5-7) ONLY if the grown scorecard shows
   monotonic discrimination. Decision recorded in results.md either way.
 
+## P2a verdict (5 Aug 2026): factor sleeve does NOT ship
+
+Deep-window (2000+) run: factor 12,765% full / 2,966% holdout vs SPY 846% /
+206% - implausible on its face (holdout 10x train). The equal-weight
+UNIVERSE control settled it: the candidate pool alone returned 9,510% train
+/ 3,293% holdout, and the momentum selection UNDERPERFORMED its own pool on
+both segments (with ~50%/month realised turnover, far above the retention
+rule's intent). Conclusion: the listed universe (today's ~1,500 most-liquid
+symbols, selected with hindsight) is itself a momentum-flavoured filter -
+universe-composition bias the delisted backfill cannot remove. Honest
+factor testing needs POINT-IN-TIME universe membership (paid data), so:
+
+- **Tilts slice stays locked; P2b is not built.** Account architecture
+  settles as SPY core + swing.
+- The factor engine stays in the Lab as a bias detector - its Universe
+  column now bounds what ANY strategy result on this dataset can honestly
+  claim, and momentum-shaped strategies cannot be judged on it at all.
+- Third four-digit backtest killed by a control in two days (693%, 952%,
+  12,765%). The instrument works.
+
 ## Explicitly out of scope
 
 - Cross-sleeve margin/netting; options/short anything.
