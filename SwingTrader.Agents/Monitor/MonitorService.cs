@@ -18,6 +18,7 @@ namespace SwingTrader.Agents.Monitor;
 // auto-selling every open position across the whole account at once.
 public class MonitorService(
     SwingTrader.Agents.Execution.ISpyCoreService spyCore,
+    IAccountAllocationRepository allocationRepo,
     ITradeRepository tradeRepo,
     IPortfolioRepository portfolioRepo,
     IPortfolioCircuitBreakerService circuitBreaker,
@@ -587,6 +588,15 @@ public class MonitorService(
         try
         {
             if (pos.Quantity <= 0 || pos.AveragePrice <= 0) return; // shorts/bad data: not adoptable
+
+            // The core sleeve's instrument is EXPECTED to exist at the broker
+            // without a swing-trade row - it belongs to SpyCoreService, which
+            // writes its own ledger entry the first time it trades. Neither
+            // adopt it as a swing position nor warn about it.
+            var allocation = await allocationRepo.GetAsync(accountId, ct);
+            if (allocation.SpyCorePct > 0
+                && pos.Ticker.StartsWith(allocation.CoreTicker, StringComparison.OrdinalIgnoreCase))
+                return;
 
             // Only US listings are adoptable: research data, quotes and exit
             // monitoring all assume a US symbol. Adopting the Xetra listing
