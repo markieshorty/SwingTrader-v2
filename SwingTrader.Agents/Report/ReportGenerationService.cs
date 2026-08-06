@@ -205,7 +205,14 @@ public class ReportGenerationService(
     private async Task<PortfolioState> LoadPortfolioStateAsync(
         int accountId, TradingMode tradingMode, IFinnhubClient finnhub, ITrading212Client t212, CancellationToken ct)
     {
-        var openTrades = (await tradeRepo.GetOpenTradesAsync(accountId, tradingMode)).ToList();
+        // Swing sleeve only (docs/sleeves-plan): the SPY-core ledger row has
+        // no stop/target (they are 0 by design) - reporting it through the
+        // swing position maths divided by that zero and killed the daily
+        // report (6 Aug 2026). The core holding is a different kind of thing
+        // and gets its own line in a later pass.
+        var openTrades = (await tradeRepo.GetOpenTradesAsync(accountId, tradingMode))
+            .Where(t => t.Sleeve == SwingTrader.Core.Enums.SleeveType.Swing)
+            .ToList();
         var positions = new List<OpenPositionState>();
 
         foreach (var trade in openTrades)
@@ -228,8 +235,13 @@ public class ReportGenerationService(
             // age and the exit logic never disagree.
             var daysHeld = marketCalendar.TradingDaysBetween(
                 DateOnly.FromDateTime(trade.OpenedAt), DateOnly.FromDateTime(DateTime.UtcNow));
-            var pctFromStop = (currentPrice - trade.StopLossPrice) / trade.StopLossPrice * 100m;
-            var pctFromTarget = (trade.TargetPrice - currentPrice) / trade.TargetPrice * 100m;
+            // Belt and braces after the 6 Aug zero-stop incident: any trade
+            // without a real stop/target reports 100% distance, never a
+            // divide-by-zero that takes the whole report down.
+            var pctFromStop = trade.StopLossPrice > 0
+                ? (currentPrice - trade.StopLossPrice) / trade.StopLossPrice * 100m : 100m;
+            var pctFromTarget = trade.TargetPrice > 0
+                ? (trade.TargetPrice - currentPrice) / trade.TargetPrice * 100m : 100m;
             var cfg = reportConfig.Value;
             var isNearStop = (double)pctFromStop < cfg.OpenPositionWarningPctFromStop;
             var isNearTarget = (double)pctFromTarget < cfg.OpenPositionWarningPctFromTarget;
