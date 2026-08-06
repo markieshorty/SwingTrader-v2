@@ -57,6 +57,11 @@ import { ConvictionBarComponent } from '../../../shared/components/conviction-ba
       .signal-row {
         display: grid;
         grid-template-columns: 80px 1fr 90px 160px 90px 24px;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--st-border);
+        cursor: pointer;
       }
 
       .size-mult {
@@ -64,14 +69,9 @@ import { ConvictionBarComponent } from '../../../shared/components/conviction-ba
         border-radius: 10px;
         padding: 0 6px;
         background: rgba(127, 127, 127, 0.12);
-        &.up { color: #2e7d32; }
-        &.down { color: #c62828; }
-        align-items: center;
-        gap: 12px;
-        padding: 10px 12px;
-        border-bottom: 1px solid var(--st-border);
-        cursor: pointer;
       }
+      .size-mult.up { color: var(--st-green); }
+      .size-mult.down { color: var(--st-red); }
       .symbol {
         font-weight: 600;
       }

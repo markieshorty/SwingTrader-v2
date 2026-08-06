@@ -486,3 +486,16 @@
     .symbol { font-weight: 600; }
   }
 }
+
+// Combined buy-priority score on the dashboard signal cards
+.signal-header .overall-score {
+  margin-left: auto;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+
+  .of {
+    font-weight: 400;
+    opacity: 0.6;
+    font-size: 0.85em;
+  }
+}

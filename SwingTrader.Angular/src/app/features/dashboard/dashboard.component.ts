@@ -75,6 +75,13 @@ export class DashboardComponent {
   corePositions = computed(() => this.sleevePositions().filter((p) => p.sleeve === 'SpyCore'));
   factorPositions = computed(() => this.sleevePositions().filter((p) => p.sleeve === 'Factor'));
 
+  // Combined buy-priority score (gate + forward, 0-20) - same formula as
+  // ExecutionService ordering and the signals board.
+  combinedScore(s: SignalDto): number {
+    const forward = s.forwardScoreDegraded || s.forwardScore === null ? 5 : s.forwardScore;
+    return (s.convictionScore ?? 0) + forward;
+  }
+
   loadSleeves(): void {
     this.api.getSleevePositions().subscribe({
       next: (rows) => this.sleevePositions.set(rows),

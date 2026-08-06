@@ -257,6 +257,12 @@
           <div class="signal-header">
             <span class="symbol" [title]="signal.companyName || signal.symbol">{{ signal.symbol }}</span>
             <span class="setup-badge">{{ signal.setupType }}</span>
+            @if (signal.gateScore !== null) {
+              <span class="overall-score"
+                title="Combined buy-priority score (gate + forward, out of 20) — execution buys highest-combined first when slots are scarce.">
+                {{ combinedScore(signal) | number: '1.1-1' }}<span class="of">/20</span>
+              </span>
+            }
           </div>
           <app-conviction-bar [signal]="signal" />
           <div class="signal-stats">
