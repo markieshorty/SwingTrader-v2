@@ -91,6 +91,40 @@ bearish events join the research pipeline as a veto input first (cheapest,
 safest); a long book (small position, event-anchored entry/exit) would be
 a new sleeve and its own decision. Not designed further here on purpose.
 
+## Candidate research-input additions (NOT to be built yet)
+
+Recorded 6 Aug 2026. Claude's actual scoring role today is narrower than
+"conviction scoring" suggests: it scores SENTIMENT (news headlines ->
+score + catalyst) and FILING DELTAS (10-K/Q language diffs). Fundamentals
+are deterministic by design; the gate score is pure technicals and Claude
+never sees it. Four things Claude could additionally be given, ranked:
+
+1. **8-K events on WATCHLIST names** (the one this spec creates). The P1
+   scan deliberately excludes the liquid universe, so the classifier never
+   reads the events most relevant to the book we actually trade. FD3
+   pattern-matches distress item codes as a rules-only veto, but nothing
+   READS them. Cheapest real gain: allow the four distress codes through
+   for universe names (~1-3 extra classifications/day) and feed the
+   classified event into the sentiment call as context.
+2. **Sector/peer context** - is this name down alone or is its whole
+   sector down? Idiosyncratic vs systematic is central to whether a
+   decline is an opportunity. The cross-sectional percentile machinery
+   already computes the inputs.
+3. **The account's own trade history in the symbol** - "traded PTCT three
+   times, all stopped out" is context a human would weigh heavily.
+4. **Price context (RSI/drawdown/setup)** - tempting but ARGUE AGAINST:
+   the funnel's design separates gate (price) from forward (narrative).
+   Feeding price into the sentiment call correlates the two scores and
+   collapses the separation that makes the combined score meaningful.
+
+**Why none of these ship now:** the forward-score trial (does it predict
+outcomes?) sits at 27 of ~100 trades. Changing what Claude sees changes
+the SCORER, which invalidates the banked evidence and resets the clock on
+the trial Mark committed to running (memory: run-and-observe, 6 Aug 2026).
+Revisit only when that trial renders a verdict - and note that a NEGATIVE
+verdict is the strongest argument for adding inputs, with a clean baseline
+to change from.
+
 ## Reuse
 
 IEdgarClient (+ one new daily-index method), FilingTextExtractor, Claude
