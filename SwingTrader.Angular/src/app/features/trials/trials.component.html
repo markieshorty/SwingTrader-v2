@@ -1,0 +1,129 @@
+<div class="page">
+  <h2>Trials</h2>
+  <p class="muted">
+    Every mechanism in this system that claims predictive power, with its hypothesis as pre-declared (a hypothesis
+    written after seeing data is worthless), its evidence so far, and what decision it gates. Numbers come only from
+    closed trades and stored events — this page measures, it never tracks. <strong>The grading exists to stop us
+    acting on small samples.</strong>
+  </p>
+
+  @if (error()) {
+    <p class="warning">Could not load trials data.</p>
+  } @else if (!data()) {
+    <p class="muted">Loading…</p>
+  }
+  @if (data(); as d) {
+    <p class="muted small">{{ d.closedTrades }} closed trades in evidence · generated {{ d.generatedAt | date: 'dd/MM HH:mm' }}</p>
+
+    <div class="cards">
+      @for (c of d.cards; track c.key) {
+        <mat-card class="panel trial-card">
+          <div class="trial-head">
+            <h3>{{ c.name }}</h3>
+            <span class="chip">{{ c.status }}</span>
+          </div>
+          <p class="hypothesis">“{{ c.hypothesis }}”</p>
+          <p class="muted small">declared {{ c.declaredOn }}</p>
+          <div class="evidence-row">
+            <div class="evidence-bar"><div class="fill" [style.width.%]="progress(c)"></div></div>
+            <span class="muted small">{{ c.evidenceN }} / {{ c.evidenceTarget }} — <strong>{{ c.grade }}</strong></span>
+          </div>
+          <p class="small"><mat-icon inline>gavel</mat-icon> {{ c.gatesDecision }}</p>
+          @if (c.note) { <p class="warning small">{{ c.note }}</p> }
+        </mat-card>
+      }
+    </div>
+
+    <mat-card class="panel">
+      <h3>Forward score → outcome (the F2/F3 question)</h3>
+      <p class="muted small">
+        Closed trades bucketed by their Claude forward score at entry. The veto/tilt trials confirm only if this
+        table becomes monotonic (higher band, better outcomes) at a real n.
+      </p>
+      <table class="history-table">
+        <thead><tr><th>Forward score</th><th>Trades</th><th>Avg return</th><th>Win rate</th></tr></thead>
+        <tbody>
+          @for (b of d.forwardBands; track b.label) {
+            <tr>
+              <td>{{ b.label }}</td>
+              <td class="num muted">{{ b.trades }}</td>
+              <td class="num" [class.good]="b.avgReturnPct > 0" [class.bad]="b.avgReturnPct < 0">{{ b.avgReturnPct | number: '1.2-2' }}%</td>
+              <td class="num muted">{{ b.winRatePct | number: '1.0-0' }}%</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </mat-card>
+
+    <mat-card class="panel">
+      <h3>Veto floor sweep — “what if the floor had been X?”</h3>
+      <p class="muted small">
+        For each candidate ForwardVetoFloor: how many past trades it would have skipped and how those skipped trades
+        actually did. A floor earns raising only where the skipped column is clearly negative at a meaningful n.
+      </p>
+      <table class="history-table">
+        <thead><tr><th>Floor</th><th>Skipped</th><th>Skipped avg</th><th>Kept</th><th>Kept avg</th></tr></thead>
+        <tbody>
+          @for (r of d.vetoSweep; track r.floor) {
+            <tr>
+              <td>{{ r.floor | number: '1.0-0' }}</td>
+              <td class="num muted">{{ r.skipped }}</td>
+              <td class="num" [class.good]="r.skippedAvgPct < 0" [class.bad]="r.skippedAvgPct > 0"
+                matTooltip="Green = the floor would have skipped LOSERS (good); red = it would have skipped winners.">
+                {{ r.skippedAvgPct | number: '1.2-2' }}%
+              </td>
+              <td class="num muted">{{ r.kept }}</td>
+              <td class="num">{{ r.keptAvgPct | number: '1.2-2' }}%</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </mat-card>
+
+    <mat-card class="panel">
+      <h3>Sizing tilt (F2)</h3>
+      @if (d.sizingTilt.tiltedTrades === 0) {
+        <p class="warning small">
+          The tilt trial isn't really running: no trades have a meaningful size multiplier (aggressiveness ≈ 0).
+          These numbers fill in once the dial is on.
+        </p>
+      }
+      <p class="small">
+        Equal-weighted avg over scored trades: <strong>{{ d.sizingTilt.equalWeightedAvgPct | number: '1.2-2' }}%</strong>
+        · Tilt-weighted: <strong>{{ d.sizingTilt.tiltWeightedAvgPct | number: '1.2-2' }}%</strong>
+        <span class="muted small">(divergence in favour of tilt-weighted = the tilt is putting more money on better trades)</span>
+      </p>
+      <table class="history-table">
+        <thead><tr><th>Multiplier band</th><th>Trades</th><th>Avg return</th><th>Win rate</th></tr></thead>
+        <tbody>
+          @for (b of d.sizingTilt.bands; track b.label) {
+            <tr>
+              <td>{{ b.label }}</td>
+              <td class="num muted">{{ b.trades }}</td>
+              <td class="num" [class.good]="b.avgReturnPct > 0" [class.bad]="b.avgReturnPct < 0">{{ b.avgReturnPct | number: '1.2-2' }}%</td>
+              <td class="num muted">{{ b.winRatePct | number: '1.0-0' }}%</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </mat-card>
+
+    <mat-card class="panel">
+      <h3>Technical conviction bands</h3>
+      <p class="muted small">The gate score's own discrimination — watch whether the backtests' 8+ inversion shows up live.</p>
+      <table class="history-table">
+        <thead><tr><th>Conviction</th><th>Trades</th><th>Avg return</th><th>Win rate</th></tr></thead>
+        <tbody>
+          @for (b of d.convictionBands; track b.label) {
+            <tr>
+              <td>{{ b.label }}</td>
+              <td class="num muted">{{ b.trades }}</td>
+              <td class="num" [class.good]="b.avgReturnPct > 0" [class.bad]="b.avgReturnPct < 0">{{ b.avgReturnPct | number: '1.2-2' }}%</td>
+              <td class="num muted">{{ b.winRatePct | number: '1.0-0' }}%</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </mat-card>
+  }
+</div>

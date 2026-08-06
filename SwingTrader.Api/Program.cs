@@ -366,6 +366,7 @@ api.MapRefinementEndpoints();
 api.MapApprovalsEndpoints();
 api.MapAccountEndpoints();
 api.MapAllocationEndpoints();
+api.MapTrialsEndpoints();
 api.MapNotificationsEndpoints();
 api.MapKeysEndpoints();
 api.MapStrategyWeightsEndpoints();

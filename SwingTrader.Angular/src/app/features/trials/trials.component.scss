@@ -1,0 +1,74 @@
+.page {
+  padding: 16px;
+  max-width: 1100px;
+}
+
+.panel {
+  margin-bottom: 16px;
+  padding: 16px;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.trial-card {
+  .trial-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+
+    h3 { margin: 0; font-size: 1.02em; }
+  }
+
+  .hypothesis { font-style: italic; margin: 8px 0 2px; }
+
+  .evidence-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 8px 0;
+
+    .evidence-bar {
+      flex: 1;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(127, 127, 127, 0.18);
+      overflow: hidden;
+
+      .fill { height: 100%; background: #7986cb; }
+    }
+  }
+}
+
+.chip {
+  background: rgba(127, 127, 127, 0.12);
+  border-radius: 12px;
+  padding: 2px 10px;
+  font-size: 0.8em;
+  white-space: nowrap;
+}
+
+.muted { opacity: 0.7; }
+.small { font-size: 0.85em; }
+.warning { color: #e6a23c; }
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+
+  th, td {
+    text-align: left;
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(127, 127, 127, 0.15);
+  }
+
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .good { color: #2e7d32; }
+  .bad { color: #c62828; }
+}

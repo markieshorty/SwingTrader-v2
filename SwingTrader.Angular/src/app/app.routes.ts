@@ -78,6 +78,12 @@ export const routes: Routes = [
     title: 'Watchlists',
   },
   {
+    path: 'trials',
+    canActivate: [authGuard, approvalGuard, onboardingGuard],
+    loadComponent: () => import('./features/trials/trials.component').then((m) => m.TrialsComponent),
+    title: 'Trials',
+  },
+  {
     path: 'intelligence',
     canActivate: [authGuard, approvalGuard, onboardingGuard],
     loadComponent: () =>
