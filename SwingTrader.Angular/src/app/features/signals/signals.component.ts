@@ -90,8 +90,17 @@ export class SignalsComponent {
     if (term) {
       list = list.filter((s) => s.symbol.toLowerCase().includes(term));
     }
-    return list;
+    // Ordered by the COMBINED score (gate + forward, 0-20) - the same
+    // priority execution uses when slots are scarce, so the board reads
+    // top-to-bottom as "what gets bought first". Missing/degraded forward
+    // counts as neutral 5, matching ExecutionService exactly.
+    return [...list].sort((a, b) => this.combinedScore(b) - this.combinedScore(a));
   });
+
+  combinedScore(s: SignalDto): number {
+    const forward = s.forwardScoreDegraded || s.forwardScore === null ? 5 : s.forwardScore;
+    return (s.convictionScore ?? 0) + forward;
+  }
 
   setFilter(f: FilterKey): void {
     this.filter.set(f);

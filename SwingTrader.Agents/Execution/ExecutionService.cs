@@ -103,7 +103,16 @@ public class ExecutionService(
             .Where(s => s.Recommendation == Recommendation.Buy && !s.WasExecuted
                 && s.BrokerRejectedAt == null
                 && !closedTodaySymbols.Contains(s.Symbol) && !pendingSymbols.Contains(s.Symbol))
-            .OrderByDescending(s => s.ConvictionScore)
+            // Buy PRIORITY = combined score 0-20 (gate + forward), 6 Aug
+            // 2026: with scarce slots, ordering by gate alone let a
+            // technically-loud signal with a weak forward outlook out-rank a
+            // solid signal Claude actually liked. Gate still decides
+            // ELIGIBILITY, forward still decides SIZE - this only decides
+            // who goes first when not everything fits. A missing/degraded
+            // forward counts as neutral 5, never as 0 (an outage must not
+            // reshuffle the queue).
+            .OrderByDescending(s => (s.ConvictionScore ?? 0m)
+                + (s.ForwardScoreDegraded ? 5m : s.ForwardScore ?? 5m))
             .ToList();
 
         if (approvedSymbols is not null)

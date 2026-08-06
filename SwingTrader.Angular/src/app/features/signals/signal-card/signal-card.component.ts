@@ -35,6 +35,9 @@ import { ConvictionBarComponent } from '../../../shared/components/conviction-ba
         @if (signal().gateScore !== null) {
           <div class="scores funnel"
             title="Funnel shadow (Phase F1): what the two-stage design WOULD decide - gate (technical entry) and forward (sizing) scores. Not driving recommendations yet.">
+            <span title="Combined buy-priority score (gate + forward, out of 20) - execution buys highest-combined first when slots are scarce.">
+              <strong>{{ combinedScore().toFixed(1) }}</strong>/20
+            </span>
             <span>Gate {{ signal().gateScore?.toFixed(1) }}{{ signal().wouldPassGate ? ' ✓' : '' }}</span>
             <span>Forward {{ signal().forwardScore?.toFixed(1) }}{{ signal().forwardScoreDegraded ? ' (degraded)' : '' }}</span>
             @if (sizeMultiplier() !== null) {
@@ -133,6 +136,14 @@ export class SignalCardComponent {
 
   // The active book's F2 dials (today's board only; null on historic rows).
   sizing = input<{ funnelMode: boolean; aggressiveness: number; maxTilt: number } | null>(null);
+
+  // Combined buy-priority score (gate + forward, 0-20) - mirrors the
+  // ExecutionService ordering. Missing/degraded forward = neutral 5.
+  combinedScore = computed<number>(() => {
+    const s = this.signal();
+    const forward = s.forwardScoreDegraded || s.forwardScore === null ? 5 : s.forwardScore;
+    return (s.convictionScore ?? 0) + forward;
+  });
 
   // Mirror of PositionSizingService.ComputeForwardMultiplier - a preview of
   // what execution would apply, before the cash/slot clamps.
