@@ -15,15 +15,15 @@ public class FilingEventTests
     [InlineData(new[] { "2.02", "9.01" }, null)]              // earnings-only: dropped
     [InlineData(new[] { "7.01" }, null)]                      // Reg FD: dropped
     [InlineData(new[] { "1.03" }, "Bankruptcy")]
-    [InlineData(new[] { "1.01" }, null)]                      // agreement codes NOT in the lean default
+    [InlineData(new[] { "1.01" }, "MaterialAgreement")]       // bullish stream in the default set (6 Aug)
     [InlineData(new string[0], null)]
-    public void RouteEventType_UsesTheLeanDefaultSet(string[] items, string? expected) =>
+    public void RouteEventType_UsesTheDefaultSet(string[] items, string? expected) =>
         FilingEventScanService.RouteEventType(items).Should().Be(expected);
 
     [Fact]
-    public void RouteEventType_ConfiguredCodes_WidenTheSet() =>
-        FilingEventScanService.RouteEventType(["1.01"], ["4.02", "1.01"])
-            .Should().Be("MaterialAgreement");
+    public void RouteEventType_ConfiguredCodes_NarrowTheSet() =>
+        FilingEventScanService.RouteEventType(["1.01"], ["4.02"])
+            .Should().BeNull();
 
     [Theory]
     [InlineData("Acme Corp  (ACME)  (CIK 0001234567)", "Acme Corp", "ACME")]

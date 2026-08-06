@@ -39,11 +39,11 @@ public class FilingEventScanService(
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
     // Every KNOWN routable item code -> event type. Which subset actually
-    // routes is config (FilingEvents:RoutedItemCodes) - the default is the
-    // LEAN four (rare, unambiguous, strongest priors) at ~£2-5/month; the
-    // agreement/deal codes (1.01/1.02/2.01) are the volume and only join if
-    // the P2 scorecard earns them. Everything else - earnings releases,
-    // Reg FD, votes - never spends a token.
+    // routes is config (FilingEvents:RoutedItemCodes); the default is ALL
+    // seven (6 Aug 2026: widened from the lean four when the model moved to
+    // Haiku - same ~£3-7/month budget now covers the BULLISH stream too:
+    // agreements/deals are where the long-book hypotheses live). Everything
+    // else - earnings releases, Reg FD, votes - never spends a token.
     internal static readonly IReadOnlyDictionary<string, string> KnownItems = new Dictionary<string, string>
     {
         ["4.02"] = "NonReliance",
@@ -55,14 +55,14 @@ public class FilingEventScanService(
         ["1.02"] = "AgreementTermination",
     };
 
-    internal static readonly string[] LeanDefaultCodes = ["4.02", "5.02", "3.01", "1.03"];
+    internal static readonly string[] DefaultCodes = ["4.02", "5.02", "3.01", "1.03", "2.01", "1.01", "1.02"];
 
     // True when the filing's items include an enabled routable code.
     // Internal static for tests. Item strings arrive both bare ("4.02") and
     // prefixed ("Item 4.02") depending on the EDGAR surface.
     internal static string? RouteEventType(IReadOnlyList<string> items, IReadOnlyCollection<string>? enabledCodes = null)
     {
-        var enabled = enabledCodes is { Count: > 0 } ? enabledCodes : LeanDefaultCodes;
+        var enabled = enabledCodes is { Count: > 0 } ? enabledCodes : DefaultCodes;
         foreach (var raw in items)
         {
             var code = raw.Replace("Item", "", StringComparison.OrdinalIgnoreCase).Trim();
@@ -198,11 +198,14 @@ public class FilingEventScanService(
 public class FilingEventsConfig
 {
     public bool Enabled { get; set; }
-    public string? Model { get; set; }
+    // Classification is a bounded task (the answer is stated in the text) -
+    // Haiku-appropriate, and H-FE3 measures whether its judgments carry
+    // information. The subtle-tone work stays with Sonnet in filing-delta.
+    public string? Model { get; set; } = "claude-haiku-4-5-20251001";
     // Hard daily lid on Claude calls - a weird EDGAR day can't turn into a
-    // token burst (the FD1 lesson). Lean default: ~25p worst-case day.
-    public int MaxClassificationsPerDay { get; set; } = 25;
-    // Which 8-K item codes route to classification. Null/empty = the lean
-    // default (4.02, 5.02, 3.01, 1.03). Widen only on P2 scorecard evidence.
+    // token burst (the FD1 lesson). ~20p worst-case day on Haiku.
+    public int MaxClassificationsPerDay { get; set; } = 40;
+    // Which 8-K item codes route to classification. Null/empty = all seven
+    // known codes (both directions).
     public string[]? RoutedItemCodes { get; set; }
 }
