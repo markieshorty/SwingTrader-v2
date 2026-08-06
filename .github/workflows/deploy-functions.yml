@@ -99,6 +99,17 @@ jobs:
           package: ./functions-output
           scm-do-build-during-deployment: false
 
+      - name: Ensure app settings
+        run: |
+          # Filing events (docs/filing-events-plan): ON in monitoring mode -
+          # observe + classify only, lean item set + 25/day cap (~£2-5/month),
+          # nothing trades on it. Idempotent.
+          az functionapp config appsettings set \
+            --name ${{ secrets.FUNCTION_APP_NAME }} \
+            --resource-group ${{ secrets.RESOURCE_GROUP }} \
+            --settings "FilingEvents__Enabled=true" \
+            --output none
+
       - name: Ensure 4GB instance memory
         run: |
           # Deep-history backtests (docs/deep-history-plan) load ~9M bars;
