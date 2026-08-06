@@ -23,6 +23,7 @@ public static class TrialsEndpoints
             ITradeRepository trades,
             ISignalRepository signals,
             IAccountRepository accounts,
+            IAccountRiskProfileRepository riskProfiles,
             IFilingEventRepository filingEvents,
             IAccountContext ctx,
             CancellationToken ct) =>
@@ -48,6 +49,10 @@ public static class TrialsEndpoints
             var vetoSweep = TrialsMath.VetoFloorSweep(closed);
             var tilt = TrialsMath.SizingTilt(closed);
 
+            // The ACTIVE book's dials (Default override or detected regime) -
+            // trial statuses report the dial, evidence counts report the data.
+            var activeBook = await riskProfiles.GetAsync(ctx.AccountId, ct);
+
             var events = await filingEvents.GetRecentAsync(90, ct);
             var scoredN = closed.Count(t => t.ForwardScoreAtEntry is not null);
             var stampedEvents = events.Count(e => e.ForwardStampedAt is not null);
@@ -65,10 +70,19 @@ public static class TrialsEndpoints
                     "Backtest conviction bands are GATE-score-only evidence and do not count against this trial."),
                 new("sizing-tilt", "Forward-score size tilt (F2)",
                     "Sizing positions by forward score (up on strong, down on weak) beats equal sizing on the same trades.",
-                    "2026-07-12", tilt.TiltedTrades > 0 ? "Live" : "Live-inert (aggressiveness ~0: trial not really running)",
+                    "2026-07-12",
+                    // Status = the DIAL (the active book's aggressiveness),
+                    // never inferred from evidence - a freshly-turned-on
+                    // trial has a live dial and zero closed trades, and the
+                    // card must say both truthfully.
+                    activeBook.SizingAggressiveness > 0
+                        ? $"Live (aggressiveness {activeBook.SizingAggressiveness:0.##})"
+                        : "Live-inert (aggressiveness 0: trial not running)",
                     tilt.TiltedTrades, 60, TrialsMath.Grade(tilt.TiltedTrades, 60),
-                    "Raise SizingAggressiveness if tilt-weighted beats equal-weighted at n>=60 tilted trades.",
-                    tilt.TiltedTrades == 0 ? "No meaningfully-tilted trades yet — turn the dial on for this trial to accumulate." : null),
+                    "Keep/raise SizingAggressiveness if tilt-weighted beats equal-weighted at n>=60 tilted trades.",
+                    activeBook.SizingAggressiveness > 0 && tilt.TiltedTrades == 0
+                        ? "Dial is ON but no tilted trades have CLOSED yet — evidence starts with the next exits."
+                        : activeBook.SizingAggressiveness <= 0 ? "Turn the dial on for this trial to accumulate." : null),
                 new("conviction-gate", "Technical conviction bands",
                     "Higher gate scores predict better outcomes (KNOWN COUNTER-SIGNAL: the 8+ band inverted in every backtest).",
                     "2026-07-15", "Live (drives Buy threshold)",
