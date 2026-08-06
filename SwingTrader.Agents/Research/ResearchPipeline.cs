@@ -248,6 +248,22 @@ public class ResearchPipeline(
 
         var recommendation = await DetermineRecommendationAsync(accountId, account.TradingMode, symbol, ind, conviction, weights, setupType, riskProfile);
 
+        // Insider cluster selling: multiple insiders selling is the one
+        // fundamental red flag the people running the company vote on with
+        // their own money. It only nudged the fundamental score (0.15 vs
+        // 0.50 neutral) diluted through the forward blend - too soft. A Buy
+        // on a symbol with detected cluster selling now demotes to Watch,
+        // same treatment as the setup toggles and the conviction ceiling:
+        // still detected, still scored, still surfaced - just not bought.
+        string? insiderReasoning = null;
+        if (recommendation == Recommendation.Buy
+            && ShouldDemoteForInsiderSelling(fundamentalSnapshot?.InsiderActivity))
+        {
+            recommendation = Recommendation.Watch;
+            insiderReasoning = " Insider cluster selling detected — Buy demoted to Watch.";
+            logger.LogInformation("Insider cluster selling for {Symbol}: Buy demoted to Watch", symbol);
+        }
+
         // Conviction ceiling: the strongest-looking oversold scores can be
         // the falling knives (see the conviction-8 bucket evidence). Above
         // the book's ceiling a Buy demotes to Watch; 0 = off.
@@ -313,7 +329,8 @@ public class ResearchPipeline(
 
         // All adjustment notes ride the same reasoning-append slot.
         var adjustmentReasoning = (earningsReasoning ?? string.Empty) + (catalystReasoning ?? string.Empty)
-            + (vetoReasoning ?? string.Empty) + (ceilingReasoning ?? string.Empty) + (slotSkipReasoning ?? string.Empty);
+            + (vetoReasoning ?? string.Empty) + (insiderReasoning ?? string.Empty)
+            + (ceilingReasoning ?? string.Empty) + (slotSkipReasoning ?? string.Empty);
 
         // Second-hop shadow (docs/second-hop-plan SH1): linked-company events
         // propagated to this symbol. Skipped with stage 2 under the funnel
@@ -791,6 +808,13 @@ public class ResearchPipeline(
         reasoning = $" Upcoming catalyst ({catalyst.Type}{dateNote}) added {boost:F1} pts.";
         return Math.Min(conviction + boost, 10.0m);
     }
+
+    // Insider cluster selling is the one fundamental red flag the people
+    // running the company vote on with their own money. Internal static so
+    // the rule is directly testable; null (no snapshot) never demotes -
+    // missing data must not veto trades.
+    public static bool ShouldDemoteForInsiderSelling(InsiderActivity? activity) =>
+        activity == InsiderActivity.ClusterSelling;
 
     private async Task<Recommendation> DetermineRecommendationAsync(
         int accountId, TradingMode tradingMode, string symbol, IndicatorResult ind, decimal conviction, StrategyWeights weights,

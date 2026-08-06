@@ -101,6 +101,12 @@ public static class TrialsEndpoints
                     "Bearish confirmation -> FD3-style veto overlay; bullish confirmation -> event long-book spec (P3).",
                     events.Count == 0 ? "First scan runs tonight — the feed is empty until then."
                         : $"{events.Count} events captured; forward stamping (P2) not built yet, so 0 are stamped."),
+                new("insider-selling-veto", "Insider cluster-selling veto",
+                    "Buys on symbols with detected insider cluster selling underperform; demoting them to Watch improves outcomes.",
+                    "2026-08-06", "Live and ACTING",
+                    0, 30, TrialsMath.Grade(0, 30),
+                    "Keep/remove the hard demote depending on how demoted names perform vs taken trades.",
+                    "Shipped as a hard gate on prior reasoning (insiders selling is a documented negative signal), NOT on measured evidence. Demoted-signal counterfactuals need pricing - same gap as FD3."),
                 new("fd3-veto", "Filing-distress veto (FD3)",
                     "8-K distress codes on watchlist names justify entry vetoes and position exits.",
                     "2026-07-17", "Live and ACTING",
