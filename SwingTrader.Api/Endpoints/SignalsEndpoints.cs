@@ -9,13 +9,29 @@ public static class SignalsEndpoints
     public static RouteGroupBuilder MapSignalsEndpoints(this RouteGroupBuilder api)
     {
         // Grouped by Recommendation to match the Angular signal board's buy/watch/hold/avoid columns.
-        api.MapGet("/signals/today", async (ISignalRepository signals, IAccountContext ctx) =>
+        api.MapGet("/signals/today", async (
+            ISignalRepository signals,
+            IAccountRiskProfileRepository riskProfiles,
+            IAccountContext ctx,
+            CancellationToken ct) =>
         {
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
             var todaysSignals = (await signals.GetByDateAsync(ctx.AccountId, today)).ToList();
+
+            // The ACTIVE book's sizing dials, so the UI can show each Buy's
+            // prospective F2 multiplier. A preview, not a promise: execution
+            // recomputes with the same formula at buy time, then applies the
+            // cash/deployable clamps.
+            var book = await riskProfiles.GetAsync(ctx.AccountId, ct);
             return Results.Ok(new
             {
                 date = today,
+                sizing = new
+                {
+                    funnelMode = book.SizingMode == Core.Enums.PositionSizingMode.Funnel,
+                    aggressiveness = book.SizingAggressiveness,
+                    maxTilt = Core.Constants.CapitalRules.MaxSizingTilt,
+                },
                 buy = todaysSignals.Where(s => s.Recommendation == Recommendation.Buy),
                 watch = todaysSignals.Where(s => s.Recommendation == Recommendation.Watch),
                 hold = todaysSignals.Where(s => s.Recommendation == Recommendation.Hold),

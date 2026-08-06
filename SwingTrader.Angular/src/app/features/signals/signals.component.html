@@ -35,7 +35,7 @@
 } @else {
   <div class="signal-list">
     @for (signal of filteredSignals(); track signal.id) {
-      <app-signal-card [signal]="signal" />
+      <app-signal-card [signal]="signal" [sizing]="showHistoric() ? null : sizingDials()" />
     }
   </div>
 }

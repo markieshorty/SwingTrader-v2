@@ -101,6 +101,9 @@ export interface SignalGroupDto {
   watch: SignalDto[];
   hold: SignalDto[];
   avoid: SignalDto[];
+  // Active book's F2 sizing dials (today's-signals endpoint only) - lets the
+  // card preview each Buy's prospective size multiplier.
+  sizing?: { funnelMode: boolean; aggressiveness: number; maxTilt: number };
 }
 
 export interface TradeDto {

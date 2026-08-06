@@ -40,6 +40,10 @@ export class SignalsComponent {
   data = inject(DashboardDataService);
   todaysSignalsGroup = toSignal(this.data.signals$, { initialValue: null });
 
+  // Active book's F2 sizing dials, shipped with today's signals - the card
+  // uses them to preview each Buy's prospective size multiplier.
+  sizingDials = computed(() => this.todaysSignalsGroup()?.sizing ?? null);
+
   // Default off: the page shows today's signals only unless the user
   // explicitly asks to see history. Research/Execution never act on
   // anything but today's signals - this toggle is purely a read-only view.

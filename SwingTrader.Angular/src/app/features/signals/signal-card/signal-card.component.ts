@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, input, signal } from '@angular/core';
+import { Component, computed, input, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { SignalDto } from '../../../core/models/dtos';
 import { ConvictionBarComponent } from '../../../shared/components/conviction-bar/conviction-bar.component';
@@ -37,6 +37,12 @@ import { ConvictionBarComponent } from '../../../shared/components/conviction-ba
             title="Funnel shadow (Phase F1): what the two-stage design WOULD decide - gate (technical entry) and forward (sizing) scores. Not driving recommendations yet.">
             <span>Gate {{ signal().gateScore?.toFixed(1) }}{{ signal().wouldPassGate ? ' ✓' : '' }}</span>
             <span>Forward {{ signal().forwardScore?.toFixed(1) }}{{ signal().forwardScoreDegraded ? ' (degraded)' : '' }}</span>
+            @if (sizeMultiplier() !== null) {
+              <span class="size-mult" [class.up]="sizeMultiplier()! > 1.005" [class.down]="sizeMultiplier()! < 0.995"
+                title="Prospective F2 size multiplier from the forward score and the active book's aggressiveness — execution recomputes this at buy time, then applies the cash/slot clamps.">
+                Size {{ sizeMultiplier()!.toFixed(2) }}×
+              </span>
+            }
             @if (signal().wouldBeVetoed) { <span class="veto">would veto</span> }
           </div>
         }
@@ -48,6 +54,15 @@ import { ConvictionBarComponent } from '../../../shared/components/conviction-ba
       .signal-row {
         display: grid;
         grid-template-columns: 80px 1fr 90px 160px 90px 24px;
+      }
+
+      .size-mult {
+        font-variant-numeric: tabular-nums;
+        border-radius: 10px;
+        padding: 0 6px;
+        background: rgba(127, 127, 127, 0.12);
+        &.up { color: #2e7d32; }
+        &.down { color: #c62828; }
         align-items: center;
         gap: 12px;
         padding: 10px 12px;
@@ -115,5 +130,19 @@ import { ConvictionBarComponent } from '../../../shared/components/conviction-ba
 })
 export class SignalCardComponent {
   signal = input.required<SignalDto>();
+
+  // The active book's F2 dials (today's board only; null on historic rows).
+  sizing = input<{ funnelMode: boolean; aggressiveness: number; maxTilt: number } | null>(null);
+
+  // Mirror of PositionSizingService.ComputeForwardMultiplier - a preview of
+  // what execution would apply, before the cash/slot clamps.
+  sizeMultiplier = computed<number | null>(() => {
+    const dials = this.sizing();
+    const s = this.signal();
+    if (!dials?.funnelMode || dials.aggressiveness <= 0) return null;
+    if (s.forwardScore === null || s.forwardScoreDegraded) return null;
+    const tilt = Math.max(-1, Math.min(1, (s.forwardScore - 5) / 5));
+    return 1 + dials.aggressiveness * dials.maxTilt * tilt;
+  });
   expanded = signal(false);
 }
