@@ -256,7 +256,7 @@
         <div class="signal-card">
           <div class="signal-header">
             <span class="symbol" [title]="signal.companyName || signal.symbol">{{ signal.symbol }}</span>
-            <span class="setup-badge">{{ signal.setupType }}</span>
+            <span class="setup-badge" [title]="signal.setupType">{{ setupAbbrev(signal.setupType) }}</span>
             @if (signal.gateScore !== null) {
               <span class="overall-score"
                 title="Combined buy-priority score (gate + forward, out of 20) — execution buys highest-combined first when slots are scarce.">

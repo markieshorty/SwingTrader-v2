@@ -375,13 +375,20 @@
 
 .signal-header {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 8px;
 }
 
 .setup-badge {
-  font-size: 11px;
+  font-size: 10px;
+  letter-spacing: 0.03em;
   color: var(--st-muted);
+  background: rgba(127, 127, 127, 0.14);
+  border-radius: 10px;
+  padding: 1px 7px;
+  white-space: nowrap;
+  cursor: help;
 }
 
 .signal-stats {

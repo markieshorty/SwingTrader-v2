@@ -75,6 +75,21 @@ export class DashboardComponent {
   corePositions = computed(() => this.sleevePositions().filter((p) => p.sleeve === 'SpyCore'));
   factorPositions = computed(() => this.sleevePositions().filter((p) => p.sleeve === 'Factor'));
 
+  // Setup names are long enough to crowd the card header out of shape -
+  // show a short chip, full name on hover.
+  private static readonly SetupAbbrevs: Record<string, string> = {
+    OversoldRecovery: 'OSR',
+    MomentumContinuation: 'MOM',
+    Breakout: 'BRK',
+    VolumeSpike: 'VOL',
+    TrendFollowing: 'TRD',
+    Unknown: '—',
+  };
+
+  setupAbbrev(setup: string): string {
+    return DashboardComponent.SetupAbbrevs[setup] ?? setup.slice(0, 3).toUpperCase();
+  }
+
   // Combined buy-priority score (gate + forward, 0-20) - same formula as
   // ExecutionService ordering and the signals board.
   combinedScore(s: SignalDto): number {
