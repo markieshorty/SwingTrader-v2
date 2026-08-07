@@ -34,12 +34,13 @@ public class CandleSyncConsumerFunction(
         // trading evening; observation only.
         if (string.Equals(message.Mode, "filingevents", StringComparison.OrdinalIgnoreCase))
         {
+            logger.LogInformation("Filing events job {JobId} starting for account {AccountId}",
+                message.JobId, message.AccountId);
             try
             {
                 var scan = await filingEvents.ScanAsync(DateOnly.FromDateTime(DateTime.UtcNow), ct);
-                if (scan.Enabled)
-                    await activityLog.LogAsync(message.AccountId, "WorkerRun", "Filing Events",
-                        scan.Failed > 0 ? "Warning" : "Info", scan.Summary, ct);
+                await activityLog.LogAsync(message.AccountId, "WorkerRun", "Filing Events",
+                    !scan.Enabled ? "Skipped" : scan.Failed > 0 ? "Warning" : "Info", scan.Summary, ct);
                 logger.LogInformation("Filing events job {JobId} — {Summary}", message.JobId, scan.Summary);
             }
             catch (Exception ex)

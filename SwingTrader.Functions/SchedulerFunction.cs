@@ -104,10 +104,14 @@ public class SchedulerFunction(
                 }
 
                 // Small-cap filing events (docs/filing-events-plan P1): after
-                // the close, when the day's 8-K flow has landed. Platform-
-                // level (system account row keys the dedup); the service
-                // no-ops unless FilingEvents:Enabled.
-                if (isWeekday && InWindow(nowEt, 18, 0, 23, 55))
+                // the close, when the day's 8-K flow has landed. PLATFORM-level
+                // - one market-wide scan serves every account, so it is keyed
+                // to the system account and enqueued ONCE. (Shipped 6 Aug
+                // inside this per-account loop, which fired one scan per
+                // account: 3x the EDGAR load, 3x the Claude spend, and three
+                // concurrent scans racing SEC's rate limiter.)
+                if (isWeekday && account.Id == SwingTrader.Data.SwingTraderDbContext.SystemAccountId
+                    && InWindow(nowEt, 18, 0, 23, 55))
                     await TryEnqueueAsync(account.Id, "FilingEvents", today, "candlesync-jobs",
                         new CandleSyncJobMessage(account.Id, Guid.NewGuid().ToString("N"), "filingevents"), ct);
 

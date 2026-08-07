@@ -866,6 +866,24 @@ export class StrategyLabComponent implements OnDestroy {
     });
   }
 
+  filingScanBusy = signal(false);
+
+  // Manual filing-events scan (docs/filing-events-plan P1) - the nightly job
+  // runs itself; this is for re-running and watching on demand.
+  runFilingEventsScan(): void {
+    this.filingScanBusy.set(true);
+    this.api.filingEventsScan().subscribe({
+      next: () => {
+        this.snackbar.open('Filing-events scan queued — watch the activity feed, then the Intelligence → Events tab.', 'Dismiss', { duration: 7000 });
+        this.filingScanBusy.set(false);
+      },
+      error: (err) => {
+        this.snackbar.open(errorMessage(err, 'Scan enqueue failed.'), 'Dismiss', { duration: 5000 });
+        this.filingScanBusy.set(false);
+      },
+    });
+  }
+
   blobMigrateBusy = signal(false);
 
   // SQL -> blob candle-store migration (docs/blob-candles-plan): queue the

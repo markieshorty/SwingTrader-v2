@@ -752,6 +752,25 @@ public static class StrategyLabEndpoints
             return Results.Ok(new { queued = true });
         });
 
+        // Manual filing-events scan (docs/filing-events-plan P1). The nightly
+        // job runs at 18:00 ET; this exists so the scan can be re-run and
+        // watched on demand - the 6 Aug silent failure was hard to diagnose
+        // precisely because it could only be reproduced once a day.
+        api.MapPost("/strategy-lab/filing-events/scan", async (
+            [FromServices] ServiceBusClient? serviceBus,
+            IAccountContext ctx,
+            CancellationToken ct) =>
+        {
+            if (ctx.Role != AccountRole.Owner) return Results.Forbid();
+            if (serviceBus is null)
+                return Results.Problem("Service Bus is not configured on this environment.", statusCode: StatusCodes.Status503ServiceUnavailable);
+
+            await using var sender = serviceBus.CreateSender("candlesync-jobs");
+            await sender.SendMessageAsync(new ServiceBusMessage(JsonSerializer.Serialize(
+                new CandleSyncJobMessage(ctx.AccountId, Guid.NewGuid().ToString("N"), "filingevents"))), ct);
+            return Results.Ok(new { queued = true });
+        });
+
         // One-off SQL -> blob candle-store migration (docs/blob-candles-plan).
         // Chunked + resumable server-side; progress lands in the activity feed
         // and the completion entry carries the count comparison that gates the

@@ -61,6 +61,10 @@
                     <mat-icon>cloud_download</mat-icon> Run delisted backfill
                   </button>
                 }
+                <button mat-button [disabled]="filingScanBusy()" (click)="runFilingEventsScan()"
+                  matTooltip="Runs tonight's small-cap 8-K scan now (docs/filing-events-plan). Observation only — classifies events into the Intelligence → Events feed, nothing trades.">
+                  <mat-icon>fact_check</mat-icon> Scan filing events
+                </button>
                 <button mat-button [disabled]="blobMigrateBusy()" (click)="blobMigrate()"
                   matTooltip="Copies the historic candle store from SQL to Blob storage (docs/blob-candles-plan). Chunked and resumable; watch the activity feed — the completion entry compares SQL vs blob bar counts before the switch is flipped.">
                   <mat-icon>cloud_upload</mat-icon> Migrate candles to blob

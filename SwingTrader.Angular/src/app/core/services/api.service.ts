@@ -240,6 +240,10 @@ export class ApiService {
 
   // One-off SQL -> blob candle-store migration (docs/blob-candles-plan);
   // chunked server-side, progress in the activity feed.
+  filingEventsScan(): Observable<{ queued: boolean }> {
+    return this.http.post<{ queued: boolean }>(`${this.baseUrl}/api/strategy-lab/filing-events/scan`, {});
+  }
+
   blobMigrateRun(): Observable<{ queued: boolean }> {
     return this.http.post<{ queued: boolean }>(`${this.baseUrl}/api/strategy-lab/blob-migrate`, {});
   }
