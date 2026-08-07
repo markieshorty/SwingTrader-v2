@@ -55,10 +55,27 @@ public class CandleSyncConsumerFunction(
             }
             catch (Exception ex)
             {
-                await activityLog.LogAsync(message.AccountId, "WorkerRun", "Filing Events", "Failed", ex.Message, ct);
-                await jobLog.MarkFailedAsync(message.AccountId, "FilingEvents", jobDate, ex.Message, ct);
-                logger.LogError(ex, "Filing events job {JobId} failed", message.JobId);
-                throw;
+                // Logger FIRST - it needs no database and no cancellation
+                // token, so the error survives even when the DB writes below
+                // cannot run (7 Aug 2026: the real error was invisible for
+                // hours because the catch block's own writes were failing).
+                logger.LogError(ex, "Filing events job {JobId} failed: {Error}", message.JobId, ex.Message);
+                try
+                {
+                    // CancellationToken.None deliberately: a cancelled token
+                    // is one of the ways the error path can silently vanish.
+                    await activityLog.LogAsync(message.AccountId, "WorkerRun", "Filing Events", "Failed",
+                        ex.Message.Length > 900 ? ex.Message[..900] : ex.Message, CancellationToken.None);
+                    await jobLog.MarkFailedAsync(message.AccountId, "FilingEvents", jobDate, ex.Message, CancellationToken.None);
+                }
+                catch (Exception logEx)
+                {
+                    logger.LogError(logEx, "Filing events job {JobId}: failed to RECORD the failure", message.JobId);
+                }
+                // Deliberately NOT rethrowing. This is an observation-only
+                // job; retrying it ten times and dead-lettering poisons the
+                // queue that the weekly candle sync, delisted backfill and
+                // blob migration all share. A missed night costs nothing.
             }
             return;
         }

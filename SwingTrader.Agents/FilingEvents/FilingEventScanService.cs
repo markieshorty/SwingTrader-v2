@@ -114,6 +114,10 @@ public class FilingEventScanService(
 
             var evt = new FilingEvent
             {
+                // Platform-level row, same as the other shared tables. Without
+                // this the FK to Accounts rejects the insert (AccountId 0),
+                // which is what silently killed every scan on 7 Aug 2026.
+                AccountId = SwingTraderDbContext.SystemAccountId,
                 Symbol = filing.Ticker,
                 CompanyName = filing.CompanyName,
                 Cik = filing.Cik,

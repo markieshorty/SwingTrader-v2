@@ -72,8 +72,19 @@ public class EdgarClient(
         var d = date.ToString("yyyy-MM-dd");
         for (var from = 0; from < 1000; from += 100)
         {
-            var json = await GetStringAsync(
-                $"{SearchHost}/LATEST/search-index?q=%22%22&forms=8-K&dateRange=custom&startdt={d}&enddt={d}&from={from}", ct);
+            string json;
+            try
+            {
+                json = await GetStringAsync(
+                    $"{SearchHost}/LATEST/search-index?q=%22%22&forms=8-K&dateRange=custom&startdt={d}&enddt={d}&from={from}", ct);
+            }
+            catch (Exception ex)
+            {
+                // SEC throttles hard on rapid paging. Keep what we have -
+                // a partial day of filings is useful, a thrown scan is not.
+                logger.LogWarning(ex, "EDGAR 8-K search page {From} failed - continuing with {Count} filings", from, results.Count);
+                break;
+            }
             using var doc = JsonDocument.Parse(json);
             if (!doc.RootElement.TryGetProperty("hits", out var outer)
                 || !outer.TryGetProperty("hits", out var hits)) break;
