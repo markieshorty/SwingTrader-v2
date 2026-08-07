@@ -258,15 +258,20 @@
         Small-cap 8-K events (docs/filing-events-plan): every 8-K filed market-wide, mechanically routed by item code
         (departures, non-reliance, listing deficiencies, bankruptcies, material agreements), narrowed to companies
         with <strong>public float under $250m</strong> — the SEC's own smaller-reporting-company line, read from each
-        filer's cover-page XBRL — then classified by Claude. Blank-cheque shells are excluded.
-        <strong>Observation only</strong>: each event records what happened, not what the stock did next. Forward-return
-        stamps (+5/+20 days) and the hypothesis verdicts they enable are phase 2 and not built, so nothing here is
-        evidence yet and nothing trades on it.
+        filer's cover-page XBRL — then classified by Claude. Blank-cheque shells are excluded. Up to 1,000 filings are
+        read per day, which is short of a busy day's full volume.
+        <strong>Observation only</strong>: prices below are raw drift from the close when the filing was read — no
+        SPY adjustment, no fixed measurement window, and moves on wide-spread micro-caps are not tradeable returns.
+        The SPY-adjusted +5/+20-day stamps and the hypothesis verdicts they enable are phase 2 and not built, so
+        nothing here is evidence yet and nothing trades on it.
       </p>
       @if (!filingEventsLoaded()) {
         <p class="muted">Loading…</p>
       } @else if (filingEvents().length === 0) {
-        <p class="muted">No events captured yet — the nightly scan fills this feed once enabled.</p>
+        <p class="muted">
+          No events yet — the feed was reset on 7 Aug 2026 when the size filter was corrected. The next scheduled
+          scan (evenings, US market time) fills it.
+        </p>
       } @else {
         <div class="event-tally">
           <span class="capsule green">{{ directionCount('Bullish') }} bullish</span>
