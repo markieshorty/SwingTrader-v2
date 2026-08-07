@@ -49,6 +49,7 @@ public class FilingEventPersistenceTests
             universe,
             Substitute.For<IUserHttpClientFactory>(),
             Substitute.For<IClaudeRateLimiter>(),
+            Substitute.For<ITiingoPowerRateLimiter>(),
             Options.Create(new FilingEventsConfig { Enabled = true, MaxClassificationsPerDay = 40 }),
             Options.Create(new ClaudeConfig()),
             Substitute.For<ILogger<FilingEventScanService>>());
@@ -174,6 +175,7 @@ public class FilingEventPersistenceTests
         var service = new FilingEventScanService(
             edgar, new FilingEventRepository(db), universe,
             Substitute.For<IUserHttpClientFactory>(), Substitute.For<IClaudeRateLimiter>(),
+            Substitute.For<ITiingoPowerRateLimiter>(),
             Options.Create(new FilingEventsConfig { Enabled = true, MaxClassificationsPerDay = 40 }),
             Options.Create(new ClaudeConfig()),
             Substitute.For<ILogger<FilingEventScanService>>());
@@ -205,5 +207,73 @@ public class FilingEventPersistenceTests
         await service.ScanAsync(new DateOnly(2026, 8, 6));
 
         (await db.FilingEvents.CountAsync()).Should().Be(3);
+    }
+
+    // Price tracking (7 Aug 2026): each event stores what the stock was worth
+    // when we read the filing, so "would this have been a good buy?" has an
+    // anchor. Penny stocks are the norm here, so precision is load-bearing.
+    [Fact]
+    public async Task RefreshOrder_PutsNeverPricedAndStalestFirst()
+    {
+        await using var db = CreateDb();
+        var now = DateTime.UtcNow;
+        db.FilingEvents.AddRange(
+            new FilingEvent { AccountId = 1, Symbol = "FRESH", AccessionNumber = "a1",
+                CreatedAt = now, PriceAtCapture = 1m, LastPriceAt = now },
+            new FilingEvent { AccountId = 1, Symbol = "STALE", AccessionNumber = "a2",
+                CreatedAt = now, PriceAtCapture = 1m, LastPriceAt = now.AddDays(-3) },
+            new FilingEvent { AccountId = 1, Symbol = "NEVER", AccessionNumber = "a3",
+                CreatedAt = now, PriceAtCapture = 1m, LastPriceAt = null });
+        await db.SaveChangesAsync();
+
+        var due = await new FilingEventRepository(db).GetForPriceRefreshAsync(30, 10);
+
+        due.Select(e => e.Symbol).Should().ContainInOrder("NEVER", "STALE", "FRESH");
+    }
+
+    [Fact]
+    public async Task RefreshWindow_ExcludesEventsPastTheTrackingWindow()
+    {
+        await using var db = CreateDb();
+        db.FilingEvents.AddRange(
+            new FilingEvent { AccountId = 1, Symbol = "IN", AccessionNumber = "a1",
+                CreatedAt = DateTime.UtcNow.AddDays(-5), PriceAtCapture = 1m },
+            new FilingEvent { AccountId = 1, Symbol = "OUT", AccessionNumber = "a2",
+                CreatedAt = DateTime.UtcNow.AddDays(-90), PriceAtCapture = 1m });
+        await db.SaveChangesAsync();
+
+        var due = await new FilingEventRepository(db).GetForPriceRefreshAsync(30, 10);
+
+        due.Select(e => e.Symbol).Should().ContainSingle().And.Contain("IN");
+    }
+
+    [Fact]
+    public async Task RefreshCap_BoundsHowManyPricesOneRunRequests()
+    {
+        // The pacer runs at 1 req/s, so an uncapped refresh over a growing
+        // feed would turn a nightly job into an hour-long one.
+        await using var db = CreateDb();
+        for (var i = 0; i < 25; i++)
+            db.FilingEvents.Add(new FilingEvent { AccountId = 1, Symbol = $"S{i}",
+                AccessionNumber = $"a{i}", CreatedAt = DateTime.UtcNow, PriceAtCapture = 1m });
+        await db.SaveChangesAsync();
+
+        var due = await new FilingEventRepository(db).GetForPriceRefreshAsync(30, 10);
+
+        due.Should().HaveCount(10);
+    }
+
+    [Fact]
+    public async Task EventsWithoutACapturePrice_AreNotRepriced()
+    {
+        // Nothing to measure a move from, so a request would be wasted.
+        await using var db = CreateDb();
+        db.FilingEvents.Add(new FilingEvent { AccountId = 1, Symbol = "NOPRICE",
+            AccessionNumber = "a1", CreatedAt = DateTime.UtcNow, PriceAtCapture = null });
+        await db.SaveChangesAsync();
+
+        var due = await new FilingEventRepository(db).GetForPriceRefreshAsync(30, 10);
+
+        due.Should().BeEmpty();
     }
 }

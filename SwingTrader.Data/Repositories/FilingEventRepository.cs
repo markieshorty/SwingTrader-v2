@@ -9,6 +9,21 @@ public class FilingEventRepository(SwingTraderDbContext db) : IFilingEventReposi
     public Task<bool> ExistsAsync(string accessionNumber, CancellationToken ct = default) =>
         db.FilingEvents.AnyAsync(e => e.AccessionNumber == accessionNumber, ct);
 
+    public Task<List<FilingEvent>> GetForPriceRefreshAsync(int windowDays, int max, CancellationToken ct = default)
+    {
+        var cutoff = DateTime.UtcNow.AddDays(-windowDays);
+        return db.FilingEvents
+            .Where(e => e.CreatedAt >= cutoff && e.PriceAtCapture != null)
+            // Never-priced first, then longest-stale. Ordering by the
+            // nullable directly would sort nulls last on SQL Server.
+            .OrderBy(e => e.LastPriceAt == null ? 0 : 1)
+            .ThenBy(e => e.LastPriceAt)
+            .Take(max)
+            .ToListAsync(ct);
+    }
+
+    public Task SaveChangesAsync(CancellationToken ct = default) => db.SaveChangesAsync(ct);
+
     public async Task AddAsync(FilingEvent evt, CancellationToken ct = default)
     {
         db.FilingEvents.Add(evt);

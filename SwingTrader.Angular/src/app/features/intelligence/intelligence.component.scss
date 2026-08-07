@@ -367,3 +367,45 @@ h3 {
   .event-link { margin-left: 0; }
   .event-tally .tally-total { margin-left: 0; flex-basis: 100%; }
 }
+
+// The price row: what the stock was worth when we read the filing, what it is
+// worth now, and the move between them. Tabular figures so the columns line
+// up down the feed - this is the row you scan when asking which of these
+// would actually have been buys.
+.event-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+
+  .price-leg { color: var(--st-muted); }
+
+  .price-change {
+    font-weight: 700;
+
+    &.good { color: var(--st-green); }
+    &.bad  { color: var(--st-red); }
+  }
+
+  .price-asof {
+    margin-left: auto;
+    font-size: 0.72rem;
+    color: var(--st-muted);
+    opacity: 0.8;
+  }
+
+  mat-icon {
+    font-size: 15px;
+    width: 15px;
+    height: 15px;
+    color: var(--st-muted);
+    opacity: 0.7;
+  }
+}
+
+@media (max-width: 600px) {
+  .event-price .price-asof { margin-left: 0; flex-basis: 100%; }
+}

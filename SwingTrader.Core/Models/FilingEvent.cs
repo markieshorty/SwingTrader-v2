@@ -27,6 +27,14 @@ public class FilingEvent : BaseEntity
     public decimal? MarketCapUsd { get; set; }
     public string? DocumentUrl { get; set; }
 
+    // Price tracking: what the stock did after we read the filing. Capture
+    // price is the last close available when the event was captured (an EOD
+    // approximation of "price when we read it", not the intraday tick), and
+    // LastPrice is refreshed on a rolling window while the event is young.
+    public decimal? PriceAtCapture { get; set; }
+    public decimal? LastPrice { get; set; }
+    public DateTime? LastPriceAt { get; set; }
+
     // P2 forward stamps (trading-day windows, filled once elapsed).
     public decimal? FwdReturn5Pct { get; set; }
     public decimal? FwdReturn20Pct { get; set; }

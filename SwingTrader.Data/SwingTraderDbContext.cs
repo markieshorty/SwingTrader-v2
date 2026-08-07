@@ -84,6 +84,12 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.AccessionNumber).IsRequired().HasMaxLength(25);
             e.Property(x => x.ItemCodes).IsRequired().HasMaxLength(200);
             e.Property(x => x.MarketCapUsd).HasPrecision(18, 2);
+            // Six decimals, NOT the default two: this feed is deliberately
+            // full of sub-$1 stocks (VYST $0.10, VBIO $0.27, ENSC $0.5243 on
+            // the first real scan). At 2dp a sub-cent price rounds to zero and
+            // takes the percentage change with it.
+            e.Property(x => x.PriceAtCapture).HasPrecision(18, 6);
+            e.Property(x => x.LastPrice).HasPrecision(18, 6);
             e.Property(x => x.FwdReturn5Pct).HasPrecision(9, 4);
             e.Property(x => x.FwdReturn20Pct).HasPrecision(9, 4);
             e.Property(x => x.SpyReturn20Pct).HasPrecision(9, 4);

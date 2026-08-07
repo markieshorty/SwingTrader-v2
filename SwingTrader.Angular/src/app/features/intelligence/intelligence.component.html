@@ -305,6 +305,28 @@
                 }
               </div>
 
+              @if (e.priceAtCapture) {
+                <div class="event-price">
+                  <span class="price-leg" matTooltip="Last close when we read the filing">
+                    {{ e.priceAtCapture | currency: 'USD' : 'symbol' : priceDigits(e.priceAtCapture) }}
+                  </span>
+                  <mat-icon inline>arrow_right_alt</mat-icon>
+                  <span class="price-leg" matTooltip="Latest close we hold">
+                    {{ e.lastPrice | currency: 'USD' : 'symbol' : priceDigits(e.lastPrice) }}
+                  </span>
+                  @if (changePct(e); as pct) {
+                    <span class="price-change" [class.good]="pct > 0" [class.bad]="pct < 0">
+                      {{ pct > 0 ? '+' : '' }}{{ pct | number: '1.1-1' }}%
+                    </span>
+                  }
+                  @if (e.lastPriceAt) {
+                    <span class="price-asof">as of {{ e.lastPriceAt | date: 'dd MMM' }}</span>
+                  }
+                </div>
+              } @else {
+                <div class="event-price muted small">No price data for this ticker</div>
+              }
+
               @if (e.summary) { <p class="event-summary">{{ e.summary }}</p> }
               @if (e.facts) { <p class="event-facts">{{ e.facts }}</p> }
 

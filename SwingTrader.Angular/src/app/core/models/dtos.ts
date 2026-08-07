@@ -193,6 +193,11 @@ export interface FilingEventDto {
   facts: string | null;
   marketCapUsd: number | null;
   documentUrl: string | null;
+  // Price when the filing was read, and the latest close while the event is
+  // still inside the tracking window.
+  priceAtCapture: number | null;
+  lastPrice: number | null;
+  lastPriceAt: string | null;
   fwdReturn5Pct: number | null;
   fwdReturn20Pct: number | null;
   spyReturn20Pct: number | null;

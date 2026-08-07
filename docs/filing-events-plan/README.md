@@ -86,7 +86,33 @@ each on Sonnet => roughly **£0.30-0.90/day recurring** (~£10-25/month).
 Ships behind `FilingEvents:Enabled` (default **false**) so the spend is an
 explicit flip. Burst risk is bounded by the daily index (no backfill in P1).
 
-### P2 — the event scorecard (evidence, still no trading)
+### P1b - price tracking (built 7 Aug 2026)
+
+Each captured event stores `PriceAtCapture` (the last close available when
+the filing was read) and a rolling `LastPrice`/`LastPriceAt`, so the feed
+answers "which of these would have been good buys?" without waiting for the
+full P2 scorecard. Prices come from Tiingo via the platform key; coverage was
+verified 12/12 against the micro-cap population this feed actually selects,
+including sub-$1 and OTC tickers.
+
+Deliberate limits, so this is not mistaken for P2:
+- Capture price is an EOD close on the capture date, NOT the intraday tick at
+  the filing timestamp. It is an anchor, not a fill price.
+- Refresh is capped (`MaxPriceRefreshPerRun`, default 400) and windowed
+  (`PriceTrackingDays`, default 30), stalest-first, one request per SYMBOL
+  rather than per event. The Tiingo platform pacer is 1 req/s, so the cap is
+  what stops a growing feed turning a nightly job into an hour-long one. A
+  stale row catches up on the next run and the UI shows the as-of date.
+- Prices are stored at `decimal(18,6)`. The default (18,2) silently rounds
+  the sub-$1 stocks that dominate this population - VYST closed at $0.10 and
+  VBIO at $0.2749 on the first real scan - and a sub-cent price would round
+  to zero and take the percentage change with it.
+- This is still NOT evidence. It is raw drift with no SPY adjustment, no
+  fixed measurement window and no hypothesis attached. Percentage moves on
+  sub-$1 names with wide spreads are not tradeable returns. P2 remains the
+  thing that produces verdicts.
+
+### P2 - the event scorecard (evidence, still no trading)
 
 - A daily job stamps each event with forward returns (+5/+10/+20 trading
   days, raw and SPY-adjusted) from Tiingo EOD once the windows elapse.

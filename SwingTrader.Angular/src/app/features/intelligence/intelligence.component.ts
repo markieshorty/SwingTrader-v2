@@ -81,6 +81,20 @@ export class IntelligenceComponent {
     return this.filingEvents().filter(e => e.direction === direction).length;
   }
 
+  // Move since we read the filing. Null when either end is missing or the
+  // capture price was zero - never a divide-by-zero or a fake 0%.
+  changePct(e: FilingEventDto): number | null {
+    if (!e.priceAtCapture || !e.lastPrice) return null;
+    return ((e.lastPrice - e.priceAtCapture) / e.priceAtCapture) * 100;
+  }
+
+  // Sub-$1 stocks are the norm here, so prices need more than 2dp to mean
+  // anything - but showing 4dp on a $40 stock is just noise.
+  priceDigits(price: number | null): string {
+    if (price === null) return '1.2-2';
+    return price < 10 ? '1.2-4' : '1.2-2';
+  }
+
   loadFilingEvents(): void {
     this.api.getFilingEvents(14).subscribe({
       next: (rows) => {

@@ -37,6 +37,7 @@ public class FilingEventDependencyTests
         services.AddSingleton(Substitute.For<SwingTrader.Infrastructure.Market.IMarketUniverseService>());
         services.AddSingleton(Substitute.For<IUserHttpClientFactory>());
         services.AddSingleton(Substitute.For<IClaudeRateLimiter>());
+        services.AddSingleton(Substitute.For<ITiingoPowerRateLimiter>());
         services.AddScoped<IFilingEventScanService, FilingEventScanService>();
 
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions
@@ -63,6 +64,7 @@ public class FilingEventDependencyTests
             Substitute.For<SwingTrader.Infrastructure.Market.IMarketUniverseService>(),
             Substitute.For<IUserHttpClientFactory>(),
             Substitute.For<IClaudeRateLimiter>(),
+            Substitute.For<ITiingoPowerRateLimiter>(),
             Microsoft.Extensions.Options.Options.Create(new FilingEventsConfig { Enabled = false }),
             Microsoft.Extensions.Options.Options.Create(new ClaudeConfig()),
             Substitute.For<ILogger<FilingEventScanService>>());

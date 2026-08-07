@@ -32,6 +32,7 @@ public class FilingEventScanService(
     Infrastructure.Market.IMarketUniverseService universe,
     IUserHttpClientFactory clientFactory,
     IClaudeRateLimiter claudeRateLimiter,
+    ITiingoPowerRateLimiter tiingoRateLimiter,
     IOptions<FilingEventsConfig> config,
     IOptions<ClaudeConfig> claudeConfig,
     ILogger<FilingEventScanService> logger) : IFilingEventScanService
@@ -116,6 +117,7 @@ public class FilingEventScanService(
         var floatByCik = new Dictionary<string, decimal?>(StringComparer.Ordinal);
 
         IClaudeClient? claude = null;
+        ITiingoClient? tiingo = null;
         int routed = 0, classified = 0, failed = 0, tooBig = 0, shells = 0, capUnknown = 0;
         foreach (var filing in filings)
         {
@@ -191,15 +193,98 @@ public class FilingEventScanService(
                     filing.Ticker, filing.AccessionNumber);
             }
 
+            // What the stock was worth when we read the filing - the anchor
+            // every later "would this have been a good buy?" comparison is
+            // measured from. A price miss must never lose the event itself.
+            tiingo ??= await TryCreateTiingoAsync(ct);
+            if (tiingo is not null)
+            {
+                evt.PriceAtCapture = await TryGetLatestCloseAsync(tiingo, filing.Ticker, ct);
+                evt.LastPrice = evt.PriceAtCapture;
+                evt.LastPriceAt = evt.PriceAtCapture is null ? null : DateTime.UtcNow;
+            }
+
             await events.AddAsync(evt, ct);
         }
+
+        // Reprice the events still inside the tracking window. Capped and
+        // stalest-first, so a growing feed lengthens the catch-up cycle
+        // rather than the job.
+        var repriced = await RefreshPricesAsync(cfg, ct);
 
         var summaryText =
             $"Filing events {date:yyyy-MM-dd}: {filings.Count} 8-Ks scanned, {routed} routed " +
             $"({classified} classified, {failed} failed); excluded {tooBig} above the " +
-            $"${cfg.MaxPublicFloatUsd / 1_000_000m:N0}M float cap, {shells} shells, {capUnknown} unknown float.";
+            $"${cfg.MaxPublicFloatUsd / 1_000_000m:N0}M float cap, {shells} shells, {capUnknown} unknown float; " +
+            $"repriced {repriced}.";
         logger.LogInformation("{Summary}", summaryText);
         return new FilingEventScanResult(true, filings.Count, routed, classified, failed, summaryText);
+    }
+
+    private async Task<ITiingoClient?> TryCreateTiingoAsync(CancellationToken ct)
+    {
+        try
+        {
+            return await clientFactory.CreateTiingoAsync<ITiingoClient>(SwingTraderDbContext.SystemAccountId, ct);
+        }
+        catch (Exception ex)
+        {
+            // Price tracking is a nice-to-have on top of the event feed; if
+            // the key is missing the scan still captures events unpriced.
+            logger.LogWarning(ex, "Filing events: no Tiingo client - events will be captured without prices");
+            return null;
+        }
+    }
+
+    // Latest daily close, or null when Tiingo does not cover the ticker.
+    // Micro-caps and OTC names are the whole point of this feed, so a miss is
+    // an expected answer rather than an error.
+    private async Task<decimal?> TryGetLatestCloseAsync(ITiingoClient tiingo, string symbol, CancellationToken ct)
+    {
+        try
+        {
+            await tiingoRateLimiter.WaitAsync(ct);
+            var to = DateTime.UtcNow.Date;
+            var prices = await tiingo.GetDailyPricesAsync(
+                symbol, to.AddDays(-10).ToString("yyyy-MM-dd"), to.ToString("yyyy-MM-dd"));
+            var last = prices?.LastOrDefault();
+            return last?.Close > 0 ? last.Close : null;
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Filing events: no Tiingo price for {Symbol}", symbol);
+            return null;
+        }
+    }
+
+    private async Task<int> RefreshPricesAsync(FilingEventsConfig cfg, CancellationToken ct)
+    {
+        var due = await events.GetForPriceRefreshAsync(cfg.PriceTrackingDays, cfg.MaxPriceRefreshPerRun, ct);
+        if (due.Count == 0) return 0;
+
+        var tiingo = await TryCreateTiingoAsync(ct);
+        if (tiingo is null) return 0;
+
+        // One quote per SYMBOL, not per event - a company with several events
+        // in the window is worth exactly one request.
+        var priceBySymbol = new Dictionary<string, decimal?>(StringComparer.OrdinalIgnoreCase);
+        var updated = 0;
+        foreach (var evt in due)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!priceBySymbol.TryGetValue(evt.Symbol, out var price))
+            {
+                price = await TryGetLatestCloseAsync(tiingo, evt.Symbol, ct);
+                priceBySymbol[evt.Symbol] = price;
+            }
+            if (price is null) continue;
+            evt.LastPrice = price;
+            evt.LastPriceAt = DateTime.UtcNow;
+            updated++;
+        }
+
+        if (updated > 0) await events.SaveChangesAsync(ct);
+        return updated;
     }
 
     private async Task<(string Direction, int Severity, string? Summary, string? Facts)> ClassifyAsync(
@@ -265,6 +350,13 @@ public class FilingEventsConfig
 
     // SIC codes that never justify classification whatever their size.
     public string[] ExcludedSicCodes { get; set; } = [];
+
+    // How long an event keeps being repriced after capture, and the per-run
+    // ceiling on price requests. Tiingo's platform pacer is 1 req/s, so the
+    // cap is what stops a growing feed turning into an hour-long job; stale
+    // rows simply catch up on the next run, and the UI shows the as-of date.
+    public int PriceTrackingDays { get; set; } = 30;
+    public int MaxPriceRefreshPerRun { get; set; } = 400;
     // Classification is a bounded task (the answer is stated in the text) -
     // Haiku-appropriate, and H-FE3 measures whether its judgments carry
     // information. The subtle-tone work stays with Sonnet in filing-delta.
