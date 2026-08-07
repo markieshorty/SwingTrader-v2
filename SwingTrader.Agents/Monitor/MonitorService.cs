@@ -582,6 +582,21 @@ public class MonitorService(
     // Stop/target are derived from the active risk book against the broker's
     // average entry; the frozen per-setup tactic fields stay null, so the
     // monitor falls back to the account's live risk settings for this trade.
+    // Broker positions this system must never touch: the owner's own
+    // long-term holdings in the same account. Prefix-matched and
+    // case-insensitive so a configured "VUAG" covers the broker's "VUAGl_EQ"
+    // (docs/selective-buy-plan P3). Internal static so it is directly
+    // testable - the sleeve-based version it replaces was only reachable
+    // through a full monitor cycle.
+    internal static bool IsIgnoredTicker(string? ticker, string? ignoredCsv)
+    {
+        if (string.IsNullOrWhiteSpace(ticker) || string.IsNullOrWhiteSpace(ignoredCsv)) return false;
+        foreach (var raw in ignoredCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            if (ticker.StartsWith(raw, StringComparison.OrdinalIgnoreCase))
+                return true;
+        return false;
+    }
+
     private async Task AdoptUntrackedBrokerPositionAsync(
         int accountId, TradingMode tradingMode, PortfolioPositionResponse pos, CancellationToken ct)
     {
@@ -593,9 +608,12 @@ public class MonitorService(
             // without a swing-trade row - it belongs to SpyCoreService, which
             // writes its own ledger entry the first time it trades. Neither
             // adopt it as a swing position nor warn about it.
-            var allocation = await allocationRepo.GetAsync(accountId, ct);
-            if (allocation.SpyCorePct > 0
-                && pos.Ticker.StartsWith(allocation.CoreTicker, StringComparison.OrdinalIgnoreCase))
+            // The owner's own long-term holdings, sitting in the same broker
+            // account. Never adopt, price, monitor or warn about them
+            // (docs/selective-buy-plan P3). Prefix match, so "VUAG" covers the
+            // broker's "VUAGl_EQ".
+            var account = await accountRepo.GetAsync(accountId, ct);
+            if (IsIgnoredTicker(pos.Ticker, account?.IgnoredTickersCsv))
                 return;
 
             // Only US listings are adoptable: research data, quotes and exit

@@ -12,6 +12,23 @@ public class MomentumHealthService(
         Trade trade,
         CancellationToken ct = default)
     {
+        // Probation off (docs/selective-buy-plan P2): never assess, never
+        // exit. Returns the same neutral Borderline the missing-data path
+        // uses, so callers cannot mistake "not assessed" for "failed" - and
+        // RunnerStalled is gated with it, since both verdicts come from here.
+        var profile = await riskProfileRepo.GetAsync(accountId, ct);
+        if (!profile.ProbationEnabled)
+        {
+            return new MomentumHealthResult(
+                Score: 0.50m,
+                Verdict: "Borderline",
+                Reasoning: "Probation disabled for this account — position held on its own stop/target/trailing rules",
+                RsiDirectionScore: 0.50m,
+                VolumeScore: 0.50m,
+                PriceDirectionScore: 0.50m,
+                RelativeStrengthScore: 0.50m);
+        }
+
         var signal = (await signalRepo.GetBySymbolAsync(accountId, trade.Symbol)).FirstOrDefault();
 
         if (signal is null)
@@ -34,8 +51,7 @@ public class MomentumHealthService(
 
         // The pass bar frozen at buy time (thesis-as-contract); live profile
         // only for legacy trades placed before freezing existed.
-        var threshold = trade.MomentumHealthThresholdAtEntry
-            ?? (await riskProfileRepo.GetAsync(accountId, ct)).MomentumHealthThreshold;
+        var threshold = trade.MomentumHealthThresholdAtEntry ?? profile.MomentumHealthThreshold;
 
         // Shared algorithm (MomentumHealthCalculator) - the exact same code
         // the historic backtester's probation simulation runs, so live and

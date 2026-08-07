@@ -89,9 +89,14 @@ public class FunnelScoresTests
     [InlineData(2.4, false, 2.5, true)]   // just below the floor -> veto
     [InlineData(2.5, false, 2.5, false)]  // AT the floor -> no veto (strict <)
     [InlineData(2.6, false, 2.5, false)]  // above -> no veto
-    [InlineData(0.0, true, 2.5, false)]   // degraded never vetoes, however low
-    [InlineData(null, false, 2.5, false)] // missing never vetoes
-    [InlineData(0.0, false, 0.0, false)]  // floor 0 = veto off (scores are >= 0)
+    // FAIL-CLOSED since 7 Aug 2026: the Forward score is the only selector, so
+    // a signal that could not be scored must not be bought.
+    [InlineData(0.0, true, 2.5, true)]    // degraded -> veto (was false)
+    [InlineData(null, false, 2.5, true)]  // missing  -> veto (was false)
+    [InlineData(9.9, true, 2.5, true)]    // degraded vetoes however HIGH
+    [InlineData(0.0, false, 0.0, false)]  // floor 0 = veto off entirely
+    [InlineData(null, false, 0.0, false)] // floor 0 disables fail-closed too
+    [InlineData(null, true, 0.0, false)]
     public void ShouldVeto_FiresOnlyForRealScoresStrictlyBelowTheFloor(
         double? forward, bool degraded, double floor, bool expected) =>
         FunnelScores.ShouldVeto((decimal?)forward, degraded, (decimal)floor)

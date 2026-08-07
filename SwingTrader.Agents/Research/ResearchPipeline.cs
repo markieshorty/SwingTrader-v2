@@ -166,7 +166,22 @@ public class ResearchPipeline(
         // Watch threshold from the WEIGHTS row (the same source
         // DetermineRecommendationAsync classifies with), so a symbol that
         // could still classify Watch always gets its forward score.
-        var skipStageTwo = slotSkip || gateScore < weights.WatchThreshold;
+        // A GATE-PASSING signal always gets its forward score, even when the
+        // book is full (docs/selective-buy-plan). The slot-aware skip exists to
+        // save tokens on symbols that cannot be bought right now - but under
+        // MaxOpenPositions = 1 the book is full ~76% of the time, so it would
+        // suppress the forward score on three-quarters of the very signals the
+        // selective design chooses between. Those unbought candidates are the
+        // shadow evidence: without a score there is nothing to replay, nothing
+        // to compare, and H-SEL1 can never accumulate.
+        //
+        // The saving is kept where it still applies - signals between the
+        // Watch and Buy thresholds, which were never Buy candidates anyway.
+        // Measured 13 Jul - 7 Aug: 77 gate-passing signals went unscored over
+        // 20 days across 3 accounts (~1.3 Claude calls/account/day), rising to
+        // roughly 4/account/day at one open position. Call it £1-3/month.
+        var skipStageTwo = gateScore < weights.WatchThreshold
+            || (slotSkip && gateScore < weights.BuyThreshold);
 
         decimal? sentimentScore = null;
         var newsSummary = slotSkip

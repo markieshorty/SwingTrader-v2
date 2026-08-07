@@ -10,6 +10,17 @@ public class Account : UnscopedEntity
     public string Name { get; set; } = "My Account";
     public string? T212AccountId { get; set; }
     public bool GlobalRefinementOptIn { get; set; } = true;
+
+    // Broker positions this system must never adopt, price, monitor or warn
+    // about - the owner's own long-term holdings sitting in the same T212
+    // account (docs/selective-buy-plan P3). Comma-separated ticker prefixes,
+    // matched case-insensitively, so "VUAG" covers "VUAGl_EQ".
+    //
+    // Replaces the sleeve architecture's only load-bearing job here: the
+    // SpyCorePct/CoreTicker early-return in AdoptUntrackedBrokerPositionAsync
+    // was the ONLY reason held ETFs were not treated as untracked swing
+    // positions. Deleting the sleeves without this reinstates that bug.
+    public string? IgnoredTickersCsv { get; set; }
     public TradingMode TradingMode { get; set; } = TradingMode.Demo;
     public bool ApprovalRequired { get; set; } = true;
 

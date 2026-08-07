@@ -59,10 +59,27 @@ public static class FunnelScores
     public static decimal? FilingComponent01(decimal? effectiveDelta) =>
         effectiveDelta is { } d ? (Math.Clamp(d, -1m, 1m) + 1m) / 2m : null;
 
-    // Phase F3: the asymmetric veto predicate. True only for a real (non-null,
-    // non-degraded) Forward score strictly below the floor - degraded or
-    // missing scores never veto (fail-open: a data outage must not block
-    // trading), and a floor of 0 can never fire since scores are >= 0.
-    public static bool ShouldVeto(decimal? forwardScore, bool degraded, decimal vetoFloor) =>
-        forwardScore is { } f && !degraded && f < vetoFloor;
+    // Phase F3, rewritten FAIL-CLOSED 7 Aug 2026 (docs/selective-buy-plan P2).
+    //
+    // This used to wave through a missing or degraded Forward score, on the
+    // reasoning that a data outage must not block trading. That was right
+    // while the Forward score was a SAFETY NET layered over the gate: the
+    // gate decided, and the veto only removed the worst of what it passed.
+    //
+    // It is exactly backwards now the Forward score is the ONLY selector. A
+    // signal we could not score is the last thing that should be bought, not
+    // the one thing that sails through the single filter - and stage 2 is
+    // skipped entirely for sub-Watch gates, so null is common rather than
+    // exceptional. An outage now stops trading, which is the correct
+    // behaviour when the outage is in the component doing the choosing.
+    //
+    // A floor of 0 still disables the veto entirely, including for null and
+    // degraded scores - so the pre-selective behaviour remains reachable by
+    // setting ForwardVetoFloor = 0.
+    public static bool ShouldVeto(decimal? forwardScore, bool degraded, decimal vetoFloor)
+    {
+        if (vetoFloor <= 0m) return false;
+        if (forwardScore is not { } f || degraded) return true;
+        return f < vetoFloor;
+    }
 }

@@ -42,6 +42,22 @@ public class AccountRiskProfile : BaseEntity
     public int MinHoldDays { get; set; } = CapitalRules.DefaultMinHoldDays;
     public decimal MomentumHealthThreshold { get; set; } = CapitalRules.DefaultMomentumHealthThreshold;
 
+    // Live off switch for probation, mirroring the backtester's
+    // SimulateProbation (docs/selective-buy-plan P2). Until 7 Aug 2026 there
+    // was NO way to disable probation in production: Exit fires on
+    // `score < threshold` over a score bounded in [0,1], and the threshold is
+    // clamped to 0.20-0.60 - so the Lab could model a configuration live
+    // could not run, and the best backtest of 7 Aug (SimulateProbation:false)
+    // was unreachable.
+    //
+    // Gates RunnerStalled too: both verdicts come from the same health check.
+    // Matters most under one open position, where a probation exit at day 7
+    // does not just close a trade, it forfeits the opportunity waited a month
+    // for - and the evidence says probation cuts patient mean-reversion
+    // entries before they revert (OversoldRecovery hold 18.3d -> 38d,
+    // -0.52% -> +1.47% with it off).
+    public bool ProbationEnabled { get; set; } = true;
+
     // Flat stop-loss / take-profit (fractions: 0.07 = 7% below entry, 0.10 =
     // +10% above). These REPLACED EntryLevelCalculator's per-setup and
     // per-conviction tables (2026-07-12); the Lab's rules panel reads them as
