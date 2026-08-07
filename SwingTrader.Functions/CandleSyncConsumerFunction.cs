@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SwingTrader.Agents.Backtesting;
 using SwingTrader.Core.Interfaces;
@@ -15,7 +16,7 @@ public class CandleSyncConsumerFunction(
     ICandleSyncService candleSync,
     SwingTrader.Agents.Backtesting.IDelistedBackfillService delistedBackfill,
     SwingTrader.Infrastructure.Storage.ICandleBlobMigrationService blobMigration,
-    SwingTrader.Agents.FilingEvents.IFilingEventScanService filingEvents,
+    IServiceProvider services,
     IJobLogRepository jobLog,
     Azure.Messaging.ServiceBus.ServiceBusClient? serviceBus,
     IWorkerHeartbeatRepository heartbeats,
@@ -45,6 +46,7 @@ public class CandleSyncConsumerFunction(
             await jobLog.MarkProcessingAsync(message.AccountId, "FilingEvents", jobDate, ct);
             try
             {
+                var filingEvents = services.GetRequiredService<SwingTrader.Agents.FilingEvents.IFilingEventScanService>();
                 var scan = await filingEvents.ScanAsync(DateOnly.FromDateTime(DateTime.UtcNow), ct);
                 await activityLog.LogAsync(message.AccountId, "WorkerRun", "Filing Events",
                     !scan.Enabled ? "Skipped" : scan.Failed > 0 ? "Warning" : "Info", scan.Summary, ct);
