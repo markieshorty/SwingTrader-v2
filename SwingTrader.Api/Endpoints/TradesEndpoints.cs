@@ -16,6 +16,21 @@ public static class TradesEndpoints
         api.MapGet("/trades/recent", async (int? days, AccountViewService view, IAccountContext ctx, CancellationToken ct) =>
             Results.Ok(await view.GetRecentTradesAsync(ctx.AccountId, days ?? 30, ct)));
 
+        // "Almost trades" (docs/selective-buy-plan): signals that cleared the
+        // gate AND the forward floor - the system wanted to buy them - but were
+        // turned away because the single position was already occupied, each
+        // replayed forward to show what taking it would have returned.
+        //
+        // The selective design creates the problem this measures: at one open
+        // position the book is full roughly three-quarters of the time, so most
+        // qualifying signals are skipped. Without this there is no way to know
+        // whether the one that got bought was the right one.
+        api.MapGet("/trades/almost", async (
+            int? days,
+            SwingTrader.Agents.Scorecard.IAlmostTradesService almost,
+            IAccountContext ctx, CancellationToken ct) =>
+            Results.Ok(await almost.BuildAsync(ctx.AccountId, Math.Clamp(days ?? 90, 7, 365), ct)));
+
         // Open Trade rows double as "positions", enriched here with a live quote
         // (for currentPrice/unrealisedPnl) and the originating signal (for
         // setupType/convictionScoreAtEntry) - the Angular PositionDto shape needs

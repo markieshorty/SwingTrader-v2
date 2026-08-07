@@ -61,6 +61,7 @@ import {
   AllocationDto,
   SleevePositionDto,
   FilingEventDto,
+  AlmostTradesResultDto,
 } from '../models/dtos';
 
 @Injectable({ providedIn: 'root' })
@@ -255,6 +256,10 @@ export class ApiService {
   // Queues the optimizer sweep (candidates around production weights, train/
   // holdout validated). Poll the returned run id like any historic run.
   // searchRules also adds trading-rule candidates to the search space.
+  getAlmostTrades(days = 90): Observable<AlmostTradesResultDto> {
+    return this.http.get<AlmostTradesResultDto>(`${this.baseUrl}/api/trades/almost`, { params: { days } });
+  }
+
   getFilingEvents(days = 14): Observable<FilingEventDto[]> {
     return this.http.get<FilingEventDto[]>(`${this.baseUrl}/api/intelligence/filing-events`, { params: { days } });
   }

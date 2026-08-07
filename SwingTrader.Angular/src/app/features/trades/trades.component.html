@@ -113,4 +113,80 @@
       }
     </div>
   </mat-tab>
+
+  <!-- Signals the system WANTED to buy but couldn't: gate passed, forward
+       score above the floor, yet the single slot was already taken. At one
+       open position the book is full most of the time, so this is where most
+       of the evidence lives. -->
+  <mat-tab label="Almost">
+    <div class="tab-content">
+      <p class="muted small">
+        Signals that cleared the gate <strong>and</strong> the forward-score floor — the system wanted to buy them —
+        but were turned away because the position was already occupied. Each is replayed forward on the same
+        stop/target/trailing rules a real entry would have used, net of round-trip costs.
+        <strong>This is not a trade log</strong>: nothing here was bought, and the replay assumes a fill at the next
+        open.
+      </p>
+
+      <mat-button-toggle-group [value]="almostDays()" (change)="loadAlmostTrades($any($event).value)" hideSingleSelectionIndicator>
+        <mat-button-toggle [value]="30">30d</mat-button-toggle>
+        <mat-button-toggle [value]="90">90d</mat-button-toggle>
+        <mat-button-toggle [value]="365">1y</mat-button-toggle>
+      </mat-button-toggle-group>
+
+      @if (!almostLoaded()) {
+        <p class="muted">Loading…</p>
+      }
+      @if (almostLoaded() && almost(); as a) {
+        @if (a.qualified === 0) {
+          <p class="muted">
+            Nothing qualified in this window — no signal cleared both the gate and the {{ a.forwardFloor | number: '1.1-1' }}
+            forward floor while the book was full.
+          </p>
+        } @else {
+          <div class="almost-summary">
+            <span class="capsule grey">{{ a.qualified }} qualified</span>
+            <span class="capsule grey">{{ a.replayed }} replayable</span>
+            <span class="capsule" [class.green]="a.avgReturnPct > 0" [class.red]="a.avgReturnPct < 0">
+              {{ a.avgReturnPct > 0 ? '+' : '' }}{{ a.avgReturnPct | number: '1.2-2' }}% avg
+            </span>
+            <span class="capsule grey">{{ a.wouldHaveWon }} would have won</span>
+            <span class="muted small">forward floor {{ a.forwardFloor | number: '1.1-1' }}</span>
+          </div>
+
+          <table class="almost-table">
+            <thead>
+              <tr>
+                <th>Date</th><th>Symbol</th><th>Setup</th>
+                <th class="num">Gate</th><th class="num">Forward</th>
+                <th class="num">Would have returned</th><th>Exit</th><th class="num">Days</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (t of a.trades; track t.symbol + t.signalDate) {
+                <tr>
+                  <td>{{ t.signalDate | date: 'dd/MM/yy' }}</td>
+                  <td><strong>{{ t.symbol }}</strong></td>
+                  <td class="muted small">{{ t.setup }}</td>
+                  <td class="num muted">{{ t.gateScore | number: '1.1-1' }}</td>
+                  <td class="num"><strong>{{ t.forwardScore | number: '1.1-1' }}</strong></td>
+                  <td class="num">
+                    @if (t.counterfactualReturnPct === null) {
+                      <span class="muted">no bars</span>
+                    } @else {
+                      <span [class.good]="t.counterfactualReturnPct > 0" [class.bad]="t.counterfactualReturnPct < 0">
+                        {{ t.counterfactualReturnPct > 0 ? '+' : '' }}{{ t.counterfactualReturnPct | number: '1.2-2' }}%
+                      </span>
+                    }
+                  </td>
+                  <td class="muted small">{{ t.stillOpen ? 'still open' : (t.exitReason ?? '—') }}</td>
+                  <td class="num muted">{{ t.tradingDaysHeld ?? '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      }
+    </div>
+  </mat-tab>
 </mat-tab-group>

@@ -102,3 +102,63 @@
     grid-template-columns: 1fr;
   }
 }
+
+// â”€â”€ "Almost" tab: signals good enough to buy that the single slot turned
+// away. Table-first because this is scanned as evidence, not browsed.
+.almost-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0;
+
+  .capsule {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: rgba(127, 127, 127, 0.12);
+    color: var(--st-muted);
+
+    &.green { background: rgba(34, 197, 94, 0.15); color: var(--st-green); }
+    &.red   { background: rgba(239, 68, 68, 0.15); color: var(--st-red); }
+  }
+}
+
+.almost-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 0.88rem;
+
+  th, td {
+    text-align: left;
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--st-border);
+    white-space: nowrap;
+  }
+
+  th {
+    color: var(--st-muted);
+    font-weight: 500;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  // Tabular figures so the return column reads as a column, not a jumble.
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .good { color: var(--st-green); font-weight: 600; }
+  .bad  { color: var(--st-red);   font-weight: 600; }
+
+  tbody tr:hover { background: rgba(127, 127, 127, 0.06); }
+}
+
+// The table is the widest thing on the page - let it scroll inside its own
+// box rather than pushing the whole tab sideways on a narrow screen.
+@media (max-width: 700px) {
+  .almost-table { display: block; overflow-x: auto; }
+}
+

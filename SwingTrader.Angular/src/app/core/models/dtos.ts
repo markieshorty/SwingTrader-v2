@@ -180,6 +180,32 @@ export interface AllocationDto {
 }
 
 // Small-cap filing events feed (docs/filing-events-plan P1).
+// "Almost trades": signals that cleared the gate AND the forward floor but
+// were not bought because the single position was already occupied, replayed
+// forward to show what taking them would have returned.
+export interface AlmostTradeDto {
+  signalDate: string;
+  symbol: string;
+  companyName: string | null;
+  gateScore: number | null;
+  forwardScore: number | null;
+  setup: string;
+  counterfactualReturnPct: number | null;
+  exitReason: string | null;
+  tradingDaysHeld: number | null;
+  stillOpen: boolean;
+}
+
+export interface AlmostTradesResultDto {
+  windowDays: number;
+  qualified: number;
+  replayed: number;
+  avgReturnPct: number;
+  wouldHaveWon: number;
+  forwardFloor: number;
+  trades: AlmostTradeDto[];
+}
+
 export interface FilingEventDto {
   id: number;
   symbol: string;

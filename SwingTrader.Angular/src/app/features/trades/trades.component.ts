@@ -3,6 +3,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Title } from '@angular/platform-browser';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -15,7 +16,7 @@ import { DashboardDataService } from '../../core/services/dashboard-data.service
 import { ApiService } from '../../core/services/api.service';
 import { OpenPositionsComponent } from './open-positions/open-positions.component';
 import { TradeHistoryComponent } from './trade-history/trade-history.component';
-import { TradeApprovalCandidateDto, TradeApprovalDto, TradeDto } from '../../core/models/dtos';
+import { AlmostTradesResultDto, TradeApprovalCandidateDto, TradeApprovalDto, TradeDto } from '../../core/models/dtos';
 import { ConfirmApproveDialogComponent } from '../../shared/components/confirm-approve-dialog/confirm-approve-dialog.component';
 import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
 import { errorMessage } from '../../shared/utils/error-message.util';
@@ -23,7 +24,7 @@ import { errorMessage } from '../../shared/utils/error-message.util';
 // Query-param-driven tab selection (?tab=approvals) so links/emails can
 // deep-link straight to a specific tab instead of always landing on the
 // first one.
-const TAB_NAMES = ['positions', 'history', 'approvals'] as const;
+const TAB_NAMES = ['positions', 'history', 'approvals', 'almost'] as const;
 
 @Component({
   selector: 'app-trades',
@@ -31,6 +32,7 @@ const TAB_NAMES = ['positions', 'history', 'approvals'] as const;
   imports: [
     CommonModule,
     MatTabsModule,
+    MatButtonToggleModule,
     MatCardModule,
     MatButtonModule,
     MatIconModule,
@@ -53,6 +55,25 @@ export class TradesComponent {
   positions = toSignal(this.data.positions$, { initialValue: [] });
   closedTrades = signal<TradeDto[]>([]);
   approvals = signal<TradeApprovalDto[]>([]);
+
+  // "Almost trades" - signals good enough to buy that the single open slot
+  // turned away (docs/selective-buy-plan). Loaded lazily on first view: it
+  // replays every qualifying signal, so it is the heaviest read on this page.
+  almost = signal<AlmostTradesResultDto | null>(null);
+  almostLoaded = signal(false);
+  almostDays = signal(90);
+
+  loadAlmostTrades(days: number): void {
+    this.almostDays.set(days);
+    this.almostLoaded.set(false);
+    this.api.getAlmostTrades(days).subscribe({
+      next: (r) => {
+        this.almost.set(r);
+        this.almostLoaded.set(true);
+      },
+      error: () => this.almostLoaded.set(true),
+    });
+  }
   isOwner = signal(false);
 
   selectedTabIndex = signal(0);
@@ -73,6 +94,9 @@ export class TradesComponent {
   onTabChange(index: number): void {
     this.selectedTabIndex.set(index);
     writeTabIndexToRoute(this.router, this.route, TAB_NAMES, index);
+    // Index 3 = "Almost". Lazy: it replays every qualifying signal, so it is
+    // not worth paying for unless the tab is actually opened.
+    if (index === 3 && !this.almostLoaded() && this.almost() === null) this.loadAlmostTrades(this.almostDays());
   }
 
   private loadApprovals(): void {
