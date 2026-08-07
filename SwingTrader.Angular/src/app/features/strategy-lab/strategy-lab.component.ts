@@ -190,7 +190,14 @@ export class StrategyLabComponent implements OnDestroy {
   // the old breakout-only dropdown + the separate trading-rules multiselect.
   // OversoldRecoveryLoose retired 4 Aug 2026 (survivorship artefact) - no
   // detector emits it, so it is no longer offerable as an exclusion.
-  readonly allSetups = ['OversoldRecovery', 'Breakout', 'MomentumContinuation', 'VolumeSpike', 'TrendFollowing'];
+  readonly allSetups = [
+    'OversoldRecovery', 'Breakout', 'MomentumContinuation', 'VolumeSpike', 'TrendFollowing',
+    // "Unknown" is not a placeholder - DetectSetup returns it whenever none of
+    // the five patterns match, and because the setup filter is a blocklist
+    // those trades are TAKEN unless excluded here. Narrowing the book without
+    // excluding Unknown silently leaves the majority of trades unclassified.
+    'Unknown',
+  ];
   excludedSetups = signal<string[]>([]);
 
   // Deep history (docs/deep-history-plan P1): first year of data the run

@@ -112,7 +112,7 @@
           <mat-form-field appearance="outline" subscriptSizing="dynamic" class="setup-filter-select">
             <mat-label>Exclude setups (this run)</mat-label>
             <mat-select multiple [value]="excludedSetups()" (selectionChange)="excludedSetups.set($event.value)"
-              matTooltip="Setups your side of the run skips everywhere. Simulation only - live settings are untouched. Prefilled from your live Setups tab; the per-setup tactics table below mirrors this (its row toggles edit the same list).">
+              matTooltip="Setups your side of the run skips everywhere. Simulation only - live settings are untouched. Prefilled from your live Setups tab; the per-setup tactics table below mirrors this (its row toggles edit the same list). 'Unknown' means no setup pattern matched - those trades are taken unless you exclude them, so narrowing the book to one setup WITHOUT excluding Unknown still trades everything unclassified.">
               @for (s of allSetups; track s) {
                 <mat-option [value]="s">{{ s }}</mat-option>
               }
