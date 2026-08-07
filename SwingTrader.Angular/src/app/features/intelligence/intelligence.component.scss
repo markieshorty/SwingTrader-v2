@@ -185,3 +185,185 @@ h3 {
 
   &.detail { margin-top: 14px; font-size: 0.85rem; }
 }
+
+// ── Events tab (small-cap 8-K feed) ────────────────────────────────────────
+// This feed had markup but no styles at all. It runs to 40+ entries a day and
+// grows, so it is built to be SCANNED: direction is carried by a colour spine
+// down the left edge, severity by a dot meter, and the summary is capped to a
+// readable measure rather than running the full width of the page.
+
+.event-tally {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+
+  .tally-total {
+    margin-left: auto;
+    font-size: 0.8rem;
+    color: var(--st-muted);
+  }
+}
+
+.event-feed {
+  display: grid;
+  gap: 10px;
+}
+
+.event-card {
+  position: relative;
+  padding: 12px 14px 12px 16px;
+  border: 1px solid var(--st-border);
+  border-radius: 10px;
+  background: var(--st-card);
+  overflow: hidden;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+
+  // The colour spine. A pseudo-element keeps it flush with the rounded
+  // corners, which a plain left-border cannot do.
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--st-muted);
+    opacity: 0.5;
+  }
+
+  &[data-direction='Bullish']::before { background: var(--st-green); opacity: 1; }
+  &[data-direction='Bearish']::before { background: var(--st-red); opacity: 1; }
+
+  &:hover {
+    border-color: var(--st-muted);
+    transform: translateY(-1px);
+  }
+}
+
+.event-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.event-symbol {
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+}
+
+// Truncates rather than wrapping - the company name is context, never the
+// thing being read, and a long one would otherwise push the date off the row.
+.event-company {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85rem;
+  color: var(--st-muted);
+}
+
+.event-date {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  color: var(--st-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.event-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+
+  .capsule {
+    padding: 2px 10px;
+    font-size: 11px;
+  }
+}
+
+.event-items {
+  font-size: 0.72rem;
+  color: var(--st-muted);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.severity {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+
+  .sev-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+    color: var(--st-muted);
+    opacity: 0.25;
+
+    &.on { opacity: 0.9; }
+  }
+}
+
+.event-card[data-direction='Bearish'] .sev-dot.on { color: var(--st-red); }
+.event-card[data-direction='Bullish'] .sev-dot.on { color: var(--st-green); }
+
+.event-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  font-size: 0.75rem;
+  text-decoration: none;
+  color: var(--st-muted);
+
+  mat-icon {
+    font-size: 13px;
+    width: 13px;
+    height: 13px;
+  }
+
+  &:hover {
+    color: var(--st-blue);
+    text-decoration: underline;
+  }
+}
+
+.event-summary {
+  margin: 0;
+  max-width: 78ch;          // a readable measure, not the full page width
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.event-facts {
+  margin: 6px 0 0;
+  max-width: 78ch;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--st-muted);
+}
+
+.event-forward {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: 0.8rem;
+
+  .good { color: var(--st-green); font-weight: 600; }
+  .bad  { color: var(--st-red);   font-weight: 600; }
+}
+
+// Narrow screens: the head row stops competing for space - the company name
+// drops to its own line rather than truncating to nothing.
+@media (max-width: 600px) {
+  .event-head { flex-wrap: wrap; }
+  .event-company { flex-basis: 100%; order: 3; }
+  .event-link { margin-left: 0; }
+  .event-tally .tally-total { margin-left: 0; flex-basis: 100%; }
+}

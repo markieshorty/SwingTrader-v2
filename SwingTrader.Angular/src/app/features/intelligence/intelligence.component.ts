@@ -73,6 +73,14 @@ export class IntelligenceComponent {
   filingEvents = signal<FilingEventDto[]>([]);
   filingEventsLoaded = signal(false);
 
+  // Severity renders as a 5-dot meter rather than "sev 3" - at 40+ events a
+  // shape is scannable in a way a number is not.
+  readonly severityScale = [1, 2, 3, 4, 5];
+
+  directionCount(direction: FilingEventDto['direction']): number {
+    return this.filingEvents().filter(e => e.direction === direction).length;
+  }
+
   loadFilingEvents(): void {
     this.api.getFilingEvents(14).subscribe({
       next: (rows) => {
