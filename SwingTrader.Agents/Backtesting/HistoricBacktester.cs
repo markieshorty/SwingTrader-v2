@@ -707,40 +707,10 @@ public static class HistoricBacktester
     }
 
     // Mirror of ResearchPipeline.DetectSetup (private there) - keep in sync.
-    private static SetupType DetectSetup(IndicatorResult ind, List<StockCandle> candles)
-    {
-        var price = candles[^1].Close;
-
-        // Oversold requires the 4-bar recovery confirmation, in lockstep
-        // with the live pipeline. Loose RETIRED 4 Aug 2026 (survivorship
-        // artefact - see Enums.cs); an unconfirmed dip is Unknown.
-        if (ind.Rsi14 < 35 && ind.BollingerLower.HasValue && price > ind.BollingerLower.Value
-            && candles.Count >= 4 && price > candles[^4].Close)
-            return SetupType.OversoldRecovery;
-
-        if (ind.BollingerUpper.HasValue && price > ind.BollingerUpper.Value
-            && ind.VolumeRatio > 1.5m && ind.MacdHistogram > 0)
-            return SetupType.Breakout;
-
-        if (ind.Rsi14 >= 50 && ind.Rsi14 <= 65
-            && ind.Ema9.HasValue && ind.Ema21.HasValue && ind.Ema9 > ind.Ema21
-            && ind.MacdHistogram > 0 && ind.VolumeRatio > 1.0m)
-            return SetupType.MomentumContinuation;
-
-        if (ind.VolumeRatio > 2.0m && candles.Count >= 2)
-        {
-            var prevClose = candles[^2].Close;
-            if (prevClose > 0 && (price - prevClose) / prevClose * 100 > 1.5m)
-                return SetupType.VolumeSpike;
-        }
-
-        if (ind.Ema9.HasValue && ind.Ema21.HasValue && ind.Ema9 > ind.Ema21
-            && ind.Rsi14 > 50
-            && ind.BollingerMid.HasValue && price > ind.BollingerMid.Value)
-            return SetupType.TrendFollowing;
-
-        return SetupType.Unknown;
-    }
+    // Single definition lives in SetupDetector - three copies of this drifted
+    // (see that file). Do not inline it again.
+    private static SetupType DetectSetup(IndicatorResult ind, List<StockCandle> candles) =>
+        SetupDetector.Detect(ind, candles);
 
     // Mirror of the live screener (StockScreener + SetupScreens). Before
     // 7 Aug 2026 this was a hardcoded copy of the single-factor screen, which

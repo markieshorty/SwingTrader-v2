@@ -704,43 +704,10 @@ public class ResearchPipeline(
         }
     }
 
-    private static SetupType DetectSetup(IndicatorResult ind, List<StockCandle> candles)
-    {
-        var price = candles[^1].Close;
-
-        // Oversold requires the 4-bar recovery confirmation (price higher
-        // than 4 bars ago - the bounce has begun). The unconfirmed "loose"
-        // variant was RETIRED 4 Aug 2026: the survivorship-free dataset
-        // showed its edge was an artefact (the unconfirmed dips are where
-        // the dead companies lived), so an unconfirmed dip is no setup at
-        // all - it classifies Unknown and effectively never Buys.
-        if (ind.Rsi14 < 35 && ind.BollingerLower.HasValue && price > ind.BollingerLower.Value
-            && candles.Count >= 4 && price > candles[^4].Close)
-            return SetupType.OversoldRecovery;
-
-        if (ind.BollingerUpper.HasValue && price > ind.BollingerUpper.Value
-            && ind.VolumeRatio > 1.5m && ind.MacdHistogram > 0)
-            return SetupType.Breakout;
-
-        if (ind.Rsi14 >= 50 && ind.Rsi14 <= 65
-            && ind.Ema9.HasValue && ind.Ema21.HasValue && ind.Ema9 > ind.Ema21
-            && ind.MacdHistogram > 0 && ind.VolumeRatio > 1.0m)
-            return SetupType.MomentumContinuation;
-
-        if (ind.VolumeRatio > 2.0m && candles.Count >= 2)
-        {
-            var prev = candles[^2].Close;
-            if (prev > 0 && (price - prev) / prev * 100 > 1.5m)
-                return SetupType.VolumeSpike;
-        }
-
-        if (ind.Ema9.HasValue && ind.Ema21.HasValue && ind.Ema9 > ind.Ema21
-            && ind.Rsi14 > 50
-            && ind.BollingerMid.HasValue && price > ind.BollingerMid.Value)
-            return SetupType.TrendFollowing;
-
-        return SetupType.Unknown;
-    }
+    // Single definition lives in SetupDetector - three copies of this drifted
+    // (see that file). Do not inline it again.
+    private static SetupType DetectSetup(IndicatorResult ind, List<StockCandle> candles) =>
+        SetupDetector.Detect(ind, candles);
 
     // Thin orchestration: fetch component values, score them via ConvictionScorer, return.
     // No scoring logic lives here — see ConvictionScorer.cs.
