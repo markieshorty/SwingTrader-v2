@@ -16,6 +16,7 @@ public class CandleSyncConsumerFunction(
     SwingTrader.Agents.Backtesting.IDelistedBackfillService delistedBackfill,
     SwingTrader.Infrastructure.Storage.ICandleBlobMigrationService blobMigration,
     SwingTrader.Agents.FilingEvents.IFilingEventScanService filingEvents,
+    IJobLogRepository jobLog,
     Azure.Messaging.ServiceBus.ServiceBusClient? serviceBus,
     IWorkerHeartbeatRepository heartbeats,
     IActivityLogRepository activityLog,
@@ -36,16 +37,24 @@ public class CandleSyncConsumerFunction(
         {
             logger.LogInformation("Filing events job {JobId} starting for account {AccountId}",
                 message.JobId, message.AccountId);
+            // The scheduler claims a job-log row before sending; nothing was
+            // closing it, so every run left a permanent "Queued" capsule on
+            // the dashboard (6 Aug). Mark* no-ops when there is no row, so
+            // the manual trigger is unaffected.
+            var jobDate = DateOnly.FromDateTime(DateTime.UtcNow);
+            await jobLog.MarkProcessingAsync(message.AccountId, "FilingEvents", jobDate, ct);
             try
             {
                 var scan = await filingEvents.ScanAsync(DateOnly.FromDateTime(DateTime.UtcNow), ct);
                 await activityLog.LogAsync(message.AccountId, "WorkerRun", "Filing Events",
                     !scan.Enabled ? "Skipped" : scan.Failed > 0 ? "Warning" : "Info", scan.Summary, ct);
                 logger.LogInformation("Filing events job {JobId} — {Summary}", message.JobId, scan.Summary);
+                await jobLog.MarkCompletedAsync(message.AccountId, "FilingEvents", jobDate, ct);
             }
             catch (Exception ex)
             {
                 await activityLog.LogAsync(message.AccountId, "WorkerRun", "Filing Events", "Failed", ex.Message, ct);
+                await jobLog.MarkFailedAsync(message.AccountId, "FilingEvents", jobDate, ex.Message, ct);
                 logger.LogError(ex, "Filing events job {JobId} failed", message.JobId);
                 throw;
             }

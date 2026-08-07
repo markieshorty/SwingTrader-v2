@@ -80,6 +80,18 @@ public class FilingEventScanService(
 
         var filings = await edgar.SearchEightKsAsync(date, ct);
 
+        // EDGAR accepts filings 06:00-22:00 ET, so a run before the day has
+        // opened (a manual scan in the small hours, a Monday morning, the
+        // day after a holiday) legitimately finds nothing. Fall back one day
+        // rather than reporting an empty scan - the accession-number dedup
+        // makes re-reading a day already scanned free.
+        if (filings.Count == 0)
+        {
+            date = date.AddDays(-1);
+            filings = await edgar.SearchEightKsAsync(date, ct);
+            logger.LogInformation("Filing events: no filings for the requested day - fell back to {Date}", date);
+        }
+
         // Neglected-company filter, P1 approximation: anything in the liquid
         // ~1,500 universe is by definition well-covered - drop it. A real
         // market-cap source (cap <= $500M) is a recorded follow-up; until
