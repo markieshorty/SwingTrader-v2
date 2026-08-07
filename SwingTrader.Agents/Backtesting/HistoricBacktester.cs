@@ -1,4 +1,5 @@
 using SwingTrader.Agents.Research;
+using SwingTrader.Agents.Watchlist;
 using SwingTrader.Core.Constants;
 using SwingTrader.Core.Enums;
 using SwingTrader.Core.Models;
@@ -65,6 +66,13 @@ public sealed record HistoricConfig(
     decimal PositionFraction = 0.10m,
     int MaxOpenPositions = 3,
     decimal MinDollarVolume = 10_000_000m,
+    // Screener union (docs/screener-union-plan). Mirrors
+    // Watchlist:UnionScreenEnabled / PerSetupCandidates so a backtest models
+    // the screen production actually runs. Turning this off reproduces the
+    // pre-7-Aug-2026 single-factor screen, which is what every earlier
+    // backtest measured - including "Breakout is the drag".
+    bool UnionScreen = true,
+    int PerSetupCandidates = 24,
     // Trading-day hold cap, mirrored from the account risk profile so the Lab
     // tests the strategy the account actually runs (was a hardcoded 10).
     int MaxHoldDays = 10,
@@ -283,8 +291,16 @@ public static class HistoricBacktester
             ct.ThrowIfCancellationRequested();
             var today = calendar[d];
 
+            // Live rebuilds the watchlist SUNDAY EVENING ET (SchedulerFunction),
+            // by which point Saturday's candle sync has landed Friday's bars -
+            // so production screens on the LAST TRADING DAY of the previous
+            // week and that list governs Mon-Fri. Screening as of `today`
+            // (Monday) would read a bar production had not seen yet: a one-day
+            // phase shift against live, and a mild look-ahead for Monday's own
+            // decisions.
             if (watchlist.Count == 0 || today.DayOfWeek == DayOfWeek.Monday)
-                watchlist = BuildWatchlist(bars, index, today, cfg.MinDollarVolume);
+                watchlist = await BuildWatchlistAsync(
+                    bars, index, calendar[Math.Max(d - 1, 0)], cfg, indicators, ct);
 
             // Manage open positions (gap-aware)
             foreach (var pos in open.ToList())
@@ -726,13 +742,28 @@ public static class HistoricBacktester
         return SetupType.Unknown;
     }
 
-    private static List<string> BuildWatchlist(
+    // Mirror of the live screener (StockScreener + SetupScreens). Before
+    // 7 Aug 2026 this was a hardcoded copy of the single-factor screen, which
+    // meant every backtest measured a candidate supply production no longer
+    // uses - the divergence that makes per-setup conclusions untransferable.
+    //
+    // Order matches live exactly: build the per-setup union FIRST, then apply
+    // the hard filters, then cap. Filtering before the union would fill each
+    // pool's quota with liquid names instead of letting an illiquid top pick
+    // consume its slot - defensible, but not what production does.
+    private static async Task<List<string>> BuildWatchlistAsync(
         IReadOnlyDictionary<string, DailyBar[]> bars, Dictionary<string, Dictionary<DateTime, int>> index,
-        DateTime asOf, decimal minDollarVolume)
+        DateTime asOf, HistoricConfig cfg, IIndicatorService indicators, CancellationToken ct)
     {
-        var ranked = new List<(string Symbol, decimal AbsChange)>();
+        var candidacies = new List<SetupCandidacy>();
+        var legacyRanked = new List<(string Symbol, decimal AbsChange)>();
+        var stats = new Dictionary<string, (decimal Close, decimal AbsChange, decimal DollarVolume)>(
+            StringComparer.OrdinalIgnoreCase);
+
         foreach (var (symbol, series) in bars)
         {
+            ct.ThrowIfCancellationRequested();
+
             // SPY, VIX and the sector ETFs are in the bar set only as regime/RS
             // benchmarks - never as trade candidates.
             if (symbol.Equals("SPY", StringComparison.OrdinalIgnoreCase) ||
@@ -744,18 +775,60 @@ public static class HistoricBacktester
             var prevBar = series[i - 1];
             if (prevBar.Close <= 0) continue;
 
-            var change = (bar.Close - prevBar.Close) / prevBar.Close * 100m;
-            var absChange = Math.Abs(change);
-            if (bar.Close < 15m || bar.Close > 500m) continue;
-            if (absChange < 1.0m || absChange > 15.0m) continue;
-
+            var absChange = Math.Abs((bar.Close - prevBar.Close) / prevBar.Close * 100m);
             var avgVol = series[(i - 19)..(i + 1)].Average(b => b.Volume);
-            if (avgVol * bar.Close < minDollarVolume) continue;
+            stats[symbol] = (bar.Close, absChange, avgVol * bar.Close);
 
-            ranked.Add((symbol, absChange));
+            if (!cfg.UnionScreen)
+            {
+                legacyRanked.Add((symbol, absChange));
+                continue;
+            }
+
+            // Indicators need the same warmup the live screen gets from the
+            // blob store. Symbols without it simply cannot be screened.
+            if (i < WarmupBars) continue;
+            var history = series[(i - WarmupBars + 1)..(i + 1)];
+            var candles = new List<CandleData>(history.Length);
+            foreach (var b in history)
+                candles.Add(new CandleData(b.Date, b.Open, b.High, b.Low, b.Close, (long)b.Volume));
+
+            var ind = indicators.Calculate(candles);
+            var fourBack = i >= 4 ? series[i - 4].Close : (decimal?)null;
+            candidacies.AddRange(SetupScreens.Evaluate(symbol, ind, bar.Close, fourBack));
         }
 
-        return ranked.OrderByDescending(r => r.AbsChange).Take(WatchlistSize).Select(r => r.Symbol).ToList();
+        await Task.CompletedTask;
+
+        // Hard filters, identical to live. The minimum-move floor applies ONLY
+        // to the legacy path - under the union it is exactly what starved the
+        // trend-state setups.
+        bool Passes(string symbol, bool unionMode)
+        {
+            if (!stats.TryGetValue(symbol, out var s)) return false;
+            if (s.Close < 15m || s.Close > 500m) return false;
+            if (s.AbsChange > 15.0m) return false;
+            if (!unionMode && s.AbsChange < 1.0m) return false;
+            return s.DollarVolume >= cfg.MinDollarVolume;
+        }
+
+        if (!cfg.UnionScreen)
+        {
+            return legacyRanked
+                .Where(r => Passes(r.Symbol, unionMode: false))
+                .OrderByDescending(r => r.AbsChange)
+                .Take(WatchlistSize)
+                .Select(r => r.Symbol)
+                .ToList();
+        }
+
+        // Round-robin order IS the allocation - taking WatchlistSize off a
+        // move-sorted list would hand every slot back to the expansion setups.
+        return SetupScreens.Union(candidacies, cfg.PerSetupCandidates)
+            .Select(e => e.Symbol)
+            .Where(s => Passes(s, unionMode: true))
+            .Take(WatchlistSize)
+            .ToList();
     }
 
     private static bool SpyAboveSma200(DailyBar[] spy, int i)

@@ -70,6 +70,13 @@ public static class ConfigFingerprint
         Num("probation", cfg.SimulateProbation);
         Num("minHold", cfg.MinHoldDays);
         Num("health", cfg.MomentumHealthThreshold);
+        // Which SCREEN produced the candidates. Added 7 Aug 2026 with the
+        // union screen: a run over per-setup candidate pools and a run over
+        // the old single-factor "biggest movers" ranking are not the same
+        // experiment, and pooling their evidence would repeat exactly the
+        // population-mixing this project keeps getting caught by.
+        Num("union", cfg.UnionScreen);
+        Num("perSetup", cfg.PerSetupCandidates);
         Num("posFrac", cfg.PositionFraction);
         Num("locked", cfg.LockedCapitalPct);
         Num("activeCap", cfg.ActiveCapitalPct ?? -1m);

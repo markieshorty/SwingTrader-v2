@@ -52,7 +52,15 @@ public class DelistingExitTests
         MaxHoldDays: 200,             // no time exit before the delisting
         StopLossPct: 0.90m,           // stops/targets far out of reach
         TargetPct: 5.0m,
-        MinDollarVolume: 1m);
+        MinDollarVolume: 1m,
+        // These fixtures pre-date the union screen and are built for the
+        // legacy one: DEADX is a steady 2.5%/day slide, which ranked top of a
+        // "biggest movers" list but qualifies for NO setup screen - a pure
+        // decliner fails OversoldRecovery's price > close[-4] recovery leg.
+        // The subject here is delisting semantics, not candidate selection,
+        // so pin the legacy screen and let ScreenerUnionBacktestTests cover
+        // the union path.
+        UnionScreen: false);
 
     [Fact]
     public async Task PositionInDelistedSymbol_ForceExitsWithHaircut()
