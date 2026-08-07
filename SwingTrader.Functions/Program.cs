@@ -174,7 +174,6 @@ builder.Services.AddScoped<IBacktestRunRepository, BacktestRunRepository>();
 builder.Services.AddScoped<SwingTrader.Agents.Backtesting.ICandleSyncService, SwingTrader.Agents.Backtesting.CandleSyncService>();
 builder.Services.AddScoped<SwingTrader.Agents.Backtesting.IDelistedBackfillService, SwingTrader.Agents.Backtesting.DelistedBackfillService>();
 builder.Services.AddScoped<SwingTrader.Infrastructure.Storage.ICandleBlobMigrationService, SwingTrader.Infrastructure.Storage.CandleBlobMigrationService>();
-builder.Services.AddScoped<SwingTrader.Agents.Execution.ISpyCoreService, SwingTrader.Agents.Execution.SpyCoreService>();
 builder.Services.AddScoped<SwingTrader.Core.Interfaces.ISymbolLifecycleRepository, SwingTrader.Data.Repositories.SymbolLifecycleRepository>();
 
 // Filing-delta store + sync (docs/filing-delta-plan). EDGAR requires a

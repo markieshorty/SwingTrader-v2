@@ -15,7 +15,7 @@ using SwingTrader.Core.Trading;
 namespace SwingTrader.Agents.Execution;
 
 public class ExecutionService(
-    IAccountAllocationRepository allocationRepo,
+
     ISignalRepository signalRepo,
     ITradeRepository tradeRepo,
     IPortfolioRepository portfolioRepo,
@@ -232,16 +232,18 @@ public class ExecutionService(
 
         // TotalValue/Investments.CurrentValue are already in the account's
         // base currency (GBP), computed by T212 itself.
-        // Sleeve scoping (docs/sleeves-plan P1): the swing strategy sizes
-        // against its SLICE of equity, and other sleeve holdings do not
-        // count toward its deployable usage. Default allocation (Swing 100%)
-        // makes every number below identical to the pre-sleeves behaviour.
-        var allocation = await allocationRepo.GetAsync(accountId, ct);
+        // Sleeves removed 7 Aug 2026 (docs/selective-buy-plan P3): the swing
+        // strategy IS the account, so it sizes against total value.
+        //
+        // The non-Swing exclusion stays. It is data-driven, not config-driven,
+        // and any legacy core row - the tracked VUAG position - must still be
+        // kept out of the deployed-value sum, or the strategy would believe
+        // that capital is already committed to it.
         var nonSwingValue = allOpenTrades
             .Where(t => t.Sleeve != SleeveType.Swing)
             .Sum(t => t.EntryValueGbp ?? t.Quantity * t.EntryPrice);
         var openPositionsValue = Math.Max(0m, accountSummary.Investments.CurrentValue - nonSwingValue);
-        var totalPortfolioValue = accountSummary.TotalValue * allocation.SwingPct;
+        var totalPortfolioValue = accountSummary.TotalValue;
         logger.LogInformation(
             "Execution starting for account {AccountId}: {Date} | Cash={Cash:F2} | ReservedForOrders={Reserved:F2} | InPies={Pies:F2} | OpenPositionsValue={Positions:F2} | TotalPortfolio={Portfolio:F2} | Signals={Count}",
             accountId, date, availableCash, accountSummary.Cash.ReservedForOrders, accountSummary.Cash.InPies,

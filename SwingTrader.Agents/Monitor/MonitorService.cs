@@ -17,8 +17,7 @@ namespace SwingTrader.Agents.Monitor;
 // wide liquidation event stays flag-only (see Step 1 below) rather than
 // auto-selling every open position across the whole account at once.
 public class MonitorService(
-    SwingTrader.Agents.Execution.ISpyCoreService spyCore,
-    IAccountAllocationRepository allocationRepo,
+
     ITradeRepository tradeRepo,
     IPortfolioRepository portfolioRepo,
     IPortfolioCircuitBreakerService circuitBreaker,
@@ -161,7 +160,9 @@ public class MonitorService(
         // a core rebalance failure must never stop position monitoring.
         try
         {
-            await spyCore.RunAsync(account, t212, summary, ct);
+            // SpyCoreService removed 7 Aug 2026 (docs/selective-buy-plan P3).
+            // Index exposure is held directly at the broker; this system's job
+            // is choosing a speculative stock, buying it and selling it.
         }
         catch (Exception ex)
         {
