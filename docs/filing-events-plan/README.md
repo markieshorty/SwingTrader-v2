@@ -48,10 +48,29 @@ FORWARD data as it accumulates, not swept against a biased history.
    - 2.01 completed acquisition/disposition
    - 1.01/1.02 material agreement entry/termination
    - 5.07 (voting) and pure earnings 2.02/9.01-only filings are DROPPED.
-3. **Small-cap filter**: company market cap <= $500M (Finnhub profile,
-   cached per symbol ~30 days; symbols without cap data are kept but
-   flagged). Symbols already in the liquid-1500 universe are allowed (some
-   overlap at the boundary is fine).
+3. **Small-cap filter** (rewritten 7 Aug 2026 - see below): public float
+   <= $250M from the company's own cover-page XBRL
+   (`dei:EntityPublicFloat`, keyed on the CIK already in the search hit).
+   $250M is the SEC's own "smaller reporting company" line, so the
+   threshold is a definition rather than a guess, and float beats market
+   cap here because it excludes insider-locked stock - it measures what is
+   actually traded and followed. Companies that have never reported a
+   float are EXCLUDED, not kept-and-flagged: an unmeasured name silently
+   widens the population the hypotheses are declared over. Blank-cheque
+   shells (SIC 6770) are dropped whatever their size - they clear a float
+   test easily but file deal mechanics, not fundamentals. Liquid-1500
+   membership survives only as a cheap pre-filter that avoids a lookup.
+
+   > **Why this was rewritten.** P1 shipped with "not in the liquid ~1,500
+   > universe" as the small-cap proxy. On the first real scan it captured
+   > Yum China ($16.5bn float), iRhythm ($4.9bn), UWM, Hyster-Yale and
+   > PubMatic alongside genuine micro-caps - the proxy was selecting
+   > "mid-caps our universe happens to exclude", not "companies nobody
+   > researches", which is the entire premise. The 41 events captured under
+   > the old filter were DISCARDED rather than kept, because evidence
+   > gathered over the wrong population cannot be pooled with evidence
+   > gathered over the right one. Cost of the fix: one cached HTTP call per
+   > company, no Claude tokens.
 4. **Claude classification** (the only metered step): for routed filings,
    extract text (existing FilingTextExtractor) and classify into an event
    record: type, direction (bullish/bearish/unclear), severity 1-5, a
@@ -77,7 +96,9 @@ explicit flip. Burst risk is bounded by the daily index (no backfill in P1).
     show negative 20d drift - actionable as an AVOID/veto overlay for any
     symbol the swing book considers.
   - **H-FE2**: bullish 1.01/2.01 events on sub-$500M names show positive
-    20d drift - the long candidate.
+    20d drift - the long candidate. (Testable as written from 7 Aug 2026:
+    the gate stores the public float it judged each event on in
+    `MarketCapUsd`, which was null for every row before that.)
   - **H-FE3**: severity calibration - Claude's 4-5 severity events move
     more than its 1-2s (tests whether the LLM adds anything beyond the
     item code).

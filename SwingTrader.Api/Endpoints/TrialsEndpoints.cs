@@ -95,12 +95,13 @@ public static class TrialsEndpoints
                     "Keep/kill the Bear-book VS exclusion set on its first ~30 Bear-regime trades.",
                     "Counts only trades taken while the Bear/Crisis book governs — none yet (no Bear regime since 5 Aug)."),
                 new("filing-events", "Small-cap filing events (P1 monitoring)",
-                    "Routed 8-K events on neglected names predict 20-day drift (bearish: negative; bullish agreements: positive).",
-                    "2026-08-06", "Monitoring (Haiku, all 7 codes, nothing acts)",
+                    "Routed 8-K events on genuinely small companies (public float < $250M) predict 20-day drift (bearish: negative; bullish agreements: positive).",
+                    "2026-08-07", "Monitoring (Haiku, all 7 codes, nothing acts)",
                     stampedEvents, 50, TrialsMath.Grade(stampedEvents, 50),
                     "Bearish confirmation -> FD3-style veto overlay; bullish confirmation -> event long-book spec (P3).",
-                    events.Count == 0 ? "First scan runs tonight — the feed is empty until then."
-                        : $"{events.Count} events captured; forward stamping (P2) not built yet, so 0 are stamped."),
+                    events.Count == 0
+                        ? "Feed reset 7 Aug 2026: the first 41 events were captured under a size filter that let $16bn companies through, so they were discarded rather than pooled with evidence from the corrected population."
+                        : $"{events.Count} events captured; forward stamping (P2) not built yet, so 0 are stamped — nothing here is evidence until it is."),
                 new("insider-selling-veto", "Insider cluster-selling veto",
                     "Buys on symbols with detected insider cluster selling underperform; demoting them to Watch improves outcomes.",
                     "2026-08-06", "Live and ACTING",

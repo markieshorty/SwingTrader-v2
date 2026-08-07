@@ -23,12 +23,22 @@ public interface IEdgarClient
     // search (docs/filing-events-plan P1) - includes item codes and tickers,
     // so routing needs no further requests.
     Task<IReadOnlyList<EdgarEightK>> SearchEightKsAsync(DateOnly date, CancellationToken ct);
+
+    // Public float in USD from the company's latest cover-page XBRL, or null
+    // when it has never reported one (foreign private issuers, fresh
+    // listings). This is the SEC's own basis for "smaller reporting company"
+    // (< $250M float), which makes it a far better size test than guessing
+    // from an index membership list.
+    Task<decimal?> GetPublicFloatAsync(string cik, CancellationToken ct);
 }
 
 // One market-wide 8-K search hit. Ticker may be empty (funds, co-filers).
 public sealed record EdgarEightK(
     string Cik, string Ticker, string CompanyName, string AccessionNumber,
-    string PrimaryDocument, DateOnly FiledAt, IReadOnlyList<string> Items);
+    string PrimaryDocument, DateOnly FiledAt, IReadOnlyList<string> Items,
+    // SIC industry code, straight from the search hit - no extra request.
+    // 6770 ("Blank Checks") is how SPAC shells identify themselves.
+    string Sic = "");
 
 // Items: the 8-K item codes for this filing (comma-separated, e.g.
 // "3.01,9.01"), straight from the submissions JSON's parallel `items` array.
@@ -115,11 +125,14 @@ public class EdgarClient(
                         foreach (var it in itemsEl.EnumerateArray())
                             if (it.GetString() is { Length: > 0 } code) items.Add(code.Trim());
 
+                    var sic = src.TryGetProperty("sics", out var sics) && sics.GetArrayLength() > 0
+                        ? (sics[0].GetString() ?? "") : "";
+
                     var filed = src.TryGetProperty("file_date", out var fd)
                         && DateOnly.TryParse(fd.GetString(), out var f) ? f : date;
 
                     if (cik.Length > 0 && accession.Length > 0)
-                        results.Add(new EdgarEightK(cik.PadLeft(10, '0'), ticker, company, accession, primaryDoc, filed, items));
+                        results.Add(new EdgarEightK(cik.PadLeft(10, '0'), ticker, company, accession, primaryDoc, filed, items, sic));
                 }
                 catch (Exception ex)
                 {
@@ -130,6 +143,43 @@ public class EdgarClient(
         }
         logger.LogInformation("EDGAR 8-K search {Date}: {Count} filings", d, results.Count);
         return results;
+    }
+
+    public async Task<decimal?> GetPublicFloatAsync(string cik, CancellationToken ct)
+    {
+        var padded = cik.PadLeft(10, '0');
+        try
+        {
+            var json = await GetStringAsync(
+                $"{DataHost}/api/xbrl/companyconcept/CIK{padded}/dei/EntityPublicFloat.json", ct);
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("units", out var units)) return null;
+
+            // Float is a cover-page fact restated each year; take the most
+            // recent reported period rather than assuming document order.
+            string? bestEnd = null;
+            decimal? bestVal = null;
+            foreach (var unit in units.EnumerateObject())
+                foreach (var row in unit.Value.EnumerateArray())
+                {
+                    if (!row.TryGetProperty("end", out var endEl)) continue;
+                    var end = endEl.GetString();
+                    if (end is null || (bestEnd is not null && string.CompareOrdinal(end, bestEnd) <= 0)) continue;
+                    if (!row.TryGetProperty("val", out var valEl)) continue;
+                    if (!valEl.TryGetDecimal(out var val)) continue;
+                    bestEnd = end;
+                    bestVal = val;
+                }
+            return bestVal;
+        }
+        catch (HttpRequestException ex)
+        {
+            // A company that has never reported a float 404s here. That is a
+            // normal answer, not a failure - the caller decides what to do
+            // with "unknown".
+            logger.LogDebug(ex, "EDGAR public float unavailable for CIK {Cik}", padded);
+            return null;
+        }
     }
 
     // "Acme Corp  (ACME)  (CIK 0001234567)" -> ("Acme Corp", "ACME").

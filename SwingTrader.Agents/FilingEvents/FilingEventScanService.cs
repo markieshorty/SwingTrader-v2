@@ -72,6 +72,18 @@ public class FilingEventScanService(
         return null;
     }
 
+    // Internal static for tests. Empty SIC means EDGAR gave us none, which is
+    // not grounds for exclusion on its own.
+    internal static bool IsExcludedIndustry(string? sic, IReadOnlyCollection<string>? excluded)
+    {
+        if (string.IsNullOrWhiteSpace(sic)) return false;
+        var codes = excluded is { Count: > 0 } ? excluded : DefaultExcludedSics;
+        return codes.Contains(sic.Trim(), StringComparer.Ordinal);
+    }
+
+    // 6770 "Blank Checks" - SPAC shells.
+    internal static readonly string[] DefaultExcludedSics = ["6770"];
+
     public async Task<FilingEventScanResult> ScanAsync(DateOnly date, CancellationToken ct = default)
     {
         var cfg = config.Value;
@@ -92,24 +104,52 @@ public class FilingEventScanService(
             logger.LogInformation("Filing events: no filings for the requested day - fell back to {Date}", date);
         }
 
-        // Neglected-company filter, P1 approximation: anything in the liquid
-        // ~1,500 universe is by definition well-covered - drop it. A real
-        // market-cap source (cap <= $500M) is a recorded follow-up; until
-        // then MarketCapUsd stays null and the feed marks caps unknown.
+        // Cheap pre-filter only: anything in the liquid ~1,500 universe is
+        // certainly well-covered, so it never justifies a float lookup. It is
+        // NOT the size test - on its own it let Yum China ($16.5bn) and
+        // iRhythm ($4.9bn) into the feed, which is why the float gate below
+        // exists (7 Aug 2026).
         var covered = new HashSet<string>(await universe.GetUniverseAsync(ct), StringComparer.OrdinalIgnoreCase);
 
+        // Public float per company, resolved lazily and cached for the scan.
+        // Many filers file repeatedly, and float only restates annually.
+        var floatByCik = new Dictionary<string, decimal?>(StringComparer.Ordinal);
+
         IClaudeClient? claude = null;
-        int routed = 0, classified = 0, failed = 0;
+        int routed = 0, classified = 0, failed = 0, tooBig = 0, shells = 0, capUnknown = 0;
         foreach (var filing in filings)
         {
             ct.ThrowIfCancellationRequested();
             if (classified >= cfg.MaxClassificationsPerDay) break; // hard token-budget lid
 
             if (filing.Ticker.Length == 0) continue;               // funds/co-filers
-            if (covered.Contains(filing.Ticker)) continue;         // well-covered name
+            if (covered.Contains(filing.Ticker)) continue;         // certainly covered
             var eventType = RouteEventType(filing.Items, cfg.RoutedItemCodes);
             if (eventType is null) continue;
             if (await events.ExistsAsync(filing.AccessionNumber, ct)) continue;
+
+            // Blank-cheque shells (SIC 6770) pass a float test comfortably but
+            // their 8-K flow is deal mechanics, not company fundamentals. The
+            // SIC rides in the search hit, so this costs nothing.
+            if (IsExcludedIndustry(filing.Sic, cfg.ExcludedSicCodes)) { shells++; continue; }
+
+            // The real size test. Public float is the SEC's own basis for
+            // "smaller reporting company", and the CIK is already in hand.
+            if (!floatByCik.TryGetValue(filing.Cik, out var publicFloat))
+            {
+                publicFloat = await edgar.GetPublicFloatAsync(filing.Cik, ct);
+                floatByCik[filing.Cik] = publicFloat;
+            }
+            if (publicFloat is null)
+            {
+                // Unknown size is excluded rather than guessed - an unmeasured
+                // name would silently widen the population the hypotheses are
+                // declared over.
+                capUnknown++;
+                continue;
+            }
+            if (publicFloat > cfg.MaxPublicFloatUsd) { tooBig++; continue; }
+
             routed++;
 
             var evt = new FilingEvent
@@ -122,6 +162,7 @@ public class FilingEventScanService(
                 CompanyName = filing.CompanyName,
                 Cik = filing.Cik,
                 AccessionNumber = filing.AccessionNumber,
+                MarketCapUsd = publicFloat,
                 FiledAt = filing.FiledAt,
                 ItemCodes = string.Join(",", filing.Items),
                 EventType = eventType,
@@ -155,7 +196,8 @@ public class FilingEventScanService(
 
         var summaryText =
             $"Filing events {date:yyyy-MM-dd}: {filings.Count} 8-Ks scanned, {routed} routed " +
-            $"({classified} classified, {failed} failed).";
+            $"({classified} classified, {failed} failed); excluded {tooBig} above the " +
+            $"${cfg.MaxPublicFloatUsd / 1_000_000m:N0}M float cap, {shells} shells, {capUnknown} unknown float.";
         logger.LogInformation("{Summary}", summaryText);
         return new FilingEventScanResult(true, filings.Count, routed, classified, failed, summaryText);
     }
@@ -214,6 +256,15 @@ public class FilingEventScanService(
 public class FilingEventsConfig
 {
     public bool Enabled { get; set; }
+
+    // The size gate, in USD of public float. $250M is the SEC's own
+    // "smaller reporting company" line, so the threshold is a definition
+    // rather than a guess. Companies above it, and companies that have never
+    // reported a float, never reach classification.
+    public decimal MaxPublicFloatUsd { get; set; } = 250_000_000m;
+
+    // SIC codes that never justify classification whatever their size.
+    public string[] ExcludedSicCodes { get; set; } = [];
     // Classification is a bounded task (the answer is stated in the text) -
     // Haiku-appropriate, and H-FE3 measures whether its judgments carry
     // information. The subtle-tone work stays with Sonnet in filing-delta.

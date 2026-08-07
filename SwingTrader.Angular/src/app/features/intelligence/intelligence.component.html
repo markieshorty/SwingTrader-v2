@@ -256,11 +256,12 @@
     <div class="tab-body">
       <p class="muted small">
         Small-cap 8-K events (docs/filing-events-plan): every 8-K filed market-wide, mechanically routed by item code
-        (departures, non-reliance, listing deficiencies, bankruptcies, material agreements), filtered to neglected
-        names outside the liquid universe, classified by Claude. <strong>Observation only</strong> — forward-return
-        stamps and hypothesis verdicts arrive with phase 2; nothing trades on these.
-        Runs nightly when <code>FilingEvents:Enabled</code> is on (currently ships off — flipping it costs
-        roughly £0.30–0.90/day of classification).
+        (departures, non-reliance, listing deficiencies, bankruptcies, material agreements), narrowed to companies
+        with <strong>public float under $250m</strong> — the SEC's own smaller-reporting-company line, read from each
+        filer's cover-page XBRL — then classified by Claude. Blank-cheque shells are excluded.
+        <strong>Observation only</strong>: each event records what happened, not what the stock did next. Forward-return
+        stamps (+5/+20 days) and the hypothesis verdicts they enable are phase 2 and not built, so nothing here is
+        evidence yet and nothing trades on it.
       </p>
       @if (!filingEventsLoaded()) {
         <p class="muted">Loading…</p>
