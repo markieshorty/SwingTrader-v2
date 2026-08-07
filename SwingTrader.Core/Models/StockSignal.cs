@@ -96,6 +96,15 @@ public class StockSignal : BaseEntity
     public bool WouldPassGate { get; set; }
     public bool WouldBeVetoed { get; set; }
 
+    // WHY a gate-passing Buy was demoted to Watch, recorded at the moment of
+    // demotion. The scorecard used to infer this by grepping Reasoning for
+    // "Distress veto", which meant every newer demotion path - the insider
+    // cluster-selling veto, the conviction ceiling - fell through to the
+    // "Setup disabled" bucket and became unjudgeable (found 7 Aug 2026).
+    // Null on rows written before that date; the scorecard falls back to the
+    // old text sniffing for those, so their attribution stays as it was.
+    public string? BlockReason { get; set; }
+
     // Filing-delta shadow (docs/filing-delta-plan Phase FD1): the symbol's
     // most recent scored filing-language change, decayed to signal date
     // (half-life ~63 trading days). Drives nothing until ForwardFilingWeight

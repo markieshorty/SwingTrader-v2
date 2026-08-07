@@ -107,13 +107,13 @@ public static class TrialsEndpoints
                     "2026-08-06", "Live and ACTING",
                     0, 30, TrialsMath.Grade(0, 30),
                     "Keep/remove the hard demote depending on how demoted names perform vs taken trades.",
-                    "Shipped as a hard gate on prior reasoning (insiders selling is a documented negative signal), NOT on measured evidence. Demoted-signal counterfactuals need pricing - same gap as FD3."),
+                    "Shipped as a hard gate on prior reasoning (insiders selling is a documented negative signal), NOT on measured evidence. Until 7 Aug its demotions were mislabelled 'Setup disabled' on the Scorecard, pooled with the conviction ceiling and slot skips; they now carry their own reason, so evidence starts accumulating from signals scored after that date."),
                 new("fd3-veto", "Filing-distress veto (FD3)",
                     "8-K distress codes on watchlist names justify entry vetoes and position exits.",
                     "2026-07-17", "Live and ACTING",
                     0, 30, TrialsMath.Grade(0, 30),
-                    "None pending — but note: this mechanism has acted since July with NO outcome measurement wired.",
-                    "TRANSPARENCY GAP: vetoed/exited counterfactuals are not priced anywhere. P2 stamping should cover FD3 flags too."),
+                    "None pending — entry vetoes are measured; forced EXITS still are not.",
+                    "Correction (7 Aug): blocked ENTRIES are replayed on the Scorecard tab, so this trial is not blind. The real gap is narrower — the veto also closes open positions, and nothing prices whether those exits were right."),
             };
 
             return Results.Ok(new

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using SwingTrader.Core.Constants;
 using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
@@ -255,11 +256,17 @@ public class ResearchPipeline(
         // on a symbol with detected cluster selling now demotes to Watch,
         // same treatment as the setup toggles and the conviction ceiling:
         // still detected, still scored, still surfaced - just not bought.
+        // WHY this Buy was demoted, recorded at the demotion rather than
+        // recovered from prose later. Exactly one of the five sites below can
+        // fire - each guards on the recommendation still being Buy.
+        string? blockReason = null;
+
         string? insiderReasoning = null;
         if (recommendation == Recommendation.Buy
             && ShouldDemoteForInsiderSelling(fundamentalSnapshot?.InsiderActivity))
         {
             recommendation = Recommendation.Watch;
+            blockReason = BlockReasons.InsiderSelling;
             insiderReasoning = " Insider cluster selling detected — Buy demoted to Watch.";
             logger.LogInformation("Insider cluster selling for {Symbol}: Buy demoted to Watch", symbol);
         }
@@ -272,6 +279,7 @@ public class ResearchPipeline(
             && conviction > riskProfile.MaxConvictionForBuy)
         {
             recommendation = Recommendation.Watch;
+            blockReason = BlockReasons.ConvictionCeiling;
             ceilingReasoning = $" Conviction ceiling: score {conviction:0.0} above ceiling {riskProfile.MaxConvictionForBuy:0.0} — Buy demoted to Watch.";
             logger.LogInformation("Conviction ceiling for {Symbol}: {Conviction:0.0} > {Ceiling:0.0}, Buy demoted to Watch",
                 symbol, conviction, riskProfile.MaxConvictionForBuy);
@@ -281,6 +289,9 @@ public class ResearchPipeline(
         if (slotSkip && recommendation == Recommendation.Buy)
         {
             recommendation = Recommendation.Watch;
+            // NOT a judgement about the stock - we simply had no slot. Kept
+            // distinct so it never pollutes a veto's counterfactual.
+            blockReason = BlockReasons.PortfolioFull;
             slotSkipReasoning = " Portfolio full: conviction scoring deferred, Buy demoted to Watch (slot-aware skip).";
             logger.LogInformation("Slot-aware skip for {Symbol}: portfolio full, Buy demoted to Watch (account {AccountId})",
                 symbol, accountId);
@@ -296,6 +307,7 @@ public class ResearchPipeline(
         if (recommendation == Recommendation.Buy && shadow.WouldBeVetoed)
         {
             recommendation = Recommendation.Watch;
+            blockReason = BlockReasons.ForwardVeto;
             vetoReasoning = $" Forward veto: score {forwardScore:0.0} below floor {riskProfile.ForwardVetoFloor:0.0}.";
             logger.LogInformation("Forward veto for {Symbol}: forward {Forward:0.0} < floor {Floor:0.0}, Buy demoted to Watch",
                 symbol, forwardScore, riskProfile.ForwardVetoFloor);
@@ -316,6 +328,7 @@ public class ResearchPipeline(
                 if (flags.Count > 0)
                 {
                     recommendation = Recommendation.Watch;
+                    blockReason = BlockReasons.DistressVeto;
                     vetoReasoning += $" Distress veto: {flags[0].Reason} (filed {flags[0].FiledAt:yyyy-MM-dd}).";
                     logger.LogWarning("Distress veto for {Symbol}: {Reason} (filed {Filed}) — Buy demoted to Watch",
                         symbol, flags[0].Reason, flags[0].FiledAt);
@@ -363,7 +376,7 @@ public class ResearchPipeline(
         return await PersistSignalAsync(accountId, symbol, companyName, candles[^1], ind, sentimentScore,
             newsSummary, setupType, conviction, recommendation, selectionPercentile, componentScores, regime, earningsCtx, rs, priceLevel,
             adjustmentReasoning.Length > 0 ? adjustmentReasoning : null, fundamentalSnapshot, fundamental, shadow,
-            filingDeltaScore, filingDeltaSummary, secondHopScore, secondHopSummary, atr14);
+            filingDeltaScore, filingDeltaSummary, secondHopScore, secondHopSummary, atr14, blockReason);
     }
 
     private async Task<(StrategyWeights Weights, MarketRegime? Regime)> GetWeightsAndRegimeAsync(
@@ -882,7 +895,7 @@ public class ResearchPipeline(
         FunnelScores.FunnelShadow? funnelShadow = null,
         decimal? filingDeltaScore = null, string? filingDeltaSummary = null,
         decimal? secondHopScore = null, string? secondHopSummary = null,
-        decimal? atr14 = null)
+        decimal? atr14 = null, string? blockReason = null)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var existing = (await signalRepo.GetByDateAsync(accountId, today))
@@ -1002,6 +1015,8 @@ public class ResearchPipeline(
             signal.WouldPassGate = funnelShadow.WouldPassGate;
             signal.WouldBeVetoed = funnelShadow.WouldBeVetoed;
         }
+
+        signal.BlockReason = blockReason;
 
         // Filing-delta shadow (FD1) - overwritten (not preserved) on rescore
         // so the stored value always reflects the decay as of the latest pass.

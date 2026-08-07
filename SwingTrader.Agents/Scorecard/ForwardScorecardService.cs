@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using SwingTrader.Core.Constants;
 using SwingTrader.Core.Enums;
 using SwingTrader.Core.Interfaces;
 using SwingTrader.Core.Models;
@@ -95,12 +96,27 @@ public class ForwardScorecardService(
         var windowSignals = (await signals.GetSinceDateAsync(accountId, since)).ToList();
         var blocked = windowSignals
             .Where(s => s.WouldPassGate && s.Recommendation == Recommendation.Watch)
+            // A slot skip says nothing about the symbol - the signal was never
+            // assessed and rejected, just queued out because the book was
+            // full. Replaying it would measure our capacity, not our judgement.
+            .Where(s => s.BlockReason != BlockReasons.PortfolioFull)
             .ToList();
 
-        static string SourceOf(StockSignal s) =>
-            s.Reasoning?.Contains("Distress veto", StringComparison.OrdinalIgnoreCase) == true ? "Distress veto"
-            : s.WouldBeVetoed ? "Forward veto"
-            : "Setup disabled";
+        // Prefer the reason recorded AT the demotion. The fallback below is
+        // the old text-sniffing, kept only for rows written before 7 Aug 2026
+        // - it cannot see the insider veto, the conviction ceiling or the
+        // slot skip, so it lumped all three into "Setup disabled".
+        static string SourceOf(StockSignal s) => s.BlockReason switch
+        {
+            BlockReasons.DistressVeto => "Distress veto",
+            BlockReasons.ForwardVeto => "Forward veto",
+            BlockReasons.InsiderSelling => "Insider selling",
+            BlockReasons.ConvictionCeiling => "Conviction ceiling",
+            BlockReasons.PortfolioFull => "Portfolio full",
+            _ => s.Reasoning?.Contains("Distress veto", StringComparison.OrdinalIgnoreCase) == true ? "Distress veto"
+                : s.WouldBeVetoed ? "Forward veto"
+                : "Setup disabled (pre-7-Aug: may include insider/ceiling/slot demotions)",
+        };
 
         // One targeted candle read covers the replays AND the correlations.
         var correlationSignals = windowSignals
