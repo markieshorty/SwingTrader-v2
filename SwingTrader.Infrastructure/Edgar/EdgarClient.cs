@@ -80,7 +80,12 @@ public class EdgarClient(
         // runs ~400-800 8-Ks so a 10-page cap covers it with headroom.
         var results = new List<EdgarEightK>();
         var d = date.ToString("yyyy-MM-dd");
-        for (var from = 0; from < 1000; from += 100)
+        // 2,000 rather than 1,000: a busy day runs past 1,600 filings (6 Aug
+        // 2026: 1,628), and because hits arrive in EDGAR's order a low cap
+        // silently drops the late filers instead of a random subset. The loop
+        // still exits on the first short page, so a quiet day costs no extra
+        // requests. Verified 7 Aug 2026 that EDGAR serves from=1500+ happily.
+        for (var from = 0; from < 2000; from += 100)
         {
             string json;
             try
