@@ -17,6 +17,24 @@ public class WatchlistConfig
     // small caps now in the universe. $10m/day is a conservative floor for
     // the position sizes this system trades.
     public decimal MinDollarVolume { get; set; } = 10_000_000m;
+    // Union screen (docs/screener-union-plan). When on, the universe is first
+    // narrowed to per-setup candidates from the local candle store, so each
+    // detector gets candidates on its own terms rather than sharing one
+    // "biggest movers" ranking that only VolumeSpike and Breakout fit.
+    public bool UnionScreenEnabled { get; set; } = true;
+
+    // Candidates taken from EACH setup's pool before the union. Five of these
+    // replace the six weights a blended composite would have needed, and each
+    // is testable against its own setup's trades rather than only in concert.
+    public int PerSetupCandidates { get; set; } = 24;
+
+    // Below this the union is treated as broken (stale or empty candle store)
+    // and the screen falls back to the full universe.
+    public int MinUnionCandidates { get; set; } = 25;
+
+    public int UnionHistoryDays { get; set; } = 150;
+    public int UnionMinBars { get; set; } = 40;
+
     public decimal MinAbsChangePercent { get; set; } = 1.0m;
     public decimal MaxAbsChangePercent { get; set; } = 15.0m;
 

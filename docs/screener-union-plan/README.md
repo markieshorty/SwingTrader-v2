@@ -1,6 +1,7 @@
 # Screener union plan — feeding each setup its own candidates
 
-Spec agreed 7 Aug 2026. **Not built.** Discussion only until P1 reports.
+Spec agreed 7 Aug 2026. **BUILT and ON** (`Watchlist:UnionScreenEnabled`,
+default true). P1 was deliberately skipped - see below.
 
 ## The problem
 
@@ -79,7 +80,23 @@ Declared BEFORE the measurement exists, per house rule.
 If H-SC1 fails — representation is roughly proportional — **P2 is not built.**
 The whole design rests on a starvation that must be demonstrated first.
 
-## P1 — measure the starvation. No behaviour change.
+## P1 — SKIPPED by decision, 7 Aug 2026
+
+The measure-first phase below was dropped on the grounds that the starvation
+is **derivable from the detector conditions rather than empirical**:
+VolumeSpike's trigger requires `dayChange > 1.5%`, which is a strict subset of
+the screen's own `|dayChange| >= 1%` rule, while TrendFollowing and
+MomentumContinuation impose no move requirement at all. Measuring would have
+confirmed arithmetic. The union is also higher-resolution on first principles
+- five detectors sharing one volatility ranking is wrong regardless of the
+magnitude of the skew.
+
+What is genuinely NOT settled by that argument is whether the change improves
+**outcomes**. That remains open and the validation section below still stands.
+
+The original P1, retained for reference:
+
+### (original) measure the starvation. No behaviour change.
 
 Fully reconstructable offline: every input is a daily candle, and the blob
 store holds ~9.1M bars over 2,671 symbols back to 2000. No API calls, no
@@ -103,7 +120,7 @@ exposed than returns would be (both numerator and denominator are drawn from
 the same biased set), but the delisted backfill (docs/survivorship-plan)
 would be needed before any *return* claim is made from this reconstruction.
 
-## P2 — union of per-setup screens (only if P1 justifies it)
+## P2 — union of per-setup screens — BUILT 7 Aug 2026
 
 Replace one blended ranking with several narrow ones. A weighted composite
 was considered and **rejected**: blending rewards names that are moderately
@@ -134,6 +151,35 @@ Each candidate is stamped with **which screen surfaced it** (several may),
 so per-setup outcomes become attributable — without that stamp P2 cannot be
 judged and must not ship.
 
+### Two things that decide whether this works at all
+
+Both were nearly missed, and either one alone would have made the change a
+no-op:
+
+**The minimum-move floor must not apply under union mode.** `MinAbsChangePercent
+= 1.0` is precisely what starved the trend-state setups. Narrowing the universe
+to per-setup candidates and then filtering them by daily move would have thrown
+away the quiet TrendFollowing names the union just went to the trouble of
+finding. The MAXIMUM stays, as a guard against halted or broken quotes.
+
+**The union is ROUND-ROBIN ordered, and that ordering is an allocation.** The
+union holds up to ~5x PerSetupCandidates but only `MaxCandidatesForClaude`
+survive the liquidity walk. Sorting that by price move would have handed every
+surviving slot straight back to the expansion setups. Interleaving - each
+setup's best, then each setup's second - guarantees representation at any trim
+depth. It also sidesteps normalisation entirely: pool scores are never compared
+across setups, which is the problem a weighted composite would have had to
+solve.
+
+### Freshness: the schedule already sequences this correctly
+
+The union computes indicators from the LOCAL candle store, which is synced
+**Saturday**; the watchlist refresh runs **Sunday evening ET**. So the screen
+reads bars that are at most one calendar day old with no trading day in
+between, and the live quotes it fetches on a Sunday are Friday's closes -
+consistent with the same bars. No staleness problem, by accident of a schedule
+that pre-dates this plan.
+
 **Two design rules.**
 
 *Constraints are not weights.* Earnings proximity, the price band and the
@@ -153,7 +199,12 @@ only in combination. This is the top of the funnel — everything downstream
 inherits whatever it selects — so it is the single worst place in the system
 to overfit.
 
-## Validation before any live flip
+## Validation — STILL OUTSTANDING
+
+Shipped live without it, by decision. The design argument (higher resolution)
+justifies changing what the screener selects; it does NOT establish that
+outcomes improve. That is still an open question and the checks below are
+still the ones that would answer it.
 
 The last two things fitted this way (factor sleeve, regime setups) both died
 at validation. Same discipline applies:
@@ -169,7 +220,7 @@ at validation. Same discipline applies:
   re-tuned. That is the outcome this plan is most likely to produce, and it
   is a useful one.
 
-## P3 — live flip
+## P3 — live flip — DONE (shipped straight on)
 
 Behind a config flag, default off, shadow-stamped first: compute the union
 selection, record what it *would* have chosen alongside the live selection,

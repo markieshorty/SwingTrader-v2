@@ -11,6 +11,7 @@ using SwingTrader.Infrastructure.HttpClients;
 using SwingTrader.Infrastructure.HttpClients.Dtos;
 using SwingTrader.Infrastructure.Market;
 using SwingTrader.Infrastructure.RateLimiting;
+using SwingTrader.Infrastructure.Services;
 using Xunit;
 
 namespace SwingTrader.Tests;
@@ -23,6 +24,8 @@ public class StockScreenerTests
     private readonly IAccountRepository _accountRepo = Substitute.For<IAccountRepository>();
     private readonly IMarketUniverseService _universe = Substitute.For<IMarketUniverseService>();
     private readonly IFinnhubClient _finnhub = Substitute.For<IFinnhubClient>();
+    private readonly IHistoricalCandleRepository _historicCandles = Substitute.For<IHistoricalCandleRepository>();
+    private readonly IIndicatorService _indicators = Substitute.For<IIndicatorService>();
 
     private StockScreener CreateSut(WatchlistConfig cfg, bool topMoversEnabled = false)
     {
@@ -30,7 +33,10 @@ public class StockScreenerTests
         _watchlist.IsTopMoversEnabledAsync(1, Arg.Any<CancellationToken>()).Returns(topMoversEnabled);
         _accountRepo.GetAsync(1, Arg.Any<CancellationToken>()).Returns(new Account { Id = 1, TradingMode = TradingMode.Demo });
         _trades.GetOpenTradesAsync(1, TradingMode.Demo).Returns(new List<Trade>());
-        return new StockScreener(_rateLimiter, _watchlist, _trades, _accountRepo, _universe, Options.Create(cfg), NullLogger<StockScreener>.Instance);
+        _historicCandles.GetAllBySymbolAsync(Arg.Any<DateOnly?>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, List<HistoricalCandle>>());
+        return new StockScreener(_rateLimiter, _watchlist, _trades, _accountRepo, _universe,
+            _historicCandles, _indicators, Options.Create(cfg), NullLogger<StockScreener>.Instance);
     }
 
     private static WatchlistConfig DefaultConfig() => new()
@@ -40,6 +46,10 @@ public class StockScreenerTests
         MinAbsChangePercent = 0m,
         MaxAbsChangePercent = 100m,
         MaxCandidatesForClaude = 80,
+        // These cover the legacy single-factor screen. The union path has its
+        // own tests; leaving it on here would route every legacy case through
+        // the empty-store fallback instead of the code under test.
+        UnionScreenEnabled = false,
     };
 
     private void SetupUniverse(params string[] symbols)
