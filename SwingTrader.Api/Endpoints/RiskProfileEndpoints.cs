@@ -69,10 +69,10 @@ public static class RiskProfileEndpoints
                 SizingMode = profile.SizingMode.ToString(),
                 profile.FlatPositionPct,
                 profile.SizingAggressiveness,
-                profile.ForwardVetoFloor,
+                profile.ForwardBuyThreshold,
                 profile.DisabledSetupsCsv,
                 profile.RiskLabel,
-                BuyThreshold = weights?.BuyThreshold,
+                GateThreshold = weights?.GateThreshold,
                 WatchThreshold = weights?.WatchThreshold,
                 StopLossPctDefault = weights?.StopLossPctDefault,
                 CapitalBreakdown = snapshot is null ? null : new
@@ -105,7 +105,7 @@ public static class RiskProfileEndpoints
                     TargetPct = new { Min = CapitalRules.MinTargetPct, Max = CapitalRules.MaxTargetPct },
                     FlatPositionPct = new { Min = CapitalRules.MinFlatPositionPct, Max = CapitalRules.MaxFlatPositionPct },
                     SizingAggressiveness = new { Min = CapitalRules.MinSizingAggressiveness, Max = CapitalRules.MaxSizingAggressiveness },
-                    ForwardVetoFloor = new { Min = CapitalRules.MinForwardVetoFloor, Max = CapitalRules.MaxForwardVetoFloor },
+                    ForwardBuyThreshold = new { Min = CapitalRules.MinForwardVetoFloor, Max = CapitalRules.MaxForwardVetoFloor },
                 },
             });
         });
@@ -154,7 +154,7 @@ public static class RiskProfileEndpoints
                     TargetBandCeilingPct = req.TargetBandCeilingPct ?? CapitalRules.DefaultTargetBandCeilingPct,
                     FlatPositionPct = req.FlatPositionPct,
                     SizingAggressiveness = req.SizingAggressiveness,
-                    ForwardVetoFloor = req.ForwardVetoFloor,
+                    ForwardBuyThreshold = req.ForwardBuyThreshold,
                     DisabledSetupsCsv = string.IsNullOrWhiteSpace(req.DisabledSetupsCsv) ? null : req.DisabledSetupsCsv,
                 });
                 return Results.Ok();

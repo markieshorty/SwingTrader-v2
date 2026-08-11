@@ -101,7 +101,7 @@ import { errorMessage } from '../../shared/utils/error-message.util';
             <div class="snapshot">
               <h4>What you'd be applying</h4>
               <div class="chips">
-                <span class="chip">Buy ≥ {{ snap.weights.buyThreshold | number: '1.1-1' }}</span>
+                <span class="chip">Buy ≥ {{ snap.weights.gateThreshold | number: '1.1-1' }}</span>
                 <span class="chip">Watch ≥ {{ snap.weights.watchThreshold | number: '1.1-1' }}</span>
                 <span class="chip">
                   Gate: RSI {{ snap.weights.rsiWeight | percent: '1.0-0' }} ·

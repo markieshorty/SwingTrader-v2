@@ -31,7 +31,7 @@ public record SnapshotWeights(
     decimal RsiWeight, decimal MacdWeight, decimal VolumeWeight,
     decimal SetupQualityWeight, decimal RelativeStrengthWeight, decimal PriceLevelWeight,
     decimal ForwardSentimentWeight, decimal ForwardFundamentalWeight, decimal ForwardFilingWeight,
-    decimal BuyThreshold, decimal WatchThreshold, decimal StopLossPctDefault);
+    decimal GateThreshold, decimal WatchThreshold, decimal StopLossPctDefault);
 
 public record SnapshotRiskBook(
     string Regime, bool Enabled, bool AutopauseTrading,
@@ -39,7 +39,7 @@ public record SnapshotRiskBook(
     int MaxHoldDays, double TrailingActivationPct, double TrailingDistancePct,
     int EarningsGateDays, int MinHoldDays, decimal MomentumHealthThreshold,
     decimal StopLossPct, decimal TargetPct,
-    string SizingMode, decimal FlatPositionPct, decimal SizingAggressiveness, decimal ForwardVetoFloor,
+    string SizingMode, decimal FlatPositionPct, decimal SizingAggressiveness, decimal ForwardBuyThreshold,
     // Dials added 31 Jul - 4 Aug 2026. Defaults match the code defaults so
     // snapshots stored BEFORE these existed keep deserializing and apply as
     // "feature off" - a shared strategy is never silently partial.

@@ -147,7 +147,7 @@ public class AccountRiskProfileRepository(SwingTraderDbContext db) : IAccountRis
         dest.SizingMode = src.SizingMode;
         dest.FlatPositionPct = src.FlatPositionPct;
         dest.SizingAggressiveness = src.SizingAggressiveness;
-        dest.ForwardVetoFloor = src.ForwardVetoFloor;
+        dest.ForwardBuyThreshold = src.ForwardBuyThreshold;
     }
 
     // Seeded posture per regime: risk appetite rises Crisis -> Bull. Neutral is

@@ -9,7 +9,7 @@ public static class StrategyWeightsEndpoints
 {
     public static RouteGroupBuilder MapStrategyWeightsEndpoints(this RouteGroupBuilder api)
     {
-        // Manual weight/threshold tuning (e.g. temporarily lowering BuyThreshold to
+        // Manual weight/threshold tuning (e.g. temporarily lowering GateThreshold to
         // exercise the Execution path on demo data) - an in-place edit of the active
         // row, not a Refinement-style versioned suggestion.
         api.MapGet("/strategy-weights", async (IStrategyWeightsRepository weightsRepo, IAccountContext ctx) =>
@@ -34,7 +34,7 @@ public static class StrategyWeightsEndpoints
                     req.RsiWeight, req.MacdWeight, req.VolumeWeight,
                     req.SetupQualityWeight, req.RelativeStrengthWeight, req.PriceLevelWeight,
                     req.ForwardSentimentWeight, req.ForwardFundamentalWeight, req.ForwardFilingWeight,
-                    req.BuyThreshold, req.WatchThreshold, req.StopLossPctDefault));
+                    req.GateThreshold, req.WatchThreshold, req.StopLossPctDefault));
 
                 // Any weights change (Settings sliders, Strategy Lab apply)
                 // invalidates a pending refinement suggestion: it was computed

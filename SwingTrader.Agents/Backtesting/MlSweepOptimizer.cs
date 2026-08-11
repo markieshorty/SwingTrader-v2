@@ -41,7 +41,7 @@ public static class MlSweepOptimizer
     public static int InitialSeeds => Stages[0].Searches;
 
     // Dimensions searched: the six live weights (RSI, MACD, Volume, Setup
-    // quality, Relative strength, Price level) plus the Buy threshold.
+    // quality, Relative strength, Price level) plus the Gate threshold.
     private const int Dimensions = 7;
 
     // Base fitness for candidates failing the trade-count/drawdown
@@ -117,13 +117,13 @@ public static class MlSweepOptimizer
             SweepOptimizer.RenormaliseLive(arr, liveBudget, lives);
 
             var threshold = Math.Clamp(
-                baseline.BuyThreshold + (decimal)x[^1] * ThresholdUnitPerCoordinate, 3.0m, 9.0m);
+                baseline.GateThreshold + (decimal)x[^1] * ThresholdUnitPerCoordinate, 3.0m, 9.0m);
 
             return baseline with
             {
                 Label = "ML search", // placeholder - real label assigned in search order below
                 Weights = SweepOptimizer.FromArray(arr),
-                BuyThreshold = threshold,
+                GateThreshold = threshold,
             };
         }
 

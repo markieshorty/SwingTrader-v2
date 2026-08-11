@@ -183,7 +183,7 @@ export class StrategyLabComponent implements OnDestroy {
     rsi: 0.23, macd: 0.12, volume: 0.28,
     setupQuality: 0.16, relativeStrength: 0.14, priceLevel: 0.07,
   });
-  buyThreshold = signal(6.0);
+  gateThreshold = signal(6.0);
   // The single "Exclude setups" multiselect - the one source of truth for
   // which setups a run skips, honoured by both own-data replay and historic.
   // Empty = exclude nothing (matches live, which excludes no setups). Replaced
@@ -972,7 +972,7 @@ export class StrategyLabComponent implements OnDestroy {
       setupQuality: w.setupQualityWeight, relativeStrength: w.relativeStrengthWeight,
       priceLevel: w.priceLevelWeight,
     });
-    this.buyThreshold.set(w.buyThreshold);
+    this.gateThreshold.set(w.gateThreshold);
     this.excludedSetups.set([...this.liveExcludedSetups]);
     this.autopauseBear.set(this.productionAutopauseBear);
     if (notify) this.snackbar.open('Dials reset to current production settings.', 'Dismiss', { duration: 3000 });
@@ -999,7 +999,7 @@ export class StrategyLabComponent implements OnDestroy {
     const request = {
       dataSource: this.dataSource(),
       weights: this.weights(),
-      buyThreshold: this.buyThreshold(),
+      gateThreshold: this.gateThreshold(),
       excludedSetups: this.excludedSetups(),
       // Derived for back-compat: the historic candidate + diff still carry a
       // breakout bool; the multiselect is the source of truth.
@@ -1020,7 +1020,7 @@ export class StrategyLabComponent implements OnDestroy {
       dataFromYear: historic ? this.dataFromYear() : null,
     };
     this.ranWeights = request.weights;
-    this.ranThreshold = request.buyThreshold;
+    this.ranThreshold = request.gateThreshold;
     this.ranExcludeBreakout = request.excludeBreakout;
     this.ranAutopauseBear = request.autopauseDuringBear;
     this.ranRegimeLabel.set(historic
@@ -1090,7 +1090,7 @@ export class StrategyLabComponent implements OnDestroy {
     const request = {
       dataSource: 'historic' as const,
       weights: this.weights(),
-      buyThreshold: this.buyThreshold(),
+      gateThreshold: this.gateThreshold(),
       excludedSetups: this.excludedSetups(),
       // Derived for back-compat: the historic candidate + diff still carry a
       // breakout bool; the multiselect is the source of truth.
@@ -1132,7 +1132,7 @@ export class StrategyLabComponent implements OnDestroy {
     const request = {
       dataSource: 'historic' as const,
       weights: this.weights(),
-      buyThreshold: this.buyThreshold(),
+      gateThreshold: this.gateThreshold(),
       excludedSetups: this.excludedSetups(),
       // Derived for back-compat: the historic candidate + diff still carry a
       // breakout bool; the multiselect is the source of truth.
@@ -1422,18 +1422,18 @@ export class StrategyLabComponent implements OnDestroy {
       newVal: (newW[d.key] * 100).toFixed(0) + '%',
       changed: Math.abs(oldW[d.key] - newW[d.key]) >= 0.005,
     }));
-    rows.push({ label: 'Buy threshold', oldVal: oldT.toFixed(1), newVal: newT.toFixed(1), changed: oldT !== newT });
+    rows.push({ label: 'Gate threshold', oldVal: oldT.toFixed(1), newVal: newT.toFixed(1), changed: oldT !== newT });
     rows.push({ label: 'Exclude Breakout', oldVal: oldB ? 'Yes' : 'No', newVal: newB ? 'Yes' : 'No', changed: oldB !== newB });
     return rows;
   }
 
   suggestionDiffRows(s: LabSuggestionDto): DiffRow[] {
     if (!this.ranWeights) return [];
-    return this.diffRows(this.ranWeights, this.ranThreshold, this.ranExcludeBreakout, s.weights, s.buyThreshold, s.excludeBreakout);
+    return this.diffRows(this.ranWeights, this.ranThreshold, this.ranExcludeBreakout, s.weights, s.gateThreshold, s.excludeBreakout);
   }
 
   sweepDiffRows(sweep: SweepResultDto): DiffRow[] {
-    // Weights + buy threshold.
+    // Weights + gate threshold.
     const rows: DiffRow[] = this.dials.map((d) => ({
       label: d.label,
       oldVal: (sweep.baseline.weights[d.key] * 100).toFixed(0) + '%',
@@ -1441,10 +1441,10 @@ export class StrategyLabComponent implements OnDestroy {
       changed: Math.abs(sweep.baseline.weights[d.key] - sweep.winner.weights[d.key]) >= 0.005,
     }));
     rows.push({
-      label: 'Buy threshold',
-      oldVal: sweep.baseline.buyThreshold.toFixed(1),
-      newVal: sweep.winner.buyThreshold.toFixed(1),
-      changed: sweep.baseline.buyThreshold !== sweep.winner.buyThreshold,
+      label: 'Gate threshold',
+      oldVal: sweep.baseline.gateThreshold.toFixed(1),
+      newVal: sweep.winner.gateThreshold.toFixed(1),
+      changed: sweep.baseline.gateThreshold !== sweep.winner.gateThreshold,
     });
     // Full excluded-setups list, not just the legacy breakout bool - a winner
     // that drops VolumeSpike must show it or the diff lies about what won.
@@ -1509,7 +1509,7 @@ export class StrategyLabComponent implements OnDestroy {
   // Load a suggestion's dials into the form (doesn't touch production).
   tryDials(s: LabSuggestionDto): void {
     this.weights.set({ ...s.weights });
-    this.buyThreshold.set(s.buyThreshold);
+    this.gateThreshold.set(s.gateThreshold);
     // Own-data suggestions vary only the scoring dials; leave the excluded-
     // setups selection untouched so a non-breakout exclusion isn't silently
     // dropped when loading one.
@@ -1529,7 +1529,7 @@ export class StrategyLabComponent implements OnDestroy {
     // Carlo would test a different config than the one that won.
     this.resetRules();
     this.weights.set({ ...w.weights });
-    this.buyThreshold.set(w.buyThreshold);
+    this.gateThreshold.set(w.gateThreshold);
     this.excludedSetups.set(w.excludedSetups ?? (w.excludeBreakout ? ['Breakout'] : []));
     this.autopauseBear.set(w.autopauseDuringBear);
 
@@ -1586,7 +1586,7 @@ export class StrategyLabComponent implements OnDestroy {
   private configFingerprint(): string {
     return JSON.stringify({
       weights: this.weights(),
-      buyThreshold: this.buyThreshold(),
+      gateThreshold: this.gateThreshold(),
       excludedSetups: this.excludedSetups(),
       autopause: this.autopauseBear(),
       rules: this.buildRules(),
@@ -1622,8 +1622,8 @@ export class StrategyLabComponent implements OnDestroy {
     const autopauseNote = autopause !== undefined && autopause !== this.productionAutopauseBear
       ? ` This also turns the live bear-market autopause ${autopause ? 'ON' : 'OFF'}.`
       : '';
-    this.applyConfig(w, this.buyThreshold(),
-      `This sets your LIVE strategy weights and Buy threshold (${this.buyThreshold().toFixed(1)}) to the dials currently in the form.` +
+    this.applyConfig(w, this.gateThreshold(),
+      `This sets your LIVE strategy weights and Gate threshold (${this.gateThreshold().toFixed(1)}) to the dials currently in the form.` +
       `${autopauseNote} The next research run will score every signal with them. Are you sure?`,
       autopause, this.buildManualEvidence());
   }
@@ -1637,7 +1637,7 @@ export class StrategyLabComponent implements OnDestroy {
         data: {
           title: 'Apply to production',
           message:
-            'This sets your LIVE strategy weights and Buy threshold AND applies the rule/per-setup-tactic ' +
+            'This sets your LIVE strategy weights and Gate threshold AND applies the rule/per-setup-tactic ' +
             'overrides you tested (and the bear-autopause setting if it differs) — the whole configuration this ' +
             'A/B run evaluated. Are you sure?',
           cancelLabel: 'Cancel',
@@ -1682,7 +1682,7 @@ export class StrategyLabComponent implements OnDestroy {
         data: {
           title: 'Apply winner to production',
           message:
-            `This sets your LIVE strategy weights and Buy threshold (${w.buyThreshold.toFixed(1)}) to the optimizer's ` +
+            `This sets your LIVE strategy weights and Gate threshold (${w.gateThreshold.toFixed(1)}) to the optimizer's ` +
             `winning configuration ("${w.label}").${riskNote}${extra} Are you sure?`,
           cancelLabel: 'Cancel',
           confirmLabel: 'Apply to production',
@@ -1793,7 +1793,7 @@ export class StrategyLabComponent implements OnDestroy {
           targetBandFloorPct: p.targetBandFloorPct,
           targetBandCeilingPct: p.targetBandCeilingPct,
           sizingAggressiveness: p.sizingAggressiveness,
-          forwardVetoFloor: p.forwardVetoFloor,
+          forwardBuyThreshold: p.forwardBuyThreshold,
         }).subscribe({
           next: () => {
             this.productionAutopauseBear = autopause;
@@ -1835,7 +1835,7 @@ export class StrategyLabComponent implements OnDestroy {
         this.api
           .applyLabConfig({
             weights: w,
-            buyThreshold: threshold,
+            gateThreshold: threshold,
             evidenceSummary: evidence.summary,
             tradeCount: evidence.tradeCount,
             winRate: evidence.winRate,

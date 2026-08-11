@@ -83,7 +83,7 @@ public class StrategyWeightsRepository(SwingTraderDbContext db) : IStrategyWeigh
         active.ForwardSentimentWeight = update.ForwardSentimentWeight;
         active.ForwardFundamentalWeight = update.ForwardFundamentalWeight;
         active.ForwardFilingWeight = update.ForwardFilingWeight;
-        active.BuyThreshold = update.BuyThreshold;
+        active.GateThreshold = update.GateThreshold;
         active.WatchThreshold = update.WatchThreshold;
         active.StopLossPctDefault = update.StopLossPctDefault;
         active.Validate();
@@ -109,7 +109,7 @@ public class StrategyWeightsRepository(SwingTraderDbContext db) : IStrategyWeigh
             ForwardSentimentWeight = 0.45m,
             ForwardFundamentalWeight = 0.30m,
             ForwardFilingWeight = 0.25m,
-            BuyThreshold = 6.0m,
+            GateThreshold = 6.0m,
             WatchThreshold = 5.0m,
             StopLossPctDefault = 0.05m,
             IsActive = true,

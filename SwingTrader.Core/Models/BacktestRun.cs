@@ -97,7 +97,7 @@ public record HistoricSetupTacticsOverride(
     decimal TrailingActivationPct, decimal TrailingDistancePct);
 
 public record HistoricBacktestCandidate(
-    string Label, HistoricBacktestWeights Weights, decimal BuyThreshold, bool ExcludeBreakout,
+    string Label, HistoricBacktestWeights Weights, decimal GateThreshold, bool ExcludeBreakout,
     bool AutopauseDuringBear = true,
     HistoricTradingRules? Rules = null);
 
@@ -109,7 +109,7 @@ public record HistoricBacktestCandidate(
 //                     generates perturbation candidates around it, evaluates on
 //                     a train window and validates the winner out-of-sample
 public record HistoricBacktestRequest(
-    HistoricBacktestWeights Weights, decimal BuyThreshold, bool ExcludeBreakout,
+    HistoricBacktestWeights Weights, decimal GateThreshold, bool ExcludeBreakout,
     string? Mode = null,
     List<HistoricBacktestCandidate>? Candidates = null,
     bool AutopauseDuringBear = true,

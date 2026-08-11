@@ -75,7 +75,7 @@ public static class FunnelScores
     //
     // A floor of 0 still disables the veto entirely, including for null and
     // degraded scores - so the pre-selective behaviour remains reachable by
-    // setting ForwardVetoFloor = 0.
+    // setting ForwardBuyThreshold = 0.
     public static bool ShouldVeto(decimal? forwardScore, bool degraded, decimal vetoFloor)
     {
         if (vetoFloor <= 0m) return false;

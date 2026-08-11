@@ -31,7 +31,7 @@ public record UpdateStrategyWeightsRequest(
     decimal ForwardSentimentWeight,
     decimal ForwardFundamentalWeight,
     decimal ForwardFilingWeight,
-    decimal BuyThreshold,
+    decimal GateThreshold,
     decimal WatchThreshold,
     decimal StopLossPctDefault);
 
@@ -65,7 +65,7 @@ public record UpdateRiskProfileRequest(
     // Funnel F2: Forward-score size tilt strength; 0 = off (multiplier 1).
     decimal SizingAggressiveness = 0m,
     // Funnel F3: Forward-score floor under gate-passing Buys; 0 = veto off.
-    decimal ForwardVetoFloor = 2.5m,
+    decimal ForwardBuyThreshold = 2.5m,
     // Default book only: when true this book overrides regime switching entirely.
     bool Enabled = false,
     // Regime-conditional setup selection (docs/regime-setups-plan P2): setups

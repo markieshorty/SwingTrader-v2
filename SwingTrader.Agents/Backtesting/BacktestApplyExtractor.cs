@@ -27,7 +27,7 @@ public static class BacktestApplyExtractor
         decimal MaxDrawdownPct, decimal ProfitFactor, decimal ExpectancyPct);
 
     public sealed record ApplyableConfig(
-        string Label, HistoricBacktestWeights Weights, decimal BuyThreshold,
+        string Label, HistoricBacktestWeights Weights, decimal GateThreshold,
         HistoricTradingRules? Rules, BacktestStats Stats,
         // The winner/candidate's bear-autopause value, and whether it differs
         // from the run's baseline. AutopauseChanged makes an autopause-only
@@ -60,7 +60,7 @@ public static class BacktestApplyExtractor
                 var userAutopause = Bool(c0, "autopauseDuringBear", true);
                 var baselineAutopause = cands.GetArrayLength() > 1 ? Bool(cands[1], "autopauseDuringBear", true) : userAutopause;
                 return new ApplyableConfig(
-                    Label(c0, "A"), weights, Decimal(c0, "buyThreshold"), rules, ParseStats(result),
+                    Label(c0, "A"), weights, Decimal(c0, "gateThreshold"), rules, ParseStats(result),
                     userAutopause, userAutopause != baselineAutopause,
                     ExtractRegimeOverrides(requestJson));
             }
@@ -77,7 +77,7 @@ public static class BacktestApplyExtractor
                 var winnerAutopause = Bool(winner, "autopauseDuringBear", true);
                 var baselineAutopause = ExtractSweepBaselineAutopause(requestJson, winnerAutopause);
                 return new ApplyableConfig(
-                    Label(winner, "Winner"), weights, Decimal(winner, "buyThreshold"), rules, ParseStats(winner),
+                    Label(winner, "Winner"), weights, Decimal(winner, "gateThreshold"), rules, ParseStats(winner),
                     winnerAutopause, winnerAutopause != baselineAutopause);
             }
 

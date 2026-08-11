@@ -62,7 +62,7 @@ public class ApplyRefinementService(
             ForwardSentimentWeight = suggested.ForwardSentimentWeight,
             ForwardFundamentalWeight = suggested.ForwardFundamentalWeight,
             ForwardFilingWeight = suggested.ForwardFilingWeight,
-            BuyThreshold = suggested.BuyThreshold,
+            GateThreshold = suggested.GateThreshold,
             WatchThreshold = suggested.WatchThreshold,
             StopLossPctDefault = suggested.StopLossPctDefault,
             IsActive = false,

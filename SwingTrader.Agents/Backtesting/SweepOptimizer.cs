@@ -15,7 +15,7 @@ namespace SwingTrader.Agents.Backtesting;
 public sealed record SweepCandidateResult(
     string Label,
     HistoricBacktestWeights Weights,
-    decimal BuyThreshold,
+    decimal GateThreshold,
     bool ExcludeBreakout,
     bool AutopauseDuringBear,
     int Trades,
@@ -176,9 +176,9 @@ public static class SweepOptimizer
         // Buy-threshold variants on the baseline mix.
         foreach (var t in new[] { -1.5m, -1.0m, -0.5m, -0.25m, 0.25m, 0.5m, 1.0m, 1.5m })
         {
-            var nt = Math.Clamp(baseline.BuyThreshold + t, 3.0m, 9.0m);
-            if (nt != baseline.BuyThreshold && candidates.All(c => c.BuyThreshold != nt || c.Weights != baseline.Weights))
-                candidates.Add(baseline with { Label = $"Buy threshold {nt:0.0}", BuyThreshold = nt });
+            var nt = Math.Clamp(baseline.GateThreshold + t, 3.0m, 9.0m);
+            if (nt != baseline.GateThreshold && candidates.All(c => c.GateThreshold != nt || c.Weights != baseline.Weights))
+                candidates.Add(baseline with { Label = $"Gate threshold {nt:0.0}", GateThreshold = nt });
         }
 
         // Autopause is no longer swept here: it's a per-regime-book decision
@@ -253,7 +253,7 @@ public static class SweepOptimizer
 
         // Fill the remainder to TargetCandidateCount with deterministic
         // pseudo-random LIVE mixes (fixed seed - repeated sweeps on the same
-        // data give the same answer). Half also jitter the Buy threshold so
+        // data give the same answer). Half also jitter the Gate threshold so
         // the search covers the joint weights-threshold space, not just the
         // simplex at one threshold.
         var rng = new Random(20260710);
@@ -268,14 +268,14 @@ public static class SweepOptimizer
 
             var jitterThreshold = k % 2 == 0;
             var nt = jitterThreshold
-                ? Math.Clamp(Math.Round(baseline.BuyThreshold + (decimal)(rng.NextDouble() - 0.5) * 2.0m, 1), 3.0m, 9.0m)
-                : baseline.BuyThreshold;
+                ? Math.Clamp(Math.Round(baseline.GateThreshold + (decimal)(rng.NextDouble() - 0.5) * 2.0m, 1), 3.0m, 9.0m)
+                : baseline.GateThreshold;
 
             candidates.Add(baseline with
             {
                 Label = jitterThreshold ? $"Random mix {k} (threshold {nt:0.0})" : $"Random mix {k}",
                 Weights = FromArray(arr),
-                BuyThreshold = nt,
+                GateThreshold = nt,
             });
         }
 
@@ -609,7 +609,7 @@ public static class SweepOptimizer
         var (earlyLcb, lateLcb) = SplitHalfLowerBoundExpectancy(result, spy);
 
         return new SweepCandidateResult(
-            candidate.Label, candidate.Weights, candidate.BuyThreshold, candidate.ExcludeBreakout, candidate.AutopauseDuringBear,
+            candidate.Label, candidate.Weights, candidate.GateThreshold, candidate.ExcludeBreakout, candidate.AutopauseDuringBear,
             result.Trades, result.WinRate, result.ExpectancyPct, adjusted,
             result.ProfitFactor, result.MaxDrawdownPct, result.TotalReturnPct,
             rejection is null, rejection,

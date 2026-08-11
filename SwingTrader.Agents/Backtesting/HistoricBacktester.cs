@@ -49,7 +49,7 @@ public static class HistoricDataWindow
 
 public sealed record HistoricConfig(
     StrategyWeights Weights,
-    decimal BuyThreshold = 6.0m,
+    decimal GateThreshold = 6.0m,
     // Legacy single-toggle breakout exclusion. Live no longer excludes any
     // setup (Phase 1, breakouts trade again) and the Lab always passes an
     // explicit value via ToConfig, so this default only affects direct callers
@@ -407,7 +407,7 @@ public static class HistoricBacktester
                 {
                     if (open.Any(p => p.Symbol.Equals(symbol, StringComparison.OrdinalIgnoreCase))) continue;
                     var scored = await ScoreAsync(indicators, cfg, bars, index, symbol, today, sectorEtfBySymbol);
-                    if (scored is { } s && s.Conviction >= cfg.BuyThreshold && s.Rsi <= 75m
+                    if (scored is { } s && s.Conviction >= cfg.GateThreshold && s.Rsi <= 75m
                         && (cfg.MaxConvictionForBuy <= 0 || s.Conviction <= cfg.MaxConvictionForBuy)
                         && !excludedSetups.Contains(s.Setup))
                         candidates.Add((symbol, s.Conviction, s.Setup, s.Rsi, s.Resistance));

@@ -48,21 +48,29 @@ public class AlmostTradesService(
         var since = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-windowDays));
         var profile = await riskProfiles.GetAsync(accountId, ct);
 
-        // Qualified = the system wanted this one. Gate passed, forward score
-        // real and at or above the floor, yet it ended up a Watch because the
-        // slot was taken. BlockReason is authoritative; the WouldBeVetoed
-        // fallback covers rows written before block reasons were recorded.
+        // A Buy that execution never took - whatever stopped it: no free slot,
+        // insufficient cash, a rejected order. WasExecuted is the claim flag
+        // execution sets when it commits to a signal (and clears if the order
+        // is cancelled), so its absence is exactly "wanted, not taken".
+        //
+        // Until 11 Aug 2026 this looked for BlockReason.PortfolioFull, because
+        // a full book demoted Buys to Watch at scoring time. That demotion is
+        // gone - it discarded qualifying signals over a timing accident - so
+        // the population is now defined by outcome rather than by a reason
+        // recorded hours too early.
+        //
+        // TODAY is excluded: execution runs after research, so today's Buys are
+        // legitimately unexecuted for a few hours and would read as misses.
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var qualified = (await signals.GetSinceDateAsync(accountId, since))
-            .Where(s => s.WouldPassGate
-                && s.Recommendation == Recommendation.Watch
-                && s.BlockReason == BlockReasons.PortfolioFull
-                && !s.ForwardScoreDegraded
-                && s.ForwardScore is { } f && f >= profile.ForwardVetoFloor)
+            .Where(s => s.Recommendation == Recommendation.Buy
+                && !s.WasExecuted
+                && s.SignalDate < today)
             .OrderByDescending(s => s.SignalDate)
             .ToList();
 
         if (qualified.Count == 0)
-            return new AlmostTradesResult(windowDays, 0, 0, 0m, 0, profile.ForwardVetoFloor, []);
+            return new AlmostTradesResult(windowDays, 0, 0, 0m, 0, profile.ForwardBuyThreshold, []);
 
         var barsBySymbol = await candles.GetForSymbolsAsync(
             qualified.Select(s => s.Symbol).Distinct(StringComparer.OrdinalIgnoreCase).ToList(), since, ct);
@@ -103,7 +111,7 @@ public class AlmostTradesService(
             replayed.Count,
             replayed.Count > 0 ? Math.Round(replayed.Average(r => r.CounterfactualReturnPct!.Value), 2) : 0m,
             replayed.Count(r => r.CounterfactualReturnPct > 0),
-            profile.ForwardVetoFloor,
+            profile.ForwardBuyThreshold,
             rows);
     }
 }

@@ -176,12 +176,12 @@ public class ResearchPipeline(
         // to compare, and H-SEL1 can never accumulate.
         //
         // The saving is kept where it still applies - signals between the
-        // Watch and Buy thresholds, which were never Buy candidates anyway.
+        // Watch and Gate thresholds, which were never Buy candidates anyway.
         // Measured 13 Jul - 7 Aug: 77 gate-passing signals went unscored over
         // 20 days across 3 accounts (~1.3 Claude calls/account/day), rising to
         // roughly 4/account/day at one open position. Call it £1-3/month.
         var skipStageTwo = gateScore < weights.WatchThreshold
-            || (slotSkip && gateScore < weights.BuyThreshold);
+            || (slotSkip && gateScore < weights.GateThreshold);
 
         decimal? sentimentScore = null;
         var newsSummary = slotSkip
@@ -249,8 +249,8 @@ public class ResearchPipeline(
 
         var shadow = new FunnelScores.FunnelShadow(
             gateScore, forwardScore, forwardDegraded,
-            WouldPassGate: gateScore >= weights.BuyThreshold,
-            WouldBeVetoed: FunnelScores.ShouldVeto(forwardScore, forwardDegraded, riskProfile.ForwardVetoFloor));
+            WouldPassGate: gateScore >= weights.GateThreshold,
+            WouldBeVetoed: FunnelScores.ShouldVeto(forwardScore, forwardDegraded, riskProfile.ForwardBuyThreshold));
 
         // The gate IS the conviction (the ConvictionScore field keeps one
         // meaning downstream - probation, reports, refinement buckets all keep
@@ -303,11 +303,22 @@ public class ResearchPipeline(
         string? slotSkipReasoning = null;
         if (slotSkip && recommendation == Recommendation.Buy)
         {
-            recommendation = Recommendation.Watch;
-            // NOT a judgement about the stock - we simply had no slot. Kept
-            // distinct so it never pollutes a veto's counterfactual.
-            blockReason = BlockReasons.PortfolioFull;
-            slotSkipReasoning = " Portfolio full: conviction scoring deferred, Buy demoted to Watch (slot-aware skip).";
+            // The Buy STANDS (changed 11 Aug 2026). Demoting here threw away
+            // qualifying signals over a timing accident: research scores in the
+            // morning, and at MaxOpenPositions = 1 the book is occupied most of
+            // the time - so on 11 Aug AVNT/ELAN/VAC were demoted at 11:30 while
+            // SHOP was open, SHOP closed at 13:59, and the freed slot went
+            // unused because signals are not rescored.
+            //
+            // Capacity is an EXECUTION-time fact and PositionSizingService
+            // already refuses when open positions >= the max, evaluated when it
+            // is actually true. Demoting at scoring time was a second, earlier,
+            // less accurate copy of that guard.
+            //
+            // It also became actively wasteful: gate-passing signals now always
+            // buy their forward score (docs/selective-buy-plan P2), so this
+            // paid for the score and then discarded the Buy.
+            slotSkipReasoning = " Portfolio was full when scored — kept as a Buy; execution decides capacity.";
             logger.LogInformation("Slot-aware skip for {Symbol}: portfolio full, Buy demoted to Watch (account {AccountId})",
                 symbol, accountId);
         }
@@ -323,9 +334,9 @@ public class ResearchPipeline(
         {
             recommendation = Recommendation.Watch;
             blockReason = BlockReasons.ForwardVeto;
-            vetoReasoning = $" Forward veto: score {forwardScore:0.0} below floor {riskProfile.ForwardVetoFloor:0.0}.";
+            vetoReasoning = $" Forward veto: score {forwardScore:0.0} below floor {riskProfile.ForwardBuyThreshold:0.0}.";
             logger.LogInformation("Forward veto for {Symbol}: forward {Forward:0.0} < floor {Floor:0.0}, Buy demoted to Watch",
-                symbol, forwardScore, riskProfile.ForwardVetoFloor);
+                symbol, forwardScore, riskProfile.ForwardBuyThreshold);
         }
 
         // Distress veto (FD3): an active rules-based distress flag (8-K
@@ -829,7 +840,7 @@ public class ResearchPipeline(
         // (wider stop, longer guide-hold, early-arming trail). They now classify
         // like any other setup; whether they earn their keep is a per-setup
         // exit-tuning question, not a blanket exclusion.
-        if (conviction >= weights.BuyThreshold)
+        if (conviction >= weights.GateThreshold)
         {
             // Per-setup live switch: a setup turned OFF in Settings is still
             // detected, scored and surfaced, but its Buy demotes to Watch -

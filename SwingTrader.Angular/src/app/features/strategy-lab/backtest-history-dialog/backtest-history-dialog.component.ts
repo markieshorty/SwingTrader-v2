@@ -50,7 +50,7 @@ import { errorMessage } from '../../../shared/utils/error-message.util';
           }
 
           @if (item.weights; as w) {
-            <h4>Weights <span class="thr">· Buy threshold {{ item.buyThreshold | number: '1.1-1' }}</span></h4>
+            <h4>Weights <span class="thr">· Gate threshold {{ item.gateThreshold | number: '1.1-1' }}</span></h4>
             <div class="weight-grid">
               <div><span class="k">RSI</span><span class="v">{{ w.rsi | percent: '1.0-0' }}</span></div>
               <div><span class="k">MACD</span><span class="v">{{ w.macd | percent: '1.0-0' }}</span></div>

@@ -104,7 +104,7 @@ public class ComponentCorrelationService : IComponentCorrelationService
             ForwardSentimentWeight = currentWeights.ForwardSentimentWeight,
             ForwardFundamentalWeight = currentWeights.ForwardFundamentalWeight,
             ForwardFilingWeight = currentWeights.ForwardFilingWeight,
-            BuyThreshold = currentWeights.BuyThreshold,
+            GateThreshold = currentWeights.GateThreshold,
             WatchThreshold = currentWeights.WatchThreshold,
             StopLossPctDefault = currentWeights.StopLossPctDefault,
             Source = "RefinementAgent",

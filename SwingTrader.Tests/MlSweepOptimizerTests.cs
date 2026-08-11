@@ -8,7 +8,7 @@ namespace SwingTrader.Tests;
 
 // The ML search pool: same dial-space contract as SweepOptimizer's
 // deterministic sweep (live weights sum to the baseline's live budget, dead
-// components never move, Buy threshold stays in range), plus checks specific
+// components never move, Gate threshold stays in range), plus checks specific
 // to the successive-halving multi-start design - that restarts scatter
 // across the simplex, that the halving schedule actually concentrates budget
 // on the promising starts, and that results are deterministic even when
@@ -69,7 +69,7 @@ public class MlSweepOptimizerTests
         evaluations.Should().AllSatisfy(e =>
         {
             LiveSum(e.Summary.Weights).Should().BeApproximately(liveBudget, 0.01m);
-            e.Summary.BuyThreshold.Should().BeInRange(3.0m, 9.0m);
+            e.Summary.GateThreshold.Should().BeInRange(3.0m, 9.0m);
         });
     }
 

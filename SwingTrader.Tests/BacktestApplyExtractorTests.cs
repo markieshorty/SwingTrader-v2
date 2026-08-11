@@ -17,22 +17,22 @@ public class BacktestApplyExtractorTests
         // the app actually stores) - the extractor must handle both.
         var resultJson =
             "{\"mode\":\"ab\",\"candidates\":[" +
-            "{\"label\":\"Your dials\",\"weights\":" + Weights + ",\"buyThreshold\":6.0," +
+            "{\"label\":\"Your dials\",\"weights\":" + Weights + ",\"gateThreshold\":6.0," +
             "\"result\":{\"trades\":120,\"winRate\":55,\"totalReturnPct\":14,\"maxDrawdownPct\":8,\"profitFactor\":1.3,\"expectancyPct\":0.5}}," +
-            "{\"label\":\"Production baseline\",\"weights\":" + Weights + ",\"buyThreshold\":6.5," +
+            "{\"label\":\"Production baseline\",\"weights\":" + Weights + ",\"gateThreshold\":6.5," +
             "\"result\":{\"trades\":100,\"winRate\":50,\"totalReturnPct\":9,\"maxDrawdownPct\":10,\"profitFactor\":1.1,\"expectancyPct\":0.2}}]}";
         var requestJson =
             "{\"Mode\":\"ab\",\"Candidates\":[" +
-            "{\"Label\":\"Your dials\",\"Weights\":" + Weights + ",\"BuyThreshold\":6.0," +
+            "{\"Label\":\"Your dials\",\"Weights\":" + Weights + ",\"GateThreshold\":6.0," +
             "\"Rules\":{\"MaxHoldDays\":15,\"StopLossPct\":0.05,\"MinHoldDays\":3}}," +
-            "{\"Label\":\"Production baseline\",\"Weights\":" + Weights + ",\"BuyThreshold\":6.5}]}";
+            "{\"Label\":\"Production baseline\",\"Weights\":" + Weights + ",\"GateThreshold\":6.5}]}";
 
         var config = BacktestApplyExtractor.Extract("ab", requestJson, resultJson);
 
         config.Should().NotBeNull();
         config!.Label.Should().Be("Your dials");
         config.Weights.Rsi.Should().Be(0.15m);
-        config.BuyThreshold.Should().Be(6.0m);
+        config.GateThreshold.Should().Be(6.0m);
         config.Stats.Trades.Should().Be(120);
         config.Stats.WinRatePct.Should().Be(55m);
         config.Stats.TotalReturnPct.Should().Be(14m);
@@ -48,9 +48,9 @@ public class BacktestApplyExtractorTests
     public void Extract_Ab_NoRules_LeavesRulesNull()
     {
         var resultJson =
-            "{\"mode\":\"ab\",\"candidates\":[{\"label\":\"A\",\"weights\":" + Weights + ",\"buyThreshold\":6.0," +
+            "{\"mode\":\"ab\",\"candidates\":[{\"label\":\"A\",\"weights\":" + Weights + ",\"gateThreshold\":6.0," +
             "\"result\":{\"trades\":10,\"winRate\":50,\"totalReturnPct\":1,\"maxDrawdownPct\":2,\"profitFactor\":1,\"expectancyPct\":0.1}}]}";
-        var requestJson = "{\"Mode\":\"ab\",\"Candidates\":[{\"Label\":\"A\",\"Weights\":" + Weights + ",\"BuyThreshold\":6.0}]}";
+        var requestJson = "{\"Mode\":\"ab\",\"Candidates\":[{\"Label\":\"A\",\"Weights\":" + Weights + ",\"GateThreshold\":6.0}]}";
 
         var config = BacktestApplyExtractor.Extract("ab", requestJson, resultJson);
 
@@ -62,7 +62,7 @@ public class BacktestApplyExtractorTests
     public void Extract_Sweep_TakesWinner_WeightsAndStats_NoRules()
     {
         var resultJson =
-            "{\"mode\":\"sweep\",\"winner\":{\"label\":\"cand-7\",\"weights\":" + Weights + ",\"buyThreshold\":6.0," +
+            "{\"mode\":\"sweep\",\"winner\":{\"label\":\"cand-7\",\"weights\":" + Weights + ",\"gateThreshold\":6.0," +
             "\"trades\":140,\"winRate\":57,\"expectancyPct\":0.6,\"profitFactor\":1.4,\"maxDrawdownPct\":7,\"totalReturnPct\":18}}";
         var requestJson = "{\"Mode\":\"sweep\"}";
 
@@ -71,7 +71,7 @@ public class BacktestApplyExtractorTests
         config.Should().NotBeNull();
         config!.Label.Should().Be("cand-7");
         config.Weights.Rsi.Should().Be(0.15m);
-        config.BuyThreshold.Should().Be(6.0m);
+        config.GateThreshold.Should().Be(6.0m);
         config.Stats.Trades.Should().Be(140);
         config.Stats.ProfitFactor.Should().Be(1.4m);
         config.Rules.Should().BeNull(); // sweep never overrides risk rules
@@ -83,7 +83,7 @@ public class BacktestApplyExtractorTests
         // A "search for optimal trading rules" winner: rules ride on the
         // winner record (camelCase, PascalCase-insensitive parse).
         var resultJson =
-            "{\"mode\":\"sweep\",\"winner\":{\"label\":\"Max hold 12d\",\"weights\":" + Weights + ",\"buyThreshold\":6.0," +
+            "{\"mode\":\"sweep\",\"winner\":{\"label\":\"Max hold 12d\",\"weights\":" + Weights + ",\"gateThreshold\":6.0," +
             "\"rules\":{\"maxHoldDays\":12,\"stopLossPct\":0.05}," +
             "\"trades\":110,\"winRate\":54,\"expectancyPct\":0.4,\"profitFactor\":1.2,\"maxDrawdownPct\":9,\"totalReturnPct\":12}}";
 

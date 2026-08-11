@@ -101,11 +101,11 @@
 
           <div class="dial threshold">
             <div class="dial-label">
-              <span matTooltip="A signal must score at least this conviction (0-10) to become a Buy">Buy threshold</span>
-              <span class="value">{{ buyThreshold() | number: '1.1-1' }}</span>
+              <span matTooltip="Quality gate: a signal must score at least this on the technical gate (0-10) to be CONSIDERED. It does not decide the buy - the forward score does.">Gate threshold</span>
+              <span class="value">{{ gateThreshold() | number: '1.1-1' }}</span>
             </div>
             <mat-slider min="3" max="9" step="0.1" discrete>
-              <input matSliderThumb [ngModel]="buyThreshold()" (ngModelChange)="buyThreshold.set($event)" />
+              <input matSliderThumb [ngModel]="gateThreshold()" (ngModelChange)="gateThreshold.set($event)" />
             </mat-slider>
           </div>
 
@@ -564,7 +564,7 @@
             <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applyToProduction()">
               <mat-icon>rocket_launch</mat-icon> Apply these dials to production
             </button>
-            <span class="muted small">Apply sets your live strategy weights + Buy threshold. Owner only.</span>
+            <span class="muted small">Apply sets your live strategy weights + Gate threshold. Owner only.</span>
           </div>
         </mat-card>
       }
@@ -700,7 +700,7 @@
             <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applyToProduction()">
               <mat-icon>rocket_launch</mat-icon> Apply these dials to production
             </button>
-            <span class="muted small">Apply sets your live strategy weights + Buy threshold. Owner only.</span>
+            <span class="muted small">Apply sets your live strategy weights + Gate threshold. Owner only.</span>
           </div>
         </mat-card>
       }
@@ -772,7 +772,7 @@
             <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applyToProduction()">
               <mat-icon>rocket_launch</mat-icon> Apply these dials to production
             </button>
-            <span class="muted small">Apply sets your live strategy weights + Buy threshold. Owner only.</span>
+            <span class="muted small">Apply sets your live strategy weights + Gate threshold. Owner only.</span>
           </div>
         </mat-card>
       }
@@ -844,7 +844,7 @@
             <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applyToProduction()">
               <mat-icon>rocket_launch</mat-icon> Apply these dials to production
             </button>
-            <span class="muted small">Apply sets your live strategy weights + Buy threshold. Owner only.</span>
+            <span class="muted small">Apply sets your live strategy weights + Gate threshold. Owner only.</span>
           </div>
         </mat-card>
       }
@@ -916,7 +916,7 @@
             <button mat-raised-button color="warn" [disabled]="!isOwner()" (click)="applyToProduction()">
               <mat-icon>rocket_launch</mat-icon> Apply these dials to production
             </button>
-            <span class="muted small">Apply sets your live strategy weights + Buy threshold. Owner only.</span>
+            <span class="muted small">Apply sets your live strategy weights + Gate threshold. Owner only.</span>
           </div>
         </mat-card>
       }
@@ -999,7 +999,7 @@
       <mat-card class="panel controls">
         <h3>Find optimum weights</h3>
         <p class="muted small">
-          Searches ~1,200 variations of your six gate weights + Buy threshold against the historic dataset, using two
+          Searches ~1,200 variations of your six gate weights + Gate threshold against the historic dataset, using two
           pools: a <strong>deterministic sweep</strong> (nudges, pair shifts, structural mixes, dense random fill) and a
           <strong>CMA-ES ML search</strong> with successive halving. Candidates are judged on <em>market-adjusted</em>
           expectancy with guardrails (min trades, drawdown cap), ranked by <strong>split-half consistency</strong> —
@@ -1188,7 +1188,7 @@
               <mat-icon>rocket_launch</mat-icon> Apply winning dials to production
             </button>
             <span class="muted small">
-              @if (sw.validation.heldUp) { Sets your live strategy weights + Buy threshold to the winner. Owner only. }
+              @if (sw.validation.heldUp) { Sets your live strategy weights + Gate threshold to the winner. Owner only. }
               @else { Not recommended — this configuration failed out-of-sample validation. }
             </span>
           </div>

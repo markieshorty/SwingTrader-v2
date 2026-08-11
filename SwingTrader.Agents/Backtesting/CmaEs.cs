@@ -3,10 +3,10 @@ namespace SwingTrader.Agents.Backtesting;
 // Minimal (mu/mu_w, lambda)-CMA-ES: a gradient-free evolutionary optimizer for
 // small continuous search spaces with a noisy, non-smooth objective - exactly
 // what a backtest score is (a 1pp weight nudge can flip a handful of trades
-// across the Buy threshold and jump the result around, which rules out any
+// across the Gate threshold and jump the result around, which rules out any
 // gradient-based method). Standard algorithm per Hansen's "The CMA Evolution
 // Strategy: A Tutorial"; kept to plain double[]/double[,] since the search
-// dimension here (7: six live weights + Buy threshold) is tiny - no need for
+// dimension here (7: six live weights + Gate threshold) is tiny - no need for
 // a matrix library, and a from-scratch Jacobi eigen-decomposition is both
 // simple and exact at this size.
 public static class CmaEs

@@ -28,7 +28,7 @@ public class StrategyWeights : BaseEntity
     public decimal ForwardFundamentalWeight { get; set; } = 0.30m;
     public decimal ForwardFilingWeight { get; set; } = 0.25m;
 
-    public decimal BuyThreshold { get; set; } = 6.0m;
+    public decimal GateThreshold { get; set; } = 6.0m;
     public decimal WatchThreshold { get; set; } = 5.0m;
     public decimal StopLossPctDefault { get; set; } = 0.05m;
     public bool IsActive { get; set; }

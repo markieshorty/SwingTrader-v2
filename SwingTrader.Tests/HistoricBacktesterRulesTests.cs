@@ -34,7 +34,7 @@ public class HistoricBacktesterRulesTests
 
     // Threshold 3 = take everything scoreable; probation off by default so
     // each rule test isolates its own lever (the probation tests turn it on).
-    private static HistoricConfig Config() => new(new StrategyWeights(), BuyThreshold: 3.0m, SimulateProbation: false);
+    private static HistoricConfig Config() => new(new StrategyWeights(), GateThreshold: 3.0m, SimulateProbation: false);
 
     [Fact]
     public async Task Baseline_ProducesTrades_SoRuleTestsHaveSignal()

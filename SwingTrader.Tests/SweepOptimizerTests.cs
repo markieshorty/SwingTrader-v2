@@ -383,7 +383,7 @@ public class SweepOptimizerTests
         ruleCandidates.Should().AllSatisfy(c =>
         {
             c.Weights.Should().Be(ProdWeights);
-            c.BuyThreshold.Should().Be(6.0m);
+            c.GateThreshold.Should().Be(6.0m);
         });
         // Total stays capped - rule candidates displace random filler rather
         // than extending the run.
@@ -465,7 +465,7 @@ public class LabAnalysisPromptsTests
         const string raw = """
             {"analysis": "The stop-loss bucket dominates.", "suggestion": {"rsi": 0.17, "macd": 0.12,
              "volume": 0.26, "setupQuality": 0.19, "relativeStrength": 0.16,
-             "priceLevel": 0.10, "buyThreshold": 6.5,
+             "priceLevel": 0.10, "gateThreshold": 6.5,
              "excludeBreakout": true, "rationale": "Tests whether volume confirmation filters stop-outs."}}
             """;
 
@@ -474,7 +474,7 @@ public class LabAnalysisPromptsTests
         analysis.Should().Be("The stop-loss bucket dominates.");
         suggestion.Should().NotBeNull();
         suggestion!.Weights.Volume.Should().Be(0.26m);
-        suggestion.BuyThreshold.Should().Be(6.5m);
+        suggestion.GateThreshold.Should().Be(6.5m);
         suggestion.Rationale.Should().Contain("volume confirmation");
     }
 
@@ -495,7 +495,7 @@ public class LabAnalysisPromptsTests
         const string raw = """
             {"analysis": "Something.", "suggestion": {"rsi": 0.9, "macd": 0.9, "volume": 0.1,
              "sentiment": 0.1, "setupQuality": 0.1, "relativeStrength": 0.1, "priceLevel": 0.1,
-             "fundamentalMomentum": 0.1, "buyThreshold": 6.0, "excludeBreakout": true, "rationale": "x"}}
+             "fundamentalMomentum": 0.1, "gateThreshold": 6.0, "excludeBreakout": true, "rationale": "x"}}
             """;
 
         var (analysis, suggestion) = LabAnalysisPrompts.ParseResponse(raw);

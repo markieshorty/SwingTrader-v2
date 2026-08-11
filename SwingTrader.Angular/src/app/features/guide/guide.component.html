@@ -72,7 +72,7 @@
 
         <h3>What the score decides</h3>
         <ul>
-          <li>Score ≥ <strong>{{ weights()?.buyThreshold ?? '—' }}</strong> → <strong>Buy</strong> — strong enough to actually trade (subject to approval).</li>
+          <li>Score ≥ <strong>{{ weights()?.gateThreshold ?? '—' }}</strong> → <strong>Buy</strong> — strong enough to actually trade (subject to approval).</li>
           <li>Score ≥ <strong>{{ weights()?.watchThreshold ?? '—' }}</strong> → <strong>Watch</strong> — interesting, kept on the radar but not traded.</li>
           <li>Below that → <strong>Hold / Avoid</strong> — not acted on.</li>
         </ul>
@@ -164,9 +164,10 @@
           Two Settings dials turn that score into action:
           <strong>Sizing Aggressiveness</strong> ({{ risk()?.sizingAggressiveness ?? '—' }}) tilts position size up
           or down by the forward score (0 = off, every position gets base size), and the
-          <strong>Forward Veto Floor</strong> ({{ risk()?.forwardVetoFloor ?? '—' }}) demotes a Buy to Watch when its
-          forward score falls below the floor (0 = off). A missing or degraded forward score never vetoes and never
-          tilts — data outages fail open. All the hard limits above still apply after any tilt.
+          <strong>Forward Buy Threshold</strong> ({{ risk()?.forwardBuyThreshold ?? '—' }}) is what actually decides a
+          Buy: a gate-passing signal scoring below it is demoted to Watch (0 = off). Since the forward score is the
+          only selector, it fails CLOSED — a missing or degraded score is vetoed rather than waved through, so a data
+          outage stops buying rather than buying blind. All the hard limits above still apply.
         </p>
 
         <h3>Distress quarantine — the doomed-stock guard</h3>

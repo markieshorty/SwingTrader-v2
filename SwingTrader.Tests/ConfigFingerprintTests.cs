@@ -26,7 +26,7 @@ public class ConfigFingerprintTests
     };
 
     private static HistoricConfig Config() => new(
-        Weights(), BuyThreshold: 6.0m, ExcludeBreakout: false, RegimeFilter: true,
+        Weights(), GateThreshold: 6.0m, ExcludeBreakout: false, RegimeFilter: true,
         MaxOpenPositions: 3, MaxHoldDays: 10, ExcludedSetups: null,
         TrailingActivationPct: 0.05m, TrailingDistancePct: 0.03m,
         StopLossPct: 0.05m, TargetPct: 0.08m, SetupTactics: Tactics(),
@@ -45,7 +45,7 @@ public class ConfigFingerprintTests
         // A SQL decimal(5,4) read-back gives 0.0500m where a request DTO gives
         // 0.05m - textually different, numerically equal. Both must hash equal
         // or the evidence gate breaks for every DB-sourced value.
-        var scaled = Config() with { StopLossPct = 0.0500m, BuyThreshold = 6.00m, LockedCapitalPct = 0.2000m };
+        var scaled = Config() with { StopLossPct = 0.0500m, GateThreshold = 6.00m, LockedCapitalPct = 0.2000m };
         ConfigFingerprint.Compute(scaled).Should().Be(ConfigFingerprint.Compute(Config()));
     }
 
@@ -78,7 +78,7 @@ public class ConfigFingerprintTests
 
     [Theory]
     [InlineData("weights")]
-    [InlineData("buyThreshold")]
+    [InlineData("gateThreshold")]
     [InlineData("regimeFilter")]
     [InlineData("stop")]
     [InlineData("positions")]
@@ -90,7 +90,7 @@ public class ConfigFingerprintTests
         var cfg = change switch
         {
             "weights" => Config() with { Weights = new StrategyWeights { RsiWeight = 0.24m, MacdWeight = 0.11m, VolumeWeight = 0.28m, SetupQualityWeight = 0.16m, RelativeStrengthWeight = 0.14m, PriceLevelWeight = 0.07m } },
-            "buyThreshold" => Config() with { BuyThreshold = 6.5m },
+            "gateThreshold" => Config() with { GateThreshold = 6.5m },
             "regimeFilter" => Config() with { RegimeFilter = false },
             "stop" => Config() with { StopLossPct = 0.06m },
             "positions" => Config() with { MaxOpenPositions = 4 },

@@ -312,7 +312,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.ForwardSentimentWeight).HasPrecision(18, 8);
             e.Property(x => x.ForwardFundamentalWeight).HasPrecision(18, 8);
             e.Property(x => x.ForwardFilingWeight).HasPrecision(18, 8);
-            e.Property(x => x.BuyThreshold).HasPrecision(18, 8);
+            e.Property(x => x.GateThreshold).HasPrecision(18, 8);
             e.Property(x => x.WatchThreshold).HasPrecision(18, 8);
             e.Property(x => x.StopLossPctDefault).HasPrecision(18, 8);
             e.HasIndex(x => x.AccountId);
@@ -329,7 +329,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
                 ForwardSentimentWeight = 0.45m,
                 ForwardFundamentalWeight = 0.30m,
                 ForwardFilingWeight = 0.25m,
-                BuyThreshold = 6.0m,
+                GateThreshold = 6.0m,
                 WatchThreshold = 5.0m,
                 StopLossPctDefault = 0.05m,
                 IsActive = true,

@@ -143,20 +143,20 @@ public class AccountRiskProfileRepositoryTests
     public async Task UpdateAsync_PersistsTheFunnelDials()
     {
         // Regression: the field-by-field copy in UpdateAsync originally missed
-        // SizingAggressiveness and ForwardVetoFloor, so the Settings sliders
+        // SizingAggressiveness and ForwardBuyThreshold, so the Settings sliders
         // saved successfully while silently persisting nothing.
         await using var db = CreateDb();
         var repo = new AccountRiskProfileRepository(db);
         await repo.SeedDefaultAsync(1);
         var profile = await repo.GetAsync(1);
         profile.SizingAggressiveness = 0.7m;
-        profile.ForwardVetoFloor = 3.5m;
+        profile.ForwardBuyThreshold = 3.5m;
 
         await repo.UpdateAsync(profile);
 
         var updated = await db.AccountRiskProfiles.SingleAsync(p => p.AccountId == 1 && p.Regime == MarketRegime.Neutral);
         updated.SizingAggressiveness.Should().Be(0.7m);
-        updated.ForwardVetoFloor.Should().Be(3.5m);
+        updated.ForwardBuyThreshold.Should().Be(3.5m);
     }
 
     [Fact]
@@ -167,14 +167,14 @@ public class AccountRiskProfileRepositoryTests
         await repo.SeedDefaultAsync(1);
         var profile = await repo.GetAsync(1);
         profile.SizingAggressiveness = 1.0m;
-        profile.ForwardVetoFloor = 0.0m;
+        profile.ForwardBuyThreshold = 0.0m;
         profile.AutopauseTrading = true;
         await repo.UpdateAsync(profile);
 
         var reset = await repo.ResetToDefaultsAsync(1, MarketRegime.Neutral);
 
         reset.SizingAggressiveness.Should().Be(0m);
-        reset.ForwardVetoFloor.Should().Be(CapitalRules.DefaultForwardVetoFloor);
+        reset.ForwardBuyThreshold.Should().Be(CapitalRules.DefaultForwardVetoFloor);
         // Neutral's default posture does not auto-pause.
         reset.AutopauseTrading.Should().BeFalse();
     }

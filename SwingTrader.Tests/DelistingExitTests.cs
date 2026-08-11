@@ -46,7 +46,7 @@ public class DelistingExitTests
             RsiWeight = 0.17m, MacdWeight = 0.09m, VolumeWeight = 0.21m,
             SetupQualityWeight = 0.12m, RelativeStrengthWeight = 0.2m, PriceLevelWeight = 0.21m,
         },
-        BuyThreshold: 0.1m,           // enter on anything scoreable
+        GateThreshold: 0.1m,           // enter on anything scoreable
         ExcludeBreakout: false,
         SimulateProbation: false,     // keep the exit path deterministic
         MaxHoldDays: 200,             // no time exit before the delisting

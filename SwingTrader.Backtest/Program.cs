@@ -43,7 +43,7 @@ switch (command)
         // other four are neutral 0.5 in the sim, so their weights only shift
         // scores by a constant). Values are auto-scaled so the active block
         // keeps its production share (0.59) and total weight stays 1.0,
-        // keeping conviction comparable against the 6.0 Buy threshold.
+        // keeping conviction comparable against the 6.0 Gate threshold.
         SwingTrader.Core.Models.StrategyWeights? weights = null;
         var w = Arg("--weights", "");
         if (w.Length > 0)
@@ -62,7 +62,7 @@ switch (command)
         }
 
         var opts = new BacktestEngine.Options(
-            BuyThreshold: decimal.Parse(Arg("--threshold", "6.0")),
+            GateThreshold: decimal.Parse(Arg("--threshold", "6.0")),
             RegimeFilter: args.Contains("--regime"),
             ExcludedSetups: excluded.Count > 0 ? excluded : null,
             BreakoutQualityOverride: bq.Length > 0 ? decimal.Parse(bq) : null,

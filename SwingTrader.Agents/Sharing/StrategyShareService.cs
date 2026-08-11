@@ -37,14 +37,14 @@ public class StrategyShareService(
                 weights.RsiWeight, weights.MacdWeight, weights.VolumeWeight,
                 weights.SetupQualityWeight, weights.RelativeStrengthWeight, weights.PriceLevelWeight,
                 weights.ForwardSentimentWeight, weights.ForwardFundamentalWeight, weights.ForwardFilingWeight,
-                weights.BuyThreshold, weights.WatchThreshold, weights.StopLossPctDefault),
+                weights.GateThreshold, weights.WatchThreshold, weights.StopLossPctDefault),
             books.Select(b => new SnapshotRiskBook(
                 b.Regime.ToString(), b.Enabled, b.AutopauseTrading,
                 b.LockedCapitalPct, b.MaxOpenPositions, b.DailyLossCircuitBreakerPct,
                 b.MaxHoldDays, b.TrailingActivationPct, b.TrailingDistancePct,
                 b.EarningsGateDays, b.MinHoldDays, b.MomentumHealthThreshold,
                 b.StopLossPct, b.TargetPct,
-                b.SizingMode.ToString(), b.FlatPositionPct, b.SizingAggressiveness, b.ForwardVetoFloor,
+                b.SizingMode.ToString(), b.FlatPositionPct, b.SizingAggressiveness, b.ForwardBuyThreshold,
                 b.SizingStyle.ToString(), b.RiskPerTradePct, b.AtrStopMultiple, b.AtrTargetMultiple,
                 b.MaxConvictionForBuy, b.TargetMode.ToString(), b.TargetBandFloorPct, b.TargetBandCeilingPct,
                 b.DisabledSetupsCsv)).ToList(),
@@ -84,7 +84,7 @@ public class StrategyShareService(
             new HistoricBacktestWeights(
                 weights.RsiWeight, weights.MacdWeight, weights.VolumeWeight,
                 weights.SetupQualityWeight, weights.RelativeStrengthWeight, weights.PriceLevelWeight),
-            weights.BuyThreshold,
+            weights.GateThreshold,
             excludeBreakout: false,
             autopauseDuringBear: bearBook.AutopauseTrading,
             profile, tacticsMap, rules);
@@ -120,7 +120,7 @@ public class StrategyShareService(
             ForwardSentimentWeight = w.ForwardSentimentWeight,
             ForwardFundamentalWeight = w.ForwardFundamentalWeight,
             ForwardFilingWeight = w.ForwardFilingWeight,
-            BuyThreshold = w.BuyThreshold, WatchThreshold = w.WatchThreshold,
+            GateThreshold = w.GateThreshold, WatchThreshold = w.WatchThreshold,
             StopLossPctDefault = w.StopLossPctDefault,
         };
 
@@ -170,7 +170,7 @@ public class StrategyShareService(
                 target.SizingMode = mode;
             target.FlatPositionPct = book.FlatPositionPct;
             target.SizingAggressiveness = book.SizingAggressiveness;
-            target.ForwardVetoFloor = book.ForwardVetoFloor;
+            target.ForwardBuyThreshold = book.ForwardBuyThreshold;
             if (Enum.TryParse<SizingStyle>(book.SizingStyle, ignoreCase: true, out var style))
                 target.SizingStyle = style;
             target.RiskPerTradePct = book.RiskPerTradePct;

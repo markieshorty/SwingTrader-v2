@@ -56,7 +56,7 @@ public static class TrialsMath
             closed.Where(t => conviction(t) is { } s && b.In(s)).ToList())).ToList();
     }
 
-    // Veto floor sweep: "if ForwardVetoFloor had been X, you would have
+    // Veto floor sweep: "if ForwardBuyThreshold had been X, you would have
     // skipped n trades averaging y%". The floor EARNS raising only where the
     // skipped column is clearly negative at a real n.
     public static List<FloorRow> VetoFloorSweep(IReadOnlyList<Trade> closed)

@@ -407,7 +407,7 @@ export interface StrategyWeightsDto {
   forwardSentimentWeight: number;
   forwardFundamentalWeight: number;
   forwardFilingWeight: number;
-  buyThreshold: number;
+  gateThreshold: number;
   watchThreshold: number;
   stopLossPctDefault: number;
 }
@@ -633,7 +633,7 @@ export interface LabSetupTacticsOverrideDto {
 export interface StrategyLabRequestDto {
   dataSource: 'own' | 'historic';
   weights: LabWeightsDto;
-  buyThreshold: number;
+  gateThreshold: number;
   // Deep history (docs/deep-history-plan P1): first year of bars the run
   // loads. Null/absent = the standard window (2016+).
   dataFromYear?: number | null;
@@ -675,7 +675,7 @@ export interface LabResultDto {
 export interface LabSuggestionDto {
   description: string;
   weights: LabWeightsDto;
-  buyThreshold: number;
+  gateThreshold: number;
   excludeBreakout: boolean;
   simAvgReturnPct: number;
   simWinRate: number;
@@ -696,7 +696,7 @@ export interface LabTradeOutcomeDto {
 // side-by-side comparison (weights snapshotted at evaluation time).
 export interface LabBaselineDto {
   weights: LabWeightsDto;
-  buyThreshold: number;
+  gateThreshold: number;
   excludeBreakout: boolean;
   result: LabResultDto;
 }
@@ -740,7 +740,7 @@ export interface HistoricResultDto {
 export interface AbCandidateDto {
   label: string;
   weights: LabWeightsDto;
-  buyThreshold: number;
+  gateThreshold: number;
   excludeBreakout: boolean;
   autopauseDuringBear: boolean;
   result: HistoricResultDto;
@@ -756,7 +756,7 @@ export interface AbResultDto {
 export interface SweepCandidateDto {
   label: string;
   weights: LabWeightsDto;
-  buyThreshold: number;
+  gateThreshold: number;
   excludeBreakout: boolean;
   autopauseDuringBear: boolean;
   trades: number;
@@ -941,7 +941,7 @@ export interface BacktestRunStatusDto {
 // RefinementSuggestion (origin StrategyLab) carrying the run's evidence.
 export interface LabApplyRequestDto {
   weights: LabWeightsDto;
-  buyThreshold: number;
+  gateThreshold: number;
   evidenceSummary: string;
   tradeCount: number;
   winRate: number;
@@ -1082,11 +1082,11 @@ export interface RiskProfileDto {
   // Funnel F2: Forward-score size tilt strength (0 = off, sizes untouched).
   sizingAggressiveness: number;
   // Funnel F3: Forward-score floor under gate-passing Buys (0 = veto off).
-  forwardVetoFloor: number;
+  forwardBuyThreshold: number;
   // Setups off while this regime book governs (docs/regime-setups-plan P2)
   disabledSetupsCsv?: string | null;
   riskLabel: string;
-  buyThreshold: number | null;
+  gateThreshold: number | null;
   watchThreshold: number | null;
   stopLossPctDefault: number | null;
   capitalBreakdown: {
@@ -1115,7 +1115,7 @@ export interface RiskProfileDto {
     targetBandFloorPct: RiskProfileRangeDto;
     targetBandCeilingPct: RiskProfileRangeDto;
     sizingAggressiveness: RiskProfileRangeDto;
-    forwardVetoFloor: RiskProfileRangeDto;
+    forwardBuyThreshold: RiskProfileRangeDto;
   };
 }
 
@@ -1163,7 +1163,7 @@ export interface UpdateRiskProfileDto {
   targetBandFloorPct: number;
   targetBandCeilingPct: number;
   sizingAggressiveness: number;
-  forwardVetoFloor: number;
+  forwardBuyThreshold: number;
   // Setups off while this regime book governs (docs/regime-setups-plan P2)
   disabledSetupsCsv?: string | null;
 }
@@ -1352,7 +1352,7 @@ export interface BacktestHistoryItemDto {
   canApply: boolean;
   label: string | null;
   weights: HistoricWeightsDto | null;
-  buyThreshold: number | null;
+  gateThreshold: number | null;
   rules: HistoricRulesDto | null;
   hasRiskOverrides: boolean;
   stats: BacktestHistoryStatsDto | null;
@@ -1413,7 +1413,7 @@ export interface ShareSnapshotWeightsDto {
   forwardSentimentWeight: number;
   forwardFundamentalWeight: number;
   forwardFilingWeight: number;
-  buyThreshold: number;
+  gateThreshold: number;
   watchThreshold: number;
   stopLossPctDefault: number;
 }
@@ -1436,7 +1436,7 @@ export interface ShareSnapshotRiskBookDto {
   sizingMode: string;
   flatPositionPct: number;
   sizingAggressiveness: number;
-  forwardVetoFloor: number;
+  forwardBuyThreshold: number;
   // Setups off while this regime book governs (docs/regime-setups-plan P2)
   disabledSetupsCsv?: string | null;
 }

@@ -30,13 +30,13 @@ public class StrategyLabService(
 
         var weights = ToWeights(req.Weights);
         var excluded = ResolveExcludedSetups(req);
-        var result = Evaluate(replayable, weights, req.BuyThreshold, excluded);
+        var result = Evaluate(replayable, weights, req.GateThreshold, excluded);
         var suggestions = Search(replayable, req, excluded, result);
         var trades = replayable
             .Select(t => new LabTradeOutcome(
                 t.Trade.Symbol, t.Trade.OpenedAt,
                 ReplayEvaluator.Conviction(t.Signal, weights), t.Signal.SetupType.ToString(), Math.Round(t.ReturnPct, 2),
-                ReplayEvaluator.WouldTake(t, weights, req.BuyThreshold, excluded)))
+                ReplayEvaluator.WouldTake(t, weights, req.GateThreshold, excluded)))
             .OrderByDescending(t => t.OpenedAt)
             .ToList();
 
@@ -54,11 +54,11 @@ public class StrategyLabService(
         {
             // Production excludes no setups since Phase 1 (breakouts trade live
             // again), so the baseline replays with no exclusions.
-            var baselineResult = Evaluate(replayable, prod, prod.BuyThreshold, NoExclusions);
+            var baselineResult = Evaluate(replayable, prod, prod.GateThreshold, NoExclusions);
             baseline = new LabBaseline(
                 new LabWeights(prod.RsiWeight, prod.MacdWeight, prod.VolumeWeight,
                     prod.SetupQualityWeight, prod.RelativeStrengthWeight, prod.PriceLevelWeight),
-                prod.BuyThreshold, ExcludeBreakout: false, baselineResult);
+                prod.GateThreshold, ExcludeBreakout: false, baselineResult);
         }
 
         return new StrategyLabResponse(result, suggestions, trades, warning, baseline);
@@ -139,9 +139,9 @@ public class StrategyLabService(
         // Threshold sweep
         foreach (var t in new[] { -0.5m, -0.25m, 0.25m, 0.5m, 1.0m })
         {
-            var nt = Math.Clamp(req.BuyThreshold + t, 3.0m, 9.0m);
-            if (nt != req.BuyThreshold)
-                Try($"{(t > 0 ? "Raise" : "Lower")} Buy threshold {req.BuyThreshold:0.0} → {nt:0.0}", req.Weights, nt);
+            var nt = Math.Clamp(req.GateThreshold + t, 3.0m, 9.0m);
+            if (nt != req.GateThreshold)
+                Try($"{(t > 0 ? "Raise" : "Lower")} Gate threshold {req.GateThreshold:0.0} → {nt:0.0}", req.Weights, nt);
         }
 
         // Single-weight nudges (±0.05), renormalised
@@ -157,7 +157,7 @@ public class StrategyLabService(
                 var sum = arr.Sum();
                 for (var k = 0; k < arr.Length; k++) arr[k] = Math.Round(arr[k] / sum, 4);
                 Try($"{(delta > 0 ? "Increase" : "Decrease")} {names[i]} weight to {arr[i]:P0} (others rebalanced)",
-                    FromArray(arr), req.BuyThreshold);
+                    FromArray(arr), req.GateThreshold);
             }
         }
 

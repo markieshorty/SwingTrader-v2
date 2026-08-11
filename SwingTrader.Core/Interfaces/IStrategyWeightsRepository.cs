@@ -21,7 +21,7 @@ public interface IStrategyWeightsRepository
     Task SetRegimeActiveAsync(int accountId, int id, MarketRegime regime);
 
     // In-place edit of every tunable field on the active general row - a manual
-    // testing/tuning knob (e.g. temporarily lowering BuyThreshold to exercise
+    // testing/tuning knob (e.g. temporarily lowering GateThreshold to exercise
     // the Execution path), not a Refinement-style versioned change. The 8
     // component weights must still sum to 1.0 (StrategyWeights.Validate()).
     Task UpdateWeightsAsync(int accountId, StrategyWeightsUpdate update);
@@ -37,6 +37,6 @@ public record StrategyWeightsUpdate(
     decimal ForwardSentimentWeight,
     decimal ForwardFundamentalWeight,
     decimal ForwardFilingWeight,
-    decimal BuyThreshold,
+    decimal GateThreshold,
     decimal WatchThreshold,
     decimal StopLossPctDefault);

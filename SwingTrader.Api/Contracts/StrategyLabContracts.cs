@@ -15,7 +15,7 @@ public record StrategyLabRequest(
     // "own" (closed-trade replay) | "historic" (full market backtest - phase 2)
     string DataSource,
     LabWeights Weights,
-    decimal BuyThreshold,
+    decimal GateThreshold,
     // Legacy single-toggle breakout exclusion. Superseded by ExcludedSetups
     // (the Lab's one "Exclude setups" multiselect); kept so older payloads and
     // the historic candidate's ExcludeBreakout field still deserialize. When
@@ -70,9 +70,9 @@ public record LabResult(
     string Summary);                // plain-English interpretation
 
 public record LabSuggestion(
-    string Description,             // e.g. "Raise Buy threshold 6.0 -> 6.5"
+    string Description,             // e.g. "Raise Gate threshold 6.0 -> 6.5"
     LabWeights Weights,
-    decimal BuyThreshold,
+    decimal GateThreshold,
     bool ExcludeBreakout,
     decimal SimAvgReturnPct,
     decimal SimWinRate,
@@ -84,7 +84,7 @@ public record LabSuggestion(
 // comparison is labelled with what was actually run.
 public record LabBaseline(
     LabWeights Weights,
-    decimal BuyThreshold,
+    decimal GateThreshold,
     bool ExcludeBreakout,
     LabResult Result);
 
@@ -104,7 +104,7 @@ public record StrategyLabResponse(
 // refinement history with its evidence.
 public record LabApplyRequest(
     LabWeights Weights,
-    decimal BuyThreshold,
+    decimal GateThreshold,
     // Plain-English description of the run that justified this change, e.g.
     // "Optimizer sweep winner 'Volume +10pp' — held up out-of-sample
     // (train 0.42%, holdout 0.31% vs baseline 0.12%/trade)".

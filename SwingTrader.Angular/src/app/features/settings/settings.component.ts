@@ -104,7 +104,7 @@ function toUpdateRiskProfileDto(profile: RiskProfileDto): UpdateRiskProfileDto {
     targetBandFloorPct: profile.targetBandFloorPct,
     targetBandCeilingPct: profile.targetBandCeilingPct,
     sizingAggressiveness: profile.sizingAggressiveness,
-    forwardVetoFloor: profile.forwardVetoFloor,
+    forwardBuyThreshold: profile.forwardBuyThreshold,
     disabledSetupsCsv: profile.disabledSetupsCsv ?? null,
   };
 }
@@ -376,7 +376,7 @@ export class SettingsComponent {
       original.targetBandFloorPct !== draft.targetBandFloorPct ||
       original.targetBandCeilingPct !== draft.targetBandCeilingPct ||
       original.sizingAggressiveness !== draft.sizingAggressiveness ||
-      original.forwardVetoFloor !== draft.forwardVetoFloor ||
+      original.forwardBuyThreshold !== draft.forwardBuyThreshold ||
       (original.disabledSetupsCsv ?? null) !== (draft.disabledSetupsCsv ?? null) ||
       original.maxHoldDays !== draft.maxHoldDays ||
       original.trailingActivationPct !== draft.trailingActivationPct ||

@@ -84,8 +84,8 @@ public class RefinementService(
         // threshold, Breakouts excluded) - a suggestion that would have
         // performed WORSE on the very history it was derived from is forced
         // to Low confidence and flagged so the UI warns before Apply.
-        var replayCurrent = ReplayEvaluator.Evaluate(replayable, currentWeights, currentWeights.BuyThreshold, excludeBreakout: true);
-        var replaySuggested = ReplayEvaluator.Evaluate(replayable, analysis.SuggestedWeights, currentWeights.BuyThreshold, excludeBreakout: true);
+        var replayCurrent = ReplayEvaluator.Evaluate(replayable, currentWeights, currentWeights.GateThreshold, excludeBreakout: true);
+        var replaySuggested = ReplayEvaluator.Evaluate(replayable, analysis.SuggestedWeights, currentWeights.GateThreshold, excludeBreakout: true);
         var replayPassed = replaySuggested.KeptAvgReturnPct >= replayCurrent.KeptAvgReturnPct;
         if (!replayPassed)
         {

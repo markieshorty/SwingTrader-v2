@@ -25,7 +25,7 @@ public class StrategyWeightsRepositoryTests
         SetupQualityWeight = 0.16m,
         RelativeStrengthWeight = 0.14m,
         PriceLevelWeight = 0.07m,
-        BuyThreshold = 6.0m,
+        GateThreshold = 6.0m,
         WatchThreshold = 5.0m,
         StopLossPctDefault = 0.05m,
         IsActive = isActive,
@@ -119,11 +119,11 @@ public class StrategyWeightsRepositoryTests
             RsiWeight: 0.20m, MacdWeight: 0.10m, VolumeWeight: 0.30m,
             SetupQualityWeight: 0.20m, RelativeStrengthWeight: 0.15m, PriceLevelWeight: 0.05m,
             ForwardSentimentWeight: 0.45m, ForwardFundamentalWeight: 0.30m, ForwardFilingWeight: 0.25m,
-            BuyThreshold: 6.5m, WatchThreshold: 5.5m, StopLossPctDefault: 0.06m));
+            GateThreshold: 6.5m, WatchThreshold: 5.5m, StopLossPctDefault: 0.06m));
 
         var active = await repo.GetActiveWeightsAsync(1);
         active!.RsiWeight.Should().Be(0.20m);
-        active.BuyThreshold.Should().Be(6.5m);
+        active.GateThreshold.Should().Be(6.5m);
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public class StrategyWeightsRepositoryTests
             RsiWeight: 0.20m, MacdWeight: 0.10m, VolumeWeight: 0.30m,
             SetupQualityWeight: 0.20m, RelativeStrengthWeight: 0.15m, PriceLevelWeight: 0.05m,
             ForwardSentimentWeight: 0.45m, ForwardFundamentalWeight: 0.30m, ForwardFilingWeight: 0.25m,
-            BuyThreshold: 6.5m, WatchThreshold: 5.5m, StopLossPctDefault: 0.06m));
+            GateThreshold: 6.5m, WatchThreshold: 5.5m, StopLossPctDefault: 0.06m));
 
         await act.Should().ThrowAsync<InvalidOperationException>();
     }

@@ -61,7 +61,7 @@ public static class BacktestEngine
 
     // Experiment knobs (CLI-settable) - defaults mirror production.
     public sealed record Options(
-        decimal BuyThreshold = 6.0m,                    // StrategyWeights default
+        decimal GateThreshold = 6.0m,                    // StrategyWeights default
         bool RegimeFilter = false,                      // only enter when SPY > its 200d SMA
         HashSet<SetupType>? ExcludedSetups = null,
         decimal? BreakoutQualityOverride = null,        // penalize (production: 0.9) instead of excluding
@@ -151,7 +151,7 @@ public static class BacktestEngine
                 {
                     if (open.Any(p => p.Symbol.Equals(symbol, StringComparison.OrdinalIgnoreCase))) continue;
                     var scored = await ScoreAsync(indicators, weights, bars, index, symbol, today, opts);
-                    if (scored is { } s && s.Conviction >= opts.BuyThreshold && s.Rsi <= 75m
+                    if (scored is { } s && s.Conviction >= opts.GateThreshold && s.Rsi <= 75m
                         && opts.ExcludedSetups?.Contains(s.Setup) != true)
                         candidates.Add((symbol, s.Conviction, s.Setup));
                 }
@@ -360,7 +360,7 @@ public static class BacktestEngine
     private static void Report(List<ClosedTrade> closed, List<decimal> equityCurve, Bar[] spy, List<DateTime> calendar, string dataDir, Options opts)
     {
         Console.WriteLine($"\n════════ BACKTEST RESULTS [{opts.Label}] ════════");
-        Console.WriteLine($"Config: threshold={opts.BuyThreshold} regimeFilter={opts.RegimeFilter} excluded=[{string.Join(",", opts.ExcludedSetups ?? [])}]");
+        Console.WriteLine($"Config: threshold={opts.GateThreshold} regimeFilter={opts.RegimeFilter} excluded=[{string.Join(",", opts.ExcludedSetups ?? [])}]");
         if (closed.Count == 0)
         {
             Console.WriteLine("No trades taken.");

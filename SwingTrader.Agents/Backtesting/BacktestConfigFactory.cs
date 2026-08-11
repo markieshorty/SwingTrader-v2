@@ -12,7 +12,7 @@ namespace SwingTrader.Agents.Backtesting;
 public static class BacktestConfigFactory
 {
     public static HistoricConfig ToConfig(
-        HistoricBacktestWeights w, decimal buyThreshold, bool excludeBreakout, bool autopauseDuringBear,
+        HistoricBacktestWeights w, decimal gateThreshold, bool excludeBreakout, bool autopauseDuringBear,
         AccountRiskProfile profile, IReadOnlyDictionary<SetupType, HistoricSetupTactics> accountTactics,
         HistoricTradingRules? rules = null) =>
         new(new StrategyWeights
@@ -20,7 +20,7 @@ public static class BacktestConfigFactory
             RsiWeight = w.Rsi, MacdWeight = w.Macd, VolumeWeight = w.Volume,
             SetupQualityWeight = w.SetupQuality, RelativeStrengthWeight = w.RelativeStrength,
             PriceLevelWeight = w.PriceLevel,
-        }, buyThreshold, excludeBreakout,
+        }, gateThreshold, excludeBreakout,
         // SPY-below-200dma entry pause approximates the live bear autopause.
         // Per-request/candidate (a Lab dial), not the profile setting - the
         // baseline candidate snapshots the profile value at queue time.

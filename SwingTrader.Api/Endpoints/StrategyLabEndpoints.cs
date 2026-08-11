@@ -56,7 +56,7 @@ public static class StrategyLabEndpoints
                     if (baseline is null)
                         return Results.BadRequest(new { message = "No active production weights found to compare against." });
                     historicRequest = new HistoricBacktestRequest(
-                        userWeights, req.BuyThreshold, req.ExcludeBreakout,
+                        userWeights, req.GateThreshold, req.ExcludeBreakout,
                         Mode: "ab",
                         Candidates:
                         [
@@ -64,7 +64,7 @@ public static class StrategyLabEndpoints
                             // the baseline replays with the account's live
                             // risk-profile rules, so the comparison isolates
                             // exactly what the user changed.
-                            new HistoricBacktestCandidate("Your dials", userWeights, req.BuyThreshold, req.ExcludeBreakout, req.AutopauseDuringBear, req.Rules),
+                            new HistoricBacktestCandidate("Your dials", userWeights, req.GateThreshold, req.ExcludeBreakout, req.AutopauseDuringBear, req.Rules),
                             baseline,
                         ],
                         // Regime frame for both columns; the per-regime autopause
@@ -76,7 +76,7 @@ public static class StrategyLabEndpoints
                 else
                 {
                     historicRequest = new HistoricBacktestRequest(
-                        userWeights, req.BuyThreshold, req.ExcludeBreakout,
+                        userWeights, req.GateThreshold, req.ExcludeBreakout,
                         AutopauseDuringBear: req.AutopauseDuringBear,
                         Rules: req.Rules,
                         RegimeMode: req.RegimeMode,
@@ -133,7 +133,7 @@ public static class StrategyLabEndpoints
             {
                 AccountId = ctx.AccountId,
                 RequestJson = JsonSerializer.Serialize(new HistoricBacktestRequest(
-                    baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout,
+                    baseline.Weights, baseline.GateThreshold, baseline.ExcludeBreakout,
                     Mode: "sweep",
                     Candidates: [baseline],
                     SearchRules: req?.SearchRules ?? false,
@@ -172,7 +172,7 @@ public static class StrategyLabEndpoints
             {
                 AccountId = ctx.AccountId,
                 RequestJson = JsonSerializer.Serialize(new HistoricBacktestRequest(
-                    baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout,
+                    baseline.Weights, baseline.GateThreshold, baseline.ExcludeBreakout,
                     Mode: "ablation",
                     Candidates: [baseline])),
             });
@@ -209,7 +209,7 @@ public static class StrategyLabEndpoints
             {
                 AccountId = ctx.AccountId,
                 RequestJson = JsonSerializer.Serialize(new HistoricBacktestRequest(
-                    baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout,
+                    baseline.Weights, baseline.GateThreshold, baseline.ExcludeBreakout,
                     Mode: "regime",
                     Candidates: [baseline])),
             });
@@ -250,11 +250,11 @@ public static class StrategyLabEndpoints
             {
                 AccountId = ctx.AccountId,
                 RequestJson = JsonSerializer.Serialize(new HistoricBacktestRequest(
-                    userWeights, req.BuyThreshold, req.ExcludeBreakout,
+                    userWeights, req.GateThreshold, req.ExcludeBreakout,
                     Mode: "validate",
                     Candidates:
                     [
-                        new HistoricBacktestCandidate("Your dials", userWeights, req.BuyThreshold, req.ExcludeBreakout, req.AutopauseDuringBear, req.Rules),
+                        new HistoricBacktestCandidate("Your dials", userWeights, req.GateThreshold, req.ExcludeBreakout, req.AutopauseDuringBear, req.Rules),
                         baseline,
                     ],
                     // Regime frame rides along so validation replays the SAME
@@ -295,7 +295,7 @@ public static class StrategyLabEndpoints
             {
                 AccountId = ctx.AccountId,
                 RequestJson = JsonSerializer.Serialize(new HistoricBacktestRequest(
-                    userWeights, req.BuyThreshold, req.ExcludeBreakout,
+                    userWeights, req.GateThreshold, req.ExcludeBreakout,
                     Mode: "montecarlo",
                     AutopauseDuringBear: req.AutopauseDuringBear,
                     Rules: req.Rules,
@@ -336,7 +336,7 @@ public static class StrategyLabEndpoints
             {
                 AccountId = ctx.AccountId,
                 RequestJson = JsonSerializer.Serialize(new HistoricBacktestRequest(
-                    baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout,
+                    baseline.Weights, baseline.GateThreshold, baseline.ExcludeBreakout,
                     Mode: "setupsearch",
                     Candidates: [baseline])),
             });
@@ -441,7 +441,7 @@ public static class StrategyLabEndpoints
                 ForwardSentimentWeight = current.ForwardSentimentWeight,
                 ForwardFundamentalWeight = current.ForwardFundamentalWeight,
                 ForwardFilingWeight = current.ForwardFilingWeight,
-                BuyThreshold = req.BuyThreshold,
+                GateThreshold = req.GateThreshold,
                 WatchThreshold = current.WatchThreshold,
                 StopLossPctDefault = current.StopLossPctDefault,
                 Source = "StrategyLab",
@@ -506,7 +506,7 @@ public static class StrategyLabEndpoints
                     canApply = cfg is not null,
                     label = cfg?.Label,
                     weights = cfg?.Weights,
-                    buyThreshold = cfg?.BuyThreshold,
+                    gateThreshold = cfg?.GateThreshold,
                     rules = cfg?.Rules,
                     // A run has risk overrides to apply if it changed the exit/
                     // tactic rules, flipped the bear-autopause vs its baseline,
@@ -595,7 +595,7 @@ public static class StrategyLabEndpoints
                     ForwardSentimentWeight = current.ForwardSentimentWeight,
                     ForwardFundamentalWeight = current.ForwardFundamentalWeight,
                     ForwardFilingWeight = current.ForwardFilingWeight,
-                    BuyThreshold = cfg.BuyThreshold, WatchThreshold = current.WatchThreshold,
+                    GateThreshold = cfg.GateThreshold, WatchThreshold = current.WatchThreshold,
                     StopLossPctDefault = current.StopLossPctDefault, Source = "StrategyLab",
                 };
                 await suggestionRepo.SupersedeAllPendingAsync(ctx.AccountId, account.TradingMode);
@@ -815,7 +815,7 @@ public static class StrategyLabEndpoints
             {
                 AccountId = ctx.AccountId,
                 RequestJson = JsonSerializer.Serialize(new HistoricBacktestRequest(
-                    baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout,
+                    baseline.Weights, baseline.GateThreshold, baseline.ExcludeBreakout,
                     Mode: "factor",
                     Candidates: [baseline],
                     DataFromYear: req?.DataFromYear)),
@@ -874,7 +874,7 @@ public static class StrategyLabEndpoints
             new HistoricBacktestWeights(
                 prod.RsiWeight, prod.MacdWeight, prod.VolumeWeight,
                 prod.SetupQualityWeight, prod.RelativeStrengthWeight, prod.PriceLevelWeight),
-            prod.BuyThreshold,
+            prod.GateThreshold,
             // Live no longer excludes Breakout setups (docs/setup-tactics-plan),
             // so the production baseline replays with them included.
             ExcludeBreakout: false,

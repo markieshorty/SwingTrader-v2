@@ -39,7 +39,7 @@ public class StrategyShareServiceTests
         RsiWeight = 0.20m, MacdWeight = 0.15m, VolumeWeight = 0.25m,
         SetupQualityWeight = 0.18m, RelativeStrengthWeight = 0.15m, PriceLevelWeight = 0.07m,
         ForwardSentimentWeight = 0.45m, ForwardFundamentalWeight = 0.30m, ForwardFilingWeight = 0.25m,
-        BuyThreshold = 6.2m, WatchThreshold = 5.1m, StopLossPctDefault = 0.055m,
+        GateThreshold = 6.2m, WatchThreshold = 5.1m, StopLossPctDefault = 0.055m,
     };
 
     private static List<AccountRiskProfile> SenderBooks() =>
@@ -55,7 +55,7 @@ public class StrategyShareServiceTests
                 EarningsGateDays = 2, MinHoldDays = 3, MomentumHealthThreshold = 0.5m,
                 StopLossPct = 0.05m, TargetPct = 0.08m,
                 SizingMode = PositionSizingMode.Flat, FlatPositionPct = 0.10m,
-                SizingAggressiveness = 0.1m * i, ForwardVetoFloor = 0.2m,
+                SizingAggressiveness = 0.1m * i, ForwardBuyThreshold = 0.2m,
             }).ToList();
 
     private static List<SetupTactics> SenderTactics() =>
@@ -77,7 +77,7 @@ public class StrategyShareServiceTests
 
         var snap = await _sut.BuildSnapshotAsync(SenderId);
 
-        snap.Weights.BuyThreshold.Should().Be(6.2m);
+        snap.Weights.GateThreshold.Should().Be(6.2m);
         snap.Weights.StopLossPctDefault.Should().Be(0.055m);
         snap.Weights.ForwardFilingWeight.Should().Be(0.25m);
         snap.RiskBooks.Should().HaveCount(5);
@@ -152,7 +152,7 @@ public class StrategyShareServiceTests
         createdSuggestion.Should().NotBeNull();
         createdSuggestion!.Origin.Should().Be(RefinementOrigin.SharedStrategy);
         var suggested = JsonSerializer.Deserialize<StrategyWeights>(createdSuggestion.SuggestedWeightsJson)!;
-        suggested.BuyThreshold.Should().Be(6.2m);
+        suggested.GateThreshold.Should().Be(6.2m);
         suggested.RsiWeight.Should().Be(0.20m);
         await _applyService.Received(1).ApplyAsync(RecipientId, 77, null, Arg.Any<CancellationToken>());
 

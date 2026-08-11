@@ -54,7 +54,7 @@ public class ScreenerUnionBacktestTests
             RsiWeight = 0.17m, MacdWeight = 0.09m, VolumeWeight = 0.21m,
             SetupQualityWeight = 0.12m, RelativeStrengthWeight = 0.2m, PriceLevelWeight = 0.21m,
         },
-        BuyThreshold: 0.1m,
+        GateThreshold: 0.1m,
         ExcludeBreakout: false,
         SimulateProbation: false,
         MinDollarVolume: 1m,

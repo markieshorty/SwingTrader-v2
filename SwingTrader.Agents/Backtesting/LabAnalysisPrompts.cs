@@ -22,16 +22,16 @@ public static class LabAnalysisPrompts
         "(5) Respond with ONLY a JSON object, no markdown fences, in this exact shape: " +
         "{\"analysis\": \"2-3 short paragraphs of plain-text analysis\", " +
         "\"suggestion\": {\"rsi\": 0.17, \"macd\": 0.09, \"volume\": 0.21, \"sentiment\": 0.16, \"setupQuality\": 0.12, " +
-        "\"relativeStrength\": 0.10, \"priceLevel\": 0.05, \"fundamentalMomentum\": 0.10, \"buyThreshold\": 6.0, " +
+        "\"relativeStrength\": 0.10, \"priceLevel\": 0.05, \"fundamentalMomentum\": 0.10, \"gateThreshold\": 6.0, " +
         "\"excludeBreakout\": true, \"rationale\": \"one sentence: what this tests and why\"} } " +
         "The 8 weight fields must sum to 1.0 (±0.01). If the data doesn't justify suggesting any change, set \"suggestion\" to null.";
 
     public static string DescribeConfig(
-        HistoricBacktestWeights w, decimal buyThreshold, bool excludeBreakout, bool? autopauseDuringBear = null) =>
+        HistoricBacktestWeights w, decimal gateThreshold, bool excludeBreakout, bool? autopauseDuringBear = null) =>
         $"RSI {w.Rsi:P0}, MACD {w.Macd:P0}, Volume {w.Volume:P0}, " +
         $"Setup quality {w.SetupQuality:P0}, Relative strength {w.RelativeStrength:P0}, " +
         $"Price level {w.PriceLevel:P0}; " +
-        $"Buy threshold {buyThreshold:0.0}; Breakout setups {(excludeBreakout ? "excluded" : "allowed")}" +
+        $"Gate threshold {gateThreshold:0.0}; Breakout setups {(excludeBreakout ? "excluded" : "allowed")}" +
         (autopauseDuringBear is null ? "" : $"; Bear-market entry pause (no entries while SPY < 200dma) {(autopauseDuringBear.Value ? "ON" : "OFF")}");
 
     public static string DescribeBuckets(string title, IEnumerable<BucketStat> rows) =>
@@ -39,11 +39,11 @@ public static class LabAnalysisPrompts
             $"  {r.Key}: {r.Count} trades, {r.WinRate:P0} win rate, {r.AvgReturnPct:F2}% avg raw return/trade"));
 
     public static string BuildHistoricRunPrompt(
-        HistoricBacktestWeights weights, decimal buyThreshold, bool excludeBreakout, bool autopauseDuringBear, HistoricResult r)
+        HistoricBacktestWeights weights, decimal gateThreshold, bool excludeBreakout, bool autopauseDuringBear, HistoricResult r)
     {
         var sb = new StringBuilder();
         sb.AppendLine("A historic-market backtest (S&P 1500 daily bars, full strategy replay) just completed.");
-        sb.AppendLine($"Config: {DescribeConfig(weights, buyThreshold, excludeBreakout, autopauseDuringBear)}.");
+        sb.AppendLine($"Config: {DescribeConfig(weights, gateThreshold, excludeBreakout, autopauseDuringBear)}.");
         sb.AppendLine($"Period {r.From:yyyy-MM-dd} to {r.To:yyyy-MM-dd}: {r.Trades} trades, {r.WinRate:P1} win rate, " +
                       $"avg win {r.AvgWinPct:F1}% / avg loss {r.AvgLossPct:F1}%, expectancy {r.ExpectancyPct:F2}%/trade (raw), " +
                       $"profit factor {r.ProfitFactor:F2}, total return {r.TotalReturnPct:F1}% (SPY buy-and-hold {r.SpyReturnPct:F1}%), " +
@@ -58,14 +58,14 @@ public static class LabAnalysisPrompts
     }
 
     public static string BuildOwnDataRunPrompt(
-        HistoricBacktestWeights weights, decimal buyThreshold, bool excludeBreakout,
+        HistoricBacktestWeights weights, decimal gateThreshold, bool excludeBreakout,
         int totalTrades, int kept, int droppedWinners, int droppedLosers,
         decimal actualAvgReturnPct, decimal simAvgReturnPct, decimal actualWinRate, decimal simWinRate)
     {
         var sb = new StringBuilder();
         sb.AppendLine("An own-history simulation just completed: the user's real closed trades were re-scored under " +
                       "candidate dials to see which would still have been taken.");
-        sb.AppendLine($"Config: {DescribeConfig(weights, buyThreshold, excludeBreakout)}.");
+        sb.AppendLine($"Config: {DescribeConfig(weights, gateThreshold, excludeBreakout)}.");
         sb.AppendLine($"Of {totalTrades} closed trades, these dials keep {kept} and drop {totalTrades - kept} " +
                       $"({droppedWinners} winners and {droppedLosers} losers among the dropped).");
         sb.AppendLine($"Average market-adjusted return/trade: {actualAvgReturnPct:F2}% actually vs {simAvgReturnPct:F2}% for the kept subset. " +
@@ -78,7 +78,7 @@ public static class LabAnalysisPrompts
     }
 
     public static string BuildAbComparisonPrompt(
-        IReadOnlyList<(string Label, HistoricBacktestWeights Weights, decimal BuyThreshold, bool ExcludeBreakout, bool AutopauseDuringBear, HistoricResult Result)> candidates)
+        IReadOnlyList<(string Label, HistoricBacktestWeights Weights, decimal GateThreshold, bool ExcludeBreakout, bool AutopauseDuringBear, HistoricResult Result)> candidates)
     {
         var sb = new StringBuilder();
         sb.AppendLine("A head-to-head historic backtest just completed: the configurations below were replayed over the " +
@@ -88,7 +88,7 @@ public static class LabAnalysisPrompts
         {
             var r = c.Result;
             sb.AppendLine($"--- {c.Label} ---");
-            sb.AppendLine($"Config: {DescribeConfig(c.Weights, c.BuyThreshold, c.ExcludeBreakout, c.AutopauseDuringBear)}.");
+            sb.AppendLine($"Config: {DescribeConfig(c.Weights, c.GateThreshold, c.ExcludeBreakout, c.AutopauseDuringBear)}.");
             sb.AppendLine($"Period {r.From:yyyy-MM-dd} to {r.To:yyyy-MM-dd}: {r.Trades} trades, {r.WinRate:P1} win rate, " +
                           $"avg win {r.AvgWinPct:F1}% / avg loss {r.AvgLossPct:F1}%, expectancy {r.ExpectancyPct:F2}%/trade (raw), " +
                           $"profit factor {r.ProfitFactor:F2}, total return {r.TotalReturnPct:F1}% (SPY buy-and-hold {r.SpyReturnPct:F1}%), " +
@@ -113,10 +113,10 @@ public static class LabAnalysisPrompts
         sb.AppendLine("An optimizer sweep just completed: multiple dial configurations were evaluated on a TRAIN window " +
                       "(the earlier ~70% of a multi-year historic backtest), and the best one was then validated on the " +
                       "HELD-OUT remainder it was never tuned on.");
-        sb.AppendLine($"Baseline (current production): {DescribeConfig(baseline.Weights, baseline.BuyThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear)} — " +
+        sb.AppendLine($"Baseline (current production): {DescribeConfig(baseline.Weights, baseline.GateThreshold, baseline.ExcludeBreakout, baseline.AutopauseDuringBear)} — " +
                       $"train window: {baseline.Trades} trades, {baseline.AdjustedExpectancyPct:F2}% market-adjusted expectancy/trade, " +
                       $"max drawdown {baseline.MaxDrawdownPct:F1}%.");
-        sb.AppendLine($"Winner ({winner.Label}): {DescribeConfig(winner.Weights, winner.BuyThreshold, winner.ExcludeBreakout, winner.AutopauseDuringBear)} — " +
+        sb.AppendLine($"Winner ({winner.Label}): {DescribeConfig(winner.Weights, winner.GateThreshold, winner.ExcludeBreakout, winner.AutopauseDuringBear)} — " +
                       $"train window: {winner.Trades} trades, {winner.AdjustedExpectancyPct:F2}% adjusted expectancy/trade, " +
                       $"max drawdown {winner.MaxDrawdownPct:F1}%.");
         sb.AppendLine($"Out-of-sample validation: winner's adjusted expectancy {validation.HoldoutAdjustedExpectancyPct:F2}%/trade on the " +
@@ -172,7 +172,7 @@ public static class LabAnalysisPrompts
                 {
                     suggestion = new LabSuggestedConfig(
                         weights,
-                        W("buyThreshold") is var bt && bt >= 3.0m && bt <= 9.0m ? bt : 6.0m,
+                        W("gateThreshold") is var bt && bt >= 3.0m && bt <= 9.0m ? bt : 6.0m,
                         s.TryGetProperty("excludeBreakout", out var eb) && eb.ValueKind is JsonValueKind.True or JsonValueKind.False
                             ? eb.GetBoolean() : true,
                         s.TryGetProperty("rationale", out var r) ? r.GetString() ?? "" : "");
@@ -205,4 +205,4 @@ public static class LabAnalysisPrompts
 // A structured "next config worth testing" extracted from Claude's analysis -
 // a hypothesis for the user to load and run, never something applied for them.
 public record LabSuggestedConfig(
-    HistoricBacktestWeights Weights, decimal BuyThreshold, bool ExcludeBreakout, string Rationale);
+    HistoricBacktestWeights Weights, decimal GateThreshold, bool ExcludeBreakout, string Rationale);

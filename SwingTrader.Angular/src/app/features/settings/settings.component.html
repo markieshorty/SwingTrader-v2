@@ -137,7 +137,7 @@
     <mat-card class="panel">
       <h3>Strategy Weights</h3>
       <p class="muted small">
-        Manual tuning knob for testing — e.g. lower the Buy Threshold to exercise the Execution path on demo
+        Manual tuning knob for testing — e.g. lower the Gate Threshold to exercise the Execution path on demo
         data. This edits the active weights row directly; it doesn't create a Refinement suggestion.
       </p>
 
@@ -192,13 +192,13 @@
         <h4>Thresholds &amp; Risk</h4>
         <div class="weights-grid">
           <mat-form-field appearance="outline" class="weight-field">
-            <mat-label>Buy Threshold</mat-label>
+            <mat-label>Gate Threshold</mat-label>
             <input
               matInput
               type="number"
               step="0.1"
-              [ngModel]="w.buyThreshold"
-              (ngModelChange)="updateWeightField('buyThreshold', $event)"
+              [ngModel]="w.gateThreshold"
+              (ngModelChange)="updateWeightField('gateThreshold', $event)"
             />
           </mat-form-field>
           <mat-form-field appearance="outline" class="weight-field">
@@ -480,15 +480,15 @@
           }
 
           <div class="slider-row">
-            <label>Forward Veto Floor: {{ draft.forwardVetoFloor | number: '1.1-1' }}</label>
+            <label>Forward Buy Threshold: {{ draft.forwardBuyThreshold | number: '1.1-1' }}</label>
             <mat-slider
-              [min]="profile.allowedRanges.forwardVetoFloor.min"
-              [max]="profile.allowedRanges.forwardVetoFloor.max"
+              [min]="profile.allowedRanges.forwardBuyThreshold.min"
+              [max]="profile.allowedRanges.forwardBuyThreshold.max"
               step="0.1"
               [disabled]="draft.autopauseTrading"
               discrete
             >
-              <input matSliderThumb [ngModel]="draft.forwardVetoFloor" (ngModelChange)="updateRiskDraftField('forwardVetoFloor', $event)" />
+              <input matSliderThumb [ngModel]="draft.forwardBuyThreshold" (ngModelChange)="updateRiskDraftField('forwardBuyThreshold', $event)" />
             </mat-slider>
           </div>
           <p class="muted small">
@@ -510,7 +510,7 @@
             </mat-slider>
           </div>
           <p class="muted small">
-            The mirror of the Buy threshold: a Buy whose conviction score is <strong>above</strong> the ceiling is
+            The mirror of the gate threshold: a Buy whose conviction score is <strong>above</strong> the ceiling is
             demoted to Watch — for oversold-recovery setups the most extreme scores can be falling knives. 0 = off.
             Prove it in the Lab (out-of-sample) before turning it on.
           </p>
@@ -543,10 +543,10 @@
           </div>
 
           <hr class="dial-divider" />
-          @if (profile.buyThreshold !== null) {
+          @if (profile.gateThreshold !== null) {
             <h4>Signal Thresholds</h4>
             <p class="muted small">
-              Buy threshold {{ profile.buyThreshold }} / Watch threshold {{ profile.watchThreshold }} — edit these
+              Gate threshold {{ profile.gateThreshold }} / Watch threshold {{ profile.watchThreshold }} — edit these
               on the Strategy tab.
             </p>
           }

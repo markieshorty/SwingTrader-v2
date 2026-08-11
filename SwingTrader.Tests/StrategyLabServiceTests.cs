@@ -57,7 +57,7 @@ public class StrategyLabServiceTests
         AddTrade(returnPct: -10m, allComponentScores: 0.4m); // dropped at threshold 6
 
         var response = await CreateSut().RunOwnDataAsync(1,
-            new StrategyLabRequest("own", EqualWeights(), BuyThreshold: 6.0m, ExcludeBreakout: false), default);
+            new StrategyLabRequest("own", EqualWeights(), GateThreshold: 6.0m, ExcludeBreakout: false), default);
 
         response!.Result.TotalClosedTrades.Should().Be(2);
         response.Result.TradesKept.Should().Be(1);
@@ -109,7 +109,7 @@ public class StrategyLabServiceTests
         var response = await CreateSut().RunOwnDataAsync(1,
             new StrategyLabRequest("own", EqualWeights(), 4.0m, ExcludeBreakout: false), default);
 
-        response!.Suggestions.Should().NotContain(s => s.BuyThreshold > 4.0m && s.SimAvgReturnPct <= response.Result.SimAvgReturnPct);
+        response!.Suggestions.Should().NotContain(s => s.GateThreshold > 4.0m && s.SimAvgReturnPct <= response.Result.SimAvgReturnPct);
         response.Suggestions.Should().OnlyContain(s => s.ImprovementPct > 0);
     }
 

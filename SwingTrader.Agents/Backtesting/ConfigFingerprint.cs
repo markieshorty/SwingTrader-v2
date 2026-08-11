@@ -44,7 +44,7 @@ public static class ConfigFingerprint
         var w = cfg.Weights;
         Num("rsi", w.RsiWeight); Num("macd", w.MacdWeight); Num("vol", w.VolumeWeight);
         Num("sq", w.SetupQualityWeight); Num("rs", w.RelativeStrengthWeight); Num("pl", w.PriceLevelWeight);
-        Num("buy", cfg.BuyThreshold);
+        Num("buy", cfg.GateThreshold);
         Num("regimeFilter", cfg.RegimeFilter);
         Num("maxOpen", cfg.MaxOpenPositions);
         Num("maxHold", cfg.MaxHoldDays);
