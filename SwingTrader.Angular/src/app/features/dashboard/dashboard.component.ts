@@ -88,6 +88,14 @@ export class DashboardComponent {
 
   // Combined buy-priority score (gate + forward, 0-20) - same formula as
   // ExecutionService ordering and the signals board.
+  // "—" when stage 2 never ran (skipped for a sub-Watch gate), "n/a" when it
+  // ran but degraded. Both are vetoed now: the forward score is the only
+  // selector, so an unscored signal must not be bought.
+  forwardLabel(s: SignalDto): string {
+    if (s.forwardScoreDegraded) return 'n/a';
+    return s.forwardScore === null ? '\u2014' : s.forwardScore.toFixed(1);
+  }
+
   combinedScore(s: SignalDto): number {
     const forward = s.forwardScoreDegraded || s.forwardScore === null ? 5 : s.forwardScore;
     return (s.convictionScore ?? 0) + forward;

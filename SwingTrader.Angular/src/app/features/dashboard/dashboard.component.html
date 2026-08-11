@@ -227,6 +227,12 @@
             <span class="symbol" [title]="signal.companyName || signal.symbol">{{ signal.symbol }}</span>
             <span class="setup-badge" [title]="signal.setupType">{{ setupAbbrev(signal.setupType) }}</span>
             @if (signal.gateScore !== null) {
+              <span class="fwd-chip" [class.pass]="!signal.wouldBeVetoed" [class.fail]="signal.wouldBeVetoed"
+                [title]="signal.wouldBeVetoed
+                  ? 'Below the forward floor (or unscored) — demoted to Watch. The forward score is what decides Buys.'
+                  : 'Clears the forward floor. This is the score that decides Buys.'">
+                Fwd {{ forwardLabel(signal) }}
+              </span>
               <span class="overall-score"
                 title="Combined buy-priority score (gate + forward, out of 20) — execution buys highest-combined first when slots are scarce.">
                 {{ combinedScore(signal) | number: '1.1-1' }}<span class="of">/20</span>

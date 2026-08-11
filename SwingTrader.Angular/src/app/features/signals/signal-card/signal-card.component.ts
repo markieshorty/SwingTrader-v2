@@ -14,6 +14,10 @@ import { ConvictionBarComponent } from '../../../shared/components/conviction-ba
       <span class="company">{{ signal().companyName }}</span>
       <span class="date">{{ signal().signalDate | date: 'dd/MM/yyyy' }}</span>
       <app-conviction-bar [signal]="signal()" />
+      <span class="fwd" [class.pass]="!signal().wouldBeVetoed" [class.fail]="signal().wouldBeVetoed"
+            [title]="forwardTitle()">
+        Fwd {{ forwardLabel() }}
+      </span>
       <span class="badge" [class]="signal().recommendation.toLowerCase()">{{
         signal().recommendation
       }}</span>
@@ -34,12 +38,12 @@ import { ConvictionBarComponent } from '../../../shared/components/conviction-ba
         </div>
         @if (signal().gateScore !== null) {
           <div class="scores funnel"
-            title="Funnel shadow (Phase F1): what the two-stage design WOULD decide - gate (technical entry) and forward (sizing) scores. Not driving recommendations yet.">
+            title="The FORWARD score decides Buys: a gate-passing signal below the account's forward floor is demoted to Watch. The gate is a quality filter (pass/fail), not a ranker - its bands have not predicted outcomes.">
             <span title="Combined buy-priority score (gate + forward, out of 20) - execution buys highest-combined first when slots are scarce.">
               <strong>{{ combinedScore().toFixed(1) }}</strong>/20
             </span>
+            <span><strong>Forward {{ forwardLabel() }}</strong>{{ signal().forwardScoreDegraded ? ' (degraded)' : '' }}</span>
             <span>Gate {{ signal().gateScore?.toFixed(1) }}{{ signal().wouldPassGate ? ' ✓' : '' }}</span>
-            <span>Forward {{ signal().forwardScore?.toFixed(1) }}{{ signal().forwardScoreDegraded ? ' (degraded)' : '' }}</span>
             @if (sizeMultiplier() !== null) {
               <span class="size-mult" [class.up]="sizeMultiplier()! > 1.005" [class.down]="sizeMultiplier()! < 0.995"
                 title="Prospective F2 size multiplier from the forward score and the active book's aggressiveness — execution recomputes this at buy time, then applies the cash/slot clamps.">
@@ -56,13 +60,27 @@ import { ConvictionBarComponent } from '../../../shared/components/conviction-ba
     `
       .signal-row {
         display: grid;
-        grid-template-columns: 80px 1fr 90px 160px 90px 24px;
+        grid-template-columns: 80px 1fr 90px 160px 76px 90px 24px;
         align-items: center;
         gap: 12px;
         padding: 10px 12px;
         border-bottom: 1px solid var(--st-border);
         cursor: pointer;
       }
+
+      .fwd {
+        font-size: 11.5px;
+        font-weight: 700;
+        text-align: center;
+        padding: 2px 6px;
+        border-radius: 999px;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        background: rgba(127, 127, 127, 0.12);
+        color: var(--st-muted);
+      }
+      .fwd.pass { background: rgba(34, 197, 94, 0.15); color: var(--st-green); }
+      .fwd.fail { background: rgba(239, 68, 68, 0.13); color: var(--st-red); }
 
       .size-mult {
         font-variant-numeric: tabular-nums;
@@ -155,5 +173,25 @@ export class SignalCardComponent {
     const tilt = Math.max(-1, Math.min(1, (s.forwardScore - 5) / 5));
     return 1 + dials.aggressiveness * dials.maxTilt * tilt;
   });
+  // "—" when stage 2 never ran (skipped for a sub-Watch gate), "n/a" when it
+  // ran but degraded. Both are now VETOED rather than waved through: the
+  // forward score is the only selector, so an unscored signal is the last
+  // thing that should be bought.
+  forwardLabel = computed<string>(() => {
+    const s = this.signal();
+    if (s.forwardScoreDegraded) return 'n/a';
+    return s.forwardScore === null ? '—' : s.forwardScore.toFixed(1);
+  });
+
+  forwardTitle = computed<string>(() => {
+    const s = this.signal();
+    if (s.wouldBeVetoed) {
+      return s.forwardScore === null || s.forwardScoreDegraded
+        ? 'No usable forward score, so this cannot be bought — the forward score is the only selector, and an unscored signal is vetoed rather than waved through.'
+        : `Forward ${s.forwardScore.toFixed(1)} is below the account's forward floor — demoted to Watch.`;
+    }
+    return `Forward ${this.forwardLabel()} clears the account's forward floor. This is the score that decides Buys.`;
+  });
+
   expanded = signal(false);
 }
