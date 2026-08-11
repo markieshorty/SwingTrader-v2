@@ -24,7 +24,7 @@ import { closedAtComparator, defaultColDef, formatTradeDate } from '../../shared
 import {
   RiskProfileDto,
   MarketStatusDto, ActivityLogDto, NextRunDto, PositionDto, SignalDto, TradeDto, TradingConfigDto,
-  AllocationDto, SleevePositionDto } from '../../core/models/dtos';
+ } from '../../core/models/dtos';
 import { readTabIndexFromRoute, writeTabIndexToRoute } from '../../shared/utils/tab-route.util';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { PulseOnChangeDirective } from '../../shared/directives/pulse-on-change.directive';
@@ -70,10 +70,6 @@ export class DashboardComponent {
   positions = toSignal(this.data.positions$, { initialValue: [] });
 
   // Non-swing sleeve holdings (docs/sleeves-plan): the SPY / Tilts tabs.
-  sleevePositions = signal<SleevePositionDto[]>([]);
-  allocation = signal<AllocationDto | null>(null);
-  corePositions = computed(() => this.sleevePositions().filter((p) => p.sleeve === 'SpyCore'));
-  factorPositions = computed(() => this.sleevePositions().filter((p) => p.sleeve === 'Factor'));
 
   // Setup names are long enough to crowd the card header out of shape -
   // show a short chip, full name on hover.
@@ -97,16 +93,6 @@ export class DashboardComponent {
     return (s.convictionScore ?? 0) + forward;
   }
 
-  loadSleeves(): void {
-    this.api.getSleevePositions().subscribe({
-      next: (rows) => this.sleevePositions.set(rows),
-      error: () => {},
-    });
-    this.api.getAllocation().subscribe({
-      next: (a) => this.allocation.set(a),
-      error: () => {},
-    });
-  }
   signals = toSignal(this.data.signals$, { initialValue: null });
   status = toSignal(this.data.status$, { initialValue: null });
 

@@ -170,15 +170,6 @@ export interface AdminUserOverviewDto {
   watchlists: AdminWatchlistDto[];
 }
 
-// Capital sleeves (docs/sleeves-plan P1): the per-account allocation pie.
-// Fractions (0-1); must sum to 1. Factor stays 0 until P2 ships.
-export interface AllocationDto {
-  spyCorePct: number;
-  factorTiltPct: number;
-  swingPct: number;
-  coreTicker: string;
-}
-
 // Small-cap filing events feed (docs/filing-events-plan P1).
 // "Almost trades": signals that cleared the gate AND the forward floor but
 // were not bought because the single position was already occupied, replayed
@@ -227,20 +218,6 @@ export interface FilingEventDto {
   fwdReturn5Pct: number | null;
   fwdReturn20Pct: number | null;
   spyReturn20Pct: number | null;
-}
-
-// Non-swing sleeve holdings (docs/sleeves-plan): SPY core / factor rows.
-export interface SleevePositionDto {
-  id: number;
-  symbol: string;
-  sleeve: 'SpyCore' | 'Factor';
-  quantity: number;
-  averagePrice: number;
-  currentPrice: number;
-  // T212's own P&L in account currency; null when the broker was unreachable.
-  unrealisedPnl: number | null;
-  openedAt: string;
-  notes: string | null;
 }
 
 export interface ActivityLogDto {

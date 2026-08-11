@@ -58,8 +58,6 @@ import {
   WatchlistDto,
   WatchlistItemDto,
   WatchlistType,
-  AllocationDto,
-  SleevePositionDto,
   FilingEventDto,
   AlmostTradesResultDto,
 } from '../models/dtos';
@@ -262,18 +260,6 @@ export class ApiService {
 
   getFilingEvents(days = 14): Observable<FilingEventDto[]> {
     return this.http.get<FilingEventDto[]>(`${this.baseUrl}/api/intelligence/filing-events`, { params: { days } });
-  }
-
-  getSleevePositions(): Observable<SleevePositionDto[]> {
-    return this.http.get<SleevePositionDto[]>(`${this.baseUrl}/api/positions/sleeves`);
-  }
-
-  getAllocation(): Observable<AllocationDto> {
-    return this.http.get<AllocationDto>(`${this.baseUrl}/api/allocation`);
-  }
-
-  updateAllocation(allocation: AllocationDto): Observable<AllocationDto> {
-    return this.http.put<AllocationDto>(`${this.baseUrl}/api/allocation`, allocation);
   }
 
   cancelBacktestRun(id: number): Observable<void> {
