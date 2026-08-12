@@ -17,7 +17,22 @@ public interface ISyntheticReplayService
     Task<SyntheticReplayResult> GenerateAsync(
         int accountId, DateOnly from, DateOnly? to = null,
         int? symbolLimit = null, CancellationToken ct = default);
+
+    // Re-walk an existing population under different exit dials.
+    Task<SyntheticReplayResult> ReplayVariantAsync(
+        int accountId, string baselineVersion, SetupDials dials, string label,
+        CancellationToken ct = default);
+
+    // Sweep many dial sets over one population, reporting aggregates only.
+    Task<List<VariantStats>> SweepAsync(
+        string baselineVersion, IReadOnlyList<(string Label, SetupDials Dials)> variants,
+        CancellationToken ct = default);
 }
+
+public sealed record VariantStats(
+    string Label, int Closed, int StillOpen,
+    decimal WinPct, decimal AvgWin, decimal AvgLoss, decimal ExpectancyPct,
+    decimal ControlExpectancyPct, decimal SetupExpectancyPct);
 
 // Runs setup detection back over the candle store and replays every signal it
 // finds (docs/scoring-engine-plan SPEC §3, "synthetic population generator").
@@ -49,6 +64,179 @@ public class SyntheticReplayService(
     private const int SymbolChunk = 25;
 
     private const int WriteBatch = 500;
+
+    // Sweeps many dial sets over one detected population WITHOUT persisting
+    // anything. A 16-point grid would otherwise write half a million rows into a
+    // database already at 1.6 GB of a 2 GB cap - and the rows would be
+    // write-once-read-once, since only the aggregate matters when choosing
+    // dials. Bars are loaded once per symbol and every variant walks them.
+    public async Task<List<VariantStats>> SweepAsync(
+        string baselineVersion, IReadOnlyList<(string Label, SetupDials Dials)> variants,
+        CancellationToken ct = default)
+    {
+        var dataset = await candles.GetDatasetVersionAsync(ct);
+        var baseline = await outcomes.GetForCalibrationAsync(baselineVersion, dataset, ct);
+        if (baseline.Count == 0) return [];
+
+        // label -> running totals. Control and setups tracked separately: the
+        // question is never just "is this profitable" but "does it beat buying
+        // on a random day", and one number cannot answer that.
+        var acc = variants.ToDictionary(v => v.Label, _ => new Accumulator(), StringComparer.Ordinal);
+
+        var bySymbol = baseline.GroupBy(o => o.Symbol, StringComparer.OrdinalIgnoreCase).ToList();
+        var earliest = baseline.Min(o => o.SignalDate).AddDays(-10);
+
+        foreach (var chunk in bySymbol.Chunk(SymbolChunk))
+        {
+            ct.ThrowIfCancellationRequested();
+            var barsBySymbol = await candles.GetForSymbolsAsync(
+                chunk.Select(g => g.Key).ToList(), earliest, ct);
+
+            foreach (var group in chunk)
+            {
+                if (!barsBySymbol.TryGetValue(group.Key, out var bars) || bars.Count == 0) continue;
+
+                foreach (var row in group)
+                {
+                    var isControl = row.SetupType == SetupType.Unknown;
+                    foreach (var (label, d) in variants)
+                    {
+                        var walk = CounterfactualReplay.Run(
+                            bars, row.SignalDate, d.StopLossPct, d.TargetPct,
+                            d.GuideHoldDays, d.TrailingActivationPct, d.TrailingDistancePct);
+                        acc[label].Add(walk, isControl);
+                    }
+                }
+            }
+        }
+
+        return variants.Select(v => acc[v.Label].ToStats(v.Label)).ToList();
+    }
+
+    private sealed class Accumulator
+    {
+        private int _closed, _open, _wins;
+        private decimal _winSum, _lossSum, _all;
+        private int _controlN, _setupN;
+        private decimal _controlSum, _setupSum;
+
+        public void Add(CounterfactualReplay.Outcome? o, bool isControl)
+        {
+            // StillOpen never reached an exit, so its number is a
+            // mark-to-market rather than a result - counted, not scored.
+            if (o is null || o.StillOpen) { _open++; return; }
+
+            _closed++;
+            _all += o.ReturnPct;
+            if (o.ReturnPct > 0) { _wins++; _winSum += o.ReturnPct; } else { _lossSum += o.ReturnPct; }
+            if (isControl) { _controlN++; _controlSum += o.ReturnPct; }
+            else { _setupN++; _setupSum += o.ReturnPct; }
+        }
+
+        public VariantStats ToStats(string label)
+        {
+            static decimal Div(decimal a, int b) => b == 0 ? 0m : Math.Round(a / b, 2);
+            return new VariantStats(
+                label, _closed, _open,
+                _closed == 0 ? 0m : Math.Round(100m * _wins / _closed, 2),
+                Div(_winSum, _wins), Div(_lossSum, _closed - _wins), Div(_all, _closed),
+                Div(_controlSum, _controlN), Div(_setupSum, _setupN));
+        }
+    }
+
+    // Re-runs the exit walk over an ALREADY-DETECTED population under new dials.
+    //
+    // Detection is the expensive half (an indicator calculation per symbol-day)
+    // and it does not depend on the exit rules at all, so a dial sweep has no
+    // business repeating it. The rule-free path statistics are copied across
+    // untouched for the same reason: they are properties of the price, and a
+    // different stop cannot change what the price did.
+    //
+    // Each variant lands under its own DialSetVersion, so variants never mix.
+    public async Task<SyntheticReplayResult> ReplayVariantAsync(
+        int accountId, string baselineVersion, SetupDials dials, string label,
+        CancellationToken ct = default)
+    {
+        var dataset = await candles.GetDatasetVersionAsync(ct);
+        var baseline = await outcomes.GetForCalibrationAsync(baselineVersion, dataset, ct);
+        if (baseline.Count == 0)
+        {
+            return new SyntheticReplayResult(label, dataset, 0, 0, 0, 0,
+                $"No baseline rows for {baselineVersion} / dataset {dataset}.");
+        }
+
+        var bySymbol = baseline.GroupBy(o => o.Symbol, StringComparer.OrdinalIgnoreCase).ToList();
+        var earliest = baseline.Min(o => o.SignalDate).AddDays(-10);
+
+        int written = 0;
+        var batch = new List<ShadowOutcome>(WriteBatch);
+
+        foreach (var chunk in bySymbol.Chunk(SymbolChunk))
+        {
+            ct.ThrowIfCancellationRequested();
+            var barsBySymbol = await candles.GetForSymbolsAsync(
+                chunk.Select(g => g.Key).ToList(), earliest, ct);
+
+            foreach (var group in chunk)
+            {
+                if (!barsBySymbol.TryGetValue(group.Key, out var bars) || bars.Count == 0) continue;
+
+                foreach (var row in group)
+                {
+                    var walk = CounterfactualReplay.Run(
+                        bars, row.SignalDate, dials.StopLossPct, dials.TargetPct,
+                        dials.GuideHoldDays, dials.TrailingActivationPct, dials.TrailingDistancePct);
+
+                    batch.Add(new ShadowOutcome
+                    {
+                        AccountId = accountId,
+                        Source = ShadowSource.Synthetic,
+                        Symbol = row.Symbol,
+                        SignalDate = row.SignalDate,
+                        SetupType = row.SetupType,
+                        Membership = row.Membership,
+                        DialSetVersion = label,
+                        DatasetVersion = dataset,
+                        StopLossPct = dials.StopLossPct,
+                        TargetPct = dials.TargetPct,
+                        GuideHoldDays = dials.GuideHoldDays,
+                        TrailingActivationPct = dials.TrailingActivationPct,
+                        TrailingDistancePct = dials.TrailingDistancePct,
+                        EntryDate = row.EntryDate,
+                        EntryPrice = row.EntryPrice,
+                        ExitDate = walk?.ExitDate,
+                        ExitReason = walk?.ExitReason,
+                        ReturnPct = walk?.ReturnPct,
+                        TradingDaysHeld = walk?.TradingDaysHeld,
+                        StillOpen = walk?.StillOpen ?? false,
+                        // Rule-free: unchanged by definition.
+                        Fwd5Pct = row.Fwd5Pct,
+                        Fwd20Pct = row.Fwd20Pct,
+                        Fwd40Pct = row.Fwd40Pct,
+                        MaxFavorablePct = row.MaxFavorablePct,
+                        MaxAdversePct = row.MaxAdversePct,
+                        HitPlus25Within40 = row.HitPlus25Within40,
+                        HitMinus25Within40 = row.HitMinus25Within40,
+                        SectorFwd40Pct = row.SectorFwd40Pct,
+                        SectorMoveAtSignalPct = row.SectorMoveAtSignalPct,
+                    });
+
+                    if (batch.Count >= WriteBatch)
+                    {
+                        written += await outcomes.UpsertRangeAsync(batch, ct);
+                        batch.Clear();
+                    }
+                }
+            }
+        }
+
+        if (batch.Count > 0) written += await outcomes.UpsertRangeAsync(batch, ct);
+
+        var summary = $"Variant [{label} / dataset {dataset}] from {baselineVersion}: " +
+                      $"{baseline.Count} baseline rows, {written} re-walked.";
+        logger.LogInformation("{Summary}", summary);
+        return new SyntheticReplayResult(label, dataset, bySymbol.Count, 0, baseline.Count, written, summary);
+    }
 
     public async Task<SyntheticReplayResult> GenerateAsync(
         int accountId, DateOnly from, DateOnly? to = null,

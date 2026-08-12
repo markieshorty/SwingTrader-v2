@@ -82,6 +82,9 @@ switch (command)
         var accountId = int.Parse(Arg("--account", "440"));
         var from = DateOnly.Parse(Arg("--from", "2026-01-01"));
         var force = Array.IndexOf(args, "--force") >= 0;
+        var variantOf = Arg("--variants-of", "");
+        if (variantOf.Length > 0)
+            return await SwingTrader.Backtest.ShadowReplayRunner.RunVariantsAsync(accountId, variantOf, cts.Token);
         var synthetic = Array.IndexOf(args, "--synthetic") >= 0;
         if (synthetic)
         {
