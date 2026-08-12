@@ -480,7 +480,61 @@ assertions encode behaviour worth preserving in the new shape.
 
 ## 10. Open — resolve during P0, not by assumption
 
+### P0 first results — 12 Aug 2026
+
+Population: 32,447 synthetic outcomes, 477 symbols, 2024-01 → 2026-06, complete
+40-bar horizons. **Control cohort** = deterministic 1-in-40 sample of days where
+no setup fired, same symbols/window/horizon/definition.
+
+| Cohort | N | Hit +25% | Hit −25% | Up/down | AvgFwd40 |
+|---|---|---|---|---|---|
+| VolumeSpike | 1,977 | 18.56% | 11.33% | 1.64 | 2.51% |
+| Breakout | 5,029 | 16.74% | 9.68% | 1.73 | 2.51% |
+| OversoldRecovery | 2,937 | 15.53% | 9.02% | 1.72 | 2.51% |
+| **CONTROL (random days)** | **3,594** | **15.14%** | **7.85%** | **1.93** | **3.89%** |
+| MomentumContinuation | 18,583 | 12.77% | 8.10% | 1.58 | 2.65% |
+
+**The current detector selects volatility, not edge.** Two setups beat the
+control on raw hit rate, but the control has the **best average forward return**,
+the **lowest downside rate**, and the **best up/down ratio** of any cohort.
+MomentumContinuation — 57% of all detections — is worse than random on every
+measure.
+
+This raises the bar for G1: *beating an unconditional base rate is not enough
+when a random day in the screened universe already clears it.* The gate should
+be stated against this control, not against the 7.37% figure quoted earlier
+(measured on a different definition, period and universe — and not comparable).
+
+**Caveats.** One regime (2024–26, control avg +3.89%/40d ≈ a strong market);
+477 of 800 attempted symbols (323 skipped for insufficient history, so some
+survivorship residue remains); membership is boolean, since graded detection is
+P1.
+
+---
+
 **Q7: Is a sector-wide dip a better or worse reversion candidate?**
+
+**Partially answered, and against the earlier hint.** A falling benchmark into
+the signal is *better*, not worse:
+
+| Benchmark move into signal | N | Hit +25% | AvgFwd40 |
+|---|---|---|---|
+| fell >3% | 878 | 15.03% | 3.45% |
+| fell 1–3% | 4,289 | 13.27% | 2.74% |
+| flat | 11,923 | 13.93% | 2.38% |
+| rose >1% | 11,436 | 14.66% | 2.92% |
+
+For `OversoldRecovery` specifically the split is clearer — **17.21% hit / +3.36%
+when the benchmark is falling** (n=773) against **14.93% / +2.20% when it is
+flat or up** (n=2,164). The six-of-nine-losers pattern from the 14 live trades
+does not survive contact with 2,937 observations.
+
+⚠️ **This is a MARKET-relative result, not sector-relative.** `SectorEtfMap`
+resolves only 22 hand-mapped symbols; everything else falls back to SPY because
+`GetEtf()` is called without a GICS sector. True sector-relative measurement
+needs `IMarketUniverseService`'s sector column wired into the replay — until
+then Q7 is answered for "the market", not "its sector", and the veto's sign
+should not be set from it.
 
 Intuition says a name that fell only because its sector fell carries no
 company-specific information and should revert. **The measured evidence says the
