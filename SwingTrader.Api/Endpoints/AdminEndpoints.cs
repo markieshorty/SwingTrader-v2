@@ -289,6 +289,37 @@ public static class AdminEndpoints
         adminGroup.MapGet("/monitoring/insights/{kind}", async (string kind, MonitoringService monitoring, CancellationToken ct) =>
             Results.Ok(await monitoring.GetInsightsDetailAsync(kind, ct)));
 
+        // Shadow replay backfill (docs/scoring-engine-plan SPEC P0). Produces an
+        // outcome for every scored signal, not just the handful that were
+        // filled - the population the per-setup calibration, the dial sweeps and
+        // the pre-cutover validation gates all depend on.
+        //
+        // Admin-scoped and server-side because the candle store is on Blob: the
+        // replay cannot run from a workstation. Idempotent - re-running skips
+        // rows already stored for the same dial set and dataset version, so a
+        // partial or failed run is simply repeated.
+        adminGroup.MapPost("/shadow-replay/{accountId:int}", async (
+            int accountId,
+            SwingTrader.Agents.Scorecard.IShadowReplayService replay,
+            IAdminLogRepository adminLog,
+            HttpContext http,
+            DateOnly? from,
+            bool? force,
+            CancellationToken ct) =>
+        {
+            // Default covers the full live signal history (first signal 13 Jul
+            // 2026) with room to spare.
+            var since = from ?? new DateOnly(2026, 1, 1);
+            var result = await replay.ReplayLiveSignalsAsync(accountId, since, force ?? false, ct);
+            await adminLog.LogAsync(new AdminActionLog
+            {
+                AdminUserId = AdminId(http),
+                TargetUserId = accountId.ToString(),
+                Action = "ShadowReplay",
+            }, ct);
+            return Results.Ok(result);
+        });
+
         return app;
     }
 

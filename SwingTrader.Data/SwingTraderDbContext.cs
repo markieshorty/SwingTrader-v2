@@ -33,6 +33,7 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
     public DbSet<BacktestRun> BacktestRuns => Set<BacktestRun>();
     public DbSet<AccountAllocation> AccountAllocations => Set<AccountAllocation>();
     public DbSet<FilingEvent> FilingEvents => Set<FilingEvent>();
+    public DbSet<ShadowOutcome> ShadowOutcomes => Set<ShadowOutcome>();
     public DbSet<StrategyShare> StrategyShares => Set<StrategyShare>();
     public DbSet<SentimentArticle> SentimentArticles => Set<SentimentArticle>();
     public DbSet<SentimentDailyScore> SentimentDailyScores => Set<SentimentDailyScore>();
@@ -93,6 +94,50 @@ public class SwingTraderDbContext(DbContextOptions<SwingTraderDbContext> options
             e.Property(x => x.FwdReturn5Pct).HasPrecision(9, 4);
             e.Property(x => x.FwdReturn20Pct).HasPrecision(9, 4);
             e.Property(x => x.SpyReturn20Pct).HasPrecision(9, 4);
+        });
+
+        modelBuilder.Entity<ShadowOutcome>(e =>
+        {
+            // Idempotent replay: re-running the same signal under the same dials
+            // and the same candle dataset updates one row rather than growing
+            // the table. DatasetVersion is part of the key because a
+            // survivorship backfill changes the bars underneath an outcome, and
+            // a run silently mixing pre- and post-backfill rows looks
+            // consistent while being anything but.
+            e.HasIndex(x => new { x.Symbol, x.SignalDate, x.SetupType, x.DialSetVersion, x.DatasetVersion })
+                .IsUnique()
+                .HasDatabaseName("IX_ShadowOutcomes_Identity");
+            // The calibration reads by setup and by dial set; the scorecard
+            // reads by date.
+            e.HasIndex(x => new { x.DialSetVersion, x.SetupType });
+            e.HasIndex(x => x.SignalDate);
+
+            e.Property(x => x.Symbol).IsRequired().HasMaxLength(12);
+            e.Property(x => x.DialSetVersion).IsRequired().HasMaxLength(64);
+            e.Property(x => x.ExitReason).HasMaxLength(20);
+
+            // Six decimals on prices, not the scaffolded two. The candle store
+            // is 43% delisted names, and a company on its way out trades in
+            // pennies before it goes - at 2dp those round to zero and take
+            // every percentage derived from them with it.
+            e.Property(x => x.EntryPrice).HasPrecision(18, 6);
+            e.Property(x => x.ExitPrice).HasPrecision(18, 6);
+
+            e.Property(x => x.Membership).HasPrecision(5, 4);
+            foreach (var pct in new[] { nameof(ShadowOutcome.ReturnPct),
+                nameof(ShadowOutcome.Fwd5Pct), nameof(ShadowOutcome.Fwd20Pct),
+                nameof(ShadowOutcome.Fwd40Pct), nameof(ShadowOutcome.MaxFavorablePct),
+                nameof(ShadowOutcome.MaxAdversePct), nameof(ShadowOutcome.SectorFwd40Pct),
+                nameof(ShadowOutcome.SectorMoveAtSignalPct) })
+            {
+                e.Property(pct).HasPrecision(12, 4);
+            }
+            foreach (var dial in new[] { nameof(ShadowOutcome.StopLossPct),
+                nameof(ShadowOutcome.TargetPct), nameof(ShadowOutcome.TrailingActivationPct),
+                nameof(ShadowOutcome.TrailingDistancePct) })
+            {
+                e.Property(dial).HasPrecision(9, 4);
+            }
         });
 
         modelBuilder.Entity<SymbolLifecycle>(e =>

@@ -224,6 +224,7 @@ builder.Services.AddScoped<AccountViewService>();
 builder.Services.AddScoped<StrategyLabService>();
 builder.Services.AddScoped<SwingTrader.Agents.Scorecard.IForwardScorecardService, SwingTrader.Agents.Scorecard.ForwardScorecardService>();
 builder.Services.AddScoped<SwingTrader.Agents.Scorecard.IAlmostTradesService, SwingTrader.Agents.Scorecard.AlmostTradesService>();
+builder.Services.AddScoped<SwingTrader.Agents.Scorecard.IShadowReplayService, SwingTrader.Agents.Scorecard.ShadowReplayService>();
 builder.Services.Configure<ClaudeConfig>(builder.Configuration.GetSection(ClaudeConfig.SectionName));
 builder.Services.Configure<FilingDeltaConfig>(builder.Configuration.GetSection(FilingDeltaConfig.SectionName));
 // The "Close early" endpoint reuses the Monitor worker's exit path (market
@@ -246,6 +247,7 @@ builder.Services.AddScoped<SwingTrader.Infrastructure.Storage.BlobHistoricalCand
 builder.Services.AddScoped<HistoricalCandleRepository>();
 builder.Services.AddScoped<IAccountAllocationRepository, AccountAllocationRepository>();
 builder.Services.AddScoped<IFilingEventRepository, FilingEventRepository>();
+builder.Services.AddScoped<IShadowOutcomeRepository, ShadowOutcomeRepository>();
 if (builder.Configuration.GetValue<bool>("HistoricStore:UseBlob"))
     builder.Services.AddScoped<IHistoricalCandleRepository>(sp =>
         sp.GetRequiredService<SwingTrader.Infrastructure.Storage.BlobHistoricalCandleRepository>());
