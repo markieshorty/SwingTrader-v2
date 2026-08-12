@@ -510,6 +510,62 @@ be stated against this control, not against the 7.37% figure quoted earlier
 survivorship residue remains); membership is boolean, since graded detection is
 P1.
 
+### Exit rules — the leak, and the first actionable finding
+
+A 17-point stop × target grid over the same population. **The live dials are the
+worst configuration tested.**
+
+| | t25 | t40 | t60 | t100 |
+|---|---|---|---|---|
+| stop 20% | 2.44 | 2.66 | **2.85** | 2.85 |
+| stop 15% | 1.96 | 2.13 | 2.31 | 2.28 |
+| stop 10% | 1.39 | 1.49 | 1.61 | 1.61 |
+| stop 8% | 1.02 | 1.08 | 1.15 | 1.16 |
+| **LIVE (s15/t25/trail)** | **1.55** | | | |
+
+The trailing stop buys a nicer win rate (56.3% vs 50.1%) and pays for it in
+expectancy, converting would-be target hits into +7.15% exits. "Arm late at 25%"
+produces numbers *identical* to "no trail" — it only ever fires on trades that
+were already winning.
+
+**Sub-period stability** (the check that matters, since the grid is in-sample):
+
+| Period | LIVE | no-trail | no-trail + t50 |
+|---|---|---|---|
+| 2024 H1 | 3.09 | 3.62 | 4.09 |
+| 2024 H2 | 0.87 | 0.87 | 0.75 |
+| **2025 H1 (losing)** | **−1.18** | **−0.60** | **−0.11** |
+| 2025 H2 | 2.84 | 3.29 | 3.83 |
+| 2026 H1 | 2.37 | 3.15 | 3.07 |
+
+Removing the trail wins in 4 of 5 periods **and loses less in the losing one**,
+which is the first evidence it is not purely a rising-market artefact.
+
+⚠️ **The stop width is NOT established.** Wider stops always flatter a rising
+market — their whole benefit is avoiding being shaken out of trades that recover.
+The grid is in-sample with no holdout, does not measure drawdown or ruin (a 20%
+stop is a materially bigger single hit on one position), and 2024–26 contains no
+true bear market. The 2019–2026 population covers the 2020 crash and the 2022
+drawdown; the stop question waits for it.
+
+### The finding that survives every cut
+
+**The control beats the setups in all 17 dial configurations and in all 5
+sub-periods**, including the losing one. The gap widens as dials improve
+(0.90 → 1.00pp), so better exits help random days *more* than they help the
+setups.
+
+| Period | Control | Setups | Gap |
+|---|---|---|---|
+| 2024 H1 | 4.90 | 3.45 | −1.45 |
+| 2024 H2 | 2.12 | 0.72 | −1.40 |
+| 2025 H1 | −0.48 | −0.61 | −0.13 |
+| 2025 H2 | 3.58 | 3.26 | −0.32 |
+| 2026 H1 | 3.95 | 3.06 | −0.89 |
+
+The gap is smallest in the losing period — a hint the setups may have defensive
+value that the 2020 and 2022 drawdowns will test.
+
 ---
 
 **Q7: Is a sector-wide dip a better or worse reversion candidate?**
