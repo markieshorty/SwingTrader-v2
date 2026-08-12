@@ -40,6 +40,7 @@ import {
   SetupTacticsRowDto,
   MarketRegimeName,
   StrategyWeightsDto,
+  SweepCandidateDto,
   SweepResultDto,
   FactorResultDto,
   ValidateResultDto,
@@ -1432,6 +1433,22 @@ export class StrategyLabComponent implements OnDestroy {
     return this.diffRows(this.ranWeights, this.ranThreshold, this.ranExcludeBreakout, s.weights, s.gateThreshold, s.excludeBreakout);
   }
 
+  // Stored run results are replayed to the client RAW (the API hands back the
+  // saved ResultJson as a JsonElement, it is never re-serialised through the
+  // current record). So a run saved before the 11 Aug 2026 rename still carries
+  // `buyThreshold`, and reading `gateThreshold` off it yields undefined - which
+  // crashed the whole history panel on `.toFixed`. Old results are immutable
+  // history, so the READER accepts both names.
+  private gateOf(c: SweepCandidateDto): number | null {
+    const legacy = (c as unknown as { buyThreshold?: number }).buyThreshold;
+    return c.gateThreshold ?? legacy ?? null;
+  }
+
+  private gateLabel(c: SweepCandidateDto): string {
+    const g = this.gateOf(c);
+    return g == null ? '—' : g.toFixed(1);
+  }
+
   sweepDiffRows(sweep: SweepResultDto): DiffRow[] {
     // Weights + gate threshold.
     const rows: DiffRow[] = this.dials.map((d) => ({
@@ -1442,9 +1459,9 @@ export class StrategyLabComponent implements OnDestroy {
     }));
     rows.push({
       label: 'Gate threshold',
-      oldVal: sweep.baseline.gateThreshold.toFixed(1),
-      newVal: sweep.winner.gateThreshold.toFixed(1),
-      changed: sweep.baseline.gateThreshold !== sweep.winner.gateThreshold,
+      oldVal: this.gateLabel(sweep.baseline),
+      newVal: this.gateLabel(sweep.winner),
+      changed: this.gateOf(sweep.baseline) !== this.gateOf(sweep.winner),
     });
     // Full excluded-setups list, not just the legacy breakout bool - a winner
     // that drops VolumeSpike must show it or the diff lies about what won.
@@ -1529,7 +1546,9 @@ export class StrategyLabComponent implements OnDestroy {
     // Carlo would test a different config than the one that won.
     this.resetRules();
     this.weights.set({ ...w.weights });
-    this.gateThreshold.set(w.gateThreshold);
+    // Keep the form's current threshold when an old run has none, rather than
+    // pushing undefined into the signal and blanking the slider.
+    this.gateThreshold.set(this.gateOf(w) ?? this.gateThreshold());
     this.excludedSetups.set(w.excludedSetups ?? (w.excludeBreakout ? ['Breakout'] : []));
     this.autopauseBear.set(w.autopauseDuringBear);
 
@@ -1682,7 +1701,7 @@ export class StrategyLabComponent implements OnDestroy {
         data: {
           title: 'Apply winner to production',
           message:
-            `This sets your LIVE strategy weights and Gate threshold (${w.gateThreshold.toFixed(1)}) to the optimizer's ` +
+            `This sets your LIVE strategy weights and Gate threshold (${this.gateLabel(w)}) to the optimizer's ` +
             `winning configuration ("${w.label}").${riskNote}${extra} Are you sure?`,
           cancelLabel: 'Cancel',
           confirmLabel: 'Apply to production',

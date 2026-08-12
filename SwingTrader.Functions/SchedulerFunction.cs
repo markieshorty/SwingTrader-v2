@@ -103,18 +103,6 @@ public class SchedulerFunction(
                         new ResearchJobMessage(account.Id, Guid.NewGuid().ToString("N"), today, nowEt, "ResearchMidday"), ct);
                 }
 
-                // Small-cap filing events (docs/filing-events-plan P1): after
-                // the close, when the day's 8-K flow has landed. PLATFORM-level
-                // - one market-wide scan serves every account, so it is keyed
-                // to the system account and enqueued ONCE. (Shipped 6 Aug
-                // inside this per-account loop, which fired one scan per
-                // account: 3x the EDGAR load, 3x the Claude spend, and three
-                // concurrent scans racing SEC's rate limiter.)
-                if (isWeekday && account.Id == SwingTrader.Data.SwingTraderDbContext.SystemAccountId
-                    && InWindow(nowEt, 18, 0, 23, 55))
-                    await TryEnqueueAsync(account.Id, "FilingEvents", today, "candlesync-jobs",
-                        new CandleSyncJobMessage(account.Id, Guid.NewGuid().ToString("N"), "filingevents"), ct);
-
                 if (nowEt.DayOfWeek == DayOfWeek.Sunday && InWindow(nowEt, 20, 0, 23, 55))
                     await TryEnqueueAsync(account.Id, "Watchlist", today, "watchlist-jobs",
                         new WatchlistJobMessage(account.Id, Guid.NewGuid().ToString("N"), nowEt), ct);
@@ -226,6 +214,31 @@ public class SchedulerFunction(
         catch (Exception ex)
         {
             logger.LogError(ex, "Scheduler failed to enqueue the daily filing sync");
+        }
+
+        // Small-cap filing events (docs/filing-events-plan P1): after the close,
+        // when the day's 8-K flow has landed. PLATFORM-level - one market-wide
+        // scan serves every account, so it is keyed to the system account and
+        // enqueued ONCE.
+        //
+        // Shipped 6 Aug inside the per-account loop, which fired one scan per
+        // account: 3x the EDGAR load, 3x the Claude spend, three concurrent
+        // scans racing SEC's rate limiter. The 6 Aug fix added an
+        // `account.Id == SystemAccountId` guard but left the call in the loop -
+        // and ListActiveAsync returns only the TRADING accounts, so the guard
+        // was never true and the scan never ran once (zero FilingEvents job
+        // rows between 6 and 12 Aug). Sits out here with FilingSync now, where
+        // "platform-level" is structural rather than a condition that has to
+        // hold.
+        try
+        {
+            if (isWeekday && InWindow(nowEt, 18, 0, 23, 55))
+                await TryEnqueueAsync(Data.SwingTraderDbContext.SystemAccountId, "FilingEvents", today, "candlesync-jobs",
+                    new CandleSyncJobMessage(Data.SwingTraderDbContext.SystemAccountId, Guid.NewGuid().ToString("N"), "filingevents"), ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Scheduler failed to enqueue the daily filing event scan");
         }
     }
 

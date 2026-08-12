@@ -77,6 +77,37 @@ public class BacktestApplyExtractorTests
         config.Rules.Should().BeNull(); // sweep never overrides risk rules
     }
 
+    // Runs saved before the 11 Aug 2026 BuyThreshold -> GateThreshold rename are
+    // replayed to the extractor verbatim (the API hands back the stored
+    // ResultJson untouched), so the legacy name must still resolve. Before this,
+    // the missing-property path answered 0m and applying an old run would have
+    // set the LIVE gate threshold to zero - every signal passing the gate, with
+    // no error raised anywhere.
+    [Fact]
+    public void Extract_Sweep_LegacyBuyThreshold_StillResolves()
+    {
+        var resultJson =
+            "{\"mode\":\"sweep\",\"winner\":{\"label\":\"cand-7\",\"weights\":" + Weights + ",\"buyThreshold\":6.5," +
+            "\"trades\":140,\"winRate\":57,\"expectancyPct\":0.6,\"profitFactor\":1.4,\"maxDrawdownPct\":7,\"totalReturnPct\":18}}";
+
+        var config = BacktestApplyExtractor.Extract("sweep", "{\"Mode\":\"sweep\"}", resultJson);
+
+        config.Should().NotBeNull();
+        config!.GateThreshold.Should().Be(6.5m);
+    }
+
+    // Neither name present: refuse rather than invent a threshold. Returning a
+    // config here would apply a fabricated number to production.
+    [Fact]
+    public void Extract_Sweep_NoThresholdUnderEitherName_ReturnsNull()
+    {
+        var resultJson =
+            "{\"mode\":\"sweep\",\"winner\":{\"label\":\"cand-7\",\"weights\":" + Weights + "," +
+            "\"trades\":140,\"winRate\":57,\"expectancyPct\":0.6,\"profitFactor\":1.4,\"maxDrawdownPct\":7,\"totalReturnPct\":18}}";
+
+        BacktestApplyExtractor.Extract("sweep", "{\"Mode\":\"sweep\"}", resultJson).Should().BeNull();
+    }
+
     [Fact]
     public void Extract_Sweep_RuleWinner_CarriesItsRules()
     {

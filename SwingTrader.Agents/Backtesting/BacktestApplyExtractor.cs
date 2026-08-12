@@ -59,8 +59,9 @@ public static class BacktestApplyExtractor
                 // Baseline autopause = the OTHER candidate (production side).
                 var userAutopause = Bool(c0, "autopauseDuringBear", true);
                 var baselineAutopause = cands.GetArrayLength() > 1 ? Bool(cands[1], "autopauseDuringBear", true) : userAutopause;
+                if (GateThreshold(c0) is not { } abGate) return null;
                 return new ApplyableConfig(
-                    Label(c0, "A"), weights, Decimal(c0, "gateThreshold"), rules, ParseStats(result),
+                    Label(c0, "A"), weights, abGate, rules, ParseStats(result),
                     userAutopause, userAutopause != baselineAutopause,
                     ExtractRegimeOverrides(requestJson));
             }
@@ -76,8 +77,9 @@ public static class BacktestApplyExtractor
                     : null;
                 var winnerAutopause = Bool(winner, "autopauseDuringBear", true);
                 var baselineAutopause = ExtractSweepBaselineAutopause(requestJson, winnerAutopause);
+                if (GateThreshold(winner) is not { } sweepGate) return null;
                 return new ApplyableConfig(
-                    Label(winner, "Winner"), weights, Decimal(winner, "gateThreshold"), rules, ParseStats(winner),
+                    Label(winner, "Winner"), weights, sweepGate, rules, ParseStats(winner),
                     winnerAutopause, winnerAutopause != baselineAutopause);
             }
 
@@ -154,6 +156,20 @@ public static class BacktestApplyExtractor
 
     private static decimal Decimal(JsonElement e, string name) =>
         TryProp(e, name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDecimal() : 0m;
+
+    // Stored run JSON is immutable history and is replayed verbatim - it is
+    // never re-serialised through the current record - so a run saved before
+    // the 11 Aug 2026 rename still carries "buyThreshold". Decimal() answers 0
+    // for a missing property, which would have applied a gate threshold of ZERO
+    // to production (every signal passes the gate) with no error anywhere.
+    // Returns null when NEITHER name is present, so the caller can refuse
+    // rather than invent a threshold.
+    private static decimal? GateThreshold(JsonElement e)
+    {
+        if (TryProp(e, "gateThreshold", out var g) && g.ValueKind == JsonValueKind.Number) return g.GetDecimal();
+        if (TryProp(e, "buyThreshold", out var b) && b.ValueKind == JsonValueKind.Number) return b.GetDecimal();
+        return null;
+    }
 
     private static bool Bool(JsonElement e, string name, bool fallback) =>
         TryProp(e, name, out var v) && (v.ValueKind == JsonValueKind.True || v.ValueKind == JsonValueKind.False)

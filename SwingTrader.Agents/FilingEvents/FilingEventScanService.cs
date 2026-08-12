@@ -119,16 +119,24 @@ public class FilingEventScanService(
         IClaudeClient? claude = null;
         ITiingoClient? tiingo = null;
         int routed = 0, classified = 0, failed = 0, tooBig = 0, shells = 0, capUnknown = 0;
+        // Every drop stage is counted, not just the last three. The 7 Aug runs
+        // reported "70 scanned, 0 routed, 18 too big, 5 shells" - leaving 47
+        // filings unaccounted for, and no way to tell whether the feed came up
+        // empty because the item codes are too narrow, because the liquid
+        // universe already covers these names, or because the float cap is too
+        // low. A funnel you cannot see the middle of cannot be tuned.
+        int noTicker = 0, alreadyCovered = 0, notRouted = 0, duplicate = 0;
+        var lidHit = false;
         foreach (var filing in filings)
         {
             ct.ThrowIfCancellationRequested();
-            if (classified >= cfg.MaxClassificationsPerDay) break; // hard token-budget lid
+            if (classified >= cfg.MaxClassificationsPerDay) { lidHit = true; break; } // hard token-budget lid
 
-            if (filing.Ticker.Length == 0) continue;               // funds/co-filers
-            if (covered.Contains(filing.Ticker)) continue;         // certainly covered
+            if (filing.Ticker.Length == 0) { noTicker++; continue; }       // funds/co-filers
+            if (covered.Contains(filing.Ticker)) { alreadyCovered++; continue; } // certainly covered
             var eventType = RouteEventType(filing.Items, cfg.RoutedItemCodes);
-            if (eventType is null) continue;
-            if (await events.ExistsAsync(filing.AccessionNumber, ct)) continue;
+            if (eventType is null) { notRouted++; continue; }
+            if (await events.ExistsAsync(filing.AccessionNumber, ct)) { duplicate++; continue; }
 
             // Blank-cheque shells (SIC 6770) pass a float test comfortably but
             // their 8-K flow is deal mechanics, not company fundamentals. The
@@ -214,9 +222,12 @@ public class FilingEventScanService(
 
         var summaryText =
             $"Filing events {date:yyyy-MM-dd}: {filings.Count} 8-Ks scanned, {routed} routed " +
-            $"({classified} classified, {failed} failed); excluded {tooBig} above the " +
-            $"${cfg.MaxPublicFloatUsd / 1_000_000m:N0}M float cap, {shells} shells, {capUnknown} unknown float; " +
-            $"repriced {repriced}.";
+            $"({classified} classified, {failed} failed); dropped {noTicker} no ticker, " +
+            $"{alreadyCovered} already in the liquid universe, {notRouted} non-routable items, " +
+            $"{duplicate} already seen, {shells} shells, {capUnknown} unknown float, " +
+            $"{tooBig} above the ${cfg.MaxPublicFloatUsd / 1_000_000m:N0}M float cap" +
+            (lidHit ? $"; STOPPED at the {cfg.MaxClassificationsPerDay}/day classification lid" : "") +
+            $"; repriced {repriced}.";
         logger.LogInformation("{Summary}", summaryText);
         return new FilingEventScanResult(true, filings.Count, routed, classified, failed, summaryText);
     }
