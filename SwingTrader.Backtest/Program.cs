@@ -74,7 +74,28 @@ switch (command)
         return await BacktestEngine.RunAsync(dataDir, opts, cts.Token);
     }
 
+    case "replay":
+    {
+        // Shadow-replay backfill (docs/scoring-engine-plan P0). Needs both
+        // stores, so unlike the other commands it reads live Azure SQL and
+        // Blob rather than the local CSVs.
+        var accountId = int.Parse(Arg("--account", "440"));
+        var from = DateOnly.Parse(Arg("--from", "2026-01-01"));
+        var force = Array.IndexOf(args, "--force") >= 0;
+        var synthetic = Array.IndexOf(args, "--synthetic") >= 0;
+        if (synthetic)
+        {
+            var toArg = Arg("--to", "");
+            var limitArg = Arg("--symbols", "");
+            return await SwingTrader.Backtest.ShadowReplayRunner.RunSyntheticAsync(
+                accountId, from,
+                toArg.Length > 0 ? DateOnly.Parse(toArg) : null,
+                limitArg.Length > 0 ? int.Parse(limitArg) : null, cts.Token);
+        }
+        return await SwingTrader.Backtest.ShadowReplayRunner.RunAsync(accountId, from, force, cts.Token);
+    }
+
     default:
-        Console.WriteLine("Usage: SwingTrader.Backtest <download|run> [options]");
+        Console.WriteLine("Usage: SwingTrader.Backtest <download|run|replay> [options]");
         return 2;
 }

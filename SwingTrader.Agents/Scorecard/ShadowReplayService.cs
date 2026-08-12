@@ -72,8 +72,14 @@ public class ShadowReplayService(
         // hint points against intuition: six of nine loose-setup losers were
         // semis or EV names in a sector drawdown, and they kept falling.
         var earliest = todo.Count > 0 ? todo.Min(s => s.SignalDate).AddDays(-10) : from;
+
+        // ETFs need a real lookback, not the 10 days the forward walk needs.
+        // SectorMoveAtSignal reads 6 TRADING bars back, and 10 calendar days is
+        // barely 6 trading days before a holiday or a long weekend eats it -
+        // which is why the first run populated the column on only 58 of 730
+        // rows. 60 days is comfortably clear of that.
         var etfBars = await candles.GetForSymbolsAsync(
-            Infrastructure.Market.SectorEtfMap.AllEtfs().ToList(), earliest, ct);
+            Infrastructure.Market.SectorEtfMap.AllEtfs().ToList(), earliest.AddDays(-60), ct);
 
         foreach (var chunk in todo.Select(s => s.Symbol).Distinct(StringComparer.OrdinalIgnoreCase)
                      .Chunk(SymbolChunk))
