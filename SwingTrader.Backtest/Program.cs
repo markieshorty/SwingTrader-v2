@@ -93,7 +93,8 @@ switch (command)
             return await SwingTrader.Backtest.ShadowReplayRunner.RunSyntheticAsync(
                 accountId, from,
                 toArg.Length > 0 ? DateOnly.Parse(toArg) : null,
-                limitArg.Length > 0 ? int.Parse(limitArg) : null, cts.Token);
+                limitArg.Length > 0 ? int.Parse(limitArg) : null,
+                Array.IndexOf(args, "--graded") >= 0, cts.Token);
         }
         return await SwingTrader.Backtest.ShadowReplayRunner.RunAsync(accountId, from, force, cts.Token);
     }

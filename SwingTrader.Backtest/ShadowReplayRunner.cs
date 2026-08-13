@@ -24,15 +24,15 @@ namespace SwingTrader.Backtest;
 public static class ShadowReplayRunner
 {
     public static Task<int> RunAsync(int accountId, DateOnly from, bool force, CancellationToken ct) =>
-        RunCoreAsync(accountId, from, force, synthetic: false, to: null, symbolLimit: null, variant: null, ct);
+        RunCoreAsync(accountId, from, force, synthetic: false, to: null, symbolLimit: null, variant: null, graded: false, ct);
 
-    public static Task<int> RunSyntheticAsync(int accountId, DateOnly from, DateOnly? to, int? symbolLimit, CancellationToken ct) =>
-        RunCoreAsync(accountId, from, force: false, synthetic: true, to, symbolLimit, variant: null, ct);
+    public static Task<int> RunSyntheticAsync(int accountId, DateOnly from, DateOnly? to, int? symbolLimit, bool graded, CancellationToken ct) =>
+        RunCoreAsync(accountId, from, force: false, synthetic: true, to, symbolLimit, variant: null, graded, ct);
 
     public static Task<int> RunVariantsAsync(int accountId, string baselineVersion, CancellationToken ct) =>
-        RunCoreAsync(accountId, default, false, false, null, null, baselineVersion, ct);
+        RunCoreAsync(accountId, default, false, false, null, null, baselineVersion, graded: false, ct);
 
-    private static async Task<int> RunCoreAsync(int accountId, DateOnly from, bool force, bool synthetic, DateOnly? to, int? symbolLimit, string? variant, CancellationToken ct)
+    private static async Task<int> RunCoreAsync(int accountId, DateOnly from, bool force, bool synthetic, DateOnly? to, int? symbolLimit, string? variant, bool graded, CancellationToken ct)
     {
         var sql = Environment.GetEnvironmentVariable("SWINGTRADER_SQL_CONN");
         var blob = Environment.GetEnvironmentVariable("SWINGTRADER_BLOB_CONN");
@@ -51,9 +51,15 @@ public static class ShadowReplayRunner
             }).Build());
 
         services.AddDbContext<SwingTraderDbContext>(o => o.UseSqlServer(sql, s =>
+        {
             // The Basic tier (5 DTU) times out the default 30s on reads this
             // size; the same 300s ceiling the candle loads use.
-            s.CommandTimeout(300)));
+            s.CommandTimeout(300);
+            // A multi-hour run WILL meet a transient disconnect - the first
+            // overnight attempt died after 1,210 symbols on a TCP-level drop and
+            // lost nothing but the remaining work, which was still hours of it.
+            s.EnableRetryOnFailure(maxRetryCount: 6, maxRetryDelay: TimeSpan.FromSeconds(30), null);
+        }));
 
         services.AddScoped<ISignalRepository, SignalRepository>();
         services.AddScoped<IShadowOutcomeRepository, ShadowOutcomeRepository>();
@@ -104,8 +110,10 @@ public static class ShadowReplayRunner
         if (synthetic)
         {
             var gen = scope.ServiceProvider.GetRequiredService<ISyntheticReplayService>();
-            Console.WriteLine($"Synthetic replay from {from:yyyy-MM-dd} (limit={symbolLimit?.ToString() ?? "none"})...");
-            var syn = await gen.GenerateAsync(accountId, from, to, symbolLimit, ct);
+            var engine = graded ? "GRADED (v2)" : "legacy";
+            Console.WriteLine($"Synthetic replay [{engine}] from {from:yyyy-MM-dd} (limit={symbolLimit?.ToString() ?? "none"})...");
+            var syn = await gen.GenerateAsync(accountId, from, to, symbolLimit,
+                graded ? SwingTrader.Agents.Research.SetupDialsV2.Legacy : null, ct);
             Console.WriteLine();
             Console.WriteLine(syn.Summary);
             return 0;

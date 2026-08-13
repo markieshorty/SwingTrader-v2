@@ -16,7 +16,8 @@ public interface ISyntheticReplayService
 {
     Task<SyntheticReplayResult> GenerateAsync(
         int accountId, DateOnly from, DateOnly? to = null,
-        int? symbolLimit = null, CancellationToken ct = default);
+        int? symbolLimit = null, SetupDialsV2? gradedDials = null,
+        CancellationToken ct = default);
 
     // Re-walk an existing population under different exit dials.
     Task<SyntheticReplayResult> ReplayVariantAsync(
@@ -240,12 +241,18 @@ public class SyntheticReplayService(
 
     public async Task<SyntheticReplayResult> GenerateAsync(
         int accountId, DateOnly from, DateOnly? to = null,
-        int? symbolLimit = null, CancellationToken ct = default)
+        int? symbolLimit = null, SetupDialsV2? gradedDials = null,
+        CancellationToken ct = default)
     {
         var profile = await riskProfiles.GetAsync(accountId, ct);
         var tactics = await setupTactics.GetAllAsync(accountId, ct);
         var dials = DialSet.FromAccount(tactics, profile);
         var dataset = await candles.GetDatasetVersionAsync(ct);
+
+        // Engine identity rides in the version. The two detectors produce
+        // DIFFERENT populations, so mixing their rows under one label would
+        // silently pool two incomparable things.
+        var version = gradedDials is null ? dials.Version : "v2-" + dials.Version;
 
         var latestDates = await candles.GetLatestDatesAsync(ct);
         var storeMax = latestDates.Count > 0 ? latestDates.Values.Max() : from;
@@ -307,11 +314,29 @@ public class SyntheticReplayService(
                         new CandleData(b.Date.ToDateTime(TimeOnly.MinValue),
                             b.Open, b.High, b.Low, b.Close, (long)b.Volume)).ToList());
 
-                    var setup = SetupDetector.Detect(ind, window.Select(b => new StockCandle
+                    var stockCandles = window.Select(b => new StockCandle
                     {
                         Symbol = symbol, Timestamp = b.Date.ToDateTime(TimeOnly.MinValue),
                         Open = b.Open, High = b.High, Low = b.Low, Close = b.Close, Volume = (long)b.Volume,
-                    }).ToList());
+                    }).ToList();
+
+                    SetupType setup;
+                    decimal? membership = null;
+                    if (gradedDials is null)
+                    {
+                        setup = SetupDetector.Detect(ind, stockCandles);
+                    }
+                    else
+                    {
+                        // A name may hold membership in several setups now. The
+                        // strongest is taken for the outcome row; per-setup rows
+                        // arrive with calibration (SPEC P2), which is what needs
+                        // them separated.
+                        var graded = GradedSetupDetector.Detect(ind, stockCandles, gradedDials);
+                        var (best, m) = graded.Best();
+                        setup = best;
+                        membership = m > 0m ? m : null;
+                    }
 
                     // TrendFollowing is excluded because it is being demoted to a
                     // context factor (SPEC D5) - it fires on a state rather than
@@ -355,8 +380,8 @@ public class SyntheticReplayService(
                         Symbol = symbol,
                         SignalDate = date,
                         SetupType = setup,
-                        Membership = null, // graded membership arrives with SPEC P1
-                        DialSetVersion = dials.Version,
+                        Membership = membership,
+                        DialSetVersion = version,
                         DatasetVersion = dataset,
                         StopLossPct = d.StopLossPct,
                         TargetPct = d.TargetPct,
@@ -397,13 +422,13 @@ public class SyntheticReplayService(
         if (batch.Count > 0) written += await outcomes.UpsertRangeAsync(batch, ct);
 
         var summary =
-            $"Synthetic replay [{dials.Version} / dataset {dataset}] {from:yyyy-MM-dd}..{lastUsable:yyyy-MM-dd}: " +
+            $"Synthetic replay [{version} / dataset {dataset}] {from:yyyy-MM-dd}..{lastUsable:yyyy-MM-dd}: " +
             $"{processed} symbols processed, {skipped} skipped (insufficient bars), " +
             $"{found} signals detected, {written} outcomes written.";
         logger.LogInformation("{Summary}", summary);
 
         return new SyntheticReplayResult(
-            dials.Version, dataset, processed, skipped, found, written, summary);
+            version, dataset, processed, skipped, found, written, summary);
 
         // Deterministic 1-in-40 sample. Deliberately NOT Random: a re-run must
         // select the same control days, or the upsert writes a different cohort
